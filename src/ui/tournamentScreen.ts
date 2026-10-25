@@ -16,7 +16,8 @@ import {
   type Tournament,
 } from '../sim/tournament'
 import { showGame } from './gameScreen'
-import { el, playerCard } from './playerCard'
+import { el } from './playerCard'
+import { USER_COLOR, applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
 import { clearTournament, saveTournament } from './save'
 import { showRosterEditor } from './setupScreen'
 import { POSITION_NAMES, T } from './strings'
@@ -173,10 +174,11 @@ function showDraft(root: HTMLElement, t: Tournament, go: (t: Tournament) => void
 
     const list = el('div', 'card-list')
     t.draftOptions.forEach((p, i) => {
-      const card = playerCard(p, p.role === 'pitcher' ? T.pitcher : T.batter, {
-        selected: chosen === i,
-        reveal: firstRender ? 'flip' : 'none',
-      })
+      // 選秀卡：大頭像、總評、能力值長條與特性說明
+      const card = el('button', 'draft-card')
+      applyCardState(card, p, { selected: chosen === i, reveal: firstRender })
+      card.append(playerHeader(p, p.role === 'pitcher' ? T.pitcher : T.batter, USER_COLOR), ratingBars(p))
+      if (p.traits.length) card.append(traitList(p))
       card.onclick = () => {
         chosen = chosen === i ? null : i
         render()
@@ -200,10 +202,13 @@ function showDraft(root: HTMLElement, t: Tournament, go: (t: Tournament) => void
               ...r.lineup.map((s, i): [Slot, string] => [{ kind: 'lineup', index: i }, `${i + 1} ${POSITION_NAMES[s.position]}`]),
               ...r.bench.map((_, i): [Slot, string] => [{ kind: 'bench', index: i }, T.bench]),
             ]
-      const releaseList = el('div', 'card-list release')
+      const releaseList = el('div', 'mini-grid release')
       for (const [slot, label] of slots) {
-        const card = playerCard(getSlot(r, slot), label)
-        card.onclick = () => go(draftPick(t, chosen!, slot))
+        const card = miniCard(getSlot(r, slot), label, USER_COLOR)
+        card.onclick = () => {
+          toast(T.drafted(pick.name, getSlot(r, slot).name))
+          go(draftPick(t, chosen!, slot))
+        }
         releaseList.append(card)
       }
       sec.append(releaseList)
@@ -212,7 +217,10 @@ function showDraft(root: HTMLElement, t: Tournament, go: (t: Tournament) => void
 
     const bar = el('div', 'action-bar')
     const skip = el('button', 'btn btn-ghost', T.skipDraft)
-    skip.onclick = () => go(skipDraft(t))
+    skip.onclick = () => {
+      toast(T.draftSkipped)
+      go(skipDraft(t))
+    }
     bar.append(skip)
     screen.append(bar)
     root.append(screen)

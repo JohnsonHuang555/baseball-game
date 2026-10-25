@@ -54,21 +54,37 @@ describe('整場比賽', () => {
     expect(steps).toBeLessThan(340)
   })
 
-  it('決策點一場大約 3～12 次，不會一直打斷', () => {
+  function decisionsPerGame(frequency: 'few' | 'many'): number {
     let total = 0
-    for (let i = 1; i <= 100; i++) {
+    for (let i = 1; i <= 200; i++) {
       const g = new Game(setup(i))
       let lastPa = -1
       while (!g.over) {
-        if (g.paIndex !== lastPa && g.decisionReasons().includes('leverage')) {
+        if (g.paIndex !== lastPa && g.decisionReasons(frequency).includes('leverage')) {
           total++
           lastPa = g.paIndex
         }
         g.step()
       }
     }
-    expect(total / 100).toBeGreaterThan(3)
-    expect(total / 100).toBeLessThan(12)
+    return total / 200
+  }
+
+  it('決策點預設（少）一場大約 1～3 次，而且只出現在第 7 局以後', () => {
+    const few = decisionsPerGame('few')
+    expect(few).toBeGreaterThan(0.8)
+    expect(few).toBeLessThan(3.5)
+    const g = new Game(setup(1))
+    while (!g.over) {
+      if (g.decisionReasons('few').includes('leverage')) expect(g.inning).toBeGreaterThanOrEqual(7)
+      g.step()
+    }
+  })
+
+  it('決策點設成「多」時大約 3～8 次', () => {
+    const many = decisionsPerGame('many')
+    expect(many).toBeGreaterThan(3)
+    expect(many).toBeLessThan(8)
   })
 
   it('九局下主隊領先就提早結束，不打下半局', () => {

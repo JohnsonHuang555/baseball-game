@@ -23,6 +23,29 @@ export function saveTeamName(name: string | null): void {
   }
 }
 
+const PROMPT_KEY = 'dice-baseball.decisionPrompts'
+
+/** 決策提示頻率：多、少、只提醒換投、關閉 */
+export type PromptLevel = 'many' | 'few' | 'pitcher' | 'off'
+export const PROMPT_LEVELS: readonly PromptLevel[] = ['few', 'many', 'pitcher', 'off']
+
+export function loadPromptLevel(): PromptLevel {
+  try {
+    const v = localStorage.getItem(PROMPT_KEY) as PromptLevel | null
+    return v && PROMPT_LEVELS.includes(v) ? v : 'few'
+  } catch {
+    return 'few'
+  }
+}
+
+export function savePromptLevel(level: PromptLevel): void {
+  try {
+    localStorage.setItem(PROMPT_KEY, level)
+  } catch {
+    // 記不住就用預設
+  }
+}
+
 /** 新的隊伍套用玩家記住的隊名 */
 export function withSavedName(setup: PregameSetup): PregameSetup {
   const name = loadTeamName()

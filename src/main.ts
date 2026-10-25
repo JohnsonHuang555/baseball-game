@@ -1,4 +1,5 @@
 import './style.css'
+import './visual.css'
 import { Game } from './sim/game'
 import { generateTeam, teamName } from './sim/generate'
 import { Rng } from './sim/rng'

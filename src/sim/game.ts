@@ -194,6 +194,29 @@ export class Game {
     return team.pitchCount >= this.fatigueLimit(team.pitcher)
   }
 
+  /** 剩餘體力比例：1 是滿的，0 代表已經到疲勞門檻 */
+  staminaLeft(team: TeamState): number {
+    return clamp(1 - team.pitchCount / this.fatigueLimit(team.pitcher), 0, 1)
+  }
+
+  /** 盜壘成功率。penalty 用於打帶跑揮空時 */
+  stealChance(from: 1 | 2, penalty = 0): number {
+    const runner = this.bases[from - 1]
+    if (!runner) return 0
+    return clamp(0.55 + (runner.ratings.speed - 5) * 0.06 + (hasTrait(runner, 'stealer') ? 0.15 : 0) - penalty, 0.1, 0.95)
+  }
+
+  /** 犧牲觸擊成功率 */
+  buntChance(): number {
+    const b = this.batter
+    return clamp(0.65 + (hasTrait(b, 'bunter') ? 0.2 : 0) + (b.ratings.contact - 5) * 0.02, 0.3, 0.95)
+  }
+
+  /** 第 7 局以後、比分差 1 分以內、得點圈有人：真正能左右勝負的時刻 */
+  isCrunchTime(): boolean {
+    return this.inning >= 7 && Math.abs(this.score.home - this.score.away) <= 1 && !!(this.bases[1] || this.bases[2])
+  }
+
   /** 槓桿指數：越高代表這個時刻越能左右勝負 */
   leverage(): number {
     const diff = Math.abs(this.score.home - this.score.away)
@@ -210,13 +233,17 @@ export class Game {
     return li
   }
 
-  /** 打席開始時，是否該暫停讓教練下指令（只看狀態，不影響模擬） */
-  decisionReasons(): DecisionReason[] {
+  /**
+   * 打席開始時，是否該暫停讓教練下指令（只看狀態，不影響模擬）。
+   * few：只在後段比分接近、得點圈有人時；many：槓桿指數夠高就暫停
+   */
+  decisionReasons(frequency: 'few' | 'many' = 'few'): DecisionReason[] {
     if (this.over || this.balls + this.strikes > 0) return []
     const reasons: DecisionReason[] = []
     const userFielding = this.fieldingSide === this.userSide
     if (userFielding && this.isFatigued(this.fielding) && this.fielding.relievers.length > 0) reasons.push('fatigue')
-    if (this.leverage() >= LEVERAGE_THRESHOLD && this.availableTactics().length > 0) reasons.push('leverage')
+    const pivotal = frequency === 'few' ? this.isCrunchTime() : this.leverage() >= LEVERAGE_THRESHOLD
+    if (pivotal && this.availableTactics().length > 0) reasons.push('leverage')
     return reasons
   }
 
@@ -564,7 +591,7 @@ export class Game {
     const rng = this.rng
     const batter = this.batter
     this.fielding.pitchCount++
-    const successP = clamp(0.65 + (hasTrait(batter, 'bunter') ? 0.2 : 0) + (batter.ratings.contact - 5) * 0.02, 0.3, 0.95)
+    const successP = this.buntChance()
     const ball = this.makeBall('ground', rng.range(-30, 30), rng.range(20, 45))
     if (rng.chance(successP)) {
       const [b1, b2, b3] = this.bases
@@ -590,12 +617,7 @@ export class Game {
   private steal(from: 1 | 2, penalty: number): GameEvent[] {
     const runner = this.bases[from - 1]
     if (!runner || this.bases[from]) return []
-    const successP = clamp(
-      0.55 + (runner.ratings.speed - 5) * 0.06 + (hasTrait(runner, 'stealer') ? 0.15 : 0) - penalty,
-      0.1,
-      0.95,
-    )
-    const success = this.rng.chance(successP)
+    const success = this.rng.chance(this.stealChance(from, penalty))
     const moves: RunnerMove[] = [{ runnerId: runner.id, from, to: success ? ((from + 1) as BaseNumber) : 'out' }]
     this.applyMoves(moves)
     const events: GameEvent[] = [{ type: 'steal', runnerId: runner.id, from, success, moves }]

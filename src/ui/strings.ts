@@ -1,6 +1,5 @@
 // 所有介面文字集中在這裡，之後要加語系只改這個檔
 import type { BattedBall, Fielder, PitchResult, PlayKind } from '../sim/game'
-import type { CardTier } from '../sim/generate'
 import type { Round } from '../sim/tournament'
 import type { TraitId } from '../sim/traits'
 import type { Position } from '../sim/types'
@@ -18,28 +17,19 @@ export const T = {
   rerollPlayer: '重骰此球員',
   cancel: '取消',
   startGame: '開始比賽',
-  swapHint: '再點一名球員即可交換',
-  lineup: '先發打序',
   bench: '板凳',
-  pitchers: '投手',
   starter: '先發',
   reliever: '後援',
-  left: (n: number) => `剩 ${n} 次`,
-  rare: '稀有！',
   inning: (n: number, top: boolean) => `${n} 局${top ? '上' : '下'}`,
   batter: '打者',
   pitcher: '投手',
   pitchCount: (n: number) => `用球 ${n}`,
   tired: '體力下滑',
   command: '指令',
-  resume: '繼續比賽',
   queued: (name: string) => `已下達：${name}，下一球執行`,
   reasonLeverage: '關鍵時刻！',
   reasonFatigue: '投手體力下滑',
   reasonPause: '教練暫停',
-  groupOffense: '戰術',
-  groupSubs: '換人',
-  groupDefense: '投手調度',
   win: '勝利！',
   lose: '落敗',
   playAgain: '再來一場',
@@ -52,8 +42,7 @@ export const T = {
   subPinchHit: (inName: string, outName: string) => `代打：${inName} 替換 ${outName}`,
   subPinchRun: (inName: string, outName: string) => `代跑：${inName} 替換 ${outName}`,
   subPitcher: (inName: string, outName: string) => `換投：${inName} 上場，${outName} 退場`,
-  tacticSteal: (from: 1 | 2, name: string, speed: number) =>
-    `盜${from === 1 ? '二' : '三'}壘（${name}，速 ${speed}）`,
+  tacticSteal: (from: 1 | 2, name: string) => `盜${from === 1 ? '二' : '三'}壘 ${name}`,
   tacticBunt: '犧牲觸擊',
   tacticHitAndRun: '打帶跑',
   lineupOnlyHint: '錦標賽開打後不能重骰，只能調整打序、投手與板凳',
@@ -75,6 +64,29 @@ export const T = {
   draftReleaseHint: (name: string) => `選擇要釋出的球員，由 ${name} 接替`,
   skipDraft: '放棄選秀',
   champion: '奪冠！',
+  overallLabel: '總評',
+  swap: '交換',
+  close: '關閉',
+  swapPick: (name: string) => `選擇要和 ${name} 交換的球員`,
+  swapped: (a: string, b: string) => `${a} 已與 ${b} 交換`,
+  rerolledPlayer: (from: string, to: string) => `${from} 重骰為 ${to}`,
+  rerolledTeam: (left: number) => `整隊重骰完成，剩 ${left} 次`,
+  renamed: (name: string) => `隊名改為 ${name}`,
+  walkedIntentionally: (name: string) => `故意四壞：${name}`,
+  drafted: (pick: string, released: string) => `${pick} 加入，${released} 釋出`,
+  draftSkipped: '放棄這次選秀',
+  swapHintLineup: '兩名先發互換打序；板凳換上場接手守位',
+  designatedHitter: '指定打擊',
+  battingOrder: '打序',
+  prompts: (level: string) => `決策提示：${level}`,
+  handToPlayers: '交給球員',
+  otherTactics: '其他指令',
+  details: '詳細資訊',
+  stealChance: (pct: number) => `成功率 約 ${pct}%`,
+  buntChance: (pct: number) => `成功率 約 ${pct}%`,
+  stamina: '體力',
+  noKeyOptions: '這個時刻沒有特別建議的調度，可以交給球員，或從其他指令中挑選',
+  nextBatterIs: (name: string, grade: string) => `下一棒 ${name}（打擊 ${grade}）`,
   rename: '改隊名',
   randomName: '隨機隊名',
   save: '儲存',
@@ -89,8 +101,6 @@ export const T = {
   tournamentOver: '這支隊伍的旅程結束了，下次會是全新的隊伍。',
   gameRecord: (round: string, won: boolean, u: number, o: number) => `${round}　${won ? '勝' : '敗'} ${u}:${o}`,
   tacticPinchHit: '代打',
-  pinchRunMenu: '代跑',
-  back: '返回',
   tacticPinchRun: (base: 1 | 2 | 3, runner: string) => `代跑 ${['一', '二', '三'][base - 1]}壘 ${runner}`,
   tacticChangePitcher: '換投',
   tacticIntentionalWalk: '故意四壞',
@@ -117,6 +127,30 @@ export const RATING_LABELS = {
   stamina: '耐',
 } as const
 
+export const RATING_FULL = {
+  contact: '打擊',
+  power: '力量',
+  speed: '速度',
+  stuff: '球威',
+  control: '控球',
+  stamina: '體力',
+} as const
+
+export const TRAIT_DESC: Record<TraitId, string> = {
+  slugger: '長打能力大幅提升，更容易擊出全壘打',
+  clutch: '得點圈有人時打擊提升',
+  eye: '不容易追打壞球',
+  stealer: '盜壘成功率提升',
+  bunter: '犧牲觸擊成功率提升',
+  clutchBad: '得點圈有人時打擊下降',
+  freeSwinger: '揮空的機率較高',
+  ironArm: '體力消耗慢，疲勞後也不容易崩潰',
+  strikeoutArtist: '讓打者揮空的能力提升',
+  wild: '控球不穩，容易投出四壞',
+}
+
+export const PROMPT_NAMES = { few: '少', many: '多', pitcher: '只提醒換投', off: '關閉' } as const
+
 export const TRAIT_NAMES: Record<TraitId, string> = {
   slugger: '怪力',
   clutch: '得點圈強打',
@@ -130,12 +164,6 @@ export const TRAIT_NAMES: Record<TraitId, string> = {
   wild: '四死球',
 }
 
-export const TIER_NAMES: Record<CardTier, string> = {
-  bronze: '銅',
-  silver: '銀',
-  gold: '金',
-  rainbow: '彩虹',
-}
 
 export const PITCH_TEXT: Record<PitchResult, string> = {
   ball: '壞球',
