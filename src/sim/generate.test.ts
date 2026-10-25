@@ -71,9 +71,11 @@ describe('能力值與特性', () => {
     expect(counts.rainbow).toBeGreaterThan(0)
   })
 
-  it('總評是能力值平均', () => {
-    const p = players[0]
-    const values = Object.values(p.ratings)
-    expect(overall(p)).toBeCloseTo(values.reduce((a, b) => a + b, 0) / 3, 5)
+  it('總評是能力值平均（打者四項、投手三項）', () => {
+    for (const p of players.slice(0, 20)) {
+      const values: number[] = Object.values(p.ratings)
+      expect(values).toHaveLength(p.role === 'batter' ? 4 : 3)
+      expect(overall(p)).toBeCloseTo(values.reduce((a, b) => a + b, 0) / values.length, 5)
+    }
   })
 })

@@ -7,10 +7,22 @@ const KEY = 'dice-baseball.tournament.v1'
 export function loadTournament(): Tournament | null {
   try {
     const raw = localStorage.getItem(KEY)
-    return raw ? (JSON.parse(raw) as Tournament) : null
+    return raw ? (addMissingFielding(JSON.parse(raw)) as Tournament) : null
   } catch {
     return null
   }
+}
+
+/** 加入守備能力之前的存檔，打者沒有守備值；補上聯盟平均 5 */
+function addMissingFielding(value: unknown): unknown {
+  if (Array.isArray(value)) value.forEach(addMissingFielding)
+  else if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    const ratings = obj.ratings as Record<string, number> | undefined
+    if (obj.role === 'batter' && ratings && ratings.fielding === undefined) ratings.fielding = 5
+    Object.values(obj).forEach(addMissingFielding)
+  }
+  return value
 }
 
 export function saveTournament(t: Tournament): void {

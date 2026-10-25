@@ -75,6 +75,13 @@ export function setSlot(roster: Roster, slot: Slot, player: Player): Roster {
   }
 }
 
+/** 交換兩名先發的守位，打序不變（例如把守備好的人換到游擊） */
+export function swapPositions(roster: Roster, a: number, b: number): Roster {
+  const lineup = roster.lineup.map((s) => ({ ...s }))
+  ;[lineup[a].position, lineup[b].position] = [lineup[b].position, lineup[a].position]
+  return { ...roster, lineup }
+}
+
 /**
  * 交換兩格球員。打序之間互換時，球員帶著守備位置一起移動；
  * 板凳換上先發時，接手原本的守備位置。打者和投手不能互換，回傳 null。

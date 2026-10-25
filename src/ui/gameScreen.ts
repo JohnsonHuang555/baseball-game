@@ -5,7 +5,7 @@ import { FieldRenderer } from './field'
 import { gradeBadge } from './grades'
 import { el, traitChips } from './playerCard'
 import { PROMPT_LEVELS, loadPromptLevel, savePromptLevel } from './prefs'
-import { PITCH_TEXT, PROMPT_NAMES, RATING_FULL, T, describePlay, homeRunName, runnersText } from './strings'
+import { PITCH_TEXT, POSITION_NAMES, PROMPT_NAMES, RATING_FULL, T, describePlay, homeRunName, runnersText } from './strings'
 import { CPU_COLOR, USER_COLOR, gradeLine, toast } from './visual'
 
 export interface ResultAction {
@@ -155,7 +155,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       case 'steal':
         return `${name(e.runnerId)} ${T.stealResult(e.success)}`
       case 'substitution': {
-        const fn = e.kind === 'pinchHit' ? T.subPinchHit : e.kind === 'pinchRun' ? T.subPinchRun : T.subPitcher
+        const fn = { pinchHit: T.subPinchHit, pinchRun: T.subPinchRun, pitcher: T.subPitcher, defense: T.subDefense }[e.kind]
         return fn(name(e.inId), name(e.outId))
       }
       case 'halfInningEnd':
@@ -343,8 +343,34 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         c.append(el('span', 'rating-name', T.batter), gradeBadge(battingValue(game.batter), 'sm'), el('span', 'arrow', '→'), el('span', 'rating-name', T.onDeck), gradeBadge(battingValue(next), 'sm'))
         options.push({ tactic: { type: 'intentionalWalk' }, title: T.tacticIntentionalWalk, detail: [c] })
       }
+      // 守備替補：後段領先或平手時守住比分，板凳有守備明顯更好的人才提
+      const ahead = game.score[userSide] >= game.score[game.battingSide]
+      const top = defensiveSubs(tactics)[0]
+      if (game.inning >= 7 && ahead && top && top.gain >= 3) {
+        const t = top.tactic
+        const out = team.lineup[t.lineupIndex].player
+        const sub = team.bench[t.benchIndex]
+        options.push({
+          tactic: t,
+          title: tacticLabel(t),
+          detail: [
+            compare(RATING_FULL.fielding, out.ratings.fielding, sub.ratings.fielding),
+            compare(RATING_FULL.contact, out.ratings.contact, sub.ratings.contact),
+          ],
+        })
+      }
     }
     return options.filter((o) => has(o.tactic)).slice(0, 3)
+  }
+
+  /** 守備替補的組合很多，只留下守備有變好的，依提升幅度排序 */
+  function defensiveSubs(tactics: Tactic[]) {
+    const team = game.fielding
+    return tactics
+      .flatMap((t) => (t.type === 'defensiveSub' ? [t] : []))
+      .map((t) => ({ tactic: t, gain: team.bench[t.benchIndex].ratings.fielding - team.lineup[t.lineupIndex].player.ratings.fielding }))
+      .filter((d) => d.gain > 0)
+      .sort((a, b) => b.gain - a.gain)
   }
 
   function tacticLabel(t: Tactic): string {
@@ -364,6 +390,10 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         return `${T.tacticChangePitcher} ${game.fielding.relievers[t.relieverIndex].name}`
       case 'intentionalWalk':
         return T.tacticIntentionalWalk
+      case 'defensiveSub': {
+        const spot = game.fielding.lineup[t.lineupIndex]
+        return T.tacticDefensiveSub(POSITION_NAMES[spot.position], spot.player.name, game.fielding.bench[t.benchIndex].name)
+      }
     }
   }
 
@@ -371,6 +401,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   function tacticPlayer(t: Tactic): Player | null {
     if (t.type === 'pinchHit' || t.type === 'pinchRun') return game.batting.bench[t.benchIndex]
     if (t.type === 'changePitcher') return game.fielding.relievers[t.relieverIndex]
+    if (t.type === 'defensiveSub') return game.fielding.bench[t.benchIndex]
     if (t.type === 'steal') return game.bases[t.from - 1]
     return null
   }
@@ -458,7 +489,12 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
 
         if (showOthers) {
           const list = el('div', 'other-list')
-          for (const t of tactics.filter((t) => !keys.some((k) => sameTactic(k.tactic, t)))) {
+          // 守備替補只列出守備會變好的前三個組合，避免清單太長
+          const subs = defensiveSubs(tactics)
+            .slice(0, 3)
+            .map((d) => d.tactic)
+          const others = [...tactics.filter((t) => t.type !== 'defensiveSub'), ...subs]
+          for (const t of others.filter((t) => !keys.some((k) => sameTactic(k.tactic, t)))) {
             const btn = el('button', 'btn btn-option')
             btn.append(el('span', '', tacticLabel(t)))
             const who = tacticPlayer(t)

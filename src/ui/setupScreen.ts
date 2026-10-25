@@ -5,6 +5,7 @@ import {
   isPitcherSlot,
   rerollPlayer,
   rerollTeam,
+  swapPositions,
   swapSlots,
   type PregameSetup,
   type Slot,
@@ -184,7 +185,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
       if (order !== null) face.append(el('span', 'order', String(order)))
       node.append(face, el('div', 'node-name', p.name))
       if (spot === 'DH') node.append(el('div', 'node-tag', T.designatedHitter))
-      node.onclick = () => onTap(slot)
+      node.onclick = () => onTap(slot, 'field')
       box.append(node)
     }
     r.lineup.forEach((s, i) => place({ kind: 'lineup', index: i }, s.position, i + 1))
@@ -210,7 +211,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
           selected: sameSlot(swapFrom, slot),
           reveal: isRevealed(slot),
         })
-        card.onclick = () => onTap(slot)
+        card.onclick = () => onTap(slot, 'reserve')
         row.append(card)
       }
       g.append(row)
@@ -242,7 +243,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
         el('span', 'order-pos', POSITION_NAMES[spot.position]),
         gradeLine(spot.player),
       )
-      btn.onclick = () => onTap(slot)
+      btn.onclick = () => onTap(slot, 'list')
       row.append(btn)
       list.append(row)
     })
@@ -252,6 +253,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     const bar = el('div', 'action-bar')
     if (swapFrom) {
       bar.append(el('div', 'hint', T.swapPick(getSlot(r, swapFrom).name)))
+      if (swapFrom.kind === 'lineup') bar.append(el('div', 'hint', T.swapHintLineup))
       const cancel = el('button', 'btn btn-ghost', T.cancel)
       cancel.onclick = () => {
         swapFrom = null
@@ -283,16 +285,27 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     revealed = []
   }
 
-  function onTap(slot: Slot): void {
+  /**
+   * 點球員。選交換對象時，第二下點在哪裡決定換什麼：
+   * 球場上的兩名先發互換守位；打序列表上的兩名先發互換棒次；牽涉板凳就是換人上場
+   */
+  function onTap(slot: Slot, source: 'field' | 'list' | 'reserve'): void {
     if (!swapFrom) return openDetail(slot)
     if (sameSlot(swapFrom, slot)) swapFrom = null
     else if (isPitcherSlot(swapFrom) === isPitcherSlot(slot)) {
-      const a = getSlot(setup.team.roster, swapFrom)
-      const b = getSlot(setup.team.roster, slot)
-      const swapped = swapSlots(setup.team.roster, swapFrom, slot)
-      if (swapped) {
-        update({ ...setup, team: { ...setup.team, roster: swapped } })
-        toast(T.swapped(a.name, b.name))
+      const roster = setup.team.roster
+      const a = getSlot(roster, swapFrom)
+      const b = getSlot(roster, slot)
+      const bothStarters = swapFrom.kind === 'lineup' && slot.kind === 'lineup'
+      if (swapFrom.kind === 'lineup' && slot.kind === 'lineup' && source === 'field') {
+        update({ ...setup, team: { ...setup.team, roster: swapPositions(roster, swapFrom.index, slot.index) } })
+        toast(T.swappedPositions(a.name, b.name))
+      } else {
+        const swapped = swapSlots(roster, swapFrom, slot)
+        if (swapped) {
+          update({ ...setup, team: { ...setup.team, roster: swapped } })
+          toast(bothStarters ? T.swappedOrder(a.name, b.name) : T.swapped(a.name, b.name))
+        }
       }
       swapFrom = null
     } else return

@@ -57,7 +57,12 @@ export function generateBatter(rng: Rng, mean = BASE_MEAN): Batter {
     id: playerId(rng),
     name: playerName(rng),
     role: 'batter',
-    ratings: { contact: rating(rng, mean), power: rating(rng, mean), speed: rating(rng, mean) },
+    ratings: {
+      contact: rating(rng, mean),
+      power: rating(rng, mean),
+      speed: rating(rng, mean),
+      fielding: rating(rng, mean),
+    },
     traits: traits(rng, 'batter'),
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Game, fielderFor, replay, type GameEvent, type GameSetup, type Tactic } from './game'
 import { generateTeam } from './generate'
 import { Rng } from './rng'
+import type { Team } from './types'
 
 function setup(seed: number): GameSetup {
   return { home: generateTeam(new Rng(seed * 2 + 1)), away: generateTeam(new Rng(seed * 2 + 2)), seed, userSide: 'home' }
@@ -134,6 +135,70 @@ describe('失誤與雙殺', () => {
       expect(p.ball.fielder).toBeDefined()
       if (p.ball.type === 'fly' && p.ball.distance >= 200) expect(['LF', 'CF', 'RF']).toContain(p.ball.fielder)
     }
+  })
+})
+
+describe('守備能力', () => {
+  /** 把一隊所有野手的守備設成同一個值 */
+  function withFielding(team: Team, value: number): Team {
+    const roster = team.roster
+    return {
+      ...team,
+      roster: {
+        ...roster,
+        lineup: roster.lineup.map((s) => ({ ...s, player: { ...s.player, ratings: { ...s.player.ratings, fielding: value } } })),
+      },
+    }
+  }
+
+  function playStats(fielding: number) {
+    let errors = 0
+    let hits = 0
+    let inPlay = 0
+    for (let i = 1; i <= 300; i++) {
+      const s = setup(i)
+      const g = new Game({ ...s, home: withFielding(s.home, fielding) })
+      while (!g.over) {
+        for (const e of g.step()) {
+          // 只看主隊守備時（上半局）的結果
+          if (e.type !== 'play' || g.half !== 'top' || !e.ball) continue
+          inPlay++
+          if (e.kind === 'error') errors++
+          if (['single', 'double', 'triple'].includes(e.kind)) hits++
+        }
+      }
+    }
+    return { errorRate: errors / inPlay, hitRate: hits / inPlay }
+  }
+
+  it('守備差的隊伍失誤較多、被打出的安打也較多', () => {
+    const good = playStats(9)
+    const bad = playStats(1)
+    expect(bad.errorRate).toBeGreaterThan(good.errorRate * 2)
+    expect(bad.hitRate).toBeGreaterThan(good.hitRate)
+  })
+
+  it('捕手守備越好，對方盜壘成功率越低', () => {
+    const g = new Game(setup(4))
+    while (!(g.battingSide === 'away' && g.bases[0] && !g.bases[1])) g.step()
+    const catcher = g.fielding.lineup.find((s) => s.position === 'C')!
+    catcher.player = { ...catcher.player, ratings: { ...catcher.player.ratings, fielding: 1 } }
+    const weak = g.stealChance(1)
+    catcher.player = { ...catcher.player, ratings: { ...catcher.player.ratings, fielding: 10 } }
+    expect(g.stealChance(1)).toBeLessThan(weak)
+  })
+
+  it('守備替補：板凳球員接手守位與棒次，只能在守備時下', () => {
+    const g = new Game(setup(4))
+    while (g.fieldingSide !== 'home') g.step()
+    const index = g.teams.home.lineup.findIndex((s) => s.position === 'SS')
+    const benchPlayer = g.teams.home.bench[0]
+    const events = g.issue({ type: 'defensiveSub', benchIndex: 0, lineupIndex: index })
+    expect(g.teams.home.lineup[index].player).toBe(benchPlayer)
+    expect(g.teams.home.lineup[index].position).toBe('SS')
+    expect(events[0]).toMatchObject({ type: 'substitution', kind: 'defense' })
+    const dh = g.teams.home.lineup.findIndex((s) => s.position === 'DH')
+    expect(() => g.issue({ type: 'defensiveSub', benchIndex: 0, lineupIndex: dh })).toThrow()
   })
 })
 

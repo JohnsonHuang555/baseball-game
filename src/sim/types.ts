@@ -8,6 +8,8 @@ export interface BatterRatings {
   contact: number
   power: number
   speed: number
+  /** 守備：處理擊球時的失誤率、守備範圍、雙殺；捕手還會影響對方盜壘 */
+  fielding: number
 }
 
 export interface PitcherRatings {

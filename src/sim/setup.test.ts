@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { PLAYER_REROLLS, TEAM_REROLLS, createSetup, getSlot, rerollPlayer, rerollTeam, swapSlots } from './setup'
+import {
+  PLAYER_REROLLS,
+  TEAM_REROLLS,
+  createSetup,
+  getSlot,
+  rerollPlayer,
+  rerollTeam,
+  swapPositions,
+  swapSlots,
+} from './setup'
 
 describe('賽前重骰', () => {
   it('開局有整隊 3 次、單人 5 次', () => {
@@ -58,6 +67,14 @@ describe('賽前換人', () => {
     const r = swapSlots(roster, { kind: 'starter' }, { kind: 'reliever', index: 0 })!
     expect(r.starter).toBe(roster.relievers[0])
     expect(r.relievers[0]).toBe(roster.starter)
+  })
+
+  it('交換守位：兩人互換守備位置，打序不變', () => {
+    const r = swapPositions(roster, 0, 8)
+    expect(r.lineup[0].player).toBe(roster.lineup[0].player)
+    expect(r.lineup[0].position).toBe(roster.lineup[8].position)
+    expect(r.lineup[8].position).toBe(roster.lineup[0].position)
+    expect(roster.lineup[0].position).not.toBe(r.lineup[0].position)
   })
 
   it('打者和投手不能互換', () => {

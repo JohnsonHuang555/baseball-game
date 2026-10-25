@@ -15,6 +15,8 @@ export type Tactic =
   | { type: 'pinchRun'; base: BaseNumber; benchIndex: number }
   | { type: 'changePitcher'; relieverIndex: number }
   | { type: 'intentionalWalk' }
+  /** 守備替補：板凳球員接手某一棒的守位與棒次 */
+  | { type: 'defensiveSub'; benchIndex: number; lineupIndex: number }
 
 export type PitchResult = 'ball' | 'calledStrike' | 'swingingStrike' | 'foul' | 'inPlay'
 
@@ -79,7 +81,13 @@ export type GameEvent =
       notation: string | null
     }
   | { type: 'steal'; runnerId: string; from: 1 | 2; success: boolean; moves: RunnerMove[] }
-  | { type: 'substitution'; side: Side; kind: 'pinchHit' | 'pinchRun' | 'pitcher'; inId: string; outId: string }
+  | {
+      type: 'substitution'
+      side: Side
+      kind: 'pinchHit' | 'pinchRun' | 'pitcher' | 'defense'
+      inId: string
+      outId: string
+    }
   | { type: 'halfInningEnd'; inning: number; half: Half }
   | { type: 'gameOver'; winner: Side }
 
@@ -111,6 +119,8 @@ export interface TeamState {
 type Bases = [Batter | null, Batter | null, Batter | null]
 
 export const LEVERAGE_THRESHOLD = 3.2
+/** 守備值的聯盟平均（能力值分布中心） */
+const AVERAGE_FIELDING = 5
 
 export class Game {
   readonly userSide: Side
@@ -199,11 +209,32 @@ export class Game {
     return clamp(1 - team.pitchCount / this.fatigueLimit(team.pitcher), 0, 1)
   }
 
-  /** 盜壘成功率。penalty 用於打帶跑揮空時 */
+  /** 某個守位的守備值；投手沒有守備能力，當作聯盟平均 */
+  fieldingAt(team: TeamState, fielder: Fielder): number {
+    if (fielder === 'P') return AVERAGE_FIELDING
+    return team.lineup.find((s) => s.position === fielder)?.player.ratings.fielding ?? AVERAGE_FIELDING
+  }
+
+  /** 整隊的守備範圍：指定打擊不算 */
+  teamDefense(team: TeamState): number {
+    const fielders = team.lineup.filter((s) => s.position !== 'DH')
+    return fielders.reduce((sum, s) => sum + s.player.ratings.fielding, 0) / fielders.length
+  }
+
+  /** 盜壘成功率：跑者速度對上捕手守備。penalty 用於打帶跑揮空時 */
   stealChance(from: 1 | 2, penalty = 0): number {
     const runner = this.bases[from - 1]
     if (!runner) return 0
-    return clamp(0.55 + (runner.ratings.speed - 5) * 0.06 + (hasTrait(runner, 'stealer') ? 0.15 : 0) - penalty, 0.1, 0.95)
+    const catcher = this.fieldingAt(this.fielding, 'C')
+    return clamp(
+      0.55 +
+        (runner.ratings.speed - 5) * 0.06 +
+        (hasTrait(runner, 'stealer') ? 0.15 : 0) -
+        (catcher - AVERAGE_FIELDING) * 0.03 -
+        penalty,
+      0.1,
+      0.95,
+    )
   }
 
   /** 犧牲觸擊成功率 */
@@ -263,8 +294,14 @@ export class Game {
         if (this.bases[base - 1]) bench.forEach((_, benchIndex) => tactics.push({ type: 'pinchRun', base, benchIndex }))
       })
     } else {
-      this.fielding.relievers.forEach((_, relieverIndex) => tactics.push({ type: 'changePitcher', relieverIndex }))
+      const team = this.fielding
+      team.relievers.forEach((_, relieverIndex) => tactics.push({ type: 'changePitcher', relieverIndex }))
       if (this.balls + this.strikes === 0) tactics.push({ type: 'intentionalWalk' })
+      team.bench.forEach((_, benchIndex) =>
+        team.lineup.forEach((s, lineupIndex) => {
+          if (s.position !== 'DH') tactics.push({ type: 'defensiveSub', benchIndex, lineupIndex })
+        }),
+      )
     }
     return tactics
   }
@@ -301,6 +338,13 @@ export class Game {
       case 'intentionalWalk':
         this.fielding.pitchCount += 4
         return this.walk('intentionalWalk')
+      case 'defensiveSub': {
+        const team = this.fielding
+        const spot = team.lineup[tactic.lineupIndex]
+        const out = spot.player
+        spot.player = team.bench.splice(tactic.benchIndex, 1)[0]
+        return [{ type: 'substitution', side: this.fieldingSide, kind: 'defense', inId: spot.player.id, outId: out.id }]
+      }
     }
   }
 
@@ -408,7 +452,13 @@ export class Game {
     const { stuff } = this.effectivePitcher()
     const contact = this.effectiveContact(batter)
     const { power, speed } = batter.ratings
-    const hitP = clamp(0.33 + (contact - 5) * 0.018 - (stuff - 5) * 0.012 + (speed - 5) * 0.005, 0.15, 0.5)
+    // 守備範圍好的隊伍，能把一部分安打變成出局
+    const range = this.teamDefense(this.fielding) - AVERAGE_FIELDING
+    const hitP = clamp(
+      0.33 + (contact - 5) * 0.018 - (stuff - 5) * 0.012 + (speed - 5) * 0.005 - range * 0.015,
+      0.15,
+      0.5,
+    )
 
     if (rng.chance(hitP)) {
       const kind = rng.weighted<PlayKind>([
@@ -425,7 +475,9 @@ export class Game {
       ['line', 0.15],
     ])
     const ball = this.outBall(type)
-    if (rng.chance(ERROR_RATE[type])) return this.reachOnError(ball)
+    const glove = this.fieldingAt(this.fielding, ball.fielder)
+    const errorFactor = clamp(1 + (AVERAGE_FIELDING - glove) * 0.18, 0.25, 2.2)
+    if (rng.chance(ERROR_RATE[type] * errorFactor)) return this.reachOnError(ball)
     if (type === 'ground') return this.groundOut(ball, hitAndRun)
     if (type === 'fly') return this.flyOut(ball)
     return this.lineOut(ball, hitAndRun)
@@ -506,7 +558,8 @@ export class Game {
     const rng = this.rng
     const batter = this.batter
     const [b1, b2, b3] = this.bases
-    const dpP = 0.45 - (batter.ratings.speed - 5) * 0.04
+    const glove = this.fieldingAt(this.fielding, ball.fielder) - AVERAGE_FIELDING
+    const dpP = 0.45 - (batter.ratings.speed - 5) * 0.04 + glove * 0.03
     if (b1 && this.outs < 2 && !hitAndRun && rng.chance(dpP)) {
       const moves: RunnerMove[] = [
         { runnerId: b1.id, from: 1, to: 'out' },
@@ -538,7 +591,9 @@ export class Game {
     if (this.outs < 2) {
       // 外野高飛球，三壘跑者回壘觸壘後衝本壘；球太淺就不跑
       if (b3 && outfield && (ball.distance > 240 || rng.chance(0.35))) {
-        const safeP = clamp(0.55 + (ball.distance - 250) / 200 + (b3.ratings.speed - 5) * 0.05, 0.2, 0.97)
+        // 外野手守備好，回傳本壘就準
+        const arm = this.fieldingAt(this.fielding, ball.fielder) - AVERAGE_FIELDING
+        const safeP = clamp(0.55 + (ball.distance - 250) / 200 + (b3.ratings.speed - 5) * 0.05 - arm * 0.04, 0.2, 0.97)
         if (rng.chance(safeP)) {
           moves.push({ runnerId: b3.id, from: 3, to: 4 })
           kind = 'sacrificeFly'
