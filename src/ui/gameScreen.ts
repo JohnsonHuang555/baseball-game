@@ -1,7 +1,8 @@
 import { LEVERAGE_THRESHOLD, type Game, type GameEvent, type Side, type Tactic } from '../sim/game'
 import { FieldRenderer } from './field'
 import { el, ratingsText, traitChips } from './playerCard'
-import { PITCH_TEXT, PLAY_TEXT, T } from './strings'
+import type { Player } from '../sim/types'
+import { PITCH_TEXT, T, describePlay, homeRunName, runnersText } from './strings'
 
 export interface ResultAction {
   label: string
@@ -52,7 +53,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   const matchup = el('div', 'matchup')
   const lastPlay = el('div', 'last-play')
   const controls = el('div', 'controls')
-  const pauseBtn = el('button', 'btn btn-primary', `⏸ ${T.command}`)
+  const pauseBtn = el('button', 'btn btn-primary', T.command)
   pauseBtn.onclick = () => {
     pauseRequested = true
     pauseBtn.disabled = true
@@ -144,8 +145,10 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
 
   function describe(e: GameEvent): string | null {
     switch (e.type) {
-      case 'play':
-        return `${name(e.batterId)} ${PLAY_TEXT[e.kind]}${e.runs ? T.scored(e.runs) : ''}`
+      case 'play': {
+        const text = describePlay(e.kind, e.ball, e.runs, e.notation)
+        return `${name(e.batterId)} ${text}${e.runs && e.kind !== 'homeRun' ? T.scored(e.runs) : ''}`
+      }
       case 'steal':
         return `${name(e.runnerId)} ${T.stealResult(e.success)}`
       case 'substitution': {
@@ -185,9 +188,11 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         const caught = OUT_KINDS.has(e.kind)
         const ms = e.ball ? (500 + e.ball.distance * 2.2) * k : 500 * k
         await field.play(e.ball, e.moves, caught, ms)
-        const cls = e.kind === 'homeRun' ? 'hr' : e.runs > 0 ? 'score' : ''
-        if (e.kind === 'homeRun') flash(PLAY_TEXT.homeRun, 'hr')
+        const cls = e.kind === 'homeRun' ? 'hr' : e.runs > 0 ? 'score' : e.kind === 'error' ? 'error' : ''
+        if (e.kind === 'homeRun') flash(`${homeRunName(e.runs)}！`, 'hr')
         else if (e.runs > 0) flash(T.scored(e.runs).replace('，', ''), 'score')
+        else if (e.kind === 'doublePlay') flash(`${e.notation} ${T.callDoublePlay}`, 'dp')
+        else if (e.kind === 'error') flash(T.callError, 'error')
         lastPlay.textContent = text
         addLog(text!, cls)
       } else if (e.type === 'steal') {
@@ -200,6 +205,43 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     }
     syncField()
     renderBoard()
+  }
+
+  /** 決策面板裡的一列球員資訊：名字、能力值、特性 */
+  function infoRow(label: string, p: Player, mine: boolean, extra = '', warn = false): HTMLElement {
+    const row = el('div', `info-row ${mine ? 'mine' : ''}`)
+    const head = el('div', 'info-head')
+    head.append(el('span', 'info-label', label), el('span', 'info-name', p.name), el('span', 'info-stats', ratingsText(p)))
+    row.append(head)
+    if (extra) row.append(el('div', `mu-extra ${warn ? 'warn' : ''}`, extra))
+    if (p.traits.length) row.append(traitChips(p))
+    return row
+  }
+
+  /** 下決策需要看到的人：打者、投手、壘上跑者、下一棒 */
+  function situationInfo(): HTMLElement {
+    const wrap = el('div', 'sheet-info')
+    const batting = game.battingSide === userSide
+    const tired = game.isFatigued(game.fielding)
+    wrap.append(
+      infoRow(T.batter, game.batter, batting),
+      infoRow(T.pitcher, game.pitcher, !batting, `${T.pitchCount(game.fielding.pitchCount)}${tired ? `・${T.tired}` : ''}`, tired),
+    )
+    for (const base of [1, 2, 3] as const) {
+      const runner = game.bases[base - 1]
+      if (runner) wrap.append(infoRow(T.runnerOn(base), runner, batting))
+    }
+    const team = game.batting
+    wrap.append(infoRow(T.onDeck, team.lineup[(team.battingIndex + 1) % 9].player, batting))
+    return wrap
+  }
+
+  /** 指令涉及的球員（代打、代跑、換投），按鈕上要顯示他的特性 */
+  function tacticPlayer(t: Tactic): Player | null {
+    if (t.type === 'pinchHit' || t.type === 'pinchRun') return game.batting.bench[t.benchIndex]
+    if (t.type === 'changePitcher') return game.fielding.relievers[t.relieverIndex]
+    if (t.type === 'steal') return game.bases[t.from - 1]
+    return null
   }
 
   function tacticLabel(t: Tactic): string {
@@ -242,19 +284,21 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         const panel = el('div', 'sheet-panel')
         const title = reason === 'leverage' ? T.reasonLeverage : reason === 'fatigue' ? T.reasonFatigue : T.reasonPause
         panel.append(el('h2', '', title))
-        const runners = ([1, 2, 3] as const).filter((n) => game.bases[n - 1]).map((n) => T.baseName(n))
         panel.append(
           el(
             'div',
             'situation',
-            `${T.inning(game.inning, game.half === 'top')}・${T.outs(game.outs)}・${runners.length ? runners.join('、') + '壘有人' : T.runnersNone}・${game.score.away}:${game.score.home}`,
+            `${T.inning(game.inning, game.half === 'top')}・${T.outs(game.outs)}・${runnersText(game.bases.map(Boolean))}・${game.score.away}:${game.score.home}`,
           ),
         )
+        if (!game.over) panel.append(situationInfo())
         if (game.queued) panel.append(el('div', 'queued', T.queued(tacticLabel(game.queued))))
 
         const tactics = game.over ? [] : game.availableTactics()
         const optionButton = (t: Tactic) => {
           const btn = el('button', 'btn btn-option', tacticLabel(t))
+          const who = tacticPlayer(t)
+          if (who?.traits.length) btn.append(traitChips(who))
           btn.onclick = async () => {
             submenu = null
             const events = game.issue(t)
@@ -306,7 +350,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
             }
           }
         }
-        const resume = el('button', 'btn btn-primary', `▶ ${T.resume}`)
+        const resume = el('button', 'btn btn-primary', T.resume)
         resume.onclick = close
         panel.append(resume)
         sheet.append(panel)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Game, replay, type GameSetup, type Tactic } from './game'
+import { Game, fielderFor, replay, type GameEvent, type GameSetup, type Tactic } from './game'
 import { generateTeam } from './generate'
 import { Rng } from './rng'
 
@@ -75,6 +75,65 @@ describe('整場比賽', () => {
     const early = games.find((g) => g.inning === 9 && g.linescore.home.length === 8)
     expect(early).toBeDefined()
     expect(early!.winner).toBe('home')
+  })
+})
+
+describe('失誤與雙殺', () => {
+  const plays: Extract<GameEvent, { type: 'play' }>[] = []
+  for (let i = 1; i <= 300; i++) {
+    const g = new Game(setup(i))
+    while (!g.over) for (const e of g.step()) if (e.type === 'play') plays.push(e)
+  }
+
+  it('失誤每隊每場大約 0.2～0.9 次，失誤時打者安全上壘', () => {
+    const errors = plays.filter((p) => p.kind === 'error')
+    const perTeamGame = errors.length / 600
+    expect(perTeamGame).toBeGreaterThan(0.2)
+    expect(perTeamGame).toBeLessThan(0.9)
+    for (const e of errors) {
+      const batterMove = e.moves.find((m) => m.from === 0)!
+      expect(batterMove.to === 1 || batterMove.to === 2).toBe(true)
+      expect(e.ball).not.toBeNull()
+    }
+  })
+
+  it('雙殺有守備記號，而且有多種方式（滾地、平飛回壘不及、本壘觸殺）', () => {
+    const dps = plays.filter((p) => p.kind === 'doublePlay')
+    expect(dps.length).toBeGreaterThan(100)
+    for (const dp of dps) {
+      expect(dp.notation).toMatch(/^[1-9](-[1-9]){0,2}$/)
+      expect(dp.moves.filter((m) => m.to === 'out')).toHaveLength(2)
+    }
+    const notations = new Set(dps.map((d) => d.notation))
+    expect(notations).toContain('6-4-3')
+    expect(notations).toContain('4-6-3')
+    expect(notations).toContain('5-4-3')
+    expect([...notations].some((n) => n!.endsWith('-2'))).toBe(true)
+    expect(dps.some((d) => d.ball!.type === 'line')).toBe(true)
+  })
+
+  it('每顆擊球都有處理的守備員，外野高飛球不會由內野手處理', () => {
+    for (const p of plays) {
+      if (!p.ball) continue
+      expect(p.ball.fielder).toBeDefined()
+      if (p.ball.type === 'fly' && p.ball.distance >= 200) expect(['LF', 'CF', 'RF']).toContain(p.ball.fielder)
+    }
+  })
+})
+
+describe('fielderFor', () => {
+  it('依方向分配內野手', () => {
+    expect(fielderFor('ground', -35, 100)).toBe('3B')
+    expect(fielderFor('ground', -15, 100)).toBe('SS')
+    expect(fielderFor('ground', 15, 100)).toBe('2B')
+    expect(fielderFor('ground', 35, 100)).toBe('1B')
+    expect(fielderFor('ground', 0, 60)).toBe('P')
+  })
+
+  it('穿過內野的滾地球和深遠的飛球由外野手處理', () => {
+    expect(fielderFor('ground', -30, 150)).toBe('LF')
+    expect(fielderFor('fly', 0, 300)).toBe('CF')
+    expect(fielderFor('line', 30, 250)).toBe('RF')
   })
 })
 

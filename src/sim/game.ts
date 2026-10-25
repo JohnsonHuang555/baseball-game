@@ -33,6 +33,7 @@ export type PlayKind =
   | 'intentionalWalk'
   | 'sacrificeBunt'
   | 'buntPopOut'
+  | 'error'
 
 /** from：0 = 打者；to：4 = 回本壘得分 */
 export interface RunnerMove {
@@ -41,17 +42,42 @@ export interface RunnerMove {
   to: BaseNumber | 4 | 'out'
 }
 
+/** 守備位置，數字是記錄用的守備代號（6-4-3 的那個數字） */
+export type Fielder = 'P' | 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF'
+export const FIELDER_NUMBERS: Record<Fielder, number> = {
+  P: 1,
+  C: 2,
+  '1B': 3,
+  '2B': 4,
+  '3B': 5,
+  SS: 6,
+  LF: 7,
+  CF: 8,
+  RF: 9,
+}
+
 export interface BattedBall {
   type: 'ground' | 'fly' | 'line'
   /** 角度：0 為中外野方向，負數偏左外野，正數偏右外野，界內為 ±45 度 */
   angle: number
   /** 落點距離本壘的英呎數 */
   distance: number
+  /** 處理這顆球的守備員 */
+  fielder: Fielder
 }
 
 export type GameEvent =
   | { type: 'pitch'; result: PitchResult; balls: number; strikes: number }
-  | { type: 'play'; kind: PlayKind; batterId: string; ball: BattedBall | null; moves: RunnerMove[]; runs: number }
+  | {
+      type: 'play'
+      kind: PlayKind
+      batterId: string
+      ball: BattedBall | null
+      moves: RunnerMove[]
+      runs: number
+      /** 雙殺的守備記號，例如 6-4-3 */
+      notation: string | null
+    }
   | { type: 'steal'; runnerId: string; from: 1 | 2; success: boolean; moves: RunnerMove[] }
   | { type: 'substitution'; side: Side; kind: 'pinchHit' | 'pinchRun' | 'pitcher'; inId: string; outId: string }
   | { type: 'halfInningEnd'; inning: number; half: Half }
@@ -371,9 +397,35 @@ export class Game {
       ['fly', 0.4 + (power - 5) * 0.02],
       ['line', 0.15],
     ])
-    if (type === 'ground') return this.groundOut(hitAndRun)
-    if (type === 'fly') return this.flyOut()
-    return this.lineOut(hitAndRun)
+    const ball = this.outBall(type)
+    if (rng.chance(ERROR_RATE[type])) return this.reachOnError(ball)
+    if (type === 'ground') return this.groundOut(ball, hitAndRun)
+    if (type === 'fly') return this.flyOut(ball)
+    return this.lineOut(ball, hitAndRun)
+  }
+
+  private makeBall(type: BattedBall['type'], angle: number, distance: number): BattedBall {
+    return { type, angle, distance, fielder: fielderFor(type, angle, distance) }
+  }
+
+  private outBall(type: BattedBall['type']): BattedBall {
+    const rng = this.rng
+    if (type === 'ground') return this.makeBall(type, clamp(rng.normal(0, 22), -42, 42), rng.range(60, 125))
+    if (type === 'fly') return this.makeBall(type, clamp(rng.normal(0, 25), -43, 43), rng.range(180, 370))
+    return this.makeBall(type, clamp(rng.normal(0, 25), -42, 42), rng.range(90, 260))
+  }
+
+  /** 守備失誤：打者上壘，跑者至少推進一個壘包；外野失誤推進更多 */
+  private reachOnError(ball: BattedBall): GameEvent[] {
+    const outfield = OUTFIELDERS.includes(ball.fielder)
+    const advance = outfield ? 2 : 1
+    const moves: RunnerMove[] = []
+    for (const base of [3, 2, 1] as const) {
+      const r = this.bases[base - 1]
+      if (r) moves.push({ runnerId: r.id, from: base, to: Math.min(4, base + advance) as BaseNumber | 4 })
+    }
+    moves.push({ runnerId: this.batter.id, from: 0, to: outfield && this.rng.chance(0.4) ? 2 : 1 })
+    return this.finishPlay('error', ball, moves)
   }
 
   private hit(kind: PlayKind, hitAndRun: boolean): GameEvent[] {
@@ -392,19 +444,19 @@ export class Game {
       case 'homeRun':
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
         move(batter, 0, 4)
-        ball = { type: 'fly', angle: clamp(rng.normal(0, 25), -43, 43), distance: rng.range(380, 450) }
+        ball = this.makeBall('fly', clamp(rng.normal(0, 25), -43, 43), rng.range(380, 450))
         break
       case 'triple':
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
         move(batter, 0, 3)
-        ball = { type: 'line', angle: rng.pick([-1, 1]) * rng.range(25, 42), distance: rng.range(330, 390) }
+        ball = this.makeBall('line', rng.pick([-1, 1]) * rng.range(25, 42), rng.range(330, 390))
         break
       case 'double':
         if (b3) move(b3, 3, 4)
         if (b2) move(b2, 2, 4)
         if (b1) move(b1, 1, rng.chance(0.35 + spd(b1) * 0.05 + (hitAndRun ? 0.3 : 0)) ? 4 : 3)
         move(batter, 0, 2)
-        ball = { type: 'line', angle: rng.pick([-1, 1]) * rng.range(12, 40), distance: rng.range(260, 360) }
+        ball = this.makeBall('line', rng.pick([-1, 1]) * rng.range(12, 40), rng.range(260, 360))
         break
       default: {
         if (b3) move(b3, 3, 4)
@@ -416,18 +468,17 @@ export class Game {
         move(batter, 0, 1)
         const ground = rng.chance(0.5)
         ball = ground
-          ? { type: 'ground', angle: clamp(rng.normal(0, 25), -40, 40), distance: rng.range(130, 170) }
-          : { type: 'line', angle: clamp(rng.normal(0, 25), -40, 40), distance: rng.range(160, 240) }
+          ? this.makeBall('ground', clamp(rng.normal(0, 25), -40, 40), rng.range(130, 170))
+          : this.makeBall('line', clamp(rng.normal(0, 25), -40, 40), rng.range(160, 240))
       }
     }
     return this.finishPlay(kind, ball, moves)
   }
 
-  private groundOut(hitAndRun: boolean): GameEvent[] {
+  private groundOut(ball: BattedBall, hitAndRun: boolean): GameEvent[] {
     const rng = this.rng
     const batter = this.batter
     const [b1, b2, b3] = this.bases
-    const ball: BattedBall = { type: 'ground', angle: clamp(rng.normal(0, 22), -42, 42), distance: rng.range(60, 125) }
     const dpP = 0.45 - (batter.ratings.speed - 5) * 0.04
     if (b1 && this.outs < 2 && !hitAndRun && rng.chance(dpP)) {
       const moves: RunnerMove[] = [
@@ -436,7 +487,7 @@ export class Game {
       ]
       if (b2) moves.push({ runnerId: b2.id, from: 2, to: 3 })
       if (b3) moves.push({ runnerId: b3.id, from: 3, to: b2 ? 4 : rng.chance(0.5) ? 4 : 3 })
-      return this.finishPlay('doublePlay', ball, moves)
+      return this.finishPlay('doublePlay', ball, moves, groundDoublePlay(ball.fielder))
     }
     const moves: RunnerMove[] = [{ runnerId: batter.id, from: 0, to: 'out' }]
     // 被迫進壘的跑者一定往前；沒被迫的看情況
@@ -450,36 +501,48 @@ export class Game {
     return this.finishPlay('groundOut', ball, moves)
   }
 
-  private flyOut(): GameEvent[] {
+  private flyOut(ball: BattedBall): GameEvent[] {
     const rng = this.rng
     const batter = this.batter
     const [, b2, b3] = this.bases
-    const ball: BattedBall = { type: 'fly', angle: clamp(rng.normal(0, 25), -43, 43), distance: rng.range(180, 370) }
     const moves: RunnerMove[] = [{ runnerId: batter.id, from: 0, to: 'out' }]
     let kind: PlayKind = 'flyOut'
+    const outfield = OUTFIELDERS.includes(ball.fielder)
     if (this.outs < 2) {
-      if (b3 && ball.distance > 230 && rng.chance(0.5 + (b3.ratings.speed - 5) * 0.05)) {
-        moves.push({ runnerId: b3.id, from: 3, to: 4 })
-        kind = 'sacrificeFly'
+      // 外野高飛球，三壘跑者回壘觸壘後衝本壘；球太淺就不跑
+      if (b3 && outfield && (ball.distance > 240 || rng.chance(0.35))) {
+        const safeP = clamp(0.55 + (ball.distance - 250) / 200 + (b3.ratings.speed - 5) * 0.05, 0.2, 0.97)
+        if (rng.chance(safeP)) {
+          moves.push({ runnerId: b3.id, from: 3, to: 4 })
+          kind = 'sacrificeFly'
+        } else {
+          // 在本壘前被觸殺：接殺加觸殺的雙殺
+          moves.push({ runnerId: b3.id, from: 3, to: 'out' })
+          return this.finishPlay('doublePlay', ball, moves, `${FIELDER_NUMBERS[ball.fielder]}-2`)
+        }
       }
       // 三壘有人沒跑，二壘跑者就不能推進
-      if (b2 && (kind === 'sacrificeFly' || !b3) && rng.chance(0.3)) {
+      if (b2 && outfield && (kind === 'sacrificeFly' || !b3) && rng.chance(0.3)) {
         moves.push({ runnerId: b2.id, from: 2, to: 3 })
       }
     }
     return this.finishPlay(kind, ball, moves)
   }
 
-  private lineOut(hitAndRun: boolean): GameEvent[] {
+  private lineOut(ball: BattedBall, hitAndRun: boolean): GameEvent[] {
     const rng = this.rng
     const batter = this.batter
-    const ball: BattedBall = { type: 'line', angle: clamp(rng.normal(0, 25), -42, 42), distance: rng.range(90, 260) }
     const moves: RunnerMove[] = [{ runnerId: batter.id, from: 0, to: 'out' }]
-    // 打帶跑遇到平飛球，一壘跑者容易被雙殺
-    const b1 = this.bases[0]
-    if (hitAndRun && b1 && this.outs < 2 && rng.chance(0.5)) {
-      moves.push({ runnerId: b1.id, from: 1, to: 'out' })
-      return this.finishPlay('doublePlay', ball, moves)
+    // 平飛球被接殺，離壘的跑者來不及回壘；打帶跑時一壘跑者已經起跑，更容易被雙殺
+    const [b1, b2] = this.bases
+    if (this.outs < 2) {
+      const base = b2 ? 2 : b1 ? 1 : null
+      if (base && rng.chance(hitAndRun && b1 ? 0.5 : 0.08)) {
+        const runner = (hitAndRun && b1 ? b1 : this.bases[base - 1])!
+        const from = runner === b1 ? 1 : 2
+        moves.push({ runnerId: runner.id, from, to: 'out' })
+        return this.finishPlay('doublePlay', ball, moves, doubledOff(ball.fielder, from))
+      }
     }
     return this.finishPlay('lineOut', ball, moves)
   }
@@ -502,7 +565,7 @@ export class Game {
     const batter = this.batter
     this.fielding.pitchCount++
     const successP = clamp(0.65 + (hasTrait(batter, 'bunter') ? 0.2 : 0) + (batter.ratings.contact - 5) * 0.02, 0.3, 0.95)
-    const ball: BattedBall = { type: 'ground', angle: rng.range(-30, 30), distance: rng.range(20, 45) }
+    const ball = this.makeBall('ground', rng.range(-30, 30), rng.range(20, 45))
     if (rng.chance(successP)) {
       const [b1, b2, b3] = this.bases
       const moves: RunnerMove[] = [{ runnerId: batter.id, from: 0, to: 'out' }]
@@ -566,10 +629,10 @@ export class Game {
   }
 
   /** 打席結束：套用跑壘、換下一棒、檢查再見或半局結束 */
-  private finishPlay(kind: PlayKind, ball: BattedBall | null, moves: RunnerMove[]): GameEvent[] {
+  private finishPlay(kind: PlayKind, ball: BattedBall | null, moves: RunnerMove[], notation: string | null = null): GameEvent[] {
     const batterId = this.batter.id
     const runs = this.applyMoves(moves)
-    const events: GameEvent[] = [{ type: 'play', kind, batterId, ball, moves, runs }]
+    const events: GameEvent[] = [{ type: 'play', kind, batterId, ball, moves, runs, notation }]
     const team = this.batting
     team.battingIndex = (team.battingIndex + 1) % 9
     this.balls = 0
@@ -614,6 +677,35 @@ export class Game {
     this.winner = winner
     return { type: 'gameOver', winner }
   }
+}
+
+/** 原本會出局的球，被判失誤的機率（真實棒球每隊每場約 0.5 次失誤） */
+const ERROR_RATE: Record<BattedBall['type'], number> = { ground: 0.045, fly: 0.015, line: 0.01 }
+
+const OUTFIELDERS: readonly Fielder[] = ['LF', 'CF', 'RF']
+
+/** 依擊球方向和距離，判斷由哪個守備員處理 */
+export function fielderFor(type: BattedBall['type'], angle: number, distance: number): Fielder {
+  const infield = type === 'ground' ? distance <= 125 : distance < 150
+  if (!infield) return angle < -15 ? 'LF' : angle > 15 ? 'RF' : 'CF'
+  if (distance < 45) return angle < -15 ? '3B' : angle > 15 ? '1B' : distance < 25 ? 'C' : 'P'
+  if (angle < -28) return '3B'
+  if (angle < -6) return 'SS'
+  if (angle <= 6) return distance < 75 ? 'P' : angle < 0 ? 'SS' : '2B'
+  if (angle <= 28) return '2B'
+  return '1B'
+}
+
+/** 滾地球雙殺：接球的人傳二壘補位的人，再轉傳一壘 */
+function groundDoublePlay(fielder: Fielder): string {
+  const pivot = fielder === '2B' || fielder === '1B' || fielder === 'P' || fielder === 'C' ? 'SS' : '2B'
+  return `${FIELDER_NUMBERS[fielder]}-${FIELDER_NUMBERS[pivot]}-3`
+}
+
+/** 平飛球接殺後，傳回跑者原本的壘包；自己就在壘包旁則是獨殺 */
+function doubledOff(fielder: Fielder, base: 1 | 2): string {
+  const cover: Fielder = base === 1 ? '1B' : fielder === '2B' ? '2B' : 'SS'
+  return fielder === cover ? `${FIELDER_NUMBERS[fielder]}` : `${FIELDER_NUMBERS[fielder]}-${FIELDER_NUMBERS[cover]}`
 }
 
 export function sameTactic(a: Tactic, b: Tactic): boolean {

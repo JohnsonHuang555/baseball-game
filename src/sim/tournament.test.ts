@@ -40,6 +40,16 @@ describe('錦標賽開打前', () => {
     expect(() => updateSetup(t, rerollTeam(t.setup))).toThrow()
   })
 
+  it('自訂隊名撞到 AI 隊伍時，AI 隊伍改名，隊名仍不重複', () => {
+    const t = createTournament(1)
+    const taken = t.teamNames[t.opponents[0]]
+    const next = updateSetup(t, { ...t.setup, team: { ...t.setup.team, name: taken } })
+    expect(next.teamNames[0]).toBe(taken)
+    expect(new Set(next.teamNames).size).toBe(16)
+    expect(next.opponent.name).toBe(next.teamNames[next.opponents[0]])
+    expect(next.opponent.name).not.toBe(taken)
+  })
+
   it('開打後仍可以調整陣容', () => {
     const t = startTournament(createTournament(3))
     const swapped = swapSlots(t.setup.team.roster, { kind: 'lineup', index: 0 }, { kind: 'lineup', index: 1 })!

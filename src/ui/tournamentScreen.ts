@@ -32,7 +32,7 @@ export function openTournament(root: HTMLElement, t: Tournament, toTitle: () => 
     case 'pregame':
       return showRosterEditor(root, {
         setup: t.setup,
-        opponent: t.opponent,
+        opponent: () => t.opponent,
         heading: T.tournamentHeading(roundName),
         allowReroll: true,
         startLabel: T.startTournament,
@@ -69,7 +69,7 @@ function playCurrentGame(root: HTMLElement, t: Tournament, go: (t: Tournament) =
       t = saveProgress(t, g.commands, g.stepIndex)
       saveTournament(t)
     },
-    resultActions: (g) => [{ label: `▶ ${T.continue}`, primary: true, onClick: () => go(finishGame(t, g.score)) }],
+    resultActions: (g) => [{ label: T.continue, primary: true, onClick: () => go(finishGame(t, g.score)) }],
   })
 }
 
@@ -101,11 +101,11 @@ function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, 
       el('h2', '', t.opponent.name),
       el('div', 'muted', `${T.avgOverall} ${teamAverage(t.opponent.roster).toFixed(1)}　vs　${T.myTeam} ${teamAverage(t.setup.team.roster).toFixed(1)}`),
     )
-    const next = el('button', 'btn btn-primary', `▶ ${T.nextGame}`)
+    const next = el('button', 'btn btn-primary', T.nextGame)
     next.onclick = () =>
       showRosterEditor(root, {
         setup: t.setup,
-        opponent: t.opponent,
+        opponent: () => t.opponent,
         heading: gameSubtitle(t),
         allowReroll: false,
         startLabel: T.startGame,

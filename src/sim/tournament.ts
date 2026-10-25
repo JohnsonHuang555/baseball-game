@@ -114,7 +114,16 @@ function expectPhase(t: Tournament, ...phases: TournamentPhase[]): void {
 /** 開打前的重骰；開打後就不能再重骰 */
 export function updateSetup(t: Tournament, setup: PregameSetup): Tournament {
   expectPhase(t, 'pregame')
-  return { ...t, setup, teamNames: [setup.team.name, ...t.teamNames.slice(1)] }
+  const name = setup.team.name
+  if (name === t.teamNames[0]) return { ...t, setup }
+  // 玩家自訂的隊名撞到 AI 隊伍時，AI 隊伍換名字
+  const rng = new Rng(t.rngState)
+  const teamNames = [name, ...t.teamNames.slice(1)]
+  for (let i = 1; i < teamNames.length; i++) {
+    while (teamNames.indexOf(teamNames[i]) !== i) teamNames[i] = teamName(rng)
+  }
+  const opponent = { ...t.opponent, name: teamNames[t.opponents[t.roundIndex]] }
+  return { ...t, setup, teamNames, opponent, rngState: rng.state }
 }
 
 /** 陣容調整：打序、先發投手、板凳互換，不增減球員 */

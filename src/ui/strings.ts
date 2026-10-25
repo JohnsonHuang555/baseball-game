@@ -1,5 +1,5 @@
 // 所有介面文字集中在這裡，之後要加語系只改這個檔
-import type { PitchResult, PlayKind } from '../sim/game'
+import type { BattedBall, Fielder, PitchResult, PlayKind } from '../sim/game'
 import type { CardTier } from '../sim/generate'
 import type { Round } from '../sim/tournament'
 import type { TraitId } from '../sim/traits'
@@ -45,8 +45,6 @@ export const T = {
   playAgain: '再來一場',
   backToTitle: '回首頁',
   outs: (n: number) => `${n} 出局`,
-  runnersNone: '壘上無人',
-  baseName: (b: 1 | 2 | 3) => ['一', '二', '三'][b - 1],
   halfEnd: (n: number, top: boolean) => `── ${n} 局${top ? '上' : '下'}結束 ──`,
   gameOver: '比賽結束',
   scored: (runs: number) => `，得 ${runs} 分`,
@@ -76,7 +74,17 @@ export const T = {
   draftHint: '贏球了！從 3 名球員中挑 1 名加入隊伍，或放棄這次選秀',
   draftReleaseHint: (name: string) => `選擇要釋出的球員，由 ${name} 接替`,
   skipDraft: '放棄選秀',
-  champion: '🏆 奪冠！',
+  champion: '奪冠！',
+  rename: '改隊名',
+  randomName: '隨機隊名',
+  save: '儲存',
+  teamNamePlaceholder: '輸入隊名',
+  callError: '失誤！',
+  callDoublePlay: '雙殺！',
+  onDeck: '下一棒',
+  runnerOn: (base: 1 | 2 | 3) => `${['一', '二', '三'][base - 1]}壘跑者`,
+  yourSide: '我方',
+  theirSide: '對手',
   eliminated: (round: string) => `止步${round}`,
   tournamentOver: '這支隊伍的旅程結束了，下次會是全新的隊伍。',
   gameRecord: (round: string, won: boolean, u: number, o: number) => `${round}　${won ? '勝' : '敗'} ${u}:${o}`,
@@ -137,19 +145,80 @@ export const PITCH_TEXT: Record<PitchResult, string> = {
   inPlay: '擊出！',
 }
 
-export const PLAY_TEXT: Record<PlayKind, string> = {
-  single: '擊出一壘安打',
-  double: '擊出二壘安打',
-  triple: '擊出三壘安打',
-  homeRun: '轟出全壘打！',
-  groundOut: '滾地球出局',
-  doublePlay: '打成雙殺',
-  flyOut: '高飛球出局',
-  sacrificeFly: '高飛犧牲打',
-  lineOut: '平飛球出局',
-  strikeout: '被三振',
-  walk: '獲得四壞球保送',
-  intentionalWalk: '被故意四壞保送',
-  sacrificeBunt: '犧牲觸擊成功',
-  buntPopOut: '觸擊失敗，小飛球出局',
+/** 擊球方向，用守備位置稱呼 */
+const AREA: Record<Fielder, string> = {
+  P: '投手',
+  C: '捕手',
+  '1B': '一壘',
+  '2B': '二壘',
+  '3B': '三壘',
+  SS: '游擊',
+  LF: '左外野',
+  CF: '中外野',
+  RF: '右外野',
+}
+
+export const FIELDER_TITLES: Record<Fielder, string> = {
+  P: '投手',
+  C: '捕手',
+  '1B': '一壘手',
+  '2B': '二壘手',
+  '3B': '三壘手',
+  SS: '游擊手',
+  LF: '左外野手',
+  CF: '中外野手',
+  RF: '右外野手',
+}
+
+const BALL_TYPES: Record<BattedBall['type'], string> = { ground: '滾地球', fly: '高飛球', line: '平飛球' }
+
+/** 依得分數稱呼全壘打：陽春、兩分、三分、滿貫 */
+export function homeRunName(runs: number): string {
+  return ['陽春全壘打', '兩分全壘打', '三分全壘打', '滿貫全壘打'][Math.min(4, Math.max(1, runs)) - 1]
+}
+
+/** 壘上情況：三個壘包都有人時說「滿壘」 */
+export function runnersText(occupied: readonly boolean[]): string {
+  const bases = occupied.flatMap((on, i) => (on ? [['一', '二', '三'][i]] : []))
+  if (bases.length === 0) return '壘上無人'
+  if (bases.length === 3) return '滿壘'
+  return `${bases.join('、')}壘有人`
+}
+
+export function describePlay(kind: PlayKind, ball: BattedBall | null, runs: number, notation: string | null): string {
+  const area = ball ? AREA[ball.fielder] : ''
+  switch (kind) {
+    case 'single':
+      return `擊出${area}方向一壘安打`
+    case 'double':
+      return `擊出${area}方向二壘安打`
+    case 'triple':
+      return `擊出${area}方向三壘安打`
+    case 'homeRun':
+      return `轟出${homeRunName(runs)}！`
+    case 'groundOut':
+      return `${area}方向滾地球出局`
+    case 'flyOut':
+      return `${area}方向高飛球被接殺`
+    case 'lineOut':
+      return `${area}方向平飛球被接殺`
+    case 'sacrificeFly':
+      return `${area}方向高飛犧牲打`
+    case 'doublePlay':
+      if (ball?.type === 'ground') return `${area}方向滾地球，形成 ${notation} 雙殺`
+      if (ball?.type === 'fly') return `${area}高飛球被接殺，三壘跑者衝本壘遭觸殺，形成 ${notation} 雙殺`
+      return `${area}方向平飛球被接殺，跑者回壘不及，形成 ${notation} 雙殺`
+    case 'error':
+      return `擊出${area}方向${BALL_TYPES[ball!.type]}，${FIELDER_TITLES[ball!.fielder]}失誤上壘`
+    case 'strikeout':
+      return '被三振'
+    case 'walk':
+      return '獲得四壞球保送'
+    case 'intentionalWalk':
+      return '被故意四壞保送'
+    case 'sacrificeBunt':
+      return '犧牲觸擊成功'
+    case 'buntPopOut':
+      return '觸擊失敗，小飛球出局'
+  }
 }
