@@ -14,8 +14,11 @@ const MASCOTS = ['猛虎', '飛鷹', '雷霆', '海盜', '雄獅', '金龍', '�
 
 export type CardTier = 'bronze' | 'silver' | 'gold' | 'rainbow'
 
-function rating(rng: Rng): number {
-  return clamp(Math.round(rng.normal(5, 1.6)), 1, 10)
+/** 能力值分布的中心。AI 隊伍的難度就是把中心往上移 */
+export const BASE_MEAN = 5
+
+function rating(rng: Rng, mean: number): number {
+  return clamp(Math.round(rng.normal(mean, 1.6)), 1, 10)
 }
 
 function playerName(rng: Rng): string {
@@ -49,22 +52,22 @@ function traits(rng: Rng, role: Player['role']): TraitId[] {
   return result
 }
 
-export function generateBatter(rng: Rng): Batter {
+export function generateBatter(rng: Rng, mean = BASE_MEAN): Batter {
   return {
     id: playerId(rng),
     name: playerName(rng),
     role: 'batter',
-    ratings: { contact: rating(rng), power: rating(rng), speed: rating(rng) },
+    ratings: { contact: rating(rng, mean), power: rating(rng, mean), speed: rating(rng, mean) },
     traits: traits(rng, 'batter'),
   }
 }
 
-export function generatePitcher(rng: Rng): Pitcher {
+export function generatePitcher(rng: Rng, mean = BASE_MEAN): Pitcher {
   return {
     id: playerId(rng),
     name: playerName(rng),
     role: 'pitcher',
-    ratings: { stuff: rating(rng), control: rating(rng), stamina: rating(rng) },
+    ratings: { stuff: rating(rng, mean), control: rating(rng, mean), stamina: rating(rng, mean) },
     traits: traits(rng, 'pitcher'),
   }
 }
@@ -74,19 +77,32 @@ function battingOrderScore(b: Batter): number {
   return b.ratings.contact * 2 + b.ratings.power + b.ratings.speed * 0.5
 }
 
-export function generateRoster(rng: Rng): Roster {
-  const lineup = POSITIONS.map((position) => ({ position, player: generateBatter(rng) }))
+export function generateRoster(rng: Rng, mean = BASE_MEAN): Roster {
+  const lineup = POSITIONS.map((position) => ({ position, player: generateBatter(rng, mean) }))
   lineup.sort((a, b) => battingOrderScore(b.player) - battingOrderScore(a.player))
   return {
     lineup,
-    bench: [generateBatter(rng), generateBatter(rng)],
-    starter: generatePitcher(rng),
-    relievers: [generatePitcher(rng), generatePitcher(rng)],
+    bench: [generateBatter(rng, mean), generateBatter(rng, mean)],
+    starter: generatePitcher(rng, mean),
+    relievers: [generatePitcher(rng, mean), generatePitcher(rng, mean)],
   }
 }
 
-export function generateTeam(rng: Rng): Team {
-  return { name: rng.pick(CITIES) + rng.pick(MASCOTS), roster: generateRoster(rng) }
+export function teamName(rng: Rng): string {
+  return rng.pick(CITIES) + rng.pick(MASCOTS)
+}
+
+export function generateTeam(rng: Rng, mean = BASE_MEAN): Team {
+  return { name: teamName(rng), roster: generateRoster(rng, mean) }
+}
+
+export function allPlayers(roster: Roster): Player[] {
+  return [...roster.lineup.map((s) => s.player), ...roster.bench, roster.starter, ...roster.relievers]
+}
+
+export function teamAverage(roster: Roster): number {
+  const players = allPlayers(roster)
+  return players.reduce((sum, p) => sum + overall(p), 0) / players.length
 }
 
 export function overall(p: Player): number {

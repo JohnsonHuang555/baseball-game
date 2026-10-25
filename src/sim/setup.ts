@@ -58,7 +58,7 @@ export function getSlot(roster: Roster, slot: Slot): Player {
   }
 }
 
-function setSlot(roster: Roster, slot: Slot, player: Player): Roster {
+export function setSlot(roster: Roster, slot: Slot, player: Player): Roster {
   switch (slot.kind) {
     case 'lineup':
       if (player.role !== 'batter') throw new Error('打序只能放打者')

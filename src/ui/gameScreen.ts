@@ -1,9 +1,23 @@
-import { Game, LEVERAGE_THRESHOLD, type GameEvent, type Side, type Tactic } from '../sim/game'
-import type { Team } from '../sim/types'
+import { LEVERAGE_THRESHOLD, type Game, type GameEvent, type Side, type Tactic } from '../sim/game'
 import { FieldRenderer } from './field'
 import { el, ratingsText, traitChips } from './playerCard'
 import { PITCH_TEXT, PLAY_TEXT, T } from './strings'
-import { randomSeed } from './setupScreen'
+
+export interface ResultAction {
+  label: string
+  primary?: boolean
+  onClick: () => void
+}
+
+export interface GameScreenOptions {
+  /** 可以是新開的比賽，也可以是重播回中斷點的比賽 */
+  game: Game
+  /** 計分板上方的小字，例如「錦標賽・八強」 */
+  subtitle?: string
+  /** 每推進一步或下指令後呼叫，用來存檔 */
+  onProgress?: (game: Game) => void
+  resultActions: (game: Game) => ResultAction[]
+}
 
 const USER_COLOR = '#3b82f6'
 const CPU_COLOR = '#ef4444'
@@ -18,9 +32,9 @@ const SUBMENU_LABELS: Partial<Record<Tactic['type'], string>> = {
   changePitcher: T.tacticChangePitcher,
 }
 
-export function showGame(root: HTMLElement, user: Team, opponent: Team, onExit: (again: boolean) => void): void {
-  const userSide: Side = 'home'
-  const game = new Game({ home: user, away: opponent, seed: randomSeed(), userSide })
+export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
+  const { game } = opts
+  const userSide = game.userSide
   let speed = 1
   let pauseRequested = false
   let offeredPa = -1
@@ -28,6 +42,7 @@ export function showGame(root: HTMLElement, user: Team, opponent: Team, onExit: 
 
   root.replaceChildren()
   const screen = el('div', 'screen game')
+  if (opts.subtitle) screen.append(el('div', 'game-subtitle', opts.subtitle))
 
   const board = el('div', 'scoreboard')
   const canvasWrap = el('div', 'field-wrap')
@@ -243,6 +258,7 @@ export function showGame(root: HTMLElement, user: Team, opponent: Team, onExit: 
           btn.onclick = async () => {
             submenu = null
             const events = game.issue(t)
+            opts.onProgress?.(game)
             if (t.type === 'steal' || t.type === 'bunt' || t.type === 'hitAndRun') return close()
             sheet.classList.add('hidden')
             await animate(events, true)
@@ -319,7 +335,9 @@ export function showGame(root: HTMLElement, user: Team, opponent: Team, onExit: 
         }
       }
       const important = game.leverage() >= LEVERAGE_THRESHOLD
-      await animate(game.step(), important)
+      const events = game.step()
+      opts.onProgress?.(game)
+      await animate(events, important)
     }
     showResult()
   }
@@ -332,11 +350,11 @@ export function showGame(root: HTMLElement, user: Team, opponent: Team, onExit: 
     const panel = el('div', 'sheet-panel result')
     panel.append(el('h2', won ? 'win' : 'lose', won ? T.win : T.lose))
     panel.append(linescoreTable())
-    const again = el('button', 'btn btn-primary', `🎲 ${T.playAgain}`)
-    again.onclick = () => onExit(true)
-    const home = el('button', 'btn btn-ghost', T.backToTitle)
-    home.onclick = () => onExit(false)
-    panel.append(again, home)
+    for (const action of opts.resultActions(game)) {
+      const btn = el('button', `btn ${action.primary ? 'btn-primary' : 'btn-ghost'}`, action.label)
+      btn.onclick = action.onClick
+      panel.append(btn)
+    }
     sheet.append(panel)
     sheet.classList.remove('hidden')
   }

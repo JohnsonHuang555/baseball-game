@@ -1,6 +1,7 @@
 // 所有介面文字集中在這裡，之後要加語系只改這個檔
 import type { PitchResult, PlayKind } from '../sim/game'
 import type { CardTier } from '../sim/generate'
+import type { Round } from '../sim/tournament'
 import type { TraitId } from '../sim/traits'
 import type { Position } from '../sim/types'
 
@@ -57,6 +58,28 @@ export const T = {
     `盜${from === 1 ? '二' : '三'}壘（${name}，速 ${speed}）`,
   tacticBunt: '犧牲觸擊',
   tacticHitAndRun: '打帶跑',
+  lineupOnlyHint: '錦標賽開打後不能重骰，只能調整打序、投手與板凳',
+  roundNames: { r16: '十六強', qf: '八強', sf: '四強', final: '決賽' } as Record<Round, string>,
+  tournamentHeading: (round: string) => `錦標賽・${round}`,
+  startTournament: '開始錦標賽',
+  continueTournament: (round: string) => `繼續錦標賽（${round}）`,
+  newTournament: '新的錦標賽',
+  confirmOverwrite: '目前的錦標賽進度會被清除，確定要重新開始嗎？',
+  nextGame: '調整陣容並開賽',
+  nextOpponent: '下一個對手',
+  finalGame: (n: number, user: number, opp: number) => `決賽 第 ${n} 戰（系列 ${user}-${opp}）`,
+  bracketTitle: '賽程',
+  historyTitle: '戰績',
+  pending: '待定',
+  continue: '繼續',
+  draftTitle: '選秀',
+  draftHint: '贏球了！從 3 名球員中挑 1 名加入隊伍，或放棄這次選秀',
+  draftReleaseHint: (name: string) => `選擇要釋出的球員，由 ${name} 接替`,
+  skipDraft: '放棄選秀',
+  champion: '🏆 奪冠！',
+  eliminated: (round: string) => `止步${round}`,
+  tournamentOver: '這支隊伍的旅程結束了，下次會是全新的隊伍。',
+  gameRecord: (round: string, won: boolean, u: number, o: number) => `${round}　${won ? '勝' : '敗'} ${u}:${o}`,
   tacticPinchHit: '代打',
   pinchRunMenu: '代跑',
   back: '返回',

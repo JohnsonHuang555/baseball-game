@@ -1,7 +1,5 @@
-import { generateTeam, overall } from '../sim/generate'
-import { Rng } from '../sim/rng'
+import { teamAverage } from '../sim/generate'
 import {
-  createSetup,
   getSlot,
   isPitcherSlot,
   rerollPlayer,
@@ -14,23 +12,34 @@ import type { Team } from '../sim/types'
 import { el, playerCard, type Reveal } from './playerCard'
 import { POSITION_NAMES, T } from './strings'
 
+export interface RosterEditorOptions {
+  setup: PregameSetup
+  opponent: Team
+  /** 標題上方的小字，例如「我的球隊」或「錦標賽・八強」 */
+  heading: string
+  /** 開打前可以重骰；比賽之間只能調整陣容 */
+  allowReroll: boolean
+  startLabel: string
+  onChange?: (setup: PregameSetup) => void
+  onStart: (setup: PregameSetup) => void
+  onBack: () => void
+}
+
 function sameSlot(a: Slot | null, b: Slot): boolean {
   return !!a && JSON.stringify(a) === JSON.stringify(b)
 }
 
-function teamAverage(team: Team): number {
-  const r = team.roster
-  const all = [...r.lineup.map((s) => s.player), ...r.bench, r.starter, ...r.relievers]
-  return all.reduce((sum, p) => sum + overall(p), 0) / all.length
-}
-
-/** 快速比賽的組隊畫面：重骰、換人，然後開打 */
-export function showSetup(root: HTMLElement, onStart: (user: Team, opponent: Team) => void, onBack: () => void): void {
-  let setup: PregameSetup = createSetup(randomSeed())
-  // 快速比賽的對手跟玩家一樣全隨機，不能重骰
-  const opponent = generateTeam(new Rng(randomSeed()))
+/** 組隊畫面：重骰（開打前）、交換打序與換人，然後開打 */
+export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): void {
+  let setup = opts.setup
+  const { opponent, allowReroll } = opts
   let selected: Slot | null = null
   let revealed: Slot[] | 'all' = 'all'
+
+  function update(next: PregameSetup): void {
+    setup = next
+    opts.onChange?.(setup)
+  }
 
   function render(): void {
     root.replaceChildren()
@@ -38,28 +47,32 @@ export function showSetup(root: HTMLElement, onStart: (user: Team, opponent: Tea
 
     const header = el('header', 'setup-header')
     const back = el('button', 'link', '‹')
-    back.onclick = onBack
+    back.onclick = opts.onBack
     const titles = el('div')
-    titles.append(el('div', 'eyebrow', T.myTeam), el('h1', '', setup.team.name))
+    titles.append(el('div', 'eyebrow', opts.heading), el('h1', '', setup.team.name))
     header.append(back, titles)
+    const mine = el('div', 'versus')
+    mine.append(el('span', '', T.myTeam), el('span', 'muted', `${T.avgOverall} ${teamAverage(setup.team.roster).toFixed(1)}`))
     const vs = el('div', 'versus')
     vs.append(
       el('span', '', `${T.opponent}：${opponent.name}`),
-      el('span', 'muted', `${T.avgOverall} ${teamAverage(opponent).toFixed(1)}`),
+      el('span', 'muted', `${T.avgOverall} ${teamAverage(opponent.roster).toFixed(1)}`),
     )
-    const mine = el('div', 'versus')
-    mine.append(el('span', '', T.myTeam), el('span', 'muted', `${T.avgOverall} ${teamAverage(setup.team).toFixed(1)}`))
+    screen.append(header, mine, vs)
 
-    const rerollAll = el('button', 'btn btn-secondary', `🎲 ${T.rerollTeam}（${T.left(setup.teamRerollsLeft)}）`)
-    rerollAll.disabled = setup.teamRerollsLeft <= 0
-    rerollAll.onclick = () => {
-      setup = rerollTeam(setup)
-      selected = null
-      revealed = 'all'
-      render()
+    if (allowReroll) {
+      const rerollAll = el('button', 'btn btn-secondary', `🎲 ${T.rerollTeam}（${T.left(setup.teamRerollsLeft)}）`)
+      rerollAll.disabled = setup.teamRerollsLeft <= 0
+      rerollAll.onclick = () => {
+        update(rerollTeam(setup))
+        selected = null
+        revealed = 'all'
+        render()
+      }
+      screen.append(rerollAll)
+    } else {
+      screen.append(el('div', 'hint', T.lineupOnlyHint))
     }
-
-    screen.append(header, mine, vs, rerollAll)
 
     const r = setup.team.roster
     const section = (title: string, cards: [Slot, string][]) => {
@@ -91,27 +104,30 @@ export function showSetup(root: HTMLElement, onStart: (user: Team, opponent: Tea
     const bar = el('div', 'action-bar')
     if (selected) {
       const slot = selected
-      const hint = el('div', 'hint', `${getSlot(r, slot).name}：${T.swapHint}`)
-      const reroll = el('button', 'btn btn-secondary', `🎲 ${T.rerollPlayer}（${T.left(setup.playerRerollsLeft)}）`)
-      reroll.disabled = setup.playerRerollsLeft <= 0
-      reroll.onclick = () => {
-        setup = rerollPlayer(setup, slot)
-        revealed = [slot]
-        selected = null
-        render()
-      }
+      bar.append(el('div', 'hint', `${getSlot(r, slot).name}：${T.swapHint}`))
+      const row = el('div', 'row')
       const cancel = el('button', 'btn btn-ghost', T.cancel)
       cancel.onclick = () => {
         selected = null
         revealed = []
         render()
       }
-      const row = el('div', 'row')
-      row.append(cancel, reroll)
-      bar.append(hint, row)
+      row.append(cancel)
+      if (allowReroll) {
+        const reroll = el('button', 'btn btn-secondary', `🎲 ${T.rerollPlayer}（${T.left(setup.playerRerollsLeft)}）`)
+        reroll.disabled = setup.playerRerollsLeft <= 0
+        reroll.onclick = () => {
+          update(rerollPlayer(setup, slot))
+          revealed = [slot]
+          selected = null
+          render()
+        }
+        row.append(reroll)
+      }
+      bar.append(row)
     } else {
-      const start = el('button', 'btn btn-primary', `▶ ${T.startGame}`)
-      start.onclick = () => onStart(setup.team, opponent)
+      const start = el('button', 'btn btn-primary', `▶ ${opts.startLabel}`)
+      start.onclick = () => opts.onStart(setup)
       bar.append(start)
     }
     screen.append(bar)
@@ -124,7 +140,7 @@ export function showSetup(root: HTMLElement, onStart: (user: Team, opponent: Tea
     else if (sameSlot(selected, slot)) selected = null
     else if (isPitcherSlot(selected) === isPitcherSlot(slot)) {
       const swapped = swapSlots(setup.team.roster, selected, slot)
-      if (swapped) setup = { ...setup, team: { ...setup.team, roster: swapped } }
+      if (swapped) update({ ...setup, team: { ...setup.team, roster: swapped } })
       selected = null
     } else selected = slot
     render()
