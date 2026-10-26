@@ -592,8 +592,10 @@ export class Game {
     return this.lineOut(ball, hitAndRun)
   }
 
+  /** 擊球：沒出牆的球一定落在全壘打牆前面 */
   private makeBall(type: BattedBall['type'], angle: number, distance: number): BattedBall {
-    return { type, angle, distance, fielder: fielderFor(type, angle, distance) }
+    const d = Math.min(distance, fenceDistance(angle) - 10)
+    return { type, angle, distance: d, fielder: fielderFor(type, angle, d) }
   }
 
   private outBall(type: BattedBall['type']): BattedBall {
@@ -629,12 +631,15 @@ export class Game {
     const spd = (b: Batter) => b.ratings.speed - 5
     let ball: BattedBall
     switch (kind) {
-      case 'homeRun':
+      case 'homeRun': {
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
         move(batter, 0, 4)
-        // 力量越大打得越遠；亂數用量跟以前一樣，舊存檔重播不受影響
-        ball = this.makeBall('fly', clamp(rng.normal(0, 25), -43, 43), Math.max(365, 375 + rng.range(0, 70) + (batter.ratings.power - 5) * 5))
+        // 一定飛過該方向的全壘打牆；力量越大打得越遠。亂數用量跟以前一樣，舊存檔重播不受影響
+        const angle = clamp(rng.normal(0, 25), -43, 43)
+        const distance = fenceDistance(angle) + Math.max(5, 8 + rng.range(0, 60) + (batter.ratings.power - 5) * 5)
+        ball = { type: 'fly', angle, distance, fielder: fielderFor('fly', angle, distance) }
         break
+      }
       case 'triple':
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
         move(batter, 0, 3)
@@ -876,6 +881,15 @@ const ERROR_RATE: Record<BattedBall['type'], number> = { ground: 0.045, fly: 0.0
 const OUTFIELDERS: readonly Fielder[] = ['LF', 'CF', 'RF']
 
 /** 依擊球方向和距離，判斷由哪個守備員處理 */
+/**
+ * 全壘打牆的距離（英呎）：跟真實球場一樣兩邊淺、中間深，
+ * 左右外野標竿約 330 英呎（101 公尺），中外野 400 英呎（122 公尺）
+ */
+export function fenceDistance(angle: number): number {
+  const a = (clamp(angle, -45, 45) * Math.PI) / 180
+  return 330 + 70 * Math.cos(2 * a)
+}
+
 export interface HomeRunStats {
   distanceFt: number
   /** 仰角（度） */

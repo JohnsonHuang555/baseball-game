@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Game, fielderFor, homeRunStats, replay, type GameEvent, type GameSetup, type Tactic } from './game'
+import { Game, fenceDistance, fielderFor, homeRunStats, replay, type GameEvent, type GameSetup, type Tactic } from './game'
 import { generateTeam } from './generate'
 import { Rng } from './rng'
 import type { Team } from './types'
@@ -514,5 +514,28 @@ describe('全壘打數據', () => {
     const strong = all.filter((h) => h.power >= 7).map((h) => h.ball.distance)
     const weak = all.filter((h) => h.power <= 4).map((h) => h.ball.distance)
     expect(avg(strong)).toBeGreaterThan(avg(weak))
+  })
+})
+
+describe('全壘打牆', () => {
+  it('兩邊淺、中間深：標竿約 101 公尺，中外野約 122 公尺', () => {
+    expect(fenceDistance(45)).toBeCloseTo(330)
+    expect(fenceDistance(-45)).toBeCloseTo(330)
+    expect(fenceDistance(0)).toBeCloseTo(400)
+    expect(fenceDistance(20)).toBeGreaterThan(fenceDistance(40))
+  })
+
+  it('全壘打一定飛過該方向的牆，其他擊球一定落在牆前', () => {
+    for (let seed = 1; seed <= 150; seed++) {
+      const g = new Game(setup(seed))
+      while (!g.over) {
+        for (const e of g.step()) {
+          if (e.type !== 'play' || !e.ball) continue
+          const fence = fenceDistance(e.ball.angle)
+          if (e.kind === 'homeRun') expect(e.ball.distance).toBeGreaterThan(fence)
+          else expect(e.ball.distance).toBeLessThan(fence)
+        }
+      }
+    }
   })
 })

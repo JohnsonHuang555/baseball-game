@@ -1,11 +1,14 @@
-import type { BattedBall, PitchResult, RunnerMove } from '../sim/game'
+import { fenceDistance, type BattedBall, type PitchResult, type RunnerMove } from '../sim/game'
 
 interface Pt {
   x: number
   y: number
 }
 
-const FENCE_FT = 400
+/** 中外野的全壘打牆距離；兩邊較淺，見 fenceDistance */
+const FENCE_FT = fenceDistance(0)
+/** 左右外野標竿的距離 */
+const POLE_FT = fenceDistance(45)
 /** [角度, 距離英呎]：角度 0 為中外野方向 */
 const BASES: Record<0 | 1 | 2 | 3, [number, number]> = { 0: [0, 0], 1: [45, 90], 2: [0, 127.3], 3: [-45, 90] }
 const MOUND: [number, number] = [0, 60.5]
@@ -67,7 +70,7 @@ export class FieldRenderer {
     this.canvas.height = Math.round(this.h * dpr)
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     this.home = { x: this.w / 2, y: this.h * 0.93 }
-    this.scale = Math.min((this.home.y - 8) / (FENCE_FT + 8), (this.w / 2 - 4) / (FENCE_FT * Math.SQRT1_2))
+    this.scale = Math.min((this.home.y - 8) / (FENCE_FT + 8), (this.w / 2 - 4) / (POLE_FT * Math.SQRT1_2))
     this.resetFielders()
     this.draw()
   }
@@ -107,21 +110,25 @@ export class FieldRenderer {
     c.fillStyle = COLORS.foul
     c.fillRect(0, 0, this.w, this.h)
 
-    const wedge = (radiusFt: number, color: string) => {
-      c.beginPath()
-      c.moveTo(home.x, home.y)
-      c.arc(home.x, home.y, radiusFt * scale, -Math.PI * 0.75, -Math.PI * 0.25)
-      c.closePath()
-      c.fillStyle = color
-      c.fill()
+    // 全壘打牆的曲線：從左外野標竿畫到右外野標竿，inset 是往內縮的英呎數
+    const fencePath = (inset = 0) => {
+      for (let a = -45; a <= 45; a += 3) {
+        const p = this.toPx(a, fenceDistance(a) - inset)
+        c.lineTo(p.x, p.y)
+      }
     }
-    wedge(FENCE_FT, COLORS.fair)
+    c.beginPath()
+    c.moveTo(home.x, home.y)
+    fencePath()
+    c.closePath()
+    c.fillStyle = COLORS.fair
+    c.fill()
 
     // 外野草皮的割草斜紋：只畫在界內
     c.save()
     c.beginPath()
     c.moveTo(home.x, home.y)
-    c.arc(home.x, home.y, FENCE_FT * scale, -Math.PI * 0.75, -Math.PI * 0.25)
+    fencePath()
     c.closePath()
     c.clip()
     c.strokeStyle = COLORS.mow
@@ -138,7 +145,9 @@ export class FieldRenderer {
     c.strokeStyle = COLORS.dirt
     c.lineWidth = 9
     c.beginPath()
-    c.arc(home.x, home.y, FENCE_FT * scale - 4, -Math.PI * 0.75, -Math.PI * 0.25)
+    const track = this.toPx(-45, POLE_FT - 4 / scale)
+    c.moveTo(track.x, track.y)
+    fencePath(4 / scale)
     c.stroke()
 
     // 內野：以本壘到二壘的中點為中心，土色菱形往外擴、中間草皮往內縮
@@ -168,7 +177,7 @@ export class FieldRenderer {
     c.strokeStyle = COLORS.line
     c.lineWidth = 2.5
     for (const a of [-45, 45]) {
-      const end = this.toPx(a, FENCE_FT + 40)
+      const end = this.toPx(a, POLE_FT + 40)
       c.beginPath()
       c.moveTo(home.x, home.y)
       c.lineTo(end.x, end.y)
@@ -289,7 +298,8 @@ export class FieldRenderer {
     }
     const chaserStart = chaser ? { ...this.fielders.get(chaser)! } : null
     const reach = caught ? 1 : 0.8
-    const target = ball.distance > FENCE_FT ? this.toPx(ball.angle, FENCE_FT - 8) : land
+    const fence = fenceDistance(ball.angle)
+    const target = ball.distance > fence ? this.toPx(ball.angle, fence - 8) : land
     await this.tween(ms, (t) => {
       this.ball = { x: lerp(start.x, land.x, t), y: lerp(start.y, land.y, t), height: Math.sin(t * Math.PI) * peak }
       if (chaser && chaserStart) {
