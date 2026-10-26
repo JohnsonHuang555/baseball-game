@@ -1,0 +1,513 @@
+/* 決策面板：標題緞帶、局勢條、打者對投手、重點調度卡、其他指令格、詳細資訊 */
+
+/* 緞帶凸出在面板外，所以讓遮罩捲動、面板本身不捲，才不會把緞帶裁掉 */
+.sheet:has(.decision-panel) {
+  align-items: flex-start;
+  overflow-y: auto;
+  padding-top: 32px;
+  background: rgba(12, 13, 36, 0.55);
+}
+.decision-panel.sheet-panel {
+  margin-top: auto;
+  max-height: none;
+  overflow: visible;
+  background: var(--paper);
+  color: var(--ink);
+  border-top: 3px solid var(--ink);
+  border-radius: 24px 24px 0 0;
+  padding: 0 14px calc(18px + env(safe-area-inset-bottom));
+  gap: 10px;
+  animation: panel-up 0.26s ease-out;
+}
+@keyframes panel-up {
+  from {
+    transform: translateY(60px);
+    opacity: 0;
+  }
+}
+
+/* ---- 標題緞帶 ---- */
+.ribbon-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: -24px;
+}
+.ribbon {
+  display: inline-flex;
+  align-items: center;
+  transform: skewX(-10deg);
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 0 4px 0 var(--ink);
+  padding: 6px 22px;
+  animation: ribbon-in 0.22s ease-out 0.12s both;
+}
+@keyframes ribbon-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-60px) skewX(-10deg) scale(0.9);
+  }
+  70% {
+    transform: translateX(0) skewX(-10deg) scale(1.06);
+  }
+}
+.ribbon-alert {
+  background: var(--yellow);
+}
+.ribbon-fatigue {
+  background: #ff7fa6;
+}
+.ribbon-pause {
+  background: #b9c0ff;
+}
+.ribbon-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: skewX(10deg);
+  color: var(--ink);
+}
+.ribbon-title {
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ---- 局勢條 ---- */
+.situation-bar {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 84px;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  padding: 8px 12px;
+}
+.sit-inning {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.sit-inning-num {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1;
+}
+.sit-half {
+  margin-left: 3px;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+}
+.sit-outs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.sit-out {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+}
+.sit-out.on {
+  background: #ff4f5e;
+}
+.sit-outs-text {
+  margin-left: 2px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.sit-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.sit-score-nums {
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1.1;
+}
+.sit-score-nums .user {
+  color: var(--home);
+}
+.sit-score-nums .opponent {
+  color: #e8650a;
+}
+.sit-score-nums .colon {
+  color: #9a9ec2;
+}
+.sit-lead {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.sit-bases {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.sit-bases svg {
+  width: 54px;
+  height: 38px;
+}
+.sit-bases rect {
+  fill: #fff;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.sit-bases rect.on {
+  fill: var(--yellow);
+}
+.sit-bases-text {
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+/* ---- 打者對投手 ---- */
+.decision-duel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  padding: 8px 10px;
+}
+.dd-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.dd-side .avatar.team-ring {
+  width: 44px;
+  height: 44px;
+}
+.dd-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dd-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.dd-name {
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dd-stats {
+  display: flex;
+  gap: 3px;
+}
+.dd-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.dd-stat-label {
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--ink-faint);
+}
+.dd-stamina {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dd-track {
+  flex: 1;
+  height: 7px;
+  border-radius: 4px;
+  background: #e3e6f5;
+  border: 1.5px solid var(--ink);
+  overflow: hidden;
+}
+.dd-fill {
+  display: block;
+  height: 100%;
+}
+.dd-fill.high {
+  background: #5fd068;
+}
+.dd-fill.mid {
+  background: var(--yellow);
+}
+.dd-fill.low {
+  background: #ff4f5e;
+}
+.dd-pct {
+  font-family: var(--font-display);
+  font-size: 11px;
+}
+.dd-pct.low {
+  color: #d61f36;
+}
+.dd-vs {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: #9a9ec2;
+  text-align: center;
+}
+.queued-note {
+  font-size: 13px;
+  font-weight: 900;
+  color: #8a5300;
+  background: #fff1b8;
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+
+/* ---- 重點調度卡 ---- */
+.section-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.option-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 76px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 14px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 3px 0 var(--ink);
+  font-family: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.option-card:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+.option-face {
+  position: relative;
+  flex: none;
+  width: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.option-face .avatar.team-ring {
+  width: 44px;
+  height: 44px;
+}
+.option-tag {
+  position: relative;
+  margin-top: -8px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 17px;
+  white-space: nowrap;
+}
+.option-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.option-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.option-main {
+  max-width: 100%;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.option-diffs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.diff {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.diff-label {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.diff-arrow {
+  font-size: 14px;
+  font-weight: 900;
+}
+.diff-text {
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+.decision-panel .pct {
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+.decision-panel .pct.low {
+  color: #d61f36;
+}
+.option-arrow {
+  flex: none;
+  display: grid;
+}
+.no-options {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 2px dashed #9a9ec2;
+  background: #fff;
+}
+.no-options-icon {
+  display: grid;
+  color: #6b7099;
+}
+.no-options-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.no-options-title {
+  font-size: 15px;
+  font-weight: 900;
+}
+.no-options-hint {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+/* ---- 展開區塊 ---- */
+.panel-toggles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.panel-toggle {
+  height: 44px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.panel-toggle.open {
+  background: var(--ink);
+  color: #fff;
+}
+.panel-toggle.open svg {
+  transform: rotate(180deg);
+}
+.command-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.command-cell {
+  height: 52px;
+  border-radius: 12px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 3px 0 var(--ink);
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.command-cell:disabled {
+  border: 2px dashed #b4b9cc;
+  background: #eceef8;
+  color: #6b7099;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.command-name {
+  font-size: 15px;
+  font-weight: 900;
+}
+.command-note {
+  font-size: 10px;
+  font-weight: 700;
+}
+.candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.candidates-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.detail-table {
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(4, 22px);
+  gap: 6px;
+  align-items: center;
+  height: 40px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+.detail-row:last-child {
+  border-bottom: 0;
+}
+.detail-who {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hand-over {
+  width: 100%;
+  flex: none;
+}
