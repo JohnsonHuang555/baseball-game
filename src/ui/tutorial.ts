@@ -13,7 +13,7 @@ export interface TutorialStep {
 }
 
 const PREFIX = 'dice-baseball.tutorial.'
-export const TUTORIALS = ['home', 'team', 'match', 'decision', 'alignment', 'pitchCall', 'guess', 'hub', 'draft'] as const
+export const TUTORIALS = ['home', 'team', 'match', 'decision', 'alignment', 'pitchCall', 'hub', 'draft'] as const
 export type TutorialId = (typeof TUTORIALS)[number]
 
 function seen(id: TutorialId): boolean {

@@ -1,12 +1,11 @@
 import { LEVERAGE_THRESHOLD, homeRunStats, type BattedBall, type Game, type GameEvent, type Side, type Tactic, type TakeOverKind } from '../sim/game'
-import type { PitchGuess } from '../sim/pitches'
 import type { Player } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { FieldRenderer } from './field'
 import { gradeBadge } from './grades'
 import { renderDecisionPanel, type PanelState, type SheetReason } from './decisionPanel'
 import { kbd, setKeys, type KeyMap } from './keys'
-import { aimLabel, runGuess, runMeter, type MeterOptions } from './meter'
+import { aimLabel, runMeter } from './meter'
 import { runPitchCall } from './pitchCall'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
@@ -528,7 +527,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
 
   /**
    * 親自出手一球並送出指令；選了「這球交給球員」就什麼都不做，回傳 false。
-   * 配球對決：出棒先猜球再停紅線，投球是選球種、位置再畫手勢；舊規則的比賽照舊跑計量條
+   * 配球對決：出棒停紅線決定時機與方向，投球是選球種再畫手勢；舊規則的比賽照舊跑計量條
    */
   async function personallyPlay(kind: TakeOverKind): Promise<boolean> {
     if (kind === 'throw') {
@@ -547,16 +546,11 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       addLog(T.meterLog(kind, T.meterGrades[result.grade]), result.grade === 'perfect' ? 'score' : '')
       return true
     }
-    const choice = await runGuess(canvasWrap, game.fastballOdds())
-    if (!choice) return false
-    const guess: PitchGuess | undefined = choice === 'none' ? undefined : choice
     const pitch = T.pitchNames[game.nextPitch()]
-    const meterOpts: MeterOptions = { aimMarks: true }
-    if (guess) meterOpts.banner = game.guessRight(guess) ? { text: T.guessRight(pitch), tone: 'good' } : { text: T.guessWrong(pitch), tone: 'bad' }
-    const zone = game.meterZone('swing', guess)
-    const result = await runMeter(canvasWrap, 'swing', zone, meterOpts)
+    const zone = game.meterZone('swing')
+    const result = await runMeter(canvasWrap, 'swing', zone, { aimMarks: true })
     if (!result) return false
-    game.issue(guess ? { type: 'swing', timing: result.timing, guess } : { type: 'swing', timing: result.timing })
+    game.issue({ type: 'swing', timing: result.timing })
     opts.onProgress?.(game)
     addLog(T.swingLog(T.meterGrades[result.grade], aimLabel(zone, result.timing), pitch), result.grade === 'perfect' ? 'score' : '')
     return true

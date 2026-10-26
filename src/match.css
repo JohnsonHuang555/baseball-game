@@ -707,7 +707,7 @@
   color: #6e9bff;
 }
 
-/* ---- 配球對決：出棒的方向標籤、猜球 ---- */
+/* ---- 配球對決：出棒的方向標籤 ---- */
 .meter-column {
   position: relative;
   flex: 1;
@@ -736,107 +736,6 @@
 .meter-mark.center {
   background: #c6f432;
   color: var(--ink);
-}
-.meter-banner {
-  position: absolute;
-  left: 50%;
-  top: 50px;
-  transform: translateX(-50%);
-  padding: 5px 14px;
-  border-radius: 12px;
-  border: 2.5px solid var(--ink);
-  font-size: 14px;
-  font-weight: 900;
-  white-space: nowrap;
-  animation: title-in 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
-}
-.meter-banner.good {
-  background: #c6f432;
-  color: var(--ink);
-}
-.meter-banner.bad {
-  background: #ff8a9a;
-  color: var(--ink);
-}
-.guess-layer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: default;
-  background: rgba(12, 13, 36, 0.55);
-}
-.guess-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: min(300px, calc(100% - 32px));
-  padding: 12px 14px 14px;
-  border-radius: 16px;
-  border: 2.5px solid var(--ink);
-  background: var(--paper);
-  box-shadow: 0 4px 0 var(--ink);
-  color: var(--ink);
-}
-.guess-sub,
-.guess-scout {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink-soft);
-  text-align: center;
-}
-.guess-odds {
-  width: 100%;
-  height: 10px;
-  border-radius: 5px;
-  border: 2px solid var(--ink);
-  background: #b58cff;
-  overflow: hidden;
-}
-.guess-odds-bar {
-  display: block;
-  height: 100%;
-  background: #ff6b5e;
-}
-.guess-choices {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  width: 100%;
-  margin-top: 2px;
-}
-.guess-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 6px 10px;
-  border-radius: 12px;
-  border: 2.5px solid var(--ink);
-  box-shadow: 0 3px 0 var(--ink);
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 900;
-  color: var(--ink);
-  cursor: pointer;
-}
-.guess-btn:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 var(--ink);
-}
-.guess-btn.fastball {
-  background: #ffb3ab;
-}
-.guess-btn.breaking {
-  background: #dcc8ff;
-}
-.guess-btn.none {
-  grid-column: 1 / -1;
-  min-height: 38px;
-  background: #fff;
-  font-size: 13px;
 }
 
 /* ---- 配球對決：投球（選球種、九宮格、畫手勢） ---- */

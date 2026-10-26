@@ -1,4 +1,4 @@
-import { PITCH_WHIFF, aiPitch, coldZone, fastballChance, hotZone, isBreaking, isCorner, repertoire, spotZones, stance, type PitchGuess, type PitchType } from './pitches'
+import { PITCH_WHIFF, aiPitch, coldZone, hotZone, isBreaking, isCorner, repertoire, spotZones, stance, type PitchGuess, type PitchType } from './pitches'
 import { Rng, clamp } from './rng'
 import { hasTrait } from './traits'
 import type { Batter, LineupSpot, Pitcher, Player, Team, Tendency } from './types'
@@ -20,7 +20,7 @@ export type Tactic =
   | { type: 'defensiveSub'; benchIndex: number; lineupIndex: number }
   /**
    * 親自出棒：下一球一定揮棒，timing 是計量條停下的位置（0～1）。
-   * 規則版本 5 起：停的位置偏早拉打、偏晚推打；guess 是先猜直球或變化球
+   * 規則版本 5 起：停的位置偏早拉打、偏晚推打；guess 是先猜直球或變化球（只有早期的紀錄會有）
    */
   | { type: 'swing'; timing: number; guess?: PitchGuess }
   /** 決勝球：下一球由教練親自投，timing 是計量條停下的位置（0～1） */
@@ -542,7 +542,7 @@ export class Game {
 
   /**
    * 計量條的目標區：出棒看打者的打擊，投球看投手的控球，體力越低越窄。
-   * 配球對決時先猜球：猜中變寬、猜錯變窄
+   * 早期的紀錄還有猜球：猜中變寬、猜錯變窄（現在的畫面不猜了）
    */
   meterZone(kind: 'swing' | 'aimPitch', guess?: PitchGuess): MeterZone {
     let good: number
@@ -556,14 +556,9 @@ export class Game {
     return { center: METER_CENTER, good, perfect: good * 0.35 }
   }
 
-  /** AI 投手這一球要投的球種（由種子和步數決定，玩家猜球後才會看到） */
+  /** AI 投手這一球要投的球種（由種子和步數決定，出棒後寫進比賽紀錄） */
   nextPitch(): PitchType {
     return aiPitch(this.seed, this.stepIndex, this.pitcher, this.balls, this.strikes)
-  }
-
-  /** 球探報告：這一球投直球的機率 */
-  fastballOdds(): number {
-    return fastballChance(this.pitcher, this.balls, this.strikes)
   }
 
   guessRight(guess: PitchGuess): boolean {

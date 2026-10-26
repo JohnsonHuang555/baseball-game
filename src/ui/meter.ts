@@ -1,12 +1,9 @@
 // 計量條：一條紅線由下往上、到頂再往下來回掃，玩家點一下就停住，停在黃色區就是好的時機
 import { gradeTiming, type MeterGrade, type MeterZone } from '../sim/game'
-import type { PitchGuess } from '../sim/pitches'
 import { kbd, setKeys } from './keys'
 import { el } from './playerCard'
 import { play } from './sound'
 import { T } from './strings'
-import { maybeTutorial } from './tutorial'
-import { TUTORIAL_STEPS } from './tutorialSteps'
 
 /** 紅線從底到頂（或從頂到底）一趟的時間（毫秒），不受比賽速度影響 */
 const SWEEP_MS = 900
@@ -28,8 +25,6 @@ function sweep(elapsed: number): number {
 }
 
 export interface MeterOptions {
-  /** 計量條上方的提示，例如猜球的結果 */
-  banner?: { text: string; tone: 'good' | 'bad' }
   /** 在黃色區旁邊標出拉打、中間、推打（配球對決的出棒） */
   aimMarks?: boolean
 }
@@ -79,7 +74,6 @@ export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: Me
       column.prepend(marks)
     }
     meter.append(el('span', 'meter-title', T.takeOverNames[kind]), column)
-    if (opts.banner) layer.append(el('div', `meter-banner ${opts.banner.tone}`, opts.banner.text))
     const hint = el('div', 'meter-hint')
     hint.append(T.meterHint, kbd('SPACE'))
     const skip = el('button', 'meter-skip', T.meterSkip)
@@ -148,55 +142,6 @@ export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: Me
     function cleanup(): void {
       document.removeEventListener('keydown', onKeyDown)
     }
-  })
-}
-
-/**
- * 猜球：計量條出來之前先猜直球或變化球，畫面附上球探給的機率。
- * 回傳猜的球種、'none'（不猜，直接打）；按「這球交給球員」回傳 null
- */
-export function runGuess(host: HTMLElement, fastballOdds: number): Promise<PitchGuess | 'none' | null> {
-  return new Promise((resolve) => {
-    const layer = el('div', 'meter-layer guess-layer')
-    const box = el('div', 'guess-box')
-    box.append(el('span', 'meter-title', T.guessTitle), el('p', 'guess-sub', T.guessSub))
-    const pct = Math.round(fastballOdds * 100)
-    const odds = el('div', 'guess-odds')
-    const bar = el('span', 'guess-odds-bar')
-    bar.style.width = `${pct}%`
-    odds.append(bar)
-    box.append(odds, el('p', 'guess-scout', T.scout(pct)))
-    const choices = el('div', 'guess-choices')
-    const finish = (value: PitchGuess | 'none' | null) => {
-      layer.remove()
-      setKeys(previousKeys)
-      resolve(value)
-    }
-    const option = (label: string, key: string, value: PitchGuess | 'none', cls: string) => {
-      const b = el('button', `guess-btn ${cls}`, label)
-      b.type = 'button'
-      b.append(kbd(key))
-      b.onclick = () => finish(value)
-      choices.append(b)
-    }
-    option(T.guessNames.fastball, '1', 'fastball', 'fastball')
-    option(T.guessNames.breaking, '2', 'breaking', 'breaking')
-    option(T.guessNone, 'SPACE', 'none', 'none')
-    box.append(choices)
-    const skip = el('button', 'meter-skip', T.meterSkip)
-    skip.type = 'button'
-    skip.append(kbd('ESC'))
-    skip.onclick = () => finish(null)
-    layer.append(box, skip)
-    host.append(layer)
-    const previousKeys = setKeys({
-      '1': () => finish('fastball'),
-      '2': () => finish('breaking'),
-      Space: () => finish('none'),
-      Enter: () => finish('none'),
-      Escape: () => finish(null),
-    })
-    void maybeTutorial('guess', TUTORIAL_STEPS.guess)
   })
 }
 

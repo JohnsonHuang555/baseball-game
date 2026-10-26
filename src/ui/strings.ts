@@ -276,14 +276,6 @@ export const T = {
   swingLog: (grade: string, aim: string, pitch: string) =>
     `親自出棒：${grade}（${aim}）・對方投${pitch}`,
   throwLog: (pitch: string, grade: string) => `配球：${pitch}（${grade}）`,
-  guessTitle: '猜球',
-  guessSub: '猜中黃色區變寬，猜錯變窄',
-  guessNames: { fastball: '猜直球', breaking: '猜變化球' },
-  guessNone: '不猜',
-  scout: (fastPct: number) =>
-    `球探：這一球直球 ${fastPct}%、變化球 ${100 - fastPct}%`,
-  guessRight: (pitch: string) => `猜中了！是${pitch}`,
-  guessWrong: (pitch: string) => `猜錯了，來的是${pitch}`,
   pitchCallTitle: '配球',
   pitchCallHint: '點一個球種開始投',
   primaryPitch: '專長',
