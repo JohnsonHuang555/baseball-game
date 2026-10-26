@@ -12,15 +12,23 @@
   align-items: center;
   padding: 0 20px calc(28px + env(safe-area-inset-bottom));
 }
+/* 光芒的中心對準標誌中心（標誌高 132px），外圍漸漸淡出 */
 .home-rays {
   position: absolute;
-  top: -40px;
+  top: 66px;
   left: 50%;
-  width: 560px;
-  height: 560px;
-  margin-left: -280px;
-  opacity: 0.5;
-  animation: spin 60s linear infinite;
+  width: 800px;
+  height: 800px;
+  margin: -400px 0 0 -400px;
+  fill: #3a3fa8;
+  opacity: 0.7;
+  -webkit-mask-image: radial-gradient(circle, #000 12%, transparent 62%);
+  mask-image: radial-gradient(circle, #000 12%, transparent 62%);
+  animation: spin 40s linear infinite;
+  pointer-events: none;
+}
+.home-hero > :not(.home-rays) {
+  position: relative;
 }
 .home-hero {
   position: relative;

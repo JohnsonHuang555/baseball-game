@@ -14,7 +14,7 @@ import { showGame } from './ui/gameScreen'
 import { el } from './ui/playerCard'
 import { withSavedName } from './ui/prefs'
 import { loadTournament } from './ui/save'
-import { randomSeed, showRosterEditor } from './ui/setupScreen'
+import { randomSeed, rays, showRosterEditor } from './ui/setupScreen'
 import { T } from './ui/strings'
 import { openTournament } from './ui/tournamentScreen'
 
@@ -31,17 +31,14 @@ const LOGO = `<svg class="home-logo" role="img" aria-label="${T.gameTitle}" view
   <circle cx="62" cy="80" r="7" fill="#141633"/>
 </svg>`
 
-/** 首頁背景的放射光芒 */
-const HOME_RAYS = `<svg class="home-rays" aria-hidden="true" viewBox="-280 -280 560 560">
-  <g fill="#3A3FA8"><path d="M0 0 L-60 -280 L60 -280 Z"/><path d="M0 0 L198 -198 L240 -144 Z" transform="rotate(10)"/><path d="M0 0 L-198 -198 L-240 -144 Z" transform="rotate(-10)"/><path d="M0 0 L280 -60 L280 60 Z"/><path d="M0 0 L-280 -60 L-280 60 Z"/></g>
-</svg>`
+/** 首頁背景的放射光芒：12 條等距光束，以標誌為中心慢慢轉 */
+const HOME_RAYS = `<svg class="home-rays" aria-hidden="true" viewBox="-400 -400 800 800">${rays(400)}</svg>`
 
 function showTitle(): void {
   root.replaceChildren()
   const screen = el('div', 'home-screen')
-  screen.insertAdjacentHTML('afterbegin', HOME_RAYS)
   const hero = el('div', 'home-hero')
-  hero.insertAdjacentHTML('afterbegin', LOGO)
+  hero.insertAdjacentHTML('afterbegin', HOME_RAYS + LOGO)
   const subtitle = el('p', 'home-subtitle')
   subtitle.append(T.gameSubtitleLines[0], el('br'), T.gameSubtitleLines[1])
   hero.append(el('h1', 'home-title', T.gameTitle), subtitle)
