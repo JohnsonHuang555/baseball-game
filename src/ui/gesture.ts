@@ -93,13 +93,46 @@ function normalize(points: readonly Point[]): Point[] {
   return points.map(([x, y]) => [(x - cx) / size, (y - cy) / size])
 }
 
-/** 筆畫跟樣板的平均距離 */
-export function shapeError(stroke: readonly Point[], template: readonly Point[]): number {
-  const a = normalize(resample(stroke))
-  const b = normalize(resample(template))
+/** 以外框中心旋轉 deg 度 */
+function rotate(points: readonly Point[], deg: number): Point[] {
+  const a = (deg * Math.PI) / 180
+  const [cos, sin] = [Math.cos(a), Math.sin(a)]
+  return points.map(([x, y]) => [x * cos - y * sin, x * sin + y * cos])
+}
+
+function meanDistance(a: readonly Point[], b: readonly Point[]): number {
   let sum = 0
   for (let i = 0; i < a.length; i++) sum += Math.hypot(a[i][0] - b[i][0], a[i][1] - b[i][1])
   return sum / a.length
+}
+
+/** 容許的歪斜角度：手機上用拇指畫，直線很少是正的 */
+const MAX_TILT = 25
+const TILT_STEP = 5
+/** 起筆、收筆時可以忽略的小勾（取樣點數，細取樣共 TRIM_SAMPLES 點） */
+const TRIM_SAMPLES = 64
+const TRIMS = [0, 3, 6]
+
+/**
+ * 筆畫跟樣板的平均距離。容許整體歪一點、頭尾多出一小段，
+ * 但每次放寬都加一點誤差，畫得端正的筆畫還是分數最高
+ */
+export function shapeError(stroke: readonly Point[], template: readonly Point[]): number {
+  const target = normalize(resample(template))
+  const fine = resample(stroke, TRIM_SAMPLES)
+  let best = Infinity
+  for (const head of TRIMS) {
+    for (const tail of TRIMS) {
+      const core = normalize(resample(fine.slice(head, TRIM_SAMPLES - tail)))
+      const trimPenalty = ((head + tail) / TRIM_SAMPLES) * 0.15
+      for (let deg = -MAX_TILT; deg <= MAX_TILT; deg += TILT_STEP) {
+        // 轉正後重新以外框置中、縮放，再跟樣板比
+        const error = meanDistance(normalize(rotate(core, deg)), target) + (Math.abs(deg) / MAX_TILT) * 0.03 + trimPenalty
+        if (error < best) best = error
+      }
+    }
+  }
+  return best
 }
 
 /** 畫得多準：形狀越像越高，畫太慢會打折，太短算沒畫 */

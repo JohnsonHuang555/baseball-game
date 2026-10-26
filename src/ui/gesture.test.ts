@@ -28,6 +28,20 @@ describe('投球手勢', () => {
     }
   })
 
+  it('直線畫歪一點（手機上用拇指畫常見）、收筆多一個小勾，仍然算畫得好', () => {
+    const tilted = (deg: number): Point[] => {
+      const a = (deg * Math.PI) / 180
+      return Array.from({ length: 30 }, (_, i) => [200 + i * 4 * Math.sin(a), 300 - i * 4 * Math.cos(a)])
+    }
+    expect(scoreGesture(tilted(20), 'fastball', 400)).toBeGreaterThan(0.9)
+    expect(scoreGesture(tilted(-20), 'fastball', 400)).toBeGreaterThan(0.9)
+    expect(scoreGesture([...tilted(0), [208, 182], [214, 186]], 'fastball', 400)).toBeGreaterThan(0.85)
+    // 端正的直線還是比歪的分數高
+    expect(scoreGesture(tilted(0), 'fastball', 400)).toBeGreaterThan(scoreGesture(tilted(20), 'fastball', 400))
+    // 歪太多就不算直球
+    expect(scoreGesture(tilted(60), 'fastball', 400)).toBeLessThan(0.6)
+  })
+
   it('大小、位置不影響分數', () => {
     const small = draw(GESTURES.slider, 80).map(([x, y]): Point => [x + 300, y + 40])
     expect(scoreGesture(small, 'slider', 500)).toBeGreaterThan(0.95)
