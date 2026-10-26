@@ -1860,3 +1860,11 @@ button .kbd {
     grid-template-columns: minmax(0, 1fr) auto auto;
   }
 }
+
+@media (min-width: 1024px) {
+  .species-picker {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+  }
+}

@@ -1074,3 +1074,48 @@
   transform: translateY(3px);
   box-shadow: 0 1px 0 var(--ink);
 }
+
+/* ---- 首頁：頭像選貓咪或小狗 ---- */
+.species-picker {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top));
+  left: 14px;
+  z-index: 2;
+  display: flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 14px;
+  border: 2px solid #fff;
+  background: rgba(20, 22, 51, 0.35);
+}
+.species-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 10px 0 4px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.species-option[aria-pressed='true'] {
+  background: #fff;
+  color: var(--ink);
+}
+.species-face {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.species-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

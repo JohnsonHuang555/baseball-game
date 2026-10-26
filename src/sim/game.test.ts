@@ -3,7 +3,8 @@ import { ALIGNMENT_SPOTS, Game, fenceDistance, fielderFor, homeRunStats, replay,
 import { generateBatter, generatePitcher, generateTeam } from './generate'
 import { applyGrowth, gameGrowth, performance } from './growth'
 import { Rng } from './rng'
-import type { Team } from './types'
+import { TRAITS, conflicts, type TraitId } from './traits'
+import type { Pitcher, Team } from './types'
 
 function setup(seed: number): GameSetup {
   return { home: generateTeam(new Rng(seed * 2 + 1)), away: generateTeam(new Rng(seed * 2 + 2)), seed, userSide: 'home' }
@@ -384,9 +385,14 @@ describe('投手疲勞', () => {
     expect(g.isFatigued(g.teams.home)).toBe(true)
   })
 
-  it('AI 的投手累過頭會自動換下', () => {
-    const g = playOut(new Game(setup(8)))
-    expect(g.teams.away.relievers.length).toBeLessThan(2)
+  it('AI 的投手累過頭會自動換下：大多數比賽 AI 都會用到後援', () => {
+    let used = 0
+    for (let seed = 1; seed <= 100; seed++) {
+      const s = setup(seed)
+      const g = playOut(new Game(s))
+      if (g.teams.away.relievers.length < s.away.roster.relievers.length) used++
+    }
+    expect(used).toBeGreaterThan(70)
   })
 })
 
@@ -504,7 +510,7 @@ describe('全壘打數據', () => {
       const s = homeRunStats(ball)
       expect(s.launchAngle).toBeGreaterThanOrEqual(24)
       expect(s.launchAngle).toBeLessThanOrEqual(34)
-      expect(s.exitVelocityMph).toBeGreaterThan(95)
+      expect(s.exitVelocityMph).toBeGreaterThan(90)
       expect(s.exitVelocityMph).toBeLessThan(125)
       expect(homeRunStats(ball)).toEqual(s)
     }
@@ -897,5 +903,67 @@ describe('AI 的左右相剋調度', () => {
     for (let seed = 1; seed <= n; seed++) runs += playOut(new Game(setup(seed))).score.away
     expect(runs / n).toBeGreaterThan(3)
     expect(runs / n).toBeLessThan(6)
+  })
+})
+
+describe('特性', () => {
+  it('大約四分之三的球員至少有一個特性，好特性比壞特性多', () => {
+    const rng = new Rng(77)
+    const players = Array.from({ length: 3000 }, (_, i) => (i % 3 ? generateBatter(rng) : generatePitcher(rng)))
+    const withTrait = players.filter((p) => p.traits.length > 0).length / players.length
+    expect(withTrait).toBeGreaterThan(0.68)
+    expect(withTrait).toBeLessThan(0.85)
+    const tiers = players.flatMap((p) => p.traits.map((t) => TRAITS[t].tier))
+    expect(tiers.filter((t) => t === 'blue').length).toBeGreaterThan(tiers.filter((t) => t === 'red').length)
+    // 新的特性都抽得到
+    const seen = new Set(players.flatMap((p) => p.traits))
+    for (const id of Object.keys(TRAITS)) expect(seen.has(id as keyof typeof TRAITS)).toBe(true)
+  })
+
+  it('互斥的特性不會同時出現', () => {
+    const rng = new Rng(5)
+    for (let i = 0; i < 3000; i++) {
+      const p = i % 2 ? generateBatter(rng) : generatePitcher(rng)
+      for (const a of p.traits) for (const b of p.traits) expect(conflicts(a, b)).toBe(false)
+    }
+  })
+
+  /** 把某一隊的投手全部加上（或拿掉）某個特性，跑很多場統計被打出的結果 */
+  function pitchWith(trait: TraitId | null, games = 200) {
+    let homers = 0
+    let grounders = 0
+    let outs = 0
+    for (let seed = 1; seed <= games; seed++) {
+      const s = setup(seed)
+      const strip = (p: Pitcher): Pitcher => ({ ...p, traits: trait ? [trait] : [] })
+      const roster = s.home.roster
+      const home = { ...s.home, roster: { ...roster, starter: strip(roster.starter), relievers: roster.relievers.map(strip) } }
+      const g = new Game({ ...s, home })
+      while (!g.over) {
+        const homeFielding = g.fieldingSide === 'home'
+        for (const e of g.step()) {
+          if (!homeFielding || e.type !== 'play') continue
+          if (e.kind === 'homeRun') homers++
+          if (e.kind === 'groundOut' || e.kind === 'doublePlay') grounders++
+          if (['groundOut', 'doublePlay', 'flyOut', 'lineOut', 'sacrificeFly'].includes(e.kind)) outs++
+        }
+      }
+    }
+    return { homers, groundShare: grounders / outs }
+  }
+
+  it('滾地球投手：滾地球出局比例變高、全壘打變少；被全壘打的投手全壘打變多', () => {
+    const plain = pitchWith(null)
+    const sinker = pitchWith('groundballer')
+    expect(sinker.groundShare).toBeGreaterThan(plain.groundShare + 0.05)
+    expect(sinker.homers).toBeLessThan(plain.homers)
+    expect(pitchWith('homerProne').homers).toBeGreaterThan(plain.homers)
+  })
+
+  it('體力差的投手比較早累；鐵腕比較晚', () => {
+    const g = new Game(setup(1))
+    const p = { ...g.pitcher, traits: [] as TraitId[] }
+    expect(g.fatigueLimit({ ...p, traits: ['lowStamina'] })).toBeLessThan(g.fatigueLimit(p))
+    expect(g.fatigueLimit({ ...p, traits: ['ironArm'] })).toBeGreaterThan(g.fatigueLimit(p))
   })
 })

@@ -46,6 +46,27 @@ export function savePromptLevel(level: PromptLevel): void {
   }
 }
 
+const SPECIES_KEY = 'dice-baseball.avatarSpecies'
+
+/** 球員頭像要畫成貓咪還是小狗 */
+export type AvatarSpecies = 'cat' | 'dog'
+
+export function loadAvatarSpecies(): AvatarSpecies {
+  try {
+    return localStorage.getItem(SPECIES_KEY) === 'dog' ? 'dog' : 'cat'
+  } catch {
+    return 'cat'
+  }
+}
+
+export function saveAvatarSpecies(species: AvatarSpecies): void {
+  try {
+    localStorage.setItem(SPECIES_KEY, species)
+  } catch {
+    // 記不住就用預設
+  }
+}
+
 const SOUND_KEY = 'dice-baseball.sound'
 
 /** 音效開關，預設開啟 */

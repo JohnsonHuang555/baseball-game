@@ -11,7 +11,7 @@ import { Rng } from './sim/rng'
 import { createSetup } from './sim/setup'
 import { createTournament, currentRound, updateSetup } from './sim/tournament'
 import type { Batter, Team } from './sim/types'
-import { avatar } from './ui/avatar'
+import { avatar, avatarSpecies, avatarSvg, setAvatarSpecies } from './ui/avatar'
 import { showGame } from './ui/gameScreen'
 import { growthPanel } from './ui/growthPanel'
 import { gradeBadge, overallBadge } from './ui/grades'
@@ -71,6 +71,28 @@ function showcaseCards(): HTMLElement {
   return box
 }
 
+/** 首頁左上角：球員頭像要用貓咪還是小狗，換了就重畫首頁 */
+function speciesPicker(): HTMLElement {
+  const box = el('div', 'species-picker')
+  box.setAttribute('role', 'group')
+  box.setAttribute('aria-label', T.speciesLabel)
+  for (const kind of ['cat', 'dog'] as const) {
+    const btn = el('button', 'species-option')
+    btn.type = 'button'
+    btn.setAttribute('aria-pressed', String(avatarSpecies() === kind))
+    const face = el('span', 'species-face')
+    face.innerHTML = avatarSvg(kind === 'cat' ? 'p-cat-sample' : 'p-dog-sample', 'user', kind)
+    btn.append(face, T.speciesNames[kind])
+    btn.onclick = () => {
+      if (avatarSpecies() === kind) return
+      setAvatarSpecies(kind)
+      showTitle()
+    }
+    box.append(btn)
+  }
+  return box
+}
+
 function showTitle(): void {
   root.replaceChildren()
   const screen = el('div', 'home-screen')
@@ -109,7 +131,7 @@ function showTitle(): void {
   buttons.append(replay)
 
   main.append(hero, buttons)
-  screen.append(sound, main, showcaseCards())
+  screen.append(sound, speciesPicker(), main, showcaseCards())
   root.append(screen)
   void maybeTutorial('home', TUTORIAL_STEPS.home)
 }

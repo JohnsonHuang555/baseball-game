@@ -392,7 +392,7 @@ export class Game {
   }
 
   fatigueLimit(p: Pitcher): number {
-    return 50 + p.ratings.stamina * 8 + (hasTrait(p, 'ironArm') ? 40 : 0)
+    return 50 + p.ratings.stamina * 8 + (hasTrait(p, 'ironArm') ? 40 : 0) - (hasTrait(p, 'lowStamina') ? 15 : 0)
   }
 
   isFatigued(team: TeamState): boolean {
@@ -402,6 +402,16 @@ export class Game {
   /** 剩餘體力比例：1 是滿的，0 代表已經到疲勞門檻 */
   staminaLeft(team: TeamState): number {
     return clamp(1 - team.pitchCount / this.fatigueLimit(team.pitcher), 0, 1)
+  }
+
+  /** 得點圈（二、三壘）有沒有跑者 */
+  private scoringPosition(): boolean {
+    return !!(this.bases[1] || this.bases[2])
+  }
+
+  /** 某個守位上的球員（投手、捕手以外的守位才有） */
+  private fielderPlayer(team: TeamState, fielder: Fielder): Batter | undefined {
+    return team.lineup.find((s) => s.position === fielder)?.player
   }
 
   /** 某個守位的守備值；投手沒有守備能力，當作聯盟平均 */
@@ -691,7 +701,8 @@ export class Game {
         (inZone ? 0.8 : 0.55) +
           (contact - stuff) * 0.03 -
           (hasTrait(batter, 'freeSwinger') ? 0.08 : 0) -
-          (hasTrait(pitcher, 'strikeoutArtist') ? 0.06 : 0) +
+          (hasTrait(pitcher, 'strikeoutArtist') ? 0.06 : 0) -
+          (hasTrait(pitcher, 'escapeArtist') && this.scoringPosition() ? 0.05 : 0) +
           (mod.contact ?? 0),
         0.2,
         0.95,
@@ -725,7 +736,9 @@ export class Game {
     const p = team.pitcher
     const over = Math.max(0, team.pitchCount - this.fatigueLimit(p))
     const penalty = (over / 15) * (hasTrait(p, 'ironArm') ? 0.5 : 1)
-    return { stuff: p.ratings.stuff - penalty, control: p.ratings.control - penalty }
+    // 終結者：第 8 局起球威、控球都提升
+    const closing = hasTrait(p, 'closer') && this.inning >= 8 ? 1.5 : 0
+    return { stuff: p.ratings.stuff - penalty + closing, control: p.ratings.control - penalty + closing }
   }
 
   /** 打者對投手是同側還是對側；兩打永遠站對側 */
@@ -762,25 +775,36 @@ export class Game {
       0.5,
     )
 
-    if (rng.chance(clamp(hitP + (mod.hit ?? 0) + this.alignmentEffect(), 0.05, 0.85))) {
+    const pitcher = this.pitcher
+    // 危機處理：得點圈有人時比較不容易被打安打
+    const escape = hasTrait(pitcher, 'escapeArtist') && this.scoringPosition() ? 0.03 : 0
+    if (rng.chance(clamp(hitP + (mod.hit ?? 0) + this.alignmentEffect() - escape, 0.05, 0.85))) {
       // 外野後退：長打大多被攔下來變成一壘安打
       const deep = this.alignment === 'outfieldBack' ? 0.4 : 1
+      // 平飛打者多二、三壘安打；滾地球投手少被全壘打，被全壘打的投手反之
+      const gaps = hasTrait(batter, 'lineDrive') ? 1.4 : 1
+      const homers = hasTrait(pitcher, 'homerProne') ? 1.5 : hasTrait(pitcher, 'groundballer') ? 0.7 : 1
       const kind = rng.weighted<PlayKind>([
-        ['homeRun', Math.max(0.02, 0.1 + (power - 5) * 0.035 + (hasTrait(batter, 'slugger') ? 0.08 : 0))],
-        ['triple', Math.max(0.005, 0.025 + (speed - 5) * 0.006) * deep],
-        ['double', Math.max(0.08, 0.2 + (power - 5) * 0.02) * deep],
+        ['homeRun', Math.max(0.02, 0.1 + (power - 5) * 0.035 + (hasTrait(batter, 'slugger') ? 0.08 : 0)) * homers],
+        ['triple', Math.max(0.005, 0.025 + (speed - 5) * 0.006) * deep * gaps],
+        ['double', Math.max(0.08, 0.2 + (power - 5) * 0.02) * deep * gaps],
         ['single', 0.65],
       ])
       return this.hit(kind, hitAndRun)
     }
+    // 滾地球投手讓打者多打成滾地球（也就多雙殺）
+    const sinker = hasTrait(pitcher, 'groundballer') ? 0.15 : 0
     const type = rng.weighted<BattedBall['type']>([
-      ['ground', 0.45],
-      ['fly', 0.4 + (power - 5) * 0.02],
+      ['ground', 0.45 + sinker],
+      ['fly', 0.4 + (power - 5) * 0.02 - sinker * 0.7],
       ['line', 0.15],
     ])
     const ball = this.outBall(type)
     const glove = this.fieldingAt(this.fielding, ball.fielder)
-    const errorFactor = clamp(1 + (AVERAGE_FIELDING - glove) * 0.18, 0.25, 2.2)
+    // 好手套失誤減半、守備不穩失誤變多
+    const handler = this.fielderPlayer(this.fielding, ball.fielder)
+    const hands = handler && hasTrait(handler, 'goodGlove') ? 0.5 : handler && hasTrait(handler, 'errorProne') ? 1.8 : 1
+    const errorFactor = clamp(1 + (AVERAGE_FIELDING - glove) * 0.18, 0.25, 2.2) * hands
     if (rng.chance(ERROR_RATE[type] * errorFactor)) return this.reachOnError(ball)
     if (type === 'ground') return this.groundOut(ball, hitAndRun)
     if (type === 'fly') return this.flyOut(ball)
@@ -835,7 +859,8 @@ export class Game {
       moves.push({ runnerId: runner.id, from, to })
       if (to !== 4) taken.add(to)
     }
-    const spd = (b: Batter) => b.ratings.speed - 5
+    // 跑壘○：多推進一個壘包的判斷比速度看起來更好
+    const spd = (b: Batter) => b.ratings.speed - 5 + (hasTrait(b, 'baserunner') ? 2 : 0)
     let ball: BattedBall
     switch (kind) {
       case 'homeRun': {

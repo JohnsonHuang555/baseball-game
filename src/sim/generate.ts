@@ -45,10 +45,11 @@ function traits(rng: Rng, role: Player['role']): TraitId[] {
   const add = (id: TraitId) => {
     if (!result.includes(id) && !result.some((t) => conflicts(t, id))) result.push(id)
   }
-  if (rng.chance(0.03)) add(rng.pick(ofTier('gold')))
-  if (rng.chance(0.35)) add(rng.pick(ofTier('blue')))
-  if (rng.chance(0.1)) add(rng.pick(ofTier('blue')))
-  if (rng.chance(0.2)) add(rng.pick(ofTier('red')))
+  // 約四分之三的球員至少有一個特性，少數人有兩三個；好特性比壞特性常見
+  if (rng.chance(0.04)) add(rng.pick(ofTier('gold')))
+  if (rng.chance(0.55)) add(rng.pick(ofTier('blue')))
+  if (rng.chance(0.18)) add(rng.pick(ofTier('blue')))
+  if (rng.chance(0.3)) add(rng.pick(ofTier('red')))
   return result
 }
 

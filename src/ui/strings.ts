@@ -122,6 +122,8 @@ export const T = {
   traitsColumn: '特性',
   swapGuide: '點兩名球員交換：點球場上的人交換守位，點打序列表交換棒次',
   logTitle: '比賽紀錄',
+  speciesLabel: '球員頭像',
+  speciesNames: { cat: '貓咪', dog: '小狗' },
   // ---- 左右投打與成長 ----
   bats: { L: '左打', R: '右打', S: '兩打' } as Record<Bats, string>,
   throws: { L: '左投', R: '右投' } as Record<Hand, string>,
@@ -328,9 +330,18 @@ export const TRAIT_DESC: Record<TraitId, string> = {
   bunter: '犧牲觸擊成功率提升',
   clutchBad: '得點圈有人時打擊下降',
   freeSwinger: '揮空的機率較高',
+  goodGlove: '守備時失誤減半',
+  lineDrive: '擊球多為平飛球，容易打出二、三壘安打',
+  baserunner: '跑壘判斷好，安打時更容易多推進一個壘包',
+  errorProne: '守備時容易失誤',
   ironArm: '體力消耗慢，疲勞後也不容易崩潰',
+  closer: '第 8 局起球威與控球提升',
   strikeoutArtist: '讓打者揮空的能力提升',
+  groundballer: '讓打者多打成滾地球，雙殺多、全壘打少',
+  escapeArtist: '得點圈有人時更難被打',
   wild: '控球不穩，容易投出四壞',
+  homerProne: '容易被打出全壘打',
+  lowStamina: '體力消耗快，比較早累',
 }
 
 export const PROMPT_NAMES = { few: '少', many: '多', pitcher: '只提醒換投', off: '關閉' } as const
@@ -343,9 +354,18 @@ export const TRAIT_NAMES: Record<TraitId, string> = {
   bunter: '觸擊○',
   clutchBad: '得點圈×',
   freeSwinger: '扇風機',
+  goodGlove: '好手套',
+  lineDrive: '平飛打者',
+  baserunner: '跑壘○',
+  errorProne: '守備不穩',
   ironArm: '鐵腕',
+  closer: '終結者',
   strikeoutArtist: '奪三振',
+  groundballer: '滾地球投手',
+  escapeArtist: '危機處理',
   wild: '四死球',
+  homerProne: '被全壘打',
+  lowStamina: '體力差',
 }
 
 
