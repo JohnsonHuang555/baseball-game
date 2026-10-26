@@ -982,3 +982,278 @@
   font-size: 12px;
   font-weight: 900;
 }
+
+/* ---- 難度標籤：新人綠、職業藍、明星紫、傳奇橘、名人堂金 ---- */
+.level-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 7px;
+  border: 1.5px solid var(--ink);
+  background: #c6f432;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 18px;
+  letter-spacing: 0;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.level-tag.level-2 {
+  background: #9cc4ff;
+}
+.level-tag.level-3 {
+  background: #d9c2ff;
+}
+.level-tag.level-4 {
+  background: #ffb36b;
+}
+.level-tag.level-5 {
+  background: linear-gradient(90deg, #ffe58a, #ffc93c);
+}
+
+/* ---- 選項視窗：選難度、選裝扮 ---- */
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  padding: 2px;
+}
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 3px 0 var(--ink);
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.choice-option:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+.choice-option.current {
+  background: #fff4c7;
+  border-color: var(--ink);
+  outline: 3px solid var(--yellow);
+}
+.choice-option.locked {
+  background: #eceef8;
+  color: var(--ink-faint);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.choice-option.locked .choice-icon {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.choice-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  overflow: hidden;
+}
+.choice-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.choice-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.choice-label {
+  font-size: 16px;
+  font-weight: 900;
+}
+.choice-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.choice-cancel {
+  margin-top: 4px;
+}
+
+/* ---- 首頁：裝扮按鈕、獎盃櫃 ---- */
+.outfit-option {
+  border-left: 1.5px solid rgba(255, 255, 255, 0.4);
+  border-radius: 0 10px 10px 0;
+}
+.trophy-btn {
+  background: rgba(20, 22, 51, 0.35);
+  border-color: #fff;
+  color: #fff;
+}
+
+/* ---- 獎盃櫃 ---- */
+.trophy-screen {
+  min-height: 100dvh;
+  padding: calc(14px + env(safe-area-inset-top)) 16px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.trophy-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.trophy-header .icon-btn .kbd {
+  display: none;
+}
+.trophy-titles {
+  display: flex;
+  flex-direction: column;
+}
+.trophy-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+}
+.trophy-best {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--lilac);
+}
+.trophy-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 40px;
+  padding: 28px 20px;
+  border-radius: 20px;
+  border: 2.5px dashed rgba(255, 255, 255, 0.45);
+  text-align: center;
+  font-weight: 800;
+  color: var(--lilac);
+}
+.trophy-empty-icon {
+  opacity: 0.6;
+}
+.trophy-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.trophy-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-radius: 18px;
+  border: 3px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--ink);
+}
+.trophy-card.level-5 {
+  background: linear-gradient(160deg, #fff8dc, #ffe58a);
+}
+.trophy-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.trophy-card-icon {
+  flex: none;
+}
+.trophy-card-words {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.trophy-card-words .level-tag {
+  margin-left: 0;
+}
+.trophy-team {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+}
+.trophy-meta {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.trophy-faces {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+}
+.trophy-face {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  overflow: hidden;
+}
+.trophy-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.trophy-unlock {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--yellow);
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+/* ---- 奪冠畫面：解鎖的裝扮與下一級難度 ---- */
+.end-rewards {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px 16px 10px 10px;
+  border-radius: 16px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--ink);
+  animation: title-in 0.4s 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.end-reward-face {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  overflow: hidden;
+}
+.end-reward-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.end-reward-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.end-reward-line {
+  font-size: 15px;
+  font-weight: 900;
+}

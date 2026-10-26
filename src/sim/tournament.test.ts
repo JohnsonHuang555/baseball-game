@@ -12,6 +12,7 @@ import {
   saveProgress,
   skipDraft,
   startTournament,
+  tierOf,
   updateLineup,
   updateRoster,
   updateSetup,
@@ -230,5 +231,21 @@ describe('錦標賽中的球員骰子', () => {
     // 沒骰子就不能再骰；也不能憑空變出骰子
     expect(rerollPlayer(t.setup, { kind: 'lineup', index: 1 }).playerRerollsLeft).toBe(0)
     expect(() => updateLineup(t, { ...t.setup, playerRerollsLeft: 5 })).toThrow()
+  })
+})
+
+describe('難度等級', () => {
+  it('等級越高，同一輪的對手越強；舊存檔沒有等級當作 1', () => {
+    const avg = (tier: 1 | 3 | 5) => {
+      let sum = 0
+      for (let seed = 1; seed <= 60; seed++) sum += teamAverage(createTournament(seed, tier).opponent.roster)
+      return sum / 60
+    }
+    expect(avg(3)).toBeGreaterThan(avg(1) + 0.3)
+    expect(avg(5)).toBeGreaterThan(avg(3) + 0.3)
+    const old = createTournament(7)
+    delete old.tier
+    expect(tierOf(old)).toBe(1)
+    expect(createTournament(7, 4).tier).toBe(4)
   })
 })

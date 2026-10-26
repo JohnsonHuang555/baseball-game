@@ -53,3 +53,73 @@ export function confirmModal(opts: ConfirmOptions): Promise<boolean> {
     ;(opts.danger ? cancel : ok).focus()
   })
 }
+
+export interface ChoiceOption<V> {
+  value: V
+  label: string
+  /** 第二行說明 */
+  sub?: string
+  /** 左邊的小圖（HTML 字串，例如頭像 SVG） */
+  icon?: string
+  /** 鎖住的原因；有給就不能選 */
+  locked?: string
+  /** 目前選中的那一個 */
+  current?: boolean
+}
+
+/** 跳出選項視窗：點一個選項 resolve 它的值，取消、Esc、點外面 resolve null。數字鍵 1～9 對應各選項 */
+export function choiceModal<V>(opts: { title: string; message?: string; options: ChoiceOption<V>[] }): Promise<V | null> {
+  return new Promise((resolve) => {
+    const overlay = el('div', 'modal-overlay')
+    const box = el('section', 'modal-box choice-box')
+    box.setAttribute('role', 'dialog')
+    box.setAttribute('aria-modal', 'true')
+    box.setAttribute('aria-labelledby', 'modal-title')
+    const title = el('h2', 'modal-title', opts.title)
+    title.id = 'modal-title'
+    box.append(title)
+    if (opts.message) box.append(el('p', 'modal-message', opts.message))
+    const list = el('div', 'choice-list')
+    const keys: Record<string, () => void> = { Escape: () => close(null) }
+    opts.options.forEach((o, i) => {
+      const btn = el('button', `choice-option${o.current ? ' current' : ''}${o.locked ? ' locked' : ''}`)
+      btn.type = 'button'
+      btn.disabled = !!o.locked
+      if (o.current) btn.setAttribute('aria-current', 'true')
+      if (o.icon) {
+        const icon = el('span', 'choice-icon')
+        icon.innerHTML = o.icon
+        btn.append(icon)
+      }
+      const words = el('span', 'choice-words')
+      words.append(el('span', 'choice-label', o.label))
+      const sub = o.locked ?? o.sub
+      if (sub) words.append(el('span', 'choice-sub', sub))
+      btn.append(words)
+      if (!o.locked && i < 9) {
+        btn.append(kbd(String(i + 1)))
+        keys[String(i + 1)] = () => close(o.value)
+      }
+      btn.onclick = () => close(o.value)
+      list.append(btn)
+    })
+    const cancel = el('button', 'btn-white choice-cancel', T.cancel)
+    cancel.type = 'button'
+    cancel.append(kbd('ESC'))
+    cancel.onclick = () => close(null)
+    box.append(list, cancel)
+    overlay.append(box)
+    document.body.append(overlay)
+
+    const previousKeys = setKeys(keys)
+    function close(value: V | null): void {
+      overlay.remove()
+      setKeys(previousKeys)
+      resolve(value)
+    }
+    overlay.onclick = (e) => {
+      if (e.target === overlay) close(null)
+    }
+    ;(list.querySelector('button:not(:disabled)') as HTMLButtonElement | null)?.focus()
+  })
+}

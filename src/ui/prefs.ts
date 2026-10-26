@@ -1,4 +1,5 @@
 import type { PregameSetup } from '../sim/setup'
+import { OUTFITS, isUnlocked, type Outfit } from './progress'
 
 const TEAM_NAME_KEY = 'dice-baseball.teamName'
 export const TEAM_NAME_MAX = 10
@@ -62,6 +63,26 @@ export function loadAvatarSpecies(): AvatarSpecies {
 export function saveAvatarSpecies(species: AvatarSpecies): void {
   try {
     localStorage.setItem(SPECIES_KEY, species)
+  } catch {
+    // 記不住就用預設
+  }
+}
+
+const OUTFIT_KEY = 'dice-baseball.outfit'
+
+/** 我方球員頭像的裝扮；沒解鎖（或記錄壞掉）就用標準 */
+export function loadOutfit(): Outfit {
+  try {
+    const v = localStorage.getItem(OUTFIT_KEY) as Outfit | null
+    return v && OUTFITS.includes(v) && isUnlocked(v) ? v : 'standard'
+  } catch {
+    return 'standard'
+  }
+}
+
+export function saveOutfit(outfit: Outfit): void {
+  try {
+    localStorage.setItem(OUTFIT_KEY, outfit)
   } catch {
     // 記不住就用預設
   }

@@ -11,6 +11,11 @@ export type Round = (typeof ROUNDS)[number]
 /** 每一輪 AI 對手的能力值中心比玩家高多少 */
 export const ROUND_DIFFICULTY: Record<Round, number> = { r16: 0, qf: 0.25, sf: 0.5, final: 0.75 }
 export const FINAL_WINS_NEEDED = 2
+
+/** 難度等級 1～5：奪冠後開放下一級，對手的能力值中心依等級再往上加 */
+export const TIERS = [1, 2, 3, 4, 5] as const
+export type Tier = (typeof TIERS)[number]
+export const TIER_DIFFICULTY: Record<Tier, number> = { 1: 0, 2: 0.3, 3: 0.6, 4: 0.9, 5: 1.2 }
 export const DRAFT_SIZE = 3
 const TEAM_COUNT = 16
 
@@ -55,9 +60,15 @@ export interface Tournament {
   history: GameRecord[]
   draftOptions: Player[]
   currentGame: SavedGame | null
+  /** 難度等級；舊存檔沒有這個欄位，當作 1 */
+  tier?: Tier
 }
 
-export function createTournament(seed: number): Tournament {
+export function tierOf(t: Tournament): Tier {
+  return t.tier ?? 1
+}
+
+export function createTournament(seed: number, tier: Tier = 1): Tournament {
   const rng = new Rng(seed)
   const setup = createSetup(rng.int(0, 2 ** 32 - 1))
   const teamNames = [setup.team.name]
@@ -92,6 +103,7 @@ export function createTournament(seed: number): Tournament {
     history: [],
     draftOptions: [],
     currentGame: null,
+    tier,
   }
   return withOpponent(t)
 }
@@ -103,7 +115,7 @@ export function currentRound(t: Tournament): Round {
 function withOpponent(t: Tournament): Tournament {
   const rng = new Rng(t.rngState)
   const round = ROUNDS[t.roundIndex]
-  const roster = generateRoster(rng, BASE_MEAN + ROUND_DIFFICULTY[round])
+  const roster = generateRoster(rng, BASE_MEAN + ROUND_DIFFICULTY[round] + TIER_DIFFICULTY[tierOf(t)])
   const opponent = { name: t.teamNames[t.opponents[t.roundIndex]], roster }
   return { ...t, opponent, rngState: rng.state }
 }

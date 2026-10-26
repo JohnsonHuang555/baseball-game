@@ -9,15 +9,17 @@ import { Game } from './sim/game'
 import { cardTier, generateBatter, generateTeam, teamName, type CardTier } from './sim/generate'
 import { Rng } from './sim/rng'
 import { createSetup } from './sim/setup'
-import { createTournament, currentRound, updateSetup } from './sim/tournament'
+import { createTournament, currentRound, updateSetup, type Tier } from './sim/tournament'
+import { OUTFITS, OUTFIT_UNLOCK, availableTiers, clearedTier, isUnlocked, outfitForTier, trophies, type Outfit } from './ui/progress'
+import { showTrophyCase } from './ui/trophyScreen'
 import type { Batter, Team } from './sim/types'
-import { avatar, avatarSpecies, avatarSvg, setAvatarSpecies } from './ui/avatar'
+import { avatar, avatarOutfit, avatarSpecies, avatarSvg, setAvatarOutfit, setAvatarSpecies } from './ui/avatar'
 import { showGame } from './ui/gameScreen'
 import { growthPanel } from './ui/growthPanel'
 import { gradeBadge, overallBadge } from './ui/grades'
 import { setKeys } from './ui/keys'
 import { soundToggle } from './ui/sound'
-import { confirmModal } from './ui/modal'
+import { choiceModal, confirmModal } from './ui/modal'
 import { maybeTutorial, resetTutorials } from './ui/tutorial'
 import { TUTORIAL_STEPS } from './ui/tutorialSteps'
 import { toast } from './ui/visual'
@@ -71,6 +73,46 @@ function showcaseCards(): HTMLElement {
   return box
 }
 
+/** 開新錦標賽前選難度：只通過到第 n 級時，可以選 1～n+1 級；只有第 1 級可選就不問 */
+async function chooseTier(): Promise<Tier | null> {
+  const tiers = availableTiers()
+  if (tiers.length === 1) return tiers[0]
+  const cleared = clearedTier()
+  return choiceModal<Tier>({
+    title: T.tierTitle,
+    message: T.tierMessage,
+    options: tiers.map((tier) => {
+      const reward = tier > cleared ? outfitForTier(tier) : null
+      return {
+        value: tier,
+        label: `${T.levelNames[tier]}${tier <= cleared ? `（${T.tierCleared}）` : ''}`,
+        sub: [T.tierStrength(tier), reward ? T.tierReward(T.outfitNames[reward]) : ''].filter(Boolean).join('・'),
+        current: tier === tiers[tiers.length - 1],
+      }
+    }),
+  })
+}
+
+/** 換裝扮：沒解鎖的也列出來，寫著要通過哪個難度 */
+async function chooseOutfit(): Promise<void> {
+  const current = avatarOutfit()
+  const picked = await choiceModal<Outfit>({
+    title: T.outfitTitle,
+    message: T.outfitMessage,
+    options: OUTFITS.map((o) => ({
+      value: o,
+      label: T.outfitNames[o],
+      icon: avatarSvg(avatarSpecies() === 'cat' ? 'p-cat-sample' : 'p-dog-sample', 'user', avatarSpecies(), o),
+      locked: isUnlocked(o) ? undefined : T.outfitLocked(T.levelNames[OUTFIT_UNLOCK[o]]),
+      current: o === current,
+    })),
+  })
+  if (!picked || picked === current) return
+  setAvatarOutfit(picked)
+  toast(T.outfitPicked(T.outfitNames[picked]))
+  showTitle()
+}
+
 /** 首頁左上角：球員頭像要用貓咪還是小狗，換了就重畫首頁 */
 function speciesPicker(): HTMLElement {
   const box = el('div', 'species-picker')
@@ -90,6 +132,14 @@ function speciesPicker(): HTMLElement {
     }
     box.append(btn)
   }
+  // 裝扮：拿過冠軍才有東西可以換，但一開始就讓玩家看得到
+  const outfit = el('button', 'species-option outfit-option')
+  outfit.type = 'button'
+  const face = el('span', 'species-face')
+  face.innerHTML = avatarSvg(avatarSpecies() === 'cat' ? 'p-cat-sample' : 'p-dog-sample', 'user')
+  outfit.append(face, T.outfitLabel)
+  outfit.onclick = () => void chooseOutfit()
+  box.append(outfit)
   return box
 }
 
@@ -113,7 +163,9 @@ function showTitle(): void {
   const fresh = el('button', saved ? 'btn-outline-light' : 'btn-white btn-big', saved ? T.newTournament : T.tournament)
   fresh.onclick = async () => {
     if (saved && !(await confirmModal({ title: T.newTournament, message: T.confirmOverwrite, confirmLabel: T.overwriteConfirm, danger: true }))) return
-    const t = createTournament(randomSeed())
+    const tier = await chooseTier()
+    if (!tier) return
+    const t = createTournament(randomSeed(), tier)
     openTournament(root, updateSetup(t, withSavedName(t.setup)), showTitle)
   }
   if (saved) {
@@ -121,6 +173,10 @@ function showTitle(): void {
     resume.onclick = () => openTournament(root, saved, showTitle)
     buttons.append(resume, quick, fresh)
   } else buttons.append(quick, fresh)
+  const cabinet = el('button', 'btn-outline-light trophy-btn', T.trophyCount(trophies().length))
+  cabinet.type = 'button'
+  cabinet.onclick = () => showTrophyCase(root, showTitle)
+  buttons.append(cabinet)
   const replay = el('button', 'home-link', T.tutorialReplay)
   replay.type = 'button'
   replay.onclick = () => {

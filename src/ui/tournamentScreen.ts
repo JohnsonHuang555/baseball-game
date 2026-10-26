@@ -12,11 +12,14 @@ import {
   saveProgress,
   skipDraft,
   startTournament,
+  tierOf,
   updateLineup,
   updateSetup,
+  TIERS,
   type Tournament,
 } from '../sim/tournament'
-import { avatar } from './avatar'
+import { recordChampion, type Trophy } from './progress'
+import { avatar, avatarSvg } from './avatar'
 import { showGame } from './gameScreen'
 import { growthPanel } from './growthPanel'
 import { gameGrowth } from '../sim/growth'
@@ -37,6 +40,8 @@ export function openTournament(root: HTMLElement, t: Tournament, toTitle: () => 
   const roundName = T.roundNames[currentRound(t)]
   if (t.phase === 'champion' || t.phase === 'eliminated') clearTournament()
   else saveTournament(t)
+  // 奪冠：放進獎盃櫃（同一屆只記一次），第一次通過這個難度會解鎖裝扮
+  if (t.phase === 'champion') recordChampion(t)
 
   switch (t.phase) {
     case 'pregame':
@@ -147,7 +152,9 @@ function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, 
 
   const header = el('header', 'hub-header')
   const titles = el('div', 'team-titles')
-  titles.append(el('span', 'eyebrow-light', t.setup.team.name), el('h1', 'team-name', T.tournament))
+  const eyebrow = el('span', 'eyebrow-light', t.setup.team.name)
+  eyebrow.append(el('span', `level-tag level-${tierOf(t)}`, T.levelNames[tierOf(t)]))
+  titles.append(eyebrow, el('h1', 'team-name', T.tournament))
   header.append(backButton(toTitle), titles)
   screen.append(header)
 
@@ -317,7 +324,7 @@ function bracketBox(t: Tournament, rounds: ReturnType<typeof sortedRounds>, r: n
   return box
 }
 
-const TROPHY = (size: number, label = '') =>
+export const TROPHY = (size: number, label = '') =>
   `<svg ${label ? `role="img" aria-label="${label}"` : 'aria-hidden="true"'} width="${size}" height="${size}" viewBox="0 0 24 24" fill="#FFD23F" stroke="#141633" stroke-width="1.2" stroke-linejoin="round"><path d="M7 3h10v4a5 5 0 0 1-10 0z"/><path d="M7 5H4a3 3 0 0 0 3 4M17 5h3a3 3 0 0 1-3 4" fill="none" stroke-width="1.4"/><path d="M10 12h4v4h-4z"/><path d="M8 20h8v-2H8z"/></svg>`
 
 /** 電腦版賽程樹：左右各半區，決賽在正中間，上面放獎盃 */
@@ -429,6 +436,9 @@ function showTourEnd(root: HTMLElement, t: Tournament, toTitle: () => void): voi
   const team = el('div', 'end-team')
   team.append(teamTile(t.setup.team.name, 'user'), el('span', 'end-team-name', t.setup.team.name))
   const words = el('p', 'end-words', T.tournamentOver)
+  const tier = tierOf(t)
+  team.append(el('span', `level-tag level-${tier}`, T.levelNames[tier]))
+  const rewards = champ ? championRewards(recordChampion(t)) : null
   const home = el('button', 'btn-yellow btn-big end-home', T.backToTitle)
   home.append(kbd('ENTER'))
   home.onclick = toTitle
@@ -446,11 +456,25 @@ function showTourEnd(root: HTMLElement, t: Tournament, toTitle: () => void): voi
     )
     record.append(row)
   }
-  main.append(icon, title, team, words, home)
+  main.append(icon, title, team, ...(rewards ? [rewards] : []), words, home)
   inner.append(main, record)
   screen.append(inner)
   root.replaceChildren(screen)
   setKeys({ Enter: toTitle })
+}
+
+/** 奪冠的收穫：解鎖的裝扮、開放的下一級難度（第一次通過這個難度才有） */
+function championRewards(trophy: Trophy): HTMLElement | null {
+  if (!trophy.unlocked) return null
+  const box = el('div', 'end-rewards')
+  const face = el('span', 'end-reward-face')
+  face.innerHTML = avatarSvg('p-reward-sample', 'user', undefined, trophy.unlocked)
+  const lines = el('div', 'end-reward-lines')
+  lines.append(el('span', 'end-reward-line', T.unlockOutfit(T.outfitNames[trophy.unlocked])))
+  const next = TIERS.find((x) => x === trophy.tier + 1)
+  if (next) lines.append(el('span', 'end-reward-line', T.unlockTier(T.levelNames[next])))
+  box.append(face, lines)
+  return box
 }
 
 /** 選秀：三張候選卡並排，選一張後列出可以替換的同角色球員 */
