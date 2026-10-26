@@ -419,9 +419,16 @@ describe('親自出手（計量條）', () => {
     return kinds.filter((k) => HITS.has(k)).length / kinds.length
   }
 
-  it('只在關鍵時刻能用，每個打席一次，進攻是出棒、守備是決勝球', () => {
+  it('任何時候都能用（關鍵時刻或教練暫停），每個打席一次，進攻是出棒、守備是決勝球', () => {
+    // 比賽剛開始、不是關鍵時刻，主隊守備也能投決勝球
+    const start = new Game(setup(1))
+    expect(start.isCrunchTime()).toBe(false)
+    expect(start.takeOver()).toBe('aimPitch')
+    // 打席中途（已經有球數）也可以
+    while (start.balls + start.strikes === 0) start.step()
+    if (!start.over && start.paIndex === 0) expect(start.takeOver()).not.toBeNull()
+
     const g = findTakeOver('swing')
-    expect(g.isCrunchTime() || g.leverage() >= 3.2).toBe(true)
     g.issue({ type: 'swing', timing: 0.8 })
     expect(g.takeOver()).toBeNull()
     expect(() => g.issue({ type: 'swing', timing: 0.8 })).toThrow()

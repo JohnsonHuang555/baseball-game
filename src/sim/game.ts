@@ -320,12 +320,11 @@ export class Game {
   }
 
   /**
-   * 現在能不能親自出手：只在關鍵時刻、每個打席一次、沒有排著其他戰術時。
-   * 進攻時是親自出棒，守備時是決勝球
+   * 現在能不能親自出手：教練面板打開時都能用（關鍵時刻或主動暫停），
+   * 但每個打席一次，而且不能跟其他排著的戰術同時。進攻時是親自出棒，守備時是決勝球
    */
   takeOver(): 'swing' | 'aimPitch' | null {
     if (this.over || this.queued || this.takeOverPa === this.paIndex) return null
-    if (!this.isCrunchTime() && this.leverage() < LEVERAGE_THRESHOLD) return null
     return this.battingSide === this.userSide ? 'swing' : 'aimPitch'
   }
 
