@@ -912,6 +912,43 @@
   font-size: 11px;
   line-height: 18px;
 }
+/* ---- 投手球種標籤：看家球種反白 ---- */
+.pitch-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 3px;
+  border-radius: 6px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.pitch-chip-label {
+  padding: 0 2px;
+  color: var(--ink-soft);
+}
+.pitch-chip-item {
+  padding: 0 2px;
+  border-radius: 4px;
+}
+.pitch-chip-item.primary {
+  background: var(--ink);
+  color: var(--yellow);
+}
+.pitch-chip.full {
+  gap: 3px;
+  font-size: 11px;
+  line-height: 18px;
+}
+.pitch-chip.full .pitch-chip-item {
+  padding: 0 4px;
+}
+
 .dd-chips,
 .draft-chips {
   display: flex;

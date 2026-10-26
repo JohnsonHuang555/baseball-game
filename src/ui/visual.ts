@@ -1,7 +1,8 @@
 // 圖像化的球員元件：小卡、詳細資料、能力值、特性、toast
 import { cardTier, isSpecial } from '../sim/generate'
+import { repertoire } from '../sim/pitches'
 import { TRAITS } from '../sim/traits'
-import type { Player, Tendency } from '../sim/types'
+import type { Pitcher, Player, Tendency } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { gradeBadge, overallBadge } from './grades'
 import { el, traitTag } from './playerCard'
@@ -59,6 +60,18 @@ export function handChip(p: Player, matchup?: 'same' | 'opposite'): HTMLElement 
   const text = p.role === 'batter' ? T.bats[p.bats] : T.throws[p.throws]
   const chip = el('span', `hand-chip ${matchup ?? ''}`, matchup ? `${text}・${T.matchupNames[matchup]}` : text)
   if (matchup) chip.title = T.matchupTips[matchup]
+  return chip
+}
+
+/**
+ * 投手的球種標籤：精簡版寫「直 滑 曲」，full 時寫全名；看家球種反白標出
+ */
+export function pitchChip(p: Pitcher, full = false): HTMLElement {
+  const kinds = repertoire(p)
+  const chip = el('span', `pitch-chip${full ? ' full' : ''}`)
+  if (full) chip.append(el('span', 'pitch-chip-label', T.pitchesLabel))
+  kinds.forEach((k, i) => chip.append(el('span', `pitch-chip-item${i === 1 ? ' primary' : ''}`, full ? T.pitchNames[k] : T.pitchShort[k])))
+  chip.title = T.pitchesTitle(kinds.map((k) => T.pitchNames[k]).join('、'), T.pitchNames[kinds[1]])
   return chip
 }
 
@@ -128,6 +141,7 @@ export function playerHeader(p: Player, label: string, team: AvatarTeam = 'user'
   info.append(el('span', 'tier-tag', T.tierNames[tier]), el('h2', 'detail-name', p.name), el('span', 'detail-label', label))
   info.append(handChip(p))
   if (p.role === 'batter') info.append(tendencyChip(p.tendency, true))
+  else info.append(pitchChip(p, true))
   const ovr = el('div', 'detail-ovr')
   ovr.append(el('span', 'eyebrow-ink', T.overallLabel), overallBadge(p, 'lg'))
   head.append(frame, info, ovr)

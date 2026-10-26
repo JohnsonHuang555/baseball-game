@@ -217,6 +217,9 @@ export const T = {
   meterLog: (kind: 'swing' | 'aimPitch', grade: string) => `${kind === 'swing' ? '親自出棒' : '決勝球'}：${grade}`,
   // ---- 配球對決 ----
   pitchNames: { fastball: '直球', slider: '滑球', curve: '曲球', change: '變速球', splitter: '指叉球' },
+  pitchShort: { fastball: '直', slider: '滑', curve: '曲', change: '變', splitter: '叉' },
+  pitchesLabel: '球種',
+  pitchesTitle: (list: string, primary: string) => `球種：${list}（看家：${primary}）`,
   zoneNames: { high: '高', low: '低', in: '內角', out: '外角' },
   spotMiddle: '正中',
   aimMarks: { pull: '拉打', center: '中間', oppo: '推打' },

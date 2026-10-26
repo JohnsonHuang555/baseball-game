@@ -9,7 +9,7 @@ import { zoneWidthLabel } from './meter'
 import { gestureWidthLabel } from './pitchCall'
 import { el } from './playerCard'
 import { POSITION_FULL, RATING_FULL, T, runnersText } from './strings'
-import { handChip, tendencyChip } from './visual'
+import { handChip, pitchChip, tendencyChip } from './visual'
 
 export type SheetReason = 'leverage' | 'fatigue' | 'pause'
 
@@ -551,6 +551,7 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     const chips = el('span', 'dd-chips')
     chips.append(handChip(p, !isPitcher && game.platoonOn ? game.matchup() : undefined))
     if (p.role === 'batter') chips.append(tendencyChip(p.tendency))
+    else chips.append(pitchChip(p))
     info.append(chips)
     if (isPitcher) {
       const pct = staminaPct()

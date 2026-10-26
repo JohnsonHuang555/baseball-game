@@ -23,7 +23,7 @@ import { gameGrowth } from '../sim/growth'
 import { gradeBadge, gradeOf, overallBadge } from './grades'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { el, traitTag } from './playerCard'
-import { applyCardState, handChip, sideTag, tendencyChip, toast } from './visual'
+import { applyCardState, handChip, pitchChip, sideTag, tendencyChip, toast } from './visual'
 import { clearTournament, saveTournament } from './save'
 import { play } from './sound'
 import { maybeTutorial } from './tutorial'
@@ -485,6 +485,7 @@ function showDraft(root: HTMLElement, t: Tournament, go: (t: Tournament) => void
       const chips = el('span', 'draft-chips')
       chips.append(handChip(p))
       if (p.role === 'batter') chips.append(tendencyChip(p.tendency, true))
+      else chips.append(pitchChip(p, true))
       inner.append(chips)
       const stats = el('span', 'draft-stats')
       Object.entries(p.ratings).forEach(([k, v]) => {

@@ -15,7 +15,7 @@ import { el } from './playerCard'
 import { PROMPT_LEVELS, loadManual, loadPromptLevel, saveManual, savePromptLevel } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
 import { rays } from './setupScreen'
-import { CPU_COLOR, USER_COLOR, handChip, sideTag, tendencyChip, toast } from './visual'
+import { CPU_COLOR, USER_COLOR, handChip, pitchChip, sideTag, tendencyChip, toast } from './visual'
 
 export interface ResultAction {
   label: string
@@ -275,6 +275,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       if (player.role === 'batter') grades.append(tendencyChip(player.tendency))
       // 打者標出對這位投手是同側（不利）還是對側
       grades.append(handChip(player, !isPitcher && game.platoonOn ? game.matchup() : undefined))
+      if (player.role === 'pitcher') grades.append(pitchChip(player))
       if (isPitcher) grades.append(el('span', `duel-pitches ${tired ? 'warn' : ''}`, T.pitchCount(game.fielding.pitchCount)))
       const label = isPitcher ? T.pitcherPitches(game.fielding.pitchCount) : T.batterNth(game.batting.battingIndex + 1)
       if (isPitcher) {
