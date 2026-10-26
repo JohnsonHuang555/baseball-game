@@ -977,3 +977,27 @@ describe('特性', () => {
     expect(g.fatigueLimit({ ...p, traits: ['ironArm'] })).toBeGreaterThan(g.fatigueLimit(p))
   })
 })
+
+describe('親自操作的關鍵時刻', () => {
+  it('第 6 局以後、比分差 2 分內、得點圈有人才算；比決策提示的門檻寬', () => {
+    let clutch = 0
+    let crunch = 0
+    for (let seed = 1; seed <= 100; seed++) {
+      const g = new Game(setup(seed))
+      while (!g.over) {
+        if (g.isClutch()) {
+          clutch++
+          expect(g.inning).toBeGreaterThanOrEqual(6)
+          expect(Math.abs(g.score.home - g.score.away)).toBeLessThanOrEqual(2)
+          expect(g.bases[1] || g.bases[2]).toBeTruthy()
+        }
+        if (g.isCrunchTime()) {
+          crunch++
+          expect(g.isClutch()).toBe(true)
+        }
+        g.step()
+      }
+    }
+    expect(clutch).toBeGreaterThan(crunch)
+  })
+})

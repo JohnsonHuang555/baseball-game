@@ -240,11 +240,13 @@ export const T = {
   meterHint: '紅線來到黃色區時點一下',
   meterSkip: '這球交給球員',
   manualLabel: '親自操作',
-  manualStates: { on: '開', off: '關' },
-  manualToast: (on: boolean) =>
-    on
-      ? '親自操作：開，每一球都由你出手（再按一次或 T 關閉）'
-      : '親自操作：關，交還給球員',
+  manualStates: { off: '關', clutch: '關鍵', all: '每球' },
+  manualToast: {
+    off: '親自操作：關，全部交給球員',
+    clutch: '親自操作：關鍵，後段比分接近、得點圈有人時由你出手',
+    all: '親自操作：每球，每一球都由你出手',
+  },
+  clutchToast: '關鍵時刻！這個打席由你出手',
   meterGrades: {
     perfect: '完美！',
     good: '不錯！',

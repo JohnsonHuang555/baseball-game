@@ -476,6 +476,14 @@ export class Game {
     return clamp(0.65 + (hasTrait(b, 'bunter') ? 0.2 : 0) + (b.ratings.contact - 5) * 0.02 + vsAlignment, 0.3, 0.95)
   }
 
+  /**
+   * 「親自操作：關鍵」交給教練出手的時刻：第 6 局以後、比分差 2 分以內、得點圈有人。
+   * 比決策提示的門檻寬一點，大約四場有三場會遇到
+   */
+  isClutch(): boolean {
+    return this.inning >= 6 && Math.abs(this.score.home - this.score.away) <= 2 && !!(this.bases[1] || this.bases[2])
+  }
+
   /** 第 7 局以後、比分差 1 分以內、得點圈有人：真正能左右勝負的時刻 */
   isCrunchTime(): boolean {
     return this.inning >= 7 && Math.abs(this.score.home - this.score.away) <= 1 && !!(this.bases[1] || this.bases[2])

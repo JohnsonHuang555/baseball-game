@@ -11,7 +11,7 @@ import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
 import { play, soundToggle } from './sound'
 import { el } from './playerCard'
-import { PROMPT_LEVELS, loadManual, loadPromptLevel, saveManual, savePromptLevel } from './prefs'
+import { MANUAL_MODES, PROMPT_LEVELS, loadManual, loadPromptLevel, saveManual, savePromptLevel } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
 import { rays } from './setupScreen'
 import { CPU_COLOR, USER_COLOR, handChip, pitchChip, sideTag, tendencyChip, toast } from './visual'
@@ -96,15 +96,30 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   const manualBtn = el('button', 'manual-toggle')
   manualBtn.type = 'button'
   const renderManual = () => {
-    manualBtn.setAttribute('aria-pressed', String(manual))
-    manualBtn.replaceChildren(el('span', '', T.manualLabel), el('b', '', manual ? T.manualStates.on : T.manualStates.off), kbd('T'))
+    manualBtn.setAttribute('aria-pressed', String(manual !== 'off'))
+    manualBtn.dataset.mode = manual
+    manualBtn.replaceChildren(el('span', '', T.manualLabel), el('b', '', T.manualStates[manual]), kbd('T'))
   }
   renderManual()
+  // 關 → 關鍵 → 每球 → 關
   const toggleManual = () => {
-    manual = !manual
+    manual = MANUAL_MODES[(MANUAL_MODES.indexOf(manual) + 1) % MANUAL_MODES.length]
     saveManual(manual)
     renderManual()
-    toast(T.manualToast(manual))
+    toast(T.manualToast[manual])
+  }
+  /** 「關鍵」模式下已經提示過的打席 */
+  let clutchPa = -1
+  /** 這一球要不要讓教練親自出手 */
+  const wantsTakeOver = (): boolean => {
+    if (manual === 'all') return true
+    if (manual !== 'clutch' || !game.isClutch()) return false
+    // 進入關鍵打席時提示一次
+    if (clutchPa !== game.paIndex) {
+      clutchPa = game.paIndex
+      toast(T.clutchToast)
+    }
+    return true
   }
   manualBtn.onclick = toggleManual
   canvasWrap.append(canvas, callout, sideBanner, manualBtn)
@@ -574,8 +589,9 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
           if (game.over) break
         }
       }
-      // 親自操作：每一球投出前都跳出計量條（已經排了其他戰術的那一球除外）
-      const kind = manual && !pauseRequested ? game.takeOver() : null
+      // 親自操作：每一球（或關鍵時刻的每一球）投出前直接讓教練出手；已經排了其他戰術的那一球除外。
+      // 關鍵時刻也會先跳出指令面板，面板關掉之後才輪到這裡
+      const kind = !pauseRequested && game.takeOver() && wantsTakeOver() ? game.takeOver() : null
       if (kind) {
         setKeys({})
         await personallyPlay(kind)

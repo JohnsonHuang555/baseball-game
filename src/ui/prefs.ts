@@ -69,18 +69,24 @@ export function saveAvatarSpecies(species: AvatarSpecies): void {
 
 const MANUAL_KEY = 'dice-baseball.manual'
 
-/** 親自操作模式：每一球都跳出計量條，預設關閉 */
-export function loadManual(): boolean {
+/** 親自操作：關、只在關鍵時刻、每一球 */
+export type ManualMode = 'off' | 'clutch' | 'all'
+export const MANUAL_MODES: readonly ManualMode[] = ['off', 'clutch', 'all']
+
+/** 預設「關鍵」，讓新玩家自然碰到親自出手；以前存的「開」就是每一球 */
+export function loadManual(): ManualMode {
   try {
-    return localStorage.getItem(MANUAL_KEY) === 'on'
+    const v = localStorage.getItem(MANUAL_KEY)
+    if (v === 'on') return 'all'
+    return v === 'off' || v === 'all' ? v : 'clutch'
   } catch {
-    return false
+    return 'clutch'
   }
 }
 
-export function saveManual(on: boolean): void {
+export function saveManual(mode: ManualMode): void {
   try {
-    localStorage.setItem(MANUAL_KEY, on ? 'on' : 'off')
+    localStorage.setItem(MANUAL_KEY, mode)
   } catch {
     // 記不住就算了
   }

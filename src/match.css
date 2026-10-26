@@ -661,6 +661,11 @@
   background: var(--ink);
   color: var(--yellow);
 }
+/* 「關鍵」比「每球」淡一點：只有關鍵時刻才會跳出來 */
+.manual-toggle[data-mode='clutch'] {
+  background: #fff4c7;
+  box-shadow: none;
+}
 /* 計量條的標題移到下面一點，讓開關的位置 */
 .meter {
   top: 15%;
