@@ -388,3 +388,89 @@ describe('投手疲勞', () => {
     expect(g.teams.away.relievers.length).toBeLessThan(2)
   })
 })
+
+describe('親自出手（計量條）', () => {
+  /** 推進到某一方進攻、打席剛開始、而且是關鍵時刻 */
+  function findTakeOver(kind: 'swing' | 'aimPitch', from = 1): Game {
+    for (let seed = from; seed < from + 400; seed++) {
+      const g = new Game(setup(seed))
+      while (!g.over) {
+        if (g.balls + g.strikes === 0 && g.takeOver() === kind) return g
+        g.step()
+      }
+    }
+    throw new Error('找不到情境')
+  }
+
+  /** 從關鍵時刻出手一次，回傳這個打席的結果類型 */
+  function playAt(kind: 'swing' | 'aimPitch', timing: number, from: number): string {
+    const g = findTakeOver(kind, from)
+    const pa = g.paIndex
+    g.issue({ type: kind, timing })
+    const events = g.step()
+    while (!g.over && g.paIndex === pa && !events.some((e) => e.type === 'play')) events.push(...g.step())
+    const play = events.find((e) => e.type === 'play')
+    return play?.type === 'play' ? play.kind : 'none'
+  }
+
+  const HITS = new Set(['single', 'double', 'triple', 'homeRun'])
+  const hitRate = (kind: 'swing' | 'aimPitch', timing: number) => {
+    const kinds = Array.from({ length: 120 }, (_, i) => playAt(kind, timing, i * 3 + 1))
+    return kinds.filter((k) => HITS.has(k)).length / kinds.length
+  }
+
+  it('只在關鍵時刻能用，每個打席一次，進攻是出棒、守備是決勝球', () => {
+    const g = findTakeOver('swing')
+    expect(g.isCrunchTime() || g.leverage() >= 3.2).toBe(true)
+    g.issue({ type: 'swing', timing: 0.8 })
+    expect(g.takeOver()).toBeNull()
+    expect(() => g.issue({ type: 'swing', timing: 0.8 })).toThrow()
+    expect(findTakeOver('aimPitch').fieldingSide).toBe('home')
+    expect(() => new Game(setup(1)).issue({ type: 'swing', timing: 0.8 })).toThrow()
+  })
+
+  it('目標區：打擊越好越寬；投手體力越低越窄', () => {
+    const g = findTakeOver('swing')
+    const zone = g.meterZone('swing')
+    g.batter.ratings.contact = 9
+    const wide = g.meterZone('swing')
+    g.batter.ratings.contact = 2
+    const narrow = g.meterZone('swing')
+    expect(wide.good).toBeGreaterThan(narrow.good)
+    expect(zone.perfect).toBeLessThan(zone.good)
+
+    const p = findTakeOver('aimPitch')
+    const fresh = p.meterZone('aimPitch')
+    p.fielding.pitchCount += 80
+    expect(p.meterZone('aimPitch').good).toBeLessThan(fresh.good)
+  })
+
+  it('完美出棒的安打率明顯高於太晚出棒，但不是保證安打', () => {
+    const perfect = hitRate('swing', 0.8)
+    const late = hitRate('swing', 1)
+    expect(perfect).toBeGreaterThan(late + 0.2)
+    expect(perfect).toBeLessThan(1)
+  })
+
+  it('完美的決勝球被打出安打的機率低於失手的球', () => {
+    expect(hitRate('aimPitch', 0.8)).toBeLessThan(hitRate('aimPitch', 0.2))
+  })
+
+  it('出手紀錄可以重播出一樣的比賽（ADR-0001）', () => {
+    const g = findTakeOver('swing')
+    g.issue({ type: 'swing', timing: 0.734 })
+    playOut(g)
+    const again = playOut(replay(setup(findSeed(g)), g.commands))
+    expect(again.score).toEqual(g.score)
+    expect(again.linescore).toEqual(g.linescore)
+  })
+
+  /** 找出這場比賽用的種子（setup 的種子等於 Game 建立時的種子） */
+  function findSeed(g: Game): number {
+    for (let seed = 1; seed < 500; seed++) {
+      const s = setup(seed)
+      if (s.home.name === g.teams.home.name && s.away.name === g.teams.away.name) return seed
+    }
+    throw new Error('找不到種子')
+  }
+})

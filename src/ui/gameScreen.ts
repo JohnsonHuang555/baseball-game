@@ -5,6 +5,7 @@ import { FieldRenderer } from './field'
 import { gradeBadge } from './grades'
 import { renderDecisionPanel, type PanelState, type SheetReason } from './decisionPanel'
 import { kbd, setKeys, type KeyMap } from './keys'
+import { runMeter } from './meter'
 import { el } from './playerCard'
 import { PROMPT_LEVELS, loadPromptLevel, savePromptLevel } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
@@ -385,8 +386,19 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         screen.classList.add('deciding')
         render()
       }
+      // 親自出手：收起面板、跑計量條，把停下的位置當成指令送出
+      const takeOver = async (kind: 'swing' | 'aimPitch') => {
+        sheet.classList.add('hidden')
+        screen.classList.remove('deciding')
+        setKeys({})
+        const { timing, grade } = await runMeter(canvasWrap, kind, game.meterZone(kind))
+        game.issue({ type: kind, timing })
+        opts.onProgress?.(game)
+        addLog(T.meterLog(kind, T.meterGrades[grade]), grade === 'perfect' ? 'score' : '')
+        close()
+      }
       const render = () => {
-        sheet.replaceChildren(renderDecisionPanel(game, reason, state, { choose, handOver, rerender: render }))
+        sheet.replaceChildren(renderDecisionPanel(game, reason, state, { choose, handOver, takeOver, rerender: render }))
       }
       render()
       sheet.classList.remove('hidden')

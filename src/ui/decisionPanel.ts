@@ -4,6 +4,7 @@ import type { Batter, Player } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { gradeBadge } from './grades'
 import { kbd, setKeys, type KeyMap } from './keys'
+import { zoneWidthLabel } from './meter'
 import { el } from './playerCard'
 import { POSITION_FULL, RATING_FULL, T, runnersText } from './strings'
 
@@ -19,6 +20,8 @@ export interface PanelState {
 
 export interface PanelHandlers {
   choose(t: Tactic): void
+  /** 親自出手：打開計量條 */
+  takeOver(kind: 'swing' | 'aimPitch'): void
   handOver(): void
   rerender(): void
 }
@@ -53,6 +56,14 @@ const OFFENSE_TYPES: Tactic['type'][] = ['steal', 'bunt', 'hitAndRun', 'pinchHit
 const DEFENSE_TYPES: Tactic['type'][] = ['changePitcher', 'intentionalWalk', 'defensiveSub']
 
 const BASE_NAMES = ['一', '二', '三']
+
+/** 親自出手卡的圖示：球棒或棒球 */
+const TAKEOVER_ICONS = {
+  swing:
+    '<svg aria-hidden="true" width="34" height="34" viewBox="0 0 32 32"><path d="M6 27 L24 6 Q27 3 29 5 Q31 7 28 10 L9 29 Z" fill="#E3A867" stroke="#141633" stroke-width="2.2" stroke-linejoin="round"/><circle cx="6" cy="28" r="2.6" fill="#141633"/></svg>',
+  aimPitch:
+    '<svg aria-hidden="true" width="34" height="34" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12.5" fill="#fff" stroke="#141633" stroke-width="2.4"/><path d="M9 6c4 5 4 15 0 20M23 6c-4 5-4 15 0 20" fill="none" stroke="#E5383B" stroke-width="2" stroke-dasharray="3 2.5"/></svg>',
+}
 
 /** 一張選項卡要顯示的內容 */
 interface OptionCard {
@@ -160,6 +171,9 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
         )
         return { tactic: t, tag: T.tagWalk, sub: T.walkSub, main: b.name, who: b, team: teamOf(game.battingSide), diffs: [c] }
       }
+      case 'swing':
+      case 'aimPitch':
+        throw new Error('親自出手不用選項卡')
       case 'defensiveSub': {
         const spot = fieldTeam.lineup[t.lineupIndex]
         const p = fieldTeam.bench[t.benchIndex]
@@ -247,6 +261,31 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     return btn
   }
 
+  /** 親自出手卡：放在推薦指令上面，顯示這次黃色區有多寬 */
+  function takeOverCard(kind: 'swing' | 'aimPitch'): HTMLElement {
+    const zone = game.meterZone(kind)
+    const btn = el('button', `takeover-card ${kind}`)
+    btn.type = 'button'
+    const icon = el('span', 'takeover-icon')
+    icon.innerHTML = TAKEOVER_ICONS[kind]
+    const body = el('span', 'takeover-body')
+    const preview = el('span', 'takeover-preview')
+    const band = el('span', 'takeover-band')
+    band.style.left = `${(zone.center - zone.good) * 100}%`
+    band.style.width = `${zone.good * 200}%`
+    preview.append(band)
+    body.append(
+      el('span', 'takeover-title', T.takeOverNames[kind]),
+      el('span', 'takeover-sub', T.takeOverSub[kind]),
+      preview,
+      el('span', 'takeover-zone', T.takeOverZone(kind, zoneWidthLabel(zone))),
+    )
+    btn.append(icon, body, kbd('ENTER'))
+    btn.onclick = () => h.takeOver(kind)
+    keys.Enter = () => h.takeOver(kind)
+    return btn
+  }
+
   // ---- 其他指令格：每種指令一格，不能用的變灰並寫原因 ----
 
   function commandReason(type: Tactic['type'], list: Tactic[]): string {
@@ -275,6 +314,8 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
         return T.relieversEmpty
       case 'intentionalWalk':
         return T.onlyAtStart
+      default:
+        return ''
     }
   }
 
@@ -431,6 +472,8 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
   if (state.picking) {
     panel.append(candidates(state.picking))
   } else {
+    const kind = game.takeOver()
+    if (kind) panel.append(takeOverCard(kind))
     const picks = keyTactics()
     if (picks.length) {
       panel.append(el('span', 'section-label', T.keyHeading))

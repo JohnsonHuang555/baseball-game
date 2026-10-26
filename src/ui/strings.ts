@@ -116,6 +116,18 @@ export const T = {
   traitsColumn: '特性',
   swapGuide: '點兩名球員交換：點球場上的人交換守位，點打序列表交換棒次',
   logTitle: '比賽紀錄',
+  // ---- 親自出手（計量條） ----
+  takeOverNames: { swing: '親自出棒', aimPitch: '決勝球' },
+  takeOverTag: { swing: '出棒', aimPitch: '投球' },
+  takeOverSub: {
+    swing: '下一球一定揮棒，停在黃色區就能打出好球',
+    aimPitch: '這一球由你來投，停在黃色區就能壓制打者',
+  },
+  takeOverZone: (kind: 'swing' | 'aimPitch', width: string) => `${kind === 'swing' ? '打者打擊' : '投手控球與體力'}決定黃色區寬度：${width}`,
+  zoneWidths: ['窄', '普通', '寬'],
+  meterHint: '按住蓄力，放開出手',
+  meterGrades: { perfect: '完美！', good: '不錯！', early: '太早了', late: '太晚了' },
+  meterLog: (kind: 'swing' | 'aimPitch', grade: string) => `${kind === 'swing' ? '親自出棒' : '決勝球'}：${grade}`,
   thisRun: '這屆戰績',
   finalNth: (n: number) => `決賽 第 ${n} 戰`,
   trophyLabel: '冠軍獎盃',

@@ -400,3 +400,114 @@
 .match-log li.error {
   color: #c2410c;
 }
+
+/* ---- 計量條：蓋在球場上，按住蓄力、放開出手 ---- */
+.meter-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: rgba(12, 13, 36, 0.35);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+  animation: fade-in 0.15s ease-out;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.meter {
+  position: absolute;
+  right: 18px;
+  top: 8%;
+  bottom: 16%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.meter-title {
+  padding: 2px 10px;
+  border-radius: 8px;
+  border: 2.5px solid var(--ink);
+  background: var(--yellow);
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.meter-track {
+  position: relative;
+  flex: 1;
+  width: 30px;
+  border-radius: 15px;
+  border: 3px solid var(--ink);
+  background: #3a3e6e;
+  box-shadow: 0 4px 0 var(--ink);
+  overflow: hidden;
+}
+.meter-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  background: #fff;
+  border-top: 3px solid var(--ink);
+}
+.meter-good,
+.meter-perfect {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  pointer-events: none;
+}
+.meter-good {
+  background: rgba(255, 210, 63, 0.85);
+}
+.meter-perfect {
+  background: #c6f432;
+}
+.meter-layer.charging .meter-track {
+  box-shadow:
+    0 4px 0 var(--ink),
+    0 0 18px rgba(255, 210, 63, 0.8);
+}
+.meter-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.meter-layer.charging .meter-hint {
+  opacity: 0.6;
+}
+.meter-grade {
+  font-size: 22px;
+  font-weight: 900;
+  animation: title-in 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.meter-grade.perfect {
+  color: #c6f432;
+}
+.meter-grade.good {
+  color: var(--yellow);
+}
+.meter-grade.early,
+.meter-grade.late {
+  color: #ff8a9a;
+}

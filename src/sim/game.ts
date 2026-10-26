@@ -17,6 +17,41 @@ export type Tactic =
   | { type: 'intentionalWalk' }
   /** 守備替補：板凳球員接手某一棒的守位與棒次 */
   | { type: 'defensiveSub'; benchIndex: number; lineupIndex: number }
+  /** 親自出棒：下一球一定揮棒，timing 是計量條停下的位置（0～1） */
+  | { type: 'swing'; timing: number }
+  /** 決勝球：下一球由教練親自投，timing 是計量條停下的位置（0～1） */
+  | { type: 'aimPitch'; timing: number }
+
+/** 計量條的判定：完美、好、太早、太晚 */
+export type MeterGrade = 'perfect' | 'good' | 'early' | 'late'
+
+/** 計量條上的目標區：center 是中心位置，good、perfect 是往兩側的半寬 */
+export interface MeterZone {
+  center: number
+  good: number
+  perfect: number
+}
+
+/** 計量條的目標中心：靠近上緣，跟 2K 的投籃條一樣要等到快滿才放 */
+export const METER_CENTER = 0.8
+
+export function gradeTiming(zone: MeterZone, timing: number): MeterGrade {
+  const d = timing - zone.center
+  if (Math.abs(d) <= zone.perfect) return 'perfect'
+  if (Math.abs(d) <= zone.good) return 'good'
+  return d < 0 ? 'early' : 'late'
+}
+
+/** 一球的修正：強制好壞球、揮棒、結果，以及擊球品質的加減 */
+interface PitchMod {
+  inZone?: boolean
+  swing?: boolean
+  result?: PitchResult
+  contact?: number
+  hit?: number
+  power?: number
+  meter?: MeterGrade
+}
 
 export type PitchResult = 'ball' | 'calledStrike' | 'swingingStrike' | 'foul' | 'inPlay'
 
@@ -69,7 +104,7 @@ export interface BattedBall {
 }
 
 export type GameEvent =
-  | { type: 'pitch'; result: PitchResult; balls: number; strikes: number }
+  | { type: 'pitch'; result: PitchResult; balls: number; strikes: number; meter?: MeterGrade }
   | {
       type: 'play'
       kind: PlayKind
@@ -144,6 +179,8 @@ export class Game {
   /** 第幾個打席，從 0 開始 */
   paIndex = 0
   queued: Tactic | null = null
+  /** 教練最近一次親自出手的打席，每個打席只能一次 */
+  private takeOverPa = -1
   readonly commands: Command[] = []
   private readonly rng: Rng
   private readonly players = new Map<string, Player>()
@@ -282,6 +319,27 @@ export class Game {
     return reasons
   }
 
+  /**
+   * 現在能不能親自出手：只在關鍵時刻、每個打席一次、沒有排著其他戰術時。
+   * 進攻時是親自出棒，守備時是決勝球
+   */
+  takeOver(): 'swing' | 'aimPitch' | null {
+    if (this.over || this.queued || this.takeOverPa === this.paIndex) return null
+    if (!this.isCrunchTime() && this.leverage() < LEVERAGE_THRESHOLD) return null
+    return this.battingSide === this.userSide ? 'swing' : 'aimPitch'
+  }
+
+  /** 計量條的目標區：出棒看打者的打擊，投球看投手的控球，體力越低越窄 */
+  meterZone(kind: 'swing' | 'aimPitch'): MeterZone {
+    let good: number
+    if (kind === 'swing') good = 0.05 + clamp(this.effectiveContact(this.batter), 0, 10) * 0.008
+    else {
+      const control = clamp(this.effectivePitcher().control, 0, 10)
+      good = (0.05 + control * 0.008) * (0.6 + 0.4 * this.staminaLeft(this.fielding))
+    }
+    return { center: METER_CENTER, good, perfect: good * 0.35 }
+  }
+
   /** 教練現在可以下的指令 */
   availableTactics(): Tactic[] {
     if (this.over) return []
@@ -314,9 +372,18 @@ export class Game {
 
   /** 下達指令。換人類立即生效；盜壘、觸擊、打帶跑在下一步執行。 */
   issue(tactic: Tactic): GameEvent[] {
-    if (!this.availableTactics().some((t) => sameTactic(t, tactic))) throw new Error(`現在不能下這個指令：${tactic.type}`)
+    const allowed =
+      tactic.type === 'swing' || tactic.type === 'aimPitch'
+        ? this.takeOver() === tactic.type && tactic.timing >= 0 && tactic.timing <= 1
+        : this.availableTactics().some((t) => sameTactic(t, tactic))
+    if (!allowed) throw new Error(`現在不能下這個指令：${tactic.type}`)
     this.commands.push({ stepIndex: this.stepIndex, tactic })
     switch (tactic.type) {
+      case 'swing':
+      case 'aimPitch':
+        this.takeOverPa = this.paIndex
+        this.queued = tactic
+        return []
       case 'steal':
       case 'bunt':
       case 'hitAndRun':
@@ -376,12 +443,47 @@ export class Game {
     this.queued = null
     if (tactic?.type === 'steal') events.push(...this.steal(tactic.from, 0))
     else if (tactic?.type === 'bunt') events.push(...this.bunt())
+    else if (tactic?.type === 'swing' || tactic?.type === 'aimPitch') events.push(...this.pitch(false, this.takeOverPitch(tactic)))
     else events.push(...this.pitch(tactic?.type === 'hitAndRun'))
     this.stepIndex++
     return events
   }
 
-  private pitch(hitAndRun: boolean): GameEvent[] {
+  /**
+   * 親自出手的這一球：完美不保證安打，只是大幅提高好結果的機率。
+   * 出棒太早多半變界外或軟弱滾地，太晚多半揮空；決勝球失手不是壞球就是甜球
+   */
+  private takeOverPitch(t: { type: 'swing' | 'aimPitch'; timing: number }): PitchMod {
+    const rng = this.rng
+    const meter = gradeTiming(this.meterZone(t.type), t.timing)
+    if (t.type === 'swing') {
+      switch (meter) {
+        case 'perfect':
+          return { meter, inZone: true, swing: true, result: 'inPlay', hit: 0.25, power: 3 }
+        case 'good':
+          return { meter, inZone: true, swing: true, result: rng.chance(0.75) ? 'inPlay' : 'foul', hit: 0.12, power: 1 }
+        case 'early':
+          return { meter, inZone: true, swing: true, result: rng.chance(0.45) ? 'foul' : 'inPlay', hit: -0.1, power: -2 }
+        case 'late': {
+          const r = rng.next()
+          return { meter, inZone: true, swing: true, result: r < 0.45 ? 'swingingStrike' : r < 0.7 ? 'foul' : 'inPlay', hit: -0.12, power: -2 }
+        }
+      }
+    }
+    // 決勝球：投得好多半是揮空或軟弱擊球；失手一半是壞球、一半是被打的甜球
+    const r = rng.next()
+    switch (meter) {
+      case 'perfect':
+        return r < 0.45 ? { meter, inZone: true, swing: true, result: 'swingingStrike' } : { meter, inZone: true, swing: true, result: 'inPlay', hit: -0.2, power: -2 }
+      case 'good':
+        if (r < 0.3) return { meter, inZone: true, swing: true, result: 'swingingStrike' }
+        return r < 0.8 ? { meter, inZone: true, swing: true, result: 'inPlay', hit: -0.1, power: -1 } : { meter, inZone: true, swing: true, result: 'foul' }
+      default:
+        return r < 0.5 ? { meter, inZone: false, swing: false, result: 'ball' } : { meter, inZone: true, swing: true, result: 'inPlay', hit: 0.15, power: 2 }
+    }
+  }
+
+  private pitch(hitAndRun: boolean, mod: PitchMod = {}): GameEvent[] {
     const rng = this.rng
     const batter = this.batter
     const pitcher = this.pitcher
@@ -391,22 +493,25 @@ export class Game {
     this.fielding.pitchCount++
 
     const zoneP = clamp(0.5 + (control - 5) * 0.035 - (hasTrait(pitcher, 'wild') ? 0.08 : 0), 0.3, 0.72)
-    const inZone = rng.chance(zoneP)
+    const inZone = mod.inZone ?? rng.chance(zoneP)
     const swingP = inZone
       ? 0.65 + (twoStrikes ? 0.15 : 0)
       : 0.32 + (twoStrikes ? 0.12 : 0) - (hasTrait(batter, 'eye') ? 0.12 : 0) - (this.balls === 3 ? 0.05 : 0)
-    const swing = hitAndRun || rng.chance(swingP)
+    const swing = mod.swing ?? (hitAndRun || rng.chance(swingP))
 
     let result: PitchResult
-    if (!swing) {
+    if (mod.result) {
+      result = mod.result
+    } else if (!swing) {
       result = inZone ? 'calledStrike' : 'ball'
     } else {
       const contactP = clamp(
         (inZone ? 0.8 : 0.55) +
           (contact - stuff) * 0.03 -
           (hasTrait(batter, 'freeSwinger') ? 0.08 : 0) -
-          (hasTrait(pitcher, 'strikeoutArtist') ? 0.06 : 0),
-        0.3,
+          (hasTrait(pitcher, 'strikeoutArtist') ? 0.06 : 0) +
+          (mod.contact ?? 0),
+        0.2,
         0.95,
       )
       if (!rng.chance(contactP)) result = 'swingingStrike'
@@ -415,12 +520,12 @@ export class Game {
     }
 
     if (result === 'inPlay') {
-      return [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes }, ...this.ballInPlay(hitAndRun)]
+      return [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter }, ...this.ballInPlay(hitAndRun, mod)]
     }
     if (result === 'ball') this.balls++
     else if (result === 'foul') this.strikes = Math.min(2, this.strikes + 1)
     else this.strikes++
-    const events: GameEvent[] = [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes }]
+    const events: GameEvent[] = [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter }]
 
     if (this.balls === 4) return [...events, ...this.walk('walk')]
     if (this.strikes === 3) {
@@ -450,12 +555,13 @@ export class Game {
     return k
   }
 
-  private ballInPlay(hitAndRun: boolean): GameEvent[] {
+  private ballInPlay(hitAndRun: boolean, mod: PitchMod = {}): GameEvent[] {
     const rng = this.rng
     const batter = this.batter
     const { stuff } = this.effectivePitcher()
     const contact = this.effectiveContact(batter)
-    const { power, speed } = batter.ratings
+    const { speed } = batter.ratings
+    const power = batter.ratings.power + (mod.power ?? 0)
     // 守備範圍好的隊伍，能把一部分安打變成出局
     const range = this.teamDefense(this.fielding) - AVERAGE_FIELDING
     const hitP = clamp(
@@ -464,7 +570,7 @@ export class Game {
       0.5,
     )
 
-    if (rng.chance(hitP)) {
+    if (rng.chance(clamp(hitP + (mod.hit ?? 0), 0.05, 0.85))) {
       const kind = rng.weighted<PlayKind>([
         ['homeRun', Math.max(0.02, 0.1 + (power - 5) * 0.035 + (hasTrait(batter, 'slugger') ? 0.08 : 0))],
         ['triple', Math.max(0.005, 0.025 + (speed - 5) * 0.006)],

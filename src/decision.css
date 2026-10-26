@@ -511,3 +511,82 @@
   width: 100%;
   flex: none;
 }
+
+/* ---- 親自出手卡：比推薦指令更醒目的深色卡 ---- */
+.takeover-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px 12px 12px;
+  border-radius: 16px;
+  border: 3px solid var(--ink);
+  background: var(--indigo);
+  box-shadow: 0 4px 0 var(--ink);
+  color: #fff;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.takeover-card:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--ink);
+}
+.takeover-icon {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 2.5px solid var(--ink);
+  background: var(--yellow);
+  display: grid;
+  place-items: center;
+}
+.takeover-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.takeover-title {
+  font-size: 19px;
+  font-weight: 900;
+  color: var(--yellow);
+}
+.takeover-sub {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #dadfff;
+}
+/* 橫向的小計量條預覽，黃色區寬度跟實際一樣 */
+.takeover-preview {
+  position: relative;
+  height: 10px;
+  margin-top: 2px;
+  border-radius: 5px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  overflow: hidden;
+}
+.takeover-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--yellow);
+  border-left: 1.5px solid var(--ink);
+  border-right: 1.5px solid var(--ink);
+}
+.takeover-zone {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lilac);
+}
+.takeover-card .kbd {
+  min-width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border-bottom-width: 4px;
+  background: var(--yellow);
+}
