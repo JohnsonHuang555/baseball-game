@@ -13,21 +13,9 @@
   --home: #2d7cff;
   --away: #ff7a1a;
   --font-display: 'Bungee', 'Arial Black', system-ui, sans-serif;
-
-  /* 舊畫面還在用的深色面板，之後的批次會換掉 */
-  --bg: #2b2f8f;
-  --panel: #1e2170;
-  --panel-2: #262a80;
-  --text: #f4f5ff;
-  --muted: #c9ccff;
-  --primary: #2d7cff;
-  --cpu: #ff7a1a;
-  --gold: #ffd23f;
-  --blue: #2d6be0;
-  --red: #d9283c;
   --radius: 14px;
   font-family: 'Noto Sans TC', system-ui, -apple-system, 'PingFang TC', 'Microsoft JhengHei', sans-serif;
-  color: var(--text);
+  color: #fff;
   background: var(--indigo);
   -webkit-tap-highlight-color: transparent;
 }
@@ -43,15 +31,6 @@ body {
   min-height: 100dvh;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
 button {
   font: inherit;
   color: inherit;
@@ -64,147 +43,19 @@ h3 {
   margin: 0;
 }
 
-.screen {
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
-.muted {
-  color: var(--muted);
-}
-
-/* ---- 按鈕 ---- */
-.btn {
-  border: 2.5px solid var(--ink);
-  border-radius: var(--radius);
-  padding: 13px 16px;
-  font-size: 16px;
-  font-weight: 900;
-  width: 100%;
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.btn-primary {
-  background: var(--yellow);
-  color: var(--ink);
-  box-shadow: 0 4px 0 var(--yellow-shadow);
-}
-.btn-secondary {
-  background: var(--indigo);
-  color: #fff;
-  box-shadow: 0 4px 0 var(--ink);
-}
-.btn-ghost {
-  background: transparent;
-  border-color: #fff;
-  color: #fff;
-}
-.btn-option {
-  background: var(--panel-2);
-  text-align: left;
-  font-weight: 500;
-  font-size: 15px;
-  padding: 12px 14px;
-}
-.link {
-  background: none;
-  border: none;
-  font-size: 28px;
-  padding: 0 8px 0 0;
-}
-.chip {
-  border: 1px solid #3b4a63;
-  background: transparent;
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 14px;
-}
-.chip.active {
-  background: var(--text);
-  color: var(--bg);
-}
-.row {
-  display: flex;
-  gap: 8px;
-}
-
-/* ---- 首頁 ---- */
-.title {
-  justify-content: center;
-  text-align: center;
-  gap: 16px;
-}
-.logo {
-  font-size: 56px;
-}
-.title h1 {
-  font-size: 36px;
-  letter-spacing: 4px;
-}
-
-/* ---- 組隊 ---- */
-.setup {
-  padding-bottom: 140px;
-}
-.setup-header {
-  display: flex;
-  align-items: center;
-}
-.eyebrow {
-  font-size: 12px;
-  color: var(--muted);
-}
-.versus {
-  display: flex;
-  justify-content: space-between;
-  font-size: 14px;
-  background: var(--panel);
-  border-radius: var(--radius);
-  padding: 8px 12px;
-}
-.roster-section h2 {
-  font-size: 14px;
-  color: var(--muted);
-  margin: 4px 0 6px;
-}
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.action-bar {
-  position: fixed;
-  left: 50%;
-  bottom: 0;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 480px;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  background: var(--bg);
-  border-top: 1px solid #263248;
-  box-shadow: 0 -12px 16px var(--bg);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.hint {
-  font-size: 13px;
-  color: var(--muted);
-  text-align: center;
-}
-
-/* ---- 決策面板 ---- */
+/* ---- 底部面板的骨架：遮罩加上從下方滑出的面板 ---- */
 .sheet {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.55);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -216,14 +67,10 @@ h3 {
 .sheet-panel {
   width: 100%;
   max-width: 480px;
-  max-height: 80dvh;
+  max-height: 85dvh;
   overflow-y: auto;
-  background: var(--panel);
-  border-radius: 18px 18px 0 0;
-  padding: 18px 16px calc(16px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  gap: 8px;
   animation: slide-up 0.2s ease-out;
 }
 @keyframes slide-up {
@@ -231,125 +78,4 @@ h3 {
     transform: translateY(40px);
     opacity: 0;
   }
-}
-.result h2 {
-  text-align: center;
-  font-size: 32px;
-}
-.result .win {
-  color: var(--gold);
-}
-.result .lose {
-  color: var(--muted);
-}
-.linescore {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  margin: 8px 0;
-}
-.linescore th,
-.linescore td {
-  text-align: center;
-  padding: 4px 2px;
-}
-.linescore th {
-  color: var(--muted);
-  font-weight: 500;
-}
-.linescore .ls-name {
-  text-align: left;
-  white-space: nowrap;
-  max-width: 5em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.linescore .ls-total {
-  font-weight: 700;
-}
-.linescore tr.mine {
-  color: #93c5fd;
-}
-
-/* ---- 錦標賽 ---- */
-.game-subtitle {
-  text-align: center;
-  font-size: 13px;
-  color: var(--gold);
-  font-weight: 600;
-}
-.status-card {
-  background: var(--panel);
-  border-radius: var(--radius);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.status-card h2 {
-  font-size: 24px;
-}
-.status-card .win {
-  color: var(--gold);
-}
-.status-card .lose {
-  color: var(--muted);
-}
-.status-card p {
-  margin: 0;
-}
-.history {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-variant-numeric: tabular-nums;
-}
-.history li {
-  background: var(--panel);
-  border-radius: 8px;
-  padding: 8px 12px;
-  border-left: 3px solid;
-}
-.history .won {
-  border-left-color: #22c55e;
-}
-.history .lost {
-  border-left-color: var(--cpu);
-}
-.bracket-round {
-  background: var(--panel);
-  border-radius: var(--radius);
-  padding: 8px 12px;
-  margin-bottom: 6px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.bracket-title {
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 4px;
-}
-.bracket-match {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 8px;
-  padding: 3px 0;
-}
-.bracket-match span:last-child {
-  text-align: right;
-}
-.bracket-match .winner {
-  color: var(--text);
-  font-weight: 700;
-}
-.bracket-match .me {
-  color: #93c5fd;
-}
-.bracket-match .loser {
-  opacity: 0.5;
-  text-decoration: line-through;
 }

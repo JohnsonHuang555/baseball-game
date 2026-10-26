@@ -7,6 +7,7 @@ import { renderDecisionPanel, type PanelState, type SheetReason } from './decisi
 import { el } from './playerCard'
 import { PROMPT_LEVELS, loadPromptLevel, savePromptLevel } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
+import { rays } from './setupScreen'
 import { CPU_COLOR, USER_COLOR, toast } from './visual'
 
 export interface ResultAction {
@@ -23,6 +24,8 @@ export interface GameScreenOptions {
   /** 每推進一步或下指令後呼叫，用來存檔 */
   onProgress?: (game: Game) => void
   resultActions: (game: Game) => ResultAction[]
+  /** 結果畫面上方的小字；沒給就用 subtitle */
+  resultLabel?: string
 }
 
 const OUT_KINDS = new Set(['groundOut', 'doublePlay', 'flyOut', 'sacrificeFly', 'lineOut', 'buntPopOut', 'sacrificeBunt'])
@@ -341,42 +344,67 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     showResult()
   }
 
+  /** 比賽結果：全螢幕，大字勝負、雙方比分、每局比分與 R H E */
   function showResult(): void {
     window.removeEventListener('resize', onResize)
-    pauseBtn.disabled = true
     const won = game.winner === userSide
-    sheet.replaceChildren()
-    const panel = el('div', 'sheet-panel result')
-    panel.append(el('h2', won ? 'win' : 'lose', won ? T.win : T.lose))
-    panel.append(linescoreTable())
-    for (const action of opts.resultActions(game)) {
-      const btn = el('button', `btn ${action.primary ? 'btn-primary' : 'btn-ghost'}`, action.label)
-      btn.onclick = action.onClick
-      panel.append(btn)
+    const opponentSide: Side = userSide === 'home' ? 'away' : 'home'
+    const screen = el('div', `result-screen ${won ? 'won' : 'lost'}`)
+    if (won) screen.insertAdjacentHTML('afterbegin', `<svg class="result-rays" aria-hidden="true" viewBox="-350 -350 700 700">${rays(350)}</svg>`)
+
+    const head = el('div', 'result-head')
+    const label = opts.subtitle ?? opts.resultLabel
+    if (label) head.append(el('span', 'result-eyebrow', label))
+    head.append(el('h1', 'result-title', won ? T.win : T.lose))
+
+    const teamTile = (side: Side) => {
+      const box = el('div', `result-team ${side === userSide ? 'user' : 'opponent'}`)
+      box.append(el('span', 'result-tile', game.teams[side].name.slice(0, 1)), el('span', 'result-team-name', game.teams[side].name))
+      return box
     }
-    sheet.append(panel)
-    sheet.classList.remove('hidden')
+    const scoreline = el('div', 'result-scoreline')
+    const nums = el('span', 'result-score')
+    nums.append(String(game.score[userSide]), el('span', 'result-colon', ':'), String(game.score[opponentSide]))
+    scoreline.append(teamTile(userSide), nums, teamTile(opponentSide))
+
+    const buttons = el('div', 'result-buttons')
+    for (const action of opts.resultActions(game)) {
+      const btn = el('button', action.primary ? 'btn-yellow btn-big' : 'btn-outline-light btn-wide', action.label)
+      btn.onclick = action.onClick
+      buttons.append(btn)
+    }
+    screen.append(head, scoreline, linescoreTable(), buttons)
+    root.replaceChildren(screen)
   }
 
+  /** 每局比分：延長賽會多出欄位；九局下沒打顯示 X；最後是 R H E */
   function linescoreTable(): HTMLElement {
     const innings = Math.max(game.linescore.away.length, 9)
+    const wrap = el('section', 'linescore-box')
+    wrap.setAttribute('aria-label', '每局比分')
     const table = el('table', 'linescore')
     const head = el('tr')
     head.append(el('th'))
     for (let i = 1; i <= innings; i++) head.append(el('th', '', String(i)))
-    head.append(el('th', '', 'R'))
+    head.append(el('th', 'ls-gap'), el('th', 'ls-total', 'R'), el('th', 'ls-total', 'H'), el('th', 'ls-total', 'E'))
     table.append(head)
     for (const side of ['away', 'home'] as const) {
       const row = el('tr', side === userSide ? 'mine' : '')
       row.append(el('td', 'ls-name', game.teams[side].name))
       for (let i = 0; i < innings; i++) {
         const v = game.linescore[side][i]
-        row.append(el('td', '', v === undefined ? (i < innings && side === 'home' && game.over ? 'X' : '') : String(v)))
+        row.append(v === undefined ? el('td', 'ls-skip', side === 'home' ? 'X' : '') : el('td', '', String(v)))
       }
-      row.append(el('td', 'ls-total', String(game.score[side])))
+      row.append(
+        el('td', 'ls-gap'),
+        el('td', 'ls-total', String(game.score[side])),
+        el('td', 'ls-total', String(game.hits[side])),
+        el('td', 'ls-total', String(game.errors[side])),
+      )
       table.append(row)
     }
-    return table
+    wrap.append(table)
+    return wrap
   }
 
   syncField()

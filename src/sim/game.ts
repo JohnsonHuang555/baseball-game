@@ -132,6 +132,10 @@ export class Game {
   bases: Bases = [null, null, null]
   score: Record<Side, number> = { home: 0, away: 0 }
   linescore: Record<Side, number[]> = { home: [], away: [0] }
+  /** 記分板的 H：各隊擊出的安打數 */
+  hits: Record<Side, number> = { home: 0, away: 0 }
+  /** 記分板的 E：各隊守備時犯的失誤數 */
+  errors: Record<Side, number> = { home: 0, away: 0 }
   teams: Record<Side, TeamState>
   over = false
   winner: Side | null = null
@@ -708,6 +712,8 @@ export class Game {
   /** 打席結束：套用跑壘、換下一棒、檢查再見或半局結束 */
   private finishPlay(kind: PlayKind, ball: BattedBall | null, moves: RunnerMove[], notation: string | null = null): GameEvent[] {
     const batterId = this.batter.id
+    if (HIT_KINDS.includes(kind)) this.hits[this.battingSide]++
+    if (kind === 'error') this.errors[this.fieldingSide]++
     const runs = this.applyMoves(moves)
     const events: GameEvent[] = [{ type: 'play', kind, batterId, ball, moves, runs, notation }]
     const team = this.batting
@@ -755,6 +761,8 @@ export class Game {
     return { type: 'gameOver', winner }
   }
 }
+
+const HIT_KINDS: readonly PlayKind[] = ['single', 'double', 'triple', 'homeRun']
 
 /** 原本會出局的球，被判失誤的機率（真實棒球每隊每場約 0.5 次失誤） */
 const ERROR_RATE: Record<BattedBall['type'], number> = { ground: 0.045, fly: 0.015, line: 0.01 }

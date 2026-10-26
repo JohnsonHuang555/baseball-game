@@ -7,7 +7,7 @@ import type { Position } from '../sim/types'
 
 export const T = {
   gameTitle: '骰子棒球',
-  gameSubtitle: '你是教練。隨機發一支球隊，剩下的交給你的判斷。',
+  gameSubtitleLines: ['你是教練。隨機發一支球隊，', '剩下的交給你的判斷。'],
   quickMatch: '快速比賽',
   tournament: '錦標賽',
   comingSoon: '即將推出',
@@ -111,6 +111,14 @@ export const T = {
   onlyAtStart: '打席開始前才能用',
   pickFor: (name: string) => `選擇${name}人選`,
   backArrow: '‹ 返回',
+  // ---- 錦標賽與選秀 ----
+  winMark: '勝',
+  loseMark: '敗',
+  draftCandidates: '候選球員',
+  replaceWho: (name: string, role: string) => `${name} 要替換哪一名${role}？`,
+  pickFirst: '先從上面選一名球員',
+  orderNth: (n: number) => `第 ${n} 棒`,
+  replace: '換掉',
   halfTop: '局上',
   halfBottom: '局下',
   tiredTag: '疲勞',

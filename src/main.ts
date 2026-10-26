@@ -1,9 +1,9 @@
 import './style.css'
-import './legacy.css'
 import './theme.css'
 import './team.css'
 import './match.css'
 import './decision.css'
+import './screens.css'
 import { Game } from './sim/game'
 import { generateTeam, teamName } from './sim/generate'
 import { Rng } from './sim/rng'
@@ -20,38 +20,49 @@ import { openTournament } from './ui/tournamentScreen'
 
 const root = document.getElementById('app')!
 
-/** 首頁標誌：畫一顆棒球，不用 emoji */
-function logo(): HTMLElement {
-  const wrap = el('div', 'logo')
-  wrap.innerHTML = `<svg viewBox="0 0 64 64" width="72" height="72" aria-hidden="true">
-    <circle cx="32" cy="32" r="28" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
-    <path d="M18 10 C26 22 26 42 18 54" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="3 3"/>
-    <path d="M46 10 C38 22 38 42 46 54" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="3 3"/>
-  </svg>`
-  return wrap
-}
+/** 首頁標誌：骰子加上棒球縫線，用 SVG 畫，不用 emoji */
+const LOGO = `<svg class="home-logo" role="img" aria-label="${T.gameTitle}" viewBox="0 0 132 132">
+  <rect x="10" y="14" width="108" height="108" rx="26" fill="#141633"/>
+  <rect x="8" y="6" width="108" height="108" rx="26" fill="#FFFFFF" stroke="#141633" stroke-width="5"/>
+  <path d="M38 22 C54 44 54 76 38 98" fill="none" stroke="#E5383B" stroke-width="4.5" stroke-dasharray="6 5" stroke-linecap="round"/>
+  <path d="M86 22 C70 44 70 76 86 98" fill="none" stroke="#E5383B" stroke-width="4.5" stroke-dasharray="6 5" stroke-linecap="round"/>
+  <circle cx="62" cy="40" r="7" fill="#141633"/>
+  <circle cx="62" cy="60" r="7" fill="#141633"/>
+  <circle cx="62" cy="80" r="7" fill="#141633"/>
+</svg>`
+
+/** 首頁背景的放射光芒 */
+const HOME_RAYS = `<svg class="home-rays" aria-hidden="true" viewBox="-280 -280 560 560">
+  <g fill="#3A3FA8"><path d="M0 0 L-60 -280 L60 -280 Z"/><path d="M0 0 L198 -198 L240 -144 Z" transform="rotate(10)"/><path d="M0 0 L-198 -198 L-240 -144 Z" transform="rotate(-10)"/><path d="M0 0 L280 -60 L280 60 Z"/><path d="M0 0 L-280 -60 L-280 60 Z"/></g>
+</svg>`
 
 function showTitle(): void {
   root.replaceChildren()
-  const screen = el('div', 'screen title')
-  screen.append(logo(), el('h1', '', T.gameTitle), el('p', 'muted', T.gameSubtitle))
-  const quick = el('button', 'btn btn-primary', T.quickMatch)
-  quick.onclick = startQuickMatch
-  screen.append(quick)
+  const screen = el('div', 'home-screen')
+  screen.insertAdjacentHTML('afterbegin', HOME_RAYS)
+  const hero = el('div', 'home-hero')
+  hero.insertAdjacentHTML('afterbegin', LOGO)
+  const subtitle = el('p', 'home-subtitle')
+  subtitle.append(T.gameSubtitleLines[0], el('br'), T.gameSubtitleLines[1])
+  hero.append(el('h1', 'home-title', T.gameTitle), subtitle)
 
+  const buttons = el('div', 'home-buttons')
   const saved = loadTournament()
-  if (saved) {
-    const resume = el('button', 'btn btn-primary', T.continueTournament(T.roundNames[currentRound(saved)]))
-    resume.onclick = () => openTournament(root, saved, showTitle)
-    screen.append(resume)
-  }
-  const fresh = el('button', 'btn btn-ghost', saved ? T.newTournament : T.tournament)
+  const quick = el('button', saved ? 'btn-white btn-big' : 'btn-yellow btn-big', T.quickMatch)
+  quick.onclick = startQuickMatch
+  const fresh = el('button', saved ? 'btn-outline-light' : 'btn-white btn-big', saved ? T.newTournament : T.tournament)
   fresh.onclick = () => {
     if (saved && !window.confirm(T.confirmOverwrite)) return
     const t = createTournament(randomSeed())
     openTournament(root, updateSetup(t, withSavedName(t.setup)), showTitle)
   }
-  screen.append(fresh)
+  if (saved) {
+    const resume = el('button', 'btn-yellow btn-big', T.continueTournament(T.roundNames[currentRound(saved)]))
+    resume.onclick = () => openTournament(root, saved, showTitle)
+    buttons.append(resume, quick, fresh)
+  } else buttons.append(quick, fresh)
+
+  screen.append(hero, buttons)
   root.append(screen)
 }
 
@@ -72,6 +83,7 @@ function startQuickMatch(): void {
     onStart: (final) =>
       showGame(root, {
         game: new Game({ home: final.team, away: opponent, seed: randomSeed(), userSide: 'home' }),
+        resultLabel: T.quickMatch,
         resultActions: () => [
           { label: T.playAgain, primary: true, onClick: startQuickMatch },
           { label: T.backToTitle, onClick: showTitle },

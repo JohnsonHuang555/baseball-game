@@ -33,6 +33,24 @@ describe('整場比賽', () => {
     for (const g of games) expect(g.inning).toBeGreaterThanOrEqual(9)
   })
 
+  it('記分板的 H、E 等於安打與失誤的次數；失誤記在守備方', () => {
+    for (let i = 1; i <= 50; i++) {
+      const g = new Game(setup(i))
+      const count = { hits: { home: 0, away: 0 }, errors: { home: 0, away: 0 } }
+      while (!g.over) {
+        const batting = g.battingSide
+        const fielding = g.fieldingSide
+        for (const e of g.step()) {
+          if (e.type !== 'play') continue
+          if (['single', 'double', 'triple', 'homeRun'].includes(e.kind)) count.hits[batting]++
+          if (e.kind === 'error') count.errors[fielding]++
+        }
+      }
+      expect(g.hits).toEqual(count.hits)
+      expect(g.errors).toEqual(count.errors)
+    }
+  })
+
   it('比分等於每局得分加總', () => {
     for (const g of games) {
       expect(g.linescore.home.reduce((a, b) => a + b, 0)).toBe(g.score.home)
