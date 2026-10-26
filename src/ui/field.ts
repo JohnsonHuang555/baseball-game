@@ -1,4 +1,7 @@
 import { ALIGNMENT_SPOTS, fenceDistance, type Alignment, type BattedBall, type PitchResult, type RunnerMove } from '../sim/game'
+import type { PitchType } from '../sim/pitches'
+import type { Hand } from '../sim/types'
+import { PITCH_MOTION, pitchPoint } from './pitchCam'
 
 interface Pt {
   x: number
@@ -311,12 +314,29 @@ export class FieldRenderer {
     })
   }
 
-  async pitch(result: PitchResult, ms: number): Promise<void> {
+  /**
+   * 投球：有球種時照球種的軌跡飛（滑球橫移、曲球拋高再落下），帶一條軌跡；
+   * 俯視角距離很短，所以只是小小的示意，清楚的版本在投球視角小窗
+   */
+  async pitch(result: PitchResult, ms: number, type?: PitchType, hand: Hand = 'R'): Promise<void> {
     const from = this.toPx(...MOUND)
     const to = { x: this.home.x, y: this.home.y - 2 }
+    const motion = type ? PITCH_MOTION[type] : null
+    this.trail = []
     await this.tween(ms, (t) => {
-      this.ball = { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t), height: 0 }
+      if (!type || !motion) {
+        this.ball = { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t), height: 0 }
+        return
+      }
+      // 左右的變化畫在場上；上下的變化（曲球、指叉的下墜）換成球的高度
+      const { x } = pitchPoint(type, hand, from, to, t, PITCH_BREAK_PX)
+      const drop = Math.max(0, motion.breakY * PITCH_BREAK_PX * (1 - t ** motion.power))
+      const height = drop + Math.sin(Math.PI * t) * motion.hump * PITCH_BREAK_PX
+      this.ball = { x, y: lerp(from.y, to.y, t), height }
+      this.trail.push({ x, y: this.ball.y - height })
+      if (this.trail.length > 10) this.trail.shift()
     })
+    this.trail = []
     if (result === 'foul') {
       const side = Math.random() < 0.5 ? -1 : 1
       const end = this.toPx(side * (55 + Math.random() * 20), 90 + Math.random() * 60)
@@ -415,6 +435,9 @@ export class FieldRenderer {
     for (const id of [...outs, ...scorers]) this.runners.delete(id)
   }
 }
+
+/** 俯視角的投球變化放大倍率（像素）：實際比例太小看不出來 */
+const PITCH_BREAK_PX = 60
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t

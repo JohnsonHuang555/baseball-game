@@ -167,6 +167,7 @@ export interface BattedBall {
 }
 
 export type GameEvent =
+  /** pitch：這一球的球種（規則版本 5 起每一球都有，給投球動畫用） */
   | { type: 'pitch'; result: PitchResult; balls: number; strikes: number; meter?: MeterGrade; pitch?: PitchType }
   | {
       type: 'play'
@@ -807,6 +808,8 @@ export class Game {
     const { stuff, control } = this.effectivePitcher()
     const contact = this.effectiveContact(batter)
     const twoStrikes = this.strikes === 2
+    // 這一球的球種只給畫面用（投球動畫），不影響結果、不抽亂數；舊規則的比賽沒有球種
+    const pitchType = mod.pitch ?? (this.pitchMix ? this.nextPitch() : undefined)
     this.fielding.pitchCount++
 
     const zoneP = clamp(0.5 + (control - 5) * 0.035 - (hasTrait(pitcher, 'wild') ? 0.08 : 0), 0.3, 0.72)
@@ -841,12 +844,12 @@ export class Game {
       this.aimAngle = mod.aim ?? null
       const play = this.ballInPlay(hitAndRun, mod)
       this.aimAngle = null
-      return [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter, pitch: mod.pitch }, ...play]
+      return [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter, pitch: pitchType }, ...play]
     }
     if (result === 'ball') this.balls++
     else if (result === 'foul') this.strikes = Math.min(2, this.strikes + 1)
     else this.strikes++
-    const events: GameEvent[] = [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter, pitch: mod.pitch }]
+    const events: GameEvent[] = [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter, pitch: pitchType }]
 
     if (this.balls === 4) return [...events, ...this.walk('walk')]
     if (this.strikes === 3) {

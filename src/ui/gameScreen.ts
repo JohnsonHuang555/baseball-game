@@ -1,5 +1,5 @@
 import { LEVERAGE_THRESHOLD, homeRunStats, type BattedBall, type Game, type GameEvent, type Side, type Tactic, type TakeOverKind } from '../sim/game'
-import type { Player } from '../sim/types'
+import type { Pitcher, Player } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { FieldRenderer } from './field'
 import { gradeBadge } from './grades'
@@ -7,6 +7,7 @@ import { renderDecisionPanel, type PanelState, type SheetReason } from './decisi
 import { kbd, setKeys, type KeyMap } from './keys'
 import { aimLabel, runMeter } from './meter'
 import { runPitchCall } from './pitchCall'
+import { PITCH_MOTION, PitchCam } from './pitchCam'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
 import { play, soundToggle } from './sound'
@@ -122,7 +123,9 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     return true
   }
   manualBtn.onclick = toggleManual
-  canvasWrap.append(canvas, callout, sideBanner, manualBtn)
+  // 投球視角小窗：投球時出現在球場左下角
+  const pitchCam = new PitchCam()
+  canvasWrap.append(canvas, callout, sideBanner, manualBtn, pitchCam.root)
   const matchup = el('section', 'match-duel')
   const lastPlay = el('p', 'last-play')
   const controls = el('div', 'match-controls')
@@ -410,14 +413,20 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     strikeout: 500,
   }
 
-  async function animate(events: GameEvent[], important: boolean): Promise<void> {
+  /** thrower：這一步開始時的投手；這一步裡換投的話跟著換 */
+  async function animate(events: GameEvent[], important: boolean, thrower: Pitcher = game.pitcher): Promise<void> {
     // 關鍵時刻用正常速度，平常稍微快一點
     const k = 1 / (speed * (important ? 1 : 1.4))
     for (const [i, e] of events.entries()) {
       const text = describe(e)
+      if (e.type === 'substitution' && e.kind === 'pitcher') thrower = game.player(e.inId) as Pitcher
       if (e.type === 'pitch') {
         lastPlay.textContent = PITCH_TEXT[e.result]
-        await field.pitch(e.result, PACE.pitch * k)
+        if (e.pitch) {
+          // 變化球比較慢、直球比較快；場上和投球視角小窗一起播
+          const ms = PACE.pitch * k * PITCH_MOTION[e.pitch].pace
+          await Promise.all([field.pitch(e.result, ms, e.pitch, thrower.throws), pitchCam.play(e.pitch, thrower, e.result, ms)])
+        } else await field.pitch(e.result, PACE.pitch * k)
         // 球到本壘的那一刻發聲：進手套、揮空、擦棒，或打進場內（全壘打更響）
         const next = events[i + 1]
         play(
@@ -599,9 +608,10 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         if (game.over) break
       }
       const important = game.leverage() >= LEVERAGE_THRESHOLD
+      const thrower = game.pitcher
       const events = game.step()
       opts.onProgress?.(game)
-      await animate(events, important)
+      await animate(events, important, thrower)
     }
     showResult()
   }

@@ -1895,3 +1895,17 @@ button .kbd {
     width: 220px;
   }
 }
+
+/* 投球視角：電腦版放大 */
+@media (min-width: 1024px) {
+  .pitch-cam {
+    left: 14px;
+    bottom: 14px;
+    width: 180px;
+  }
+  .pitch-cam-label {
+    left: 8px;
+    top: 6px;
+    font-size: 13px;
+  }
+}
