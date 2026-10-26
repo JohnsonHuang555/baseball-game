@@ -1,0 +1,1806 @@
+/* 電腦版（設計稿 v3）：同一份 DOM，寬度 1024px 以上改成多欄版面；另外是鍵帽提示與手機／電腦專屬元素 */
+
+/* ---- 鍵帽：只在有實體鍵盤滑鼠的裝置顯示 ---- */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 2px solid var(--ink);
+  border-bottom-width: 3px;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0;
+  text-shadow: none;
+}
+button .kbd {
+  margin-left: 4px;
+}
+@media (hover: none), (pointer: coarse) {
+  .kbd {
+    display: none !important;
+  }
+}
+
+/* 面板標題列（電腦版的打線、比賽紀錄、戰績） */
+.panel-title {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink);
+  background: #eef0ff;
+}
+
+/* ================= 手機版（1023px 以下） ================= */
+@media (max-width: 1023px) {
+  .desk-only {
+    display: none !important;
+  }
+  /* 電腦版才用到的外框，手機版不參與排版 */
+  .team-side,
+  .match-top,
+  .match-aside,
+  .match-log-box,
+  .match-center,
+  .match-bar,
+  .draft-side {
+    display: contents;
+  }
+  .match-center > *,
+  .match-bar > *,
+  .match-top > * {
+    flex-shrink: 0;
+  }
+  /* 手機版比賽紀錄在控制列下面 */
+  .match-log {
+    order: 1;
+  }
+  .match-screen > .sheet {
+    order: 2;
+  }
+  .home-main {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .home-cards {
+    display: none;
+  }
+  .reserve-grid .mini-label {
+    display: none;
+  }
+  .team-footer.swapping .footer-buttons {
+    display: none;
+  }
+  .draft-stat .grade {
+    display: none;
+  }
+}
+
+/* ================= 電腦版（1024px 以上） ================= */
+@media (min-width: 1024px) {
+  .mobile-only {
+    display: none !important;
+  }
+  body {
+    background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 16px, transparent 16px 32px);
+  }
+
+  /* ---- 首頁：左邊標題與按鈕，右邊三張展示卡 ---- */
+  /* 光芒可以超出內容寬度，橫向捲軸交給 body 擋掉 */
+  body:has(.home-screen) {
+    overflow-x: hidden;
+  }
+  .home-screen {
+    max-width: 1280px;
+    overflow: visible;
+    flex-direction: row;
+    align-items: center;
+    gap: 48px;
+    padding: 48px 40px;
+  }
+  .home-main {
+    flex: 1 1 480px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .home-hero {
+    margin-top: 0;
+    align-items: flex-start;
+    gap: 22px;
+  }
+  .home-logo {
+    width: 120px;
+    height: 120px;
+  }
+  .home-rays {
+    left: 60px;
+    top: 60px;
+  }
+  .home-title {
+    font-size: 104px;
+    transform-origin: left center;
+    text-shadow:
+      0 6px 0 var(--ink),
+      4px 0 0 var(--ink),
+      -4px 0 0 var(--ink),
+      0 -4px 0 var(--ink),
+      4px 6px 0 var(--ink),
+      -4px 6px 0 var(--ink);
+  }
+  .home-subtitle {
+    margin: 0;
+    max-width: none;
+    text-align: left;
+    font-size: 22px;
+  }
+  .home-subtitle br {
+    display: none;
+  }
+  .home-buttons {
+    margin-top: 34px;
+    max-width: 420px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .home-buttons > * {
+    width: 100%;
+    height: 58px;
+    border-width: 3px;
+    border-radius: 16px;
+    font-size: 18px;
+  }
+  .home-buttons > :first-child,
+  .home-buttons > :nth-child(2):last-child {
+    grid-column: 1 / -1;
+  }
+  .home-buttons > :first-child {
+    height: 68px;
+    border-radius: 18px;
+    font-size: 22px;
+    box-shadow: 0 6px 0 var(--yellow-shadow);
+  }
+  .home-cards {
+    position: relative;
+    flex: 0 1 520px;
+    min-width: 0;
+    height: 520px;
+  }
+  .showcase-card {
+    position: absolute;
+    width: 250px;
+    height: 360px;
+    padding: 7px;
+    border-radius: 24px;
+    border: 3px solid var(--ink);
+    background: var(--tier-bg);
+    box-shadow: 0 8px 0 var(--ink);
+    animation: logo-in 0.6s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+  }
+  .showcase-card:nth-child(1) {
+    left: 10px;
+    top: 90px;
+    transform: rotate(-12deg);
+    animation-delay: 0.1s;
+  }
+  .showcase-card:nth-child(2) {
+    left: 250px;
+    top: 70px;
+    transform: rotate(10deg);
+    animation-delay: 0.2s;
+  }
+  .showcase-card:nth-child(3) {
+    z-index: 2;
+    left: 130px;
+    top: 20px;
+    transform: rotate(-2deg);
+    box-shadow:
+      0 8px 0 var(--ink),
+      0 0 60px rgba(255, 210, 63, 0.55);
+    animation-delay: 0.3s;
+  }
+  .showcase-card.tier-rainbow {
+    --tier-bg: linear-gradient(135deg, #ff5fa2, #ffd23f 30%, #5fe3a1 55%, #6fb6ff 78%, #b57bff);
+  }
+  .showcase-inner {
+    height: 100%;
+    border-radius: 16px;
+    background: #fff;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--ink);
+  }
+  .showcase-top {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .showcase-top .tier-tag {
+    font-size: 12px;
+    padding: 1px 10px;
+    border-width: 2px;
+    border-radius: 10px;
+  }
+  .showcase-avatar {
+    width: 120px;
+    height: 120px;
+    border: 4px solid var(--home);
+  }
+  .showcase-name {
+    font-size: 22px;
+    font-weight: 900;
+  }
+  .showcase-grades {
+    display: flex;
+    gap: 4px;
+  }
+  .showcase-grades .grade {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 18px;
+  }
+
+  /* ---- 組隊：頂部一列（含開始比賽），左邊球場與板凳，右邊打序表 ---- */
+  .team-screen {
+    max-width: 1440px;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    display: grid;
+    grid-template-columns: minmax(0, 600px) minmax(0, 1fr);
+    grid-template-areas:
+      'head foot'
+      'pitch side'
+      'res side';
+    grid-template-rows: auto auto 1fr;
+    gap: 16px 24px;
+    padding: 24px 40px 36px;
+    align-content: start;
+  }
+  .team-header {
+    grid-area: head;
+    padding: 0;
+  }
+  .team-header-row:first-child {
+    height: auto;
+    gap: 16px;
+  }
+  .team-header .icon-btn {
+    width: 52px;
+    height: 52px;
+    border-width: 3px;
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+  .team-titles {
+    flex: none;
+    max-width: 360px;
+  }
+  .team-name {
+    font-size: 38px;
+  }
+  .team-header-row + .team-header-row {
+    padding-left: 68px;
+  }
+  .vs-pill {
+    height: 46px;
+    padding: 0 8px 0 16px;
+    border-radius: 23px;
+    border-width: 2.5px;
+  }
+  .vs-name {
+    font-size: 16px;
+    font-weight: 900;
+  }
+  .team-footer {
+    grid-area: foot;
+    position: static;
+    justify-self: end;
+    align-self: center;
+    min-height: 0;
+    padding: 0;
+    background: none;
+  }
+  .footer-buttons {
+    display: flex;
+    gap: 12px;
+  }
+  .footer-buttons > * {
+    height: 60px;
+    border-width: 3px;
+    border-radius: 16px;
+  }
+  .team-footer .btn-indigo {
+    padding: 0 22px;
+    font-size: 17px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .team-footer .btn-yellow {
+    padding: 0 44px;
+    font-size: 20px;
+    box-shadow: 0 5px 0 var(--yellow-shadow);
+  }
+  .pitch {
+    grid-area: pitch;
+    margin: 0;
+    border-width: 3px;
+    border-radius: 22px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .field-node {
+    width: 104px;
+    transform: translate(-50%, -26px);
+    gap: 4px;
+  }
+  .node-ring {
+    width: 52px;
+    height: 52px;
+  }
+  .node-order {
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
+    line-height: 18px;
+    border-width: 2px;
+  }
+  .node-name {
+    max-width: 100px;
+    font-size: 13px;
+    padding: 1px 8px;
+  }
+  .node-dh {
+    font-size: 11px;
+    line-height: 16px;
+  }
+  .reserves {
+    grid-area: res;
+    margin: 0;
+  }
+  .reserve-labels {
+    display: none;
+  }
+  .reserve-grid {
+    gap: 10px;
+  }
+  .reserve-grid .mini-card {
+    height: auto;
+    padding: 8px 10px 10px;
+    border-width: 2.5px;
+    border-radius: 14px;
+    box-shadow: 0 4px 0 var(--ink);
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label label label'
+      'face name ovr';
+    gap: 4px 8px;
+    align-items: center;
+  }
+  .reserve-grid .mini-top {
+    display: contents;
+  }
+  .reserve-grid .mini-top .avatar {
+    grid-area: face;
+    width: 38px;
+    height: 38px;
+    border-width: 2.5px;
+  }
+  .reserve-grid .mini-top .grade {
+    grid-area: ovr;
+  }
+  .reserve-grid .mini-name {
+    grid-area: name;
+    font-size: 14px;
+    font-weight: 900;
+  }
+  .reserve-grid .mini-label {
+    grid-area: label;
+    font-size: 11px;
+    font-weight: 900;
+    color: #33385e;
+  }
+  .team-side {
+    grid-area: side;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .hint-bar {
+    min-height: 52px;
+    padding: 0 16px;
+    border-radius: 14px;
+    border: 2.5px dashed rgba(201, 204, 255, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hint-bar.swapping {
+    padding: 4px 6px 4px 16px;
+    border: 3px solid var(--ink);
+    background: var(--yellow);
+    box-shadow: 0 4px 0 var(--ink);
+  }
+  .hint-text {
+    font-size: 14px;
+    font-weight: 700;
+    color: #dadfff;
+  }
+  .hint-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 16px;
+    font-weight: 900;
+    color: var(--ink);
+  }
+  .hint-bar .btn-small {
+    padding: 0 12px 0 20px;
+    background: #fff;
+    box-shadow: none;
+  }
+  .hint-bar .kbd {
+    background: #eef0ff;
+  }
+  .order-panel {
+    flex: none;
+    min-height: 0;
+    margin: 0;
+    border: 3px solid var(--ink);
+    border-radius: 18px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .order-head,
+  .order-row,
+  .order-pitcher {
+    display: grid;
+    grid-template-columns: 40px 40px minmax(0, 1fr) repeat(4, 52px) minmax(120px, 0.8fr);
+    gap: 12px;
+    align-items: center;
+    padding: 0 16px;
+  }
+  .order-head {
+    height: 38px;
+    font-size: 12px;
+  }
+  .order-list {
+    overflow: visible;
+  }
+  .order-row {
+    height: 58px;
+  }
+  .order-num {
+    font-size: 20px;
+  }
+  .order-row .avatar,
+  .order-pitcher .avatar {
+    width: 40px;
+    height: 40px;
+  }
+  .order-row .grade {
+    justify-self: center;
+  }
+  .order-who {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  .order-name {
+    min-width: 0;
+    font-size: 16px;
+  }
+  .order-pos {
+    flex: none;
+    font-size: 12px;
+  }
+  .order-who .tier-tag {
+    flex: none;
+    font-size: 11px;
+  }
+  .order-traits {
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .order-traits .trait {
+    height: 24px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+  .order-pitcher {
+    width: 100%;
+    min-height: 62px;
+    border: 0;
+    border-top: 2px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    font-family: inherit;
+    text-align: left;
+  }
+  .order-pitcher .order-who {
+    grid-column: span 1;
+  }
+  .order-num-label {
+    font-size: 12px;
+    font-weight: 900;
+    text-align: center;
+  }
+  .pitcher-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .pitcher-stat-label {
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--ink-soft);
+  }
+
+  /* ---- 球員詳細：畫面中央的彈出視窗，左邊大卡、右邊能力值與按鈕 ---- */
+  .player-modal {
+    align-items: center;
+    padding: 24px;
+  }
+  .player-modal .sheet-panel.paper {
+    width: min(760px, 100%);
+    max-width: 760px;
+    max-height: calc(100dvh - 48px);
+    padding: 28px;
+    border: 3px solid var(--ink);
+    border-radius: 24px;
+    box-shadow: 0 8px 0 var(--ink);
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    grid-auto-rows: min-content;
+    gap: 18px 28px;
+    animation: modal-in 0.2s ease-out;
+  }
+  @keyframes modal-in {
+    from {
+      transform: scale(0.94);
+      opacity: 0;
+    }
+  }
+  .player-modal .sheet-handle {
+    display: none;
+  }
+  .player-modal .sheet-panel > :not(.detail-head) {
+    grid-column: 2;
+  }
+  .player-modal .sheet-close {
+    top: 14px;
+    right: 14px;
+    width: auto;
+    height: 44px;
+    padding: 0 10px 0 12px;
+    border-radius: 22px;
+    display: flex;
+    gap: 8px;
+  }
+  .player-modal .sheet-close .kbd {
+    margin: 0;
+    background: #eef0ff;
+  }
+  .player-modal .detail-head {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    align-self: start;
+    margin: 0;
+    padding: 16px;
+    border: 8px solid transparent;
+    border-radius: 22px;
+    outline: 3px solid var(--ink);
+    background:
+      linear-gradient(#fff, #fff) padding-box,
+      var(--tier-bg) border-box;
+    box-shadow: 0 9px 0 var(--ink);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'tag ovr'
+      'face face'
+      'name name'
+      'label label';
+    justify-items: center;
+    gap: 10px;
+  }
+  .player-modal .detail-head.tier-silver {
+    --tier-bg: linear-gradient(135deg, #f2f5fa, #c9d1e0 45%, #f2f5fa 60%, #b7c0d2);
+  }
+  .player-modal .detail-head.tier-gold {
+    --tier-bg: linear-gradient(135deg, #fff3b8, #ffd23f 45%, #fff3b8 60%, #e8b400);
+  }
+  .player-modal .detail-frame,
+  .player-modal .detail-info,
+  .player-modal .detail-ovr {
+    display: contents;
+  }
+  .player-modal .detail-avatar {
+    grid-area: face;
+    width: 168px;
+    height: 168px;
+    border: 5px solid var(--home);
+    border-radius: 50%;
+  }
+  .player-modal .detail-info .tier-tag {
+    grid-area: tag;
+    justify-self: start;
+    font-size: 12px;
+    padding: 1px 10px;
+    border-width: 2px;
+    border-radius: 10px;
+  }
+  .player-modal .detail-ovr .eyebrow-ink {
+    display: none;
+  }
+  .player-modal .detail-ovr .grade {
+    grid-area: ovr;
+    justify-self: end;
+  }
+  .player-modal .detail-name {
+    grid-area: name;
+    font-size: 24px;
+    text-align: center;
+  }
+  .player-modal .detail-label {
+    grid-area: label;
+    font-size: 14px;
+  }
+  .player-modal .stat-box {
+    padding: 40px 0 0;
+    border: 0;
+    background: none;
+  }
+  .player-modal .rating-bars {
+    gap: 12px;
+  }
+  .player-modal .rating-row {
+    grid-template-columns: 48px 34px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .player-modal .rating-name {
+    font-size: 16px;
+  }
+  .player-modal .rating-row .grade {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    font-size: 19px;
+  }
+  .player-modal .bar {
+    height: 14px;
+    border-radius: 7px;
+    border-width: 2px;
+  }
+  .player-modal .trait-desc {
+    font-size: 14px;
+  }
+  .player-modal .detail-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .player-modal .detail-buttons > * {
+    flex: 1 1 140px;
+    height: 56px;
+    border-width: 3px;
+    font-size: 17px;
+  }
+  .player-modal .detail-buttons .btn-indigo {
+    flex: 1.4 1 200px;
+  }
+  .player-modal .btn-white .kbd {
+    background: #eef0ff;
+  }
+
+  /* ---- 比賽：頂部完整記分板，左欄打線與紀錄，中間球場，決策時右邊多一欄面板 ---- */
+  .match-screen {
+    max-width: 1440px;
+    height: auto;
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+    grid-template-areas:
+      'sub sub'
+      'top top'
+      'aside center';
+    gap: 16px;
+    padding: 20px 32px 32px;
+    align-items: start;
+  }
+  .match-screen.deciding {
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(320px, 380px);
+    grid-template-areas:
+      'sub sub sub'
+      'top top top'
+      'aside center panel';
+  }
+  .match-screen .game-subtitle {
+    grid-area: sub;
+    font-size: 15px;
+  }
+  .match-top {
+    grid-area: top;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .match-lines {
+    flex: 1 1 640px;
+    min-width: 0;
+  }
+  .match-lines .linescore-box {
+    margin: 0;
+    height: 100%;
+    border-width: 3px;
+    border-radius: 16px;
+  }
+  .match-lines .linescore {
+    font-size: 15px;
+  }
+  .match-lines th {
+    padding: 6px 0;
+    font-size: 12px;
+  }
+  .match-lines td {
+    padding: 8px 0;
+  }
+  .match-lines .ls-name {
+    width: 130px;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+  .match-lines .ls-name .mh-swatch {
+    display: inline-block;
+    margin-right: 8px;
+    vertical-align: -1px;
+  }
+  .match-lines .ls-name .mh-mark {
+    margin-right: 4px;
+  }
+  .match-lines td.ls-live {
+    background: var(--yellow);
+  }
+  .match-header {
+    flex: 0 0 auto;
+    height: auto;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 8px 20px;
+    border-width: 3px;
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+  .mh-teams {
+    display: none;
+  }
+  .mh-inning {
+    align-self: center;
+    background: none;
+    color: var(--ink);
+  }
+  .mh-inning-num {
+    font-size: 30px;
+  }
+  .mh-inning-half {
+    font-size: 12px;
+  }
+  .mh-bases {
+    border: 0;
+  }
+  .mh-bases svg {
+    width: 60px;
+    height: 44px;
+  }
+  .mh-count {
+    grid-template-columns: 14px repeat(3, 12px);
+    gap: 5px;
+  }
+  .mh-count-label {
+    font-size: 11px;
+  }
+  .mh-light {
+    width: 12px;
+    height: 12px;
+  }
+  .match-aside {
+    grid-area: aside;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .match-lineup,
+  .match-log-box {
+    background: #fff;
+    border: 3px solid var(--ink);
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--ink);
+    overflow: hidden;
+  }
+  .lineup-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 12px;
+    border-top: 1px solid var(--line);
+  }
+  .lineup-row.current {
+    background: #fff1b8;
+    box-shadow: inset 4px 0 0 #ffb800;
+  }
+  .lineup-num {
+    width: 18px;
+    font-family: var(--font-display);
+    font-size: 14px;
+    text-align: center;
+  }
+  .lineup-row .avatar.team-ring {
+    width: 28px;
+    height: 28px;
+    border-width: 2px;
+  }
+  .lineup-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lineup-tag {
+    flex: none;
+    padding: 0 6px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 18px;
+    background: var(--home);
+    color: #fff;
+  }
+  .lineup-tag.opponent {
+    background: var(--away);
+    color: var(--ink);
+  }
+  .lineup-tag.at-bat {
+    background: var(--ink);
+    color: var(--yellow);
+  }
+  .match-log {
+    order: 0;
+    max-height: 236px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .match-log li {
+    padding: 7px 14px;
+    border-bottom: 0;
+    border-top: 1px solid #eef0f8;
+  }
+  .match-center {
+    grid-area: center;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .match-field {
+    display: flex;
+    justify-content: center;
+    border-width: 3px;
+    border-radius: 22px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .match-field .field {
+    max-width: 580px;
+  }
+  .match-duel {
+    grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr);
+    align-items: center;
+    gap: 0;
+    padding: 10px 16px;
+    background: #fff;
+    border: 3px solid var(--ink);
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+  .match-duel::before {
+    content: 'VS';
+    order: 0;
+    font-family: var(--font-display);
+    font-size: 14px;
+    color: #9a9ec2;
+    text-align: center;
+  }
+  .match-duel:empty {
+    display: none;
+  }
+  .duel-card {
+    order: -1;
+    gap: 12px;
+    padding: 0;
+    border: 0;
+  }
+  .duel-card:last-child {
+    order: 1;
+    flex-direction: row-reverse;
+  }
+  .duel-card:last-child .duel-info {
+    align-items: flex-end;
+  }
+  .duel-card .avatar.team-ring {
+    width: 52px;
+    height: 52px;
+  }
+  .duel-info {
+    gap: 4px;
+  }
+  .duel-label {
+    font-size: 12px;
+    font-weight: 900;
+    color: var(--ink-faint);
+  }
+  .duel-card-name {
+    font-size: 18px;
+  }
+  .duel-grades {
+    gap: 3px;
+  }
+  .duel-grades .grade-sm {
+    width: 24px;
+    height: 24px;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+  .duel-pitches {
+    display: none;
+  }
+  .stamina-meter {
+    width: 70px;
+    height: 8px;
+    margin-left: 6px;
+    border-radius: 4px;
+    border: 1.5px solid var(--ink);
+    background: var(--line);
+    overflow: hidden;
+  }
+  .stamina-fill {
+    display: block;
+    height: 100%;
+    background: var(--yellow);
+  }
+  .stamina-meter.low .stamina-fill {
+    background: #ff4f5e;
+  }
+  .stamina-num {
+    font-family: var(--font-display);
+    font-size: 11px;
+  }
+  .match-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .match-screen .last-play {
+    flex: 1 1 260px;
+    padding: 12px 16px;
+    border-radius: 14px;
+    font-size: 15px;
+  }
+  .match-controls {
+    flex: none;
+    gap: 10px;
+  }
+  .pause-btn {
+    border-width: 3px;
+    padding: 0 20px;
+  }
+  .speed-toggle {
+    flex: none;
+    grid-template-columns: repeat(3, 52px);
+    height: 46px;
+    border-width: 3px;
+  }
+  .prompt-btn {
+    height: 46px;
+    padding: 0 14px;
+    border-width: 2.5px;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    font-size: 14px;
+  }
+  .prompt-btn > span:first-child::after {
+    content: '：';
+  }
+  .prompt-btn .kbd {
+    margin-left: 8px;
+  }
+  .speed-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #dadfff;
+  }
+
+  /* 決策面板不再蓋住畫面，而是放在右欄 */
+  .match-screen > .sheet {
+    grid-area: panel;
+    position: static;
+    inset: auto;
+    z-index: auto;
+    padding: 0;
+    overflow: visible;
+    background: none;
+  }
+  .match-screen > .sheet:not(.hidden) {
+    display: block;
+  }
+  .match-screen .decision-panel.sheet-panel {
+    max-width: none;
+    margin-top: 14px;
+    border: 3px solid var(--ink);
+    border-radius: 20px;
+    box-shadow:
+      0 0 0 5px var(--yellow),
+      0 6px 0 5px var(--ink);
+    padding: 0 16px 18px;
+    gap: 12px;
+    animation: panel-in 0.22s ease-out;
+  }
+  @keyframes panel-in {
+    from {
+      transform: translateX(30px);
+      opacity: 0;
+    }
+  }
+  .decision-panel .ribbon-wrap {
+    margin-top: -22px;
+  }
+  .option-card {
+    min-height: 84px;
+    border-width: 3px;
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+  .option-card .kbd {
+    min-width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border-bottom-width: 4px;
+    background: var(--yellow);
+    font-size: 14px;
+  }
+  .option-card .kbd ~ .option-arrow,
+  .option-card .option-arrow:has(~ .kbd) {
+    display: none;
+  }
+  .panel-toggle {
+    height: 46px;
+    border-width: 2.5px;
+    font-size: 15px;
+  }
+  .panel-toggle.open .kbd {
+    border-color: #fff;
+  }
+  .hand-over .kbd {
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 7px;
+    border-bottom-width: 4px;
+    font-size: 11px;
+  }
+
+  /* ---- 比賽結果：置中的大字與完整比分 ---- */
+  .result-inner {
+    max-width: 960px;
+    padding: 72px 32px 48px;
+    gap: 32px;
+  }
+  .result-rays {
+    top: 230px;
+    width: 1400px;
+    height: 1400px;
+    margin: -700px 0 0 -700px;
+    opacity: 0.12;
+  }
+  .result-head {
+    margin-top: 0;
+    gap: 6px;
+  }
+  .result-eyebrow {
+    font-size: 18px;
+    letter-spacing: 0.24em;
+  }
+  .result-title {
+    font-size: 128px;
+    text-shadow:
+      0 8px 0 var(--ink),
+      5px 0 0 var(--ink),
+      -5px 0 0 var(--ink),
+      0 -5px 0 var(--ink),
+      5px 8px 0 var(--ink),
+      -5px 8px 0 var(--ink);
+  }
+  .result-screen.lost .result-title {
+    color: #b9c0ff;
+    transform: rotate(2deg);
+  }
+  .result-scoreline {
+    margin: 0;
+    gap: 24px;
+  }
+  .result-team {
+    flex-direction: row;
+    gap: 16px;
+  }
+  .result-team:first-child {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+  }
+  .result-tile {
+    width: 76px;
+    height: 76px;
+    border-radius: 20px;
+    font-size: 36px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .result-team-name {
+    font-size: 26px;
+  }
+  .result-score {
+    font-size: 80px;
+    line-height: 1;
+    text-shadow: 0 6px 0 var(--ink);
+  }
+  .result-inner .linescore-box {
+    margin: 0;
+    border-width: 3px;
+    border-radius: 18px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .result-inner .linescore {
+    font-size: 18px;
+  }
+  .result-inner th {
+    padding: 10px 0;
+    font-size: 13px;
+  }
+  .result-inner td {
+    padding: 14px 0;
+  }
+  .result-inner .ls-name {
+    padding: 0 18px;
+    font-size: 16px;
+  }
+  .result-buttons {
+    margin: 0;
+    padding: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+  }
+  .result-buttons > * {
+    height: 68px;
+    border-width: 3px;
+    border-radius: 18px;
+  }
+  .result-buttons .btn-yellow {
+    width: 300px;
+    height: 68px;
+    border-radius: 18px;
+    font-size: 22px;
+    box-shadow: 0 6px 0 var(--yellow-shadow);
+  }
+  .result-buttons .btn-yellow:only-child {
+    width: 360px;
+  }
+  .result-buttons .btn-outline-light {
+    width: 220px;
+    font-size: 20px;
+  }
+
+  /* ---- 錦標賽主畫面：戰績在右上，左右對稱的賽程樹，下一個對手 ---- */
+  .hub-screen {
+    max-width: 1440px;
+    height: auto;
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 22px 20px;
+    padding: 24px 40px 36px;
+    align-content: start;
+  }
+  .hub-header {
+    height: auto;
+    padding: 0;
+    gap: 20px;
+  }
+  .hub-header .icon-btn {
+    width: 52px;
+    height: 52px;
+    border-width: 3px;
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+  .hub-header .team-name {
+    font-size: 38px;
+  }
+  .hub-header .eyebrow-light {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+  }
+  .hub-record {
+    margin: 0;
+    align-self: center;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .hub-record-label {
+    font-size: 13px;
+  }
+  .record-chip {
+    height: 40px;
+    padding: 0 14px 0 6px;
+    border-radius: 20px;
+    border-width: 2.5px;
+    font-size: 14px;
+    gap: 8px;
+  }
+  .record-chip .record-mark {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+  .bracket-panel.desk {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 20px 24px 24px;
+    border-width: 3px;
+    border-radius: 22px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .bracket-panel.desk .bracket-scroll {
+    overflow-x: auto;
+    padding: 0;
+  }
+  .bracket-desk-inner {
+    margin: 0 auto;
+  }
+  .bracket-panel.desk .bracket-heads {
+    grid-template-columns: repeat(7, 150px);
+    gap: 0 24px;
+    padding: 0;
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+  .bracket-heads .final {
+    color: var(--yellow-shadow);
+  }
+  .bracket-panel.desk .bracket-lines .all {
+    stroke-width: 2;
+  }
+  .bracket-panel.desk .bracket-lines .mine {
+    stroke-width: 4;
+  }
+  .bracket-panel.desk .bracket-box {
+    border: 2px solid var(--ink);
+    border-radius: 10px;
+  }
+  .bracket-panel.desk .bracket-box.next {
+    border-width: 3px;
+    box-shadow: 0 0 0 4px var(--yellow);
+  }
+  .bracket-panel.desk .bracket-box.tbd {
+    border: 2px dashed #b4b9cc;
+  }
+  .bracket-panel.desk .bracket-row {
+    gap: 6px;
+    padding: 0 10px;
+    font-size: 14px;
+  }
+  .bracket-panel.desk .bracket-score {
+    font-size: 12px;
+  }
+  .bracket-trophy {
+    position: absolute;
+    top: 120px;
+    display: flex;
+    justify-content: center;
+  }
+  .hub-bottom {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: 100%;
+    max-width: 860px;
+    margin: 0;
+    padding: 20px 24px;
+    border: 3px solid var(--ink);
+    border-radius: 22px;
+    box-shadow:
+      0 0 0 5px var(--yellow),
+      0 6px 0 5px var(--ink);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px 28px;
+  }
+  /* 緞帶跨在面板上緣，文字再長也不會擠到對戰列 */
+  .hub-ribbon-wrap {
+    grid-column: 1 / -1;
+    margin: -42px 0 0;
+  }
+  .hub-ribbon {
+    box-shadow: none;
+    padding: 4px 16px;
+  }
+  .hub-ribbon > span {
+    font-size: 18px;
+  }
+  .hub-vs {
+    flex: 1 1 320px;
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+  }
+  .hub-side {
+    gap: 18px;
+  }
+  .hub-side-words,
+  .hub-side.opponent .hub-side-words {
+    align-items: center;
+    gap: 4px;
+  }
+  .hub-side .team-tile {
+    width: 52px;
+    height: 52px;
+    border-width: 3px;
+    border-radius: 14px;
+    font-size: 24px;
+  }
+  .hub-side-name {
+    font-size: 16px;
+  }
+  .hub-side-words .grade {
+    width: 28px;
+    height: 28px;
+    border-width: 2px;
+    border-radius: 7px;
+    font-size: 15px;
+  }
+  .hub-vs-mark {
+    font-size: 18px;
+  }
+  .hub-bottom > .btn-yellow {
+    height: 62px;
+    padding: 0 28px;
+    border-width: 3px;
+    border-radius: 16px;
+    font-size: 19px;
+    box-shadow: 0 5px 0 var(--yellow-shadow);
+  }
+
+  /* ---- 錦標賽結束：左邊大字與按鈕，右邊這屆戰績 ---- */
+  .end-screen {
+    display: flex;
+    align-items: center;
+  }
+  .end-rays {
+    left: 30%;
+    top: 50%;
+    width: 1400px;
+    height: 1400px;
+    margin: -700px 0 0 -700px;
+    opacity: 0.13;
+  }
+  .end-confetti {
+    height: 420px;
+  }
+  .end-confetti rect {
+    stroke-width: 1.4;
+  }
+  .end-inner {
+    width: 100%;
+    max-width: 1240px;
+    min-height: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 48px;
+    padding: 56px 40px;
+  }
+  .end-main {
+    flex: 1 1 520px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
+  }
+  .end-icon {
+    margin: 0;
+  }
+  .end-icon svg {
+    width: 180px;
+    height: 180px;
+  }
+  .end-screen.out .end-icon svg {
+    width: 140px;
+    height: 140px;
+  }
+  .end-title {
+    margin: 0;
+    font-size: 120px;
+    text-shadow:
+      0 7px 0 var(--ink),
+      5px 0 0 var(--ink),
+      -5px 0 0 var(--ink),
+      0 -5px 0 var(--ink),
+      5px 7px 0 var(--ink),
+      -5px 7px 0 var(--ink);
+  }
+  .end-screen.out .end-title {
+    font-size: 96px;
+  }
+  .end-team {
+    margin: 0;
+    gap: 12px;
+  }
+  .end-team .team-tile {
+    width: 56px;
+    height: 56px;
+    border-width: 3px;
+    border-radius: 16px;
+    font-size: 26px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+  .end-team-name {
+    font-size: 28px;
+  }
+  .end-words {
+    margin: 6px 0 0;
+    font-size: 19px;
+  }
+  .end-home {
+    margin-top: 10px;
+    width: 320px;
+    max-width: 100%;
+    height: 66px;
+    border-radius: 18px;
+    font-size: 21px;
+    box-shadow: 0 6px 0 var(--yellow-shadow);
+  }
+  .end-record {
+    flex: 0 1 460px;
+    min-width: 0;
+    margin: 0;
+    border-width: 3px;
+    border-radius: 20px;
+    box-shadow: 0 6px 0 var(--ink);
+  }
+  .end-record .panel-title {
+    padding: 14px 20px;
+    font-size: 16px;
+  }
+  .end-row {
+    grid-template-columns: 120px 36px 64px minmax(0, 1fr);
+    gap: 14px;
+    min-height: 62px;
+    padding: 0 20px;
+  }
+  .end-round {
+    font-size: 16px;
+  }
+  .end-row .record-mark {
+    width: 36px;
+    height: 28px;
+    border-radius: 7px;
+    font-size: 14px;
+  }
+  .end-score {
+    font-size: 18px;
+  }
+  .end-opponent {
+    font-size: 15px;
+  }
+
+  /* ---- 選秀：左邊三張大卡，右邊替換名單與放棄 ---- */
+  .draft-screen {
+    max-width: 1440px;
+    height: auto;
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.55fr);
+    grid-template-areas:
+      'head head'
+      'cards side';
+    gap: 28px 32px;
+    padding: 32px 40px 40px;
+    align-items: start;
+  }
+  .draft-header {
+    grid-area: head;
+    padding: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 24px;
+    align-items: end;
+  }
+  .draft-header-row {
+    grid-column: 1;
+  }
+  .draft-header .icon-btn {
+    width: 52px;
+    height: 52px;
+    border-width: 3px;
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+  .draft-title {
+    font-size: 52px;
+    line-height: 1;
+    text-shadow:
+      0 4px 0 var(--ink),
+      3px 0 0 var(--ink),
+      -3px 0 0 var(--ink),
+      0 -3px 0 var(--ink);
+  }
+  .draft-hint {
+    grid-column: 1;
+    font-size: 18px;
+  }
+  .draft-keys {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #dadfff;
+  }
+  .draft-keys .kbd {
+    min-width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+  .draft-keys .kbd:nth-of-type(3) {
+    margin-left: 10px;
+    font-size: 11px;
+  }
+  .draft-cards {
+    grid-area: cards;
+    margin: 0;
+    padding-top: 10px;
+    gap: 22px;
+    align-items: stretch;
+  }
+  .draft-pick {
+    min-height: 520px;
+    padding: 7px;
+    border-width: 3px;
+    border-radius: 22px;
+    box-shadow: 0 6px 0 var(--ink);
+  }
+  .draft-pick.selected {
+    transform: translateY(-10px);
+    box-shadow:
+      0 0 0 5px var(--yellow),
+      0 10px 0 var(--ink);
+  }
+  .draft-inner {
+    gap: 10px;
+    border-radius: 16px;
+    padding: 16px 18px 18px;
+  }
+  .draft-top .tier-tag {
+    font-size: 12px;
+    padding: 1px 10px;
+    border-width: 2px;
+    border-radius: 10px;
+  }
+  .draft-top .grade {
+    width: 46px;
+    height: 46px;
+    border-width: 3px;
+    border-radius: 12px;
+    font-size: 25px;
+  }
+  .draft-avatar {
+    width: 130px;
+    height: 130px;
+    border-width: 4px;
+  }
+  .draft-name {
+    font-size: 22px;
+  }
+  .draft-role {
+    font-size: 12px;
+    line-height: 20px;
+    padding: 0 8px;
+    border-radius: 5px;
+  }
+  .draft-stats {
+    gap: 7px;
+    margin-top: 4px;
+  }
+  .draft-stat {
+    grid-template-columns: 36px 26px minmax(0, 1fr);
+    gap: 8px;
+  }
+  .draft-stat-label {
+    font-size: 13px;
+  }
+  .draft-stat .grade {
+    width: 26px;
+    height: 26px;
+    border-width: 2px;
+    border-radius: 7px;
+    font-size: 14px;
+  }
+  .draft-bar {
+    height: 10px;
+    border-radius: 5px;
+    border: 1.5px solid var(--ink);
+  }
+  .draft-stat-grade {
+    display: none;
+  }
+  .draft-inner .trait {
+    height: 28px;
+    margin-top: 4px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+  .draft-trait-desc {
+    font-size: 13px;
+  }
+  .draft-check {
+    top: -14px;
+    right: -12px;
+    width: 38px;
+    height: 38px;
+    border-width: 3px;
+  }
+  .draft-side {
+    grid-area: side;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .draft-release {
+    flex: none;
+    min-height: 0;
+    margin: 0;
+    border-width: 3px;
+    border-radius: 18px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .draft-release-head {
+    padding: 14px 16px;
+    font-size: 16px;
+  }
+  .draft-release-list {
+    overflow: visible;
+  }
+  .release-row {
+    grid-template-columns: 40px minmax(0, 1fr) auto 80px;
+    gap: 12px;
+    height: 66px;
+    padding: 0 14px;
+  }
+  .release-row .avatar {
+    width: 40px;
+    height: 40px;
+  }
+  .release-name {
+    font-size: 16px;
+  }
+  .release-pos {
+    font-size: 12px;
+  }
+  .release-row .btn-small {
+    height: 46px;
+    border-width: 3px;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+  .draft-footer {
+    padding: 0;
+  }
+  .draft-footer .btn-outline-light {
+    height: 54px;
+    border-width: 3px;
+    border-radius: 14px;
+    font-size: 16px;
+  }
+}
+
+/* ================= 較窄的電腦螢幕（1024～1279px） ================= */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  /* 組隊：兩欄對半，打序表拿掉特性與卡色，按鈕縮一點 */
+  .team-screen {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 20px 24px 28px;
+  }
+  .team-name {
+    font-size: 30px;
+  }
+  .order-head,
+  .order-row,
+  .order-pitcher {
+    grid-template-columns: 28px 36px minmax(0, 1fr) repeat(4, 40px);
+    gap: 8px;
+    padding: 0 12px;
+  }
+  .order-head > :last-child,
+  .order-traits,
+  .order-who .tier-tag {
+    display: none !important;
+  }
+  .footer-buttons > * {
+    white-space: nowrap;
+  }
+  .reserve-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .team-footer .btn-indigo {
+    padding: 0 16px;
+  }
+  .team-footer .btn-yellow {
+    padding: 0 24px;
+  }
+  /* 比賽：決策時把左欄收起來，讓球場和面板各有空間 */
+  .match-screen {
+    padding: 16px 24px 24px;
+  }
+  .match-screen.deciding {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-areas:
+      'sub sub'
+      'top top'
+      'center panel';
+  }
+  .match-screen.deciding .match-aside {
+    display: none;
+  }
+  .hub-screen,
+  .draft-screen {
+    padding: 20px 24px 28px;
+  }
+  .draft-screen {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}

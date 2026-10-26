@@ -4,6 +4,7 @@ import { avatar, type AvatarTeam } from './avatar'
 import { FieldRenderer } from './field'
 import { gradeBadge } from './grades'
 import { renderDecisionPanel, type PanelState, type SheetReason } from './decisionPanel'
+import { kbd, setKeys, type KeyMap } from './keys'
 import { el } from './playerCard'
 import { PROMPT_LEVELS, loadPromptLevel, savePromptLevel } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
@@ -84,49 +85,84 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   const controls = el('div', 'match-controls')
   const pauseBtn = el('button', 'btn-yellow pause-btn')
   pauseBtn.innerHTML = PAUSE_ICON
-  pauseBtn.append(T.command)
-  pauseBtn.onclick = () => {
+  pauseBtn.append(T.command, kbd('SPACE'))
+  const requestPause = () => {
     pauseRequested = true
     pauseBtn.disabled = true
   }
+  pauseBtn.onclick = requestPause
   const speedGroup = el('div', 'speed-toggle')
   speedGroup.setAttribute('role', 'group')
   speedGroup.setAttribute('aria-label', '速度')
+  const setSpeed = (s: number) => {
+    speed = s
+    speedBtns.forEach((x, i) => x.setAttribute('aria-pressed', String([1, 2, 4][i] === s)))
+  }
   const speedBtns = [1, 2, 4].map((s) => {
     const b = el('button', '', `${s}x`)
     b.setAttribute('aria-pressed', String(s === speed))
-    b.onclick = () => {
-      speed = s
-      speedBtns.forEach((x, i) => x.setAttribute('aria-pressed', String([1, 2, 4][i] === s)))
-    }
+    b.onclick = () => setSpeed(s)
     return b
   })
   speedGroup.append(...speedBtns)
   // 決策提示頻率：點一下切換，記在瀏覽器
   const promptBtn = el('button', 'prompt-btn')
   const renderPrompt = () => {
-    promptBtn.replaceChildren(el('span', '', T.promptLabel), el('span', '', PROMPT_NAMES[promptLevel]))
+    promptBtn.replaceChildren(el('span', '', T.promptLabel), el('span', '', PROMPT_NAMES[promptLevel]), kbd('H'))
   }
   renderPrompt()
-  promptBtn.onclick = () => {
+  const cyclePrompt = () => {
     promptLevel = PROMPT_LEVELS[(PROMPT_LEVELS.indexOf(promptLevel) + 1) % PROMPT_LEVELS.length]
     savePromptLevel(promptLevel)
     renderPrompt()
     toast(T.prompts(PROMPT_NAMES[promptLevel]))
   }
-  controls.append(pauseBtn, speedGroup, promptBtn)
+  promptBtn.onclick = cyclePrompt
+  const speedHint = el('span', 'speed-hint desk-only')
+  speedHint.append(kbd('S'), T.cycleSpeed)
+  controls.append(pauseBtn, speedGroup, promptBtn, speedHint)
   const log = el('ol', 'match-log')
   log.setAttribute('aria-label', '比賽紀錄')
   const sheet = el('div', 'sheet hidden')
-  screen.append(board, canvasWrap, matchup, lastPlay, controls, log, sheet)
+
+  // 電腦版多出來的：頂部完整記分板、左欄打線
+  const lines = el('section', 'match-lines desk-only')
+  lines.setAttribute('aria-label', '每局比分')
+  const lineup = el('section', 'match-lineup desk-only')
+  // 手機版這些外框不參與排版（display: contents），電腦版變成左欄、中欄
+  const aside = el('div', 'match-aside')
+  const logBox = el('section', 'match-log-box')
+  logBox.append(el('h2', 'panel-title desk-only', T.logTitle), log)
+  aside.append(lineup, logBox)
+  const bar = el('div', 'match-bar')
+  bar.append(lastPlay, controls)
+  const center = el('div', 'match-center')
+  center.append(canvasWrap, matchup, bar)
+  const top = el('div', 'match-top')
+  top.append(lines, board)
+  screen.append(top, aside, center, sheet)
   root.append(screen)
 
+  const speeds = [1, 2, 4]
+  const gameKeys: KeyMap = {
+    Space: requestPause,
+    s: () => setSpeed(speeds[(speeds.indexOf(speed) + 1) % speeds.length]),
+    h: cyclePrompt,
+  }
+  setKeys(gameKeys)
+
   const field = new FieldRenderer(canvas)
+  // 球場跟著欄寬縮放：電腦版打開決策欄時中欄會變窄
+  let fieldWidth = canvas.clientWidth
   const onResize = () => {
+    // 畫面被換掉時寬度會變 0，不用重畫
+    if (canvas.clientWidth === fieldWidth || canvas.clientWidth === 0) return
+    fieldWidth = canvas.clientWidth
     field.resize()
     syncField()
   }
-  window.addEventListener('resize', onResize)
+  const resizeObserver = new ResizeObserver(onResize)
+  resizeObserver.observe(canvasWrap)
 
   const name = (id: string) => game.player(id)?.name ?? '?'
 
@@ -171,6 +207,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     lights('S', game.strikes, 2, 'on-strike')
     lights('O', game.outs, 2, 'on-out')
     board.append(teams, inning, bases, count)
+    lines.replaceChildren(linescoreTable(true))
+    renderLineup()
 
     matchup.replaceChildren()
     if (game.over) return
@@ -184,11 +222,43 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       const grades = el('div', 'duel-grades')
       for (const v of Object.values(player.ratings)) grades.append(gradeBadge(v, 'sm'))
       if (isPitcher) grades.append(el('span', `duel-pitches ${tired ? 'warn' : ''}`, T.pitchCount(game.fielding.pitchCount)))
-      info.append(top, grades)
+      const label = isPitcher ? T.pitcherPitches(game.fielding.pitchCount) : T.batterNth(game.batting.battingIndex + 1)
+      if (isPitcher) {
+        // 電腦版在等級旁邊多一條體力條
+        const left = Math.round(game.staminaLeft(game.fielding) * 100)
+        const meter = el('span', `stamina-meter desk-only ${left < 30 ? 'low' : ''}`)
+        const fill = el('span', 'stamina-fill')
+        fill.style.width = `${left}%`
+        meter.append(fill)
+        grades.append(meter, el('span', 'stamina-num desk-only', `${left}%`))
+      }
+      info.append(el('span', 'duel-label desk-only', label), top, grades)
       box.append(avatar(player.id, sideTeam(s), `team-ring ${sideTeam(s)}`), info)
       return box
     }
     matchup.append(card(game.batter, game.battingSide, false), card(game.pitcher, game.fieldingSide, true))
+  }
+
+  /** 電腦版左欄：進攻方打線，標出誰在壘上、誰在打擊 */
+  function renderLineup(): void {
+    lineup.replaceChildren()
+    if (game.over) return
+    const side = game.battingSide
+    const team = game.batting
+    lineup.append(el('h2', 'panel-title', T.lineupTitle(team.name)))
+    team.lineup.forEach((spot, i) => {
+      const current = i === team.battingIndex
+      const base = game.bases.findIndex((b) => b?.id === spot.player.id)
+      const row = el('div', `lineup-row ${current ? 'current' : ''}`)
+      row.append(
+        el('span', 'lineup-num', String(i + 1)),
+        avatar(spot.player.id, sideTeam(side), `team-ring ${sideTeam(side)}`),
+        el('span', 'lineup-name', spot.player.name),
+      )
+      if (current) row.append(el('span', 'lineup-tag at-bat', T.atBat))
+      else if (base >= 0) row.append(el('span', `lineup-tag ${sideTeam(side)}`, T.baseNames[base]))
+      lineup.append(row)
+    })
   }
 
   function describe(e: GameEvent): string | null {
@@ -288,6 +358,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       const state: PanelState = { showOthers: false, showDetails: false, picking: null }
       const close = () => {
         sheet.classList.add('hidden')
+        screen.classList.remove('deciding')
+        setKeys(gameKeys)
         resolve()
       }
       const handOver = () => {
@@ -305,9 +377,12 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         state.picking = null
         if (t.type === 'steal' || t.type === 'bunt' || t.type === 'hitAndRun') return close()
         sheet.classList.add('hidden')
+        screen.classList.remove('deciding')
+        setKeys({})
         await animate(events, true)
         if (game.over || t.type === 'intentionalWalk') return close()
         sheet.classList.remove('hidden')
+        screen.classList.add('deciding')
         render()
       }
       const render = () => {
@@ -315,6 +390,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       }
       render()
       sheet.classList.remove('hidden')
+      screen.classList.add('deciding')
     })
   }
 
@@ -346,7 +422,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
 
   /** 比賽結果：全螢幕，大字勝負、雙方比分、每局比分與 R H E */
   function showResult(): void {
-    window.removeEventListener('resize', onResize)
+    resizeObserver.disconnect()
     const won = game.winner === userSide
     const opponentSide: Side = userSide === 'home' ? 'away' : 'home'
     const screen = el('div', `result-screen ${won ? 'won' : 'lost'}`)
@@ -367,18 +443,26 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     nums.append(String(game.score[userSide]), el('span', 'result-colon', ':'), String(game.score[opponentSide]))
     scoreline.append(teamTile(userSide), nums, teamTile(opponentSide))
 
+    // 主要按鈕是 Enter，次要按鈕是 Esc
     const buttons = el('div', 'result-buttons')
+    const keys: KeyMap = {}
     for (const action of opts.resultActions(game)) {
+      const key = action.primary ? 'Enter' : 'Escape'
       const btn = el('button', action.primary ? 'btn-yellow btn-big' : 'btn-outline-light btn-wide', action.label)
+      btn.append(kbd(action.primary ? 'ENTER' : 'ESC'))
       btn.onclick = action.onClick
+      keys[key] ??= action.onClick
       buttons.append(btn)
     }
-    screen.append(head, scoreline, linescoreTable(), buttons)
+    const inner = el('div', 'result-inner')
+    inner.append(head, scoreline, linescoreTable(), buttons)
+    screen.append(inner)
     root.replaceChildren(screen)
+    setKeys(keys)
   }
 
   /** 每局比分：延長賽會多出欄位；九局下沒打顯示 X；最後是 R H E */
-  function linescoreTable(): HTMLElement {
+  function linescoreTable(live = false): HTMLElement {
     const innings = Math.max(game.linescore.away.length, 9)
     const wrap = el('section', 'linescore-box')
     wrap.setAttribute('aria-label', '每局比分')
@@ -390,10 +474,19 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     table.append(head)
     for (const side of ['away', 'home'] as const) {
       const row = el('tr', side === userSide ? 'mine' : '')
-      row.append(el('td', 'ls-name', game.teams[side].name))
+      const nameCell = el('td', 'ls-name')
+      if (live) {
+        nameCell.append(el('span', `mh-swatch ${sideTeam(side)}`))
+        if (!game.over && game.battingSide === side) nameCell.insertAdjacentHTML('beforeend', BATTING_MARK)
+      }
+      nameCell.append(game.teams[side].name)
+      row.append(nameCell)
       for (let i = 0; i < innings; i++) {
         const v = game.linescore[side][i]
-        row.append(v === undefined ? el('td', 'ls-skip', side === 'home' ? 'X' : '') : el('td', '', String(v)))
+        const now = live && !game.over && game.battingSide === side && i === game.inning - 1
+        if (now) row.append(el('td', 'ls-live', String(v ?? 0)))
+        else if (v === undefined) row.append(el('td', 'ls-skip', side === 'home' && !live ? 'X' : ''))
+        else row.append(el('td', '', String(v)))
       }
       row.append(
         el('td', 'ls-gap'),

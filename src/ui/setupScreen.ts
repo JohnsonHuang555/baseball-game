@@ -15,8 +15,9 @@ import type { Player, Position, Team } from '../sim/types'
 import { avatar } from './avatar'
 import { gradeBadge, overallBadge } from './grades'
 import { el, traitTag } from './playerCard'
+import { kbd, setKeys, type KeyMap } from './keys'
 import { TEAM_NAME_MAX, saveTeamName } from './prefs'
-import { POSITION_FULL, T } from './strings'
+import { POSITION_FULL, RATING_FULL, T } from './strings'
 import { applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
 
 export interface RosterEditorOptions {
@@ -248,7 +249,9 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
       ...r.relievers.map((_, i): Slot => ({ kind: 'reliever', index: i })),
     ]
     for (const slot of slots) {
-      const card = miniCard(getSlot(r, slot), '', 'user', { selected: sameSlot(swapFrom, slot), reveal: isRevealed(slot) })
+      // 身分標籤只在電腦版顯示；手機版改用上方的「板凳／後援投手」標題
+      const role = slot.kind === 'bench' ? T.bench : T.relievers
+      const card = miniCard(getSlot(r, slot), role, 'user', { selected: sameSlot(swapFrom, slot), reveal: isRevealed(slot) })
       card.onclick = () => onTap(slot, 'reserve')
       grid.append(card)
     }
@@ -256,62 +259,114 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     return sec
   }
 
-  /** 打序表：可以捲動；點一列跟點球場上的人一樣 */
+  /** 手機版用短標籤（打），電腦版用全名（打擊） */
+  function dualLabel(short: string, full: string): HTMLElement {
+    const s = el('span')
+    s.append(el('span', 'mobile-only', short), el('span', 'desk-only', full))
+    return s
+  }
+
+  /** 打序表：可以捲動；點一列跟點球場上的人一樣。電腦版多出卡色、特性欄與先發投手列 */
   function orderTable(): { section: HTMLElement; list: HTMLElement } {
     const sec = el('section', 'order-panel')
     sec.setAttribute('aria-label', T.battingOrder)
     const head = el('div', 'order-head')
-    head.append(el('span', '', T.orderColumn), el('span'), el('span', 'left', T.playerColumn))
-    for (const k of ['contact', 'power', 'speed', 'fielding'] as const) head.append(el('span', '', RATING_SHORT[k]))
+    head.append(dualLabel(T.orderColumn, T.orderColumnFull), el('span'), el('span', 'left', T.playerColumn))
+    for (const k of ['contact', 'power', 'speed', 'fielding'] as const) head.append(dualLabel(RATING_SHORT[k], RATING_FULL[k]))
+    head.append(el('span', 'left desk-only', T.traitsColumn))
     const list = el('div', 'order-list')
     setup.team.roster.lineup.forEach((spot, i) => {
       const slot: Slot = { kind: 'lineup', index: i }
+      const p = spot.player
       const row = el('button', `order-row ${sameSlot(swapFrom, slot) ? 'selected' : ''}`)
       row.type = 'button'
       const who = el('span', 'order-who')
-      who.append(el('span', 'order-name', spot.player.name), el('span', 'order-pos', POSITION_FULL[spot.position]))
-      row.append(el('span', 'order-num', String(i + 1)), avatar(spot.player.id, 'user', 'ring'), who)
-      const ratings = spot.player.ratings
-      for (const k of ['contact', 'power', 'speed', 'fielding'] as const) row.append(gradeBadge(ratings[k], 'md'))
-      row.setAttribute('aria-label', `第 ${i + 1} 棒 ${spot.player.name}`)
+      who.append(el('span', 'order-name', p.name), el('span', 'order-pos', POSITION_FULL[spot.position]))
+      who.append(el('span', `tier-tag desk-only tier-${cardTier(p)}`, T.tierNames[cardTier(p)]))
+      row.append(el('span', 'order-num', String(i + 1)), avatar(p.id, 'user', 'ring'), who)
+      for (const k of ['contact', 'power', 'speed', 'fielding'] as const) row.append(gradeBadge(p.ratings[k], 'md'))
+      const traits = el('span', 'order-traits desk-only')
+      traits.append(...p.traits.map(traitTag))
+      row.append(traits)
+      row.setAttribute('aria-label', `第 ${i + 1} 棒 ${p.name}`)
       row.onclick = () => onTap(slot, 'list')
       list.append(row)
     })
     sec.append(head, list)
+
+    // 電腦版：表格底部的先發投手列
+    const starter = setup.team.roster.starter
+    const pitcherRow = el('button', 'order-pitcher desk-only')
+    pitcherRow.type = 'button'
+    const who = el('span', 'order-who')
+    who.append(el('span', 'order-name', starter.name), el('span', 'order-pos', T.pitcher))
+    pitcherRow.append(el('span', 'order-num-label', T.starter), avatar(starter.id, 'user', 'ring'), who)
+    for (const [k, v] of Object.entries(starter.ratings)) {
+      const cell = el('span', 'pitcher-stat')
+      cell.append(el('span', 'pitcher-stat-label', RATING_FULL[k as keyof typeof RATING_FULL]), gradeBadge(v, 'md'))
+      pitcherRow.append(cell)
+    }
+    pitcherRow.onclick = () => onTap({ kind: 'starter' }, 'list')
+    sec.append(pitcherRow)
     return { section: sec, list }
   }
 
+  /** 電腦版右欄上方的提示列：平常是操作說明，交換時變成黃底並有取消鍵 */
+  function hintBar(): HTMLElement {
+    const bar = el('div', `hint-bar desk-only ${swapFrom ? 'swapping' : ''}`)
+    if (!swapFrom) {
+      bar.append(el('span', 'hint-text', T.swapGuide))
+      return bar
+    }
+    bar.append(el('span', 'hint-title', T.swapPick(getSlot(setup.team.roster, swapFrom).name)))
+    const cancel = el('button', 'btn-small btn-white-small', T.cancel)
+    cancel.append(kbd('ESC'))
+    cancel.onclick = cancelSwap
+    bar.append(cancel)
+    return bar
+  }
+
+  function cancelSwap(): void {
+    swapFrom = null
+    render()
+  }
+
+  function startGame(): void {
+    opts.onStart(setup)
+  }
+
+  function rerollWholeTeam(): void {
+    if (!allowReroll || setup.teamRerollsLeft <= 0) return
+    const before = new Set(allIds())
+    update(rerollTeam(setup))
+    toast(T.rerolledTeam(setup.teamRerollsLeft))
+    revealed = 'all'
+    render()
+    celebrate(newPlayers(before))
+  }
+
+  /** 底部按鈕列（電腦版移到頂部右側）。手機版交換時改顯示交換提示；電腦版交換提示在右欄 */
   function footer(): HTMLElement {
-    const bar = el('footer', 'team-footer')
+    const bar = el('footer', `team-footer ${swapFrom ? 'swapping' : ''}`)
     if (swapFrom) {
-      const words = el('div', 'swap-words')
+      const words = el('div', 'swap-words mobile-only')
       words.append(el('span', 'swap-title', T.swapPick(getSlot(setup.team.roster, swapFrom).name)))
       if (swapFrom.kind === 'lineup') words.append(el('span', 'swap-hint', T.swapHintLineup))
-      const cancel = el('button', 'btn-outline-light', T.cancel)
-      cancel.onclick = () => {
-        swapFrom = null
-        render()
-      }
+      const cancel = el('button', 'btn-outline-light mobile-only', T.cancel)
+      cancel.onclick = cancelSwap
       bar.append(words, cancel)
-      return bar
     }
     const row = el('div', 'footer-buttons')
     if (allowReroll) {
       const rerollAll = withIcon('btn-indigo', ICONS.dice, T.rerollTeam)
-      rerollAll.append(el('span', 'count-pill', String(setup.teamRerollsLeft)))
+      rerollAll.append(el('span', 'count-pill', String(setup.teamRerollsLeft)), kbd('R'))
       rerollAll.disabled = setup.teamRerollsLeft <= 0
-      rerollAll.onclick = () => {
-        const before = new Set(allIds())
-        update(rerollTeam(setup))
-        toast(T.rerolledTeam(setup.teamRerollsLeft))
-        revealed = 'all'
-        render()
-        celebrate(newPlayers(before))
-      }
+      rerollAll.onclick = rerollWholeTeam
       row.append(rerollAll)
     }
     const start = el('button', 'btn-yellow btn-big', opts.startLabel)
-    start.onclick = () => opts.onStart(setup)
+    start.append(kbd('ENTER'))
+    start.onclick = startGame
     row.append(start)
     bar.append(row)
     return bar
@@ -336,9 +391,27 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     root.replaceChildren()
     const screen = el('div', 'team-screen')
     const { section, list } = orderTable()
-    screen.append(header(), field(), reserves(), section, footer())
+    // 手機版 team-side 不參與排版（display: contents）；電腦版是右欄
+    const side = el('div', 'team-side')
+    side.append(hintBar(), section)
+    screen.append(header(), field(), reserves(), side, footer())
     root.append(screen)
     list.scrollTop = scrollTop
+    setKeys({
+      Enter: () => {
+        if (!swapFrom && !renaming) startGame()
+      },
+      r: () => {
+        if (!swapFrom && !renaming) rerollWholeTeam()
+      },
+      Escape: () => {
+        if (swapFrom) cancelSwap()
+        else if (renaming) {
+          renaming = false
+          render()
+        }
+      },
+    })
 
     if (revealed.length === 0) {
       root.querySelectorAll<HTMLElement>('.field-node').forEach((n) => {
@@ -379,15 +452,21 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
   /** 點球員：卡色外框的大頭像、能力值字母與長條、特性說明，加上交換與重骰 */
   function openDetail(slot: Slot): void {
     const p = getSlot(setup.team.roster, slot)
-    const sheet = el('div', 'sheet')
+    // 手機版是底部面板；電腦版是畫面中央的彈出視窗（player-modal）
+    const sheet = el('div', 'sheet player-modal')
     const panel = el('section', 'sheet-panel paper')
     panel.setAttribute('role', 'dialog')
     panel.setAttribute('aria-label', p.name)
-    const close = () => sheet.remove()
+    let previousKeys: KeyMap = {}
+    const close = () => {
+      sheet.remove()
+      setKeys(previousKeys)
+    }
     sheet.onclick = (e) => {
       if (e.target === sheet) close()
     }
     const x = iconButton('icon-btn sheet-close', ICONS.close, T.close)
+    x.append(kbd('ESC'))
     x.onclick = close
     const stats = el('div', 'stat-box')
     stats.append(ratingBars(p))
@@ -396,30 +475,36 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
 
     const row = el('div', 'detail-buttons')
     const swap = el('button', 'btn-white', T.swap)
-    swap.onclick = () => {
-      swapFrom = slot
+    swap.append(kbd('X'))
+    const startSwap = () => {
       close()
+      swapFrom = slot
       render()
     }
+    swap.onclick = startSwap
     row.append(swap)
+    let rerollThis: (() => void) | null = null
     if (allowReroll) {
       const reroll = el('button', 'btn-indigo', T.rerollPlayer)
-      reroll.append(el('span', 'count-pill', String(setup.playerRerollsLeft)))
+      reroll.append(el('span', 'count-pill', String(setup.playerRerollsLeft)), kbd('R'))
       reroll.disabled = setup.playerRerollsLeft <= 0
-      reroll.onclick = () => {
+      rerollThis = () => {
+        if (setup.playerRerollsLeft <= 0) return
         update(rerollPlayer(setup, slot))
         const fresh = getSlot(setup.team.roster, slot)
         toast(T.rerolledPlayer(p.name, fresh.name))
-        revealed = [slot]
         close()
+        revealed = [slot]
         render()
         celebrate([fresh])
       }
+      reroll.onclick = rerollThis
       row.append(reroll)
     } else row.classList.add('single')
     panel.append(row)
     sheet.append(panel)
     root.append(sheet)
+    previousKeys = setKeys({ Escape: close, x: startSwap, ...(rerollThis ? { r: rerollThis } : {}) })
   }
 
   /** 抽到彩虹卡或帶金特的球員：全螢幕登場特效，挑最強的一位 */

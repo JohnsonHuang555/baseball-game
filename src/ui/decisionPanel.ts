@@ -3,6 +3,7 @@ import { sameTactic, type Game, type Side, type Tactic } from '../sim/game'
 import type { Batter, Player } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { gradeBadge } from './grades'
+import { kbd, setKeys, type KeyMap } from './keys'
 import { el } from './playerCard'
 import { POSITION_FULL, RATING_FULL, T, runnersText } from './strings'
 
@@ -64,7 +65,10 @@ interface OptionCard {
   diffs: HTMLElement[]
 }
 
+/** 畫出面板，並把面板的快捷鍵換上去（1～3 選項、O 其他指令、I 詳細資訊、Esc 收起、Space 交給球員） */
 export function renderDecisionPanel(game: Game, reason: SheetReason, state: PanelState, h: PanelHandlers): HTMLElement {
+  const keys: KeyMap = { Space: h.handOver }
+  setKeys(keys)
   const userSide = game.userSide
   const teamOf = (side: Side): AvatarTeam => (side === userSide ? 'user' : 'opponent')
   const tactics = game.over ? [] : game.availableTactics()
@@ -220,8 +224,9 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
   }
 
   /** 選項卡：頭像加指令標籤、換下誰、換上誰、前後對比 */
-  function optionButton(t: Tactic): HTMLElement {
+  function optionButton(t: Tactic, index: number): HTMLElement {
     const o = optionFor(t)
+    const key = index < 9 ? String(index + 1) : ''
     const btn = el('button', 'option-card')
     btn.type = 'button'
     const face = el('span', 'option-face')
@@ -233,6 +238,10 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     const arrow = el('span', 'option-arrow')
     arrow.innerHTML = CHEVRON_RIGHT
     btn.append(face, body, arrow)
+    if (key) {
+      btn.append(kbd(key))
+      keys[key] = () => h.choose(t)
+    }
     btn.setAttribute('aria-label', `${o.tag} ${o.main}，${o.sub}`)
     btn.onclick = () => h.choose(t)
     return btn
@@ -296,14 +305,16 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     const box = el('div', 'candidates')
     const head = el('div', 'candidates-head')
     const back = el('button', 'pill-btn', T.backArrow)
-    back.onclick = () => {
+    const goBack = () => {
       state.picking = null
       h.rerender()
     }
+    back.onclick = goBack
+    keys.Escape = goBack
     head.append(back, el('span', 'section-label', T.pickFor(T.commandNames[type])))
     box.append(head)
     const list = type === 'defensiveSub' ? defensiveSubs().slice(0, 4).map((d) => d.tactic) : tactics.filter((t) => t.type === type)
-    for (const t of list) box.append(optionButton(t))
+    list.forEach((t, i) => box.append(optionButton(t, i)))
     return box
   }
 
@@ -420,10 +431,10 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
   if (state.picking) {
     panel.append(candidates(state.picking))
   } else {
-    const keys = keyTactics()
-    if (keys.length) {
+    const picks = keyTactics()
+    if (picks.length) {
       panel.append(el('span', 'section-label', T.keyHeading))
-      for (const t of keys) panel.append(optionButton(t))
+      picks.forEach((t, i) => panel.append(optionButton(t, i)))
     } else {
       const empty = el('div', 'no-options')
       const icon = el('span', 'no-options-icon')
@@ -435,28 +446,39 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     }
 
     const toggles = el('div', 'panel-toggles')
-    const toggle = (label: string, open: boolean, flip: () => void) => {
+    const toggle = (label: string, key: string, open: boolean, flip: () => void) => {
       const b = el('button', `panel-toggle ${open ? 'open' : ''}`)
       b.type = 'button'
       b.setAttribute('aria-expanded', String(open))
       b.append(label)
       b.insertAdjacentHTML('beforeend', CHEVRON_DOWN)
-      b.onclick = () => {
+      b.append(kbd(key.toUpperCase()))
+      const run = () => {
         flip()
         h.rerender()
       }
+      b.onclick = run
+      keys[key] = run
       return b
     }
     toggles.append(
-      toggle(T.otherTactics, state.showOthers, () => (state.showOthers = !state.showOthers)),
-      toggle(T.details, state.showDetails, () => (state.showDetails = !state.showDetails)),
+      toggle(T.otherTactics, 'o', state.showOthers, () => (state.showOthers = !state.showOthers)),
+      toggle(T.details, 'i', state.showDetails, () => (state.showDetails = !state.showDetails)),
     )
+    if (state.showOthers || state.showDetails) {
+      keys.Escape = () => {
+        state.showOthers = false
+        state.showDetails = false
+        h.rerender()
+      }
+    }
     panel.append(toggles)
     if (state.showOthers) panel.append(commandGrid())
     if (state.showDetails) panel.append(details())
   }
 
   const go = el('button', 'btn-yellow btn-big hand-over', T.handToPlayers)
+  go.append(kbd('SPACE'))
   go.onclick = h.handOver
   panel.append(go)
   return panel

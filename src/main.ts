@@ -4,13 +4,17 @@ import './team.css'
 import './match.css'
 import './decision.css'
 import './screens.css'
+import './desktop.css'
 import { Game } from './sim/game'
-import { generateTeam, teamName } from './sim/generate'
+import { cardTier, generateBatter, generateTeam, teamName, type CardTier } from './sim/generate'
 import { Rng } from './sim/rng'
 import { createSetup } from './sim/setup'
 import { createTournament, currentRound, updateSetup } from './sim/tournament'
-import type { Team } from './sim/types'
+import type { Batter, Team } from './sim/types'
+import { avatar } from './ui/avatar'
 import { showGame } from './ui/gameScreen'
+import { gradeBadge, overallBadge } from './ui/grades'
+import { setKeys } from './ui/keys'
 import { el } from './ui/playerCard'
 import { withSavedName } from './ui/prefs'
 import { loadTournament } from './ui/save'
@@ -34,9 +38,38 @@ const LOGO = `<svg class="home-logo" role="img" aria-label="${T.gameTitle}" view
 /** 首頁背景的放射光芒：12 條等距光束，以標誌為中心慢慢轉 */
 const HOME_RAYS = `<svg class="home-rays" aria-hidden="true" viewBox="-400 -400 800 800">${rays(400)}</svg>`
 
+/** 電腦版首頁右邊的三張展示卡：用固定種子挑出銅、金、彩虹卡各一位，每次都一樣 */
+function showcaseCards(): HTMLElement {
+  const rng = new Rng(20261026)
+  const picks = new Map<CardTier, Batter>()
+  for (let i = 0; i < 50000 && picks.size < 3; i++) {
+    const p = generateBatter(rng)
+    const tier = cardTier(p)
+    if ((tier === 'bronze' || tier === 'gold' || tier === 'rainbow') && !picks.has(tier)) picks.set(tier, p)
+  }
+  const box = el('div', 'home-cards')
+  box.setAttribute('aria-hidden', 'true')
+  for (const tier of ['bronze', 'gold', 'rainbow'] as const) {
+    const p = picks.get(tier)
+    if (!p) continue
+    const card = el('div', `showcase-card tier-${tier}`)
+    const inner = el('div', 'showcase-inner')
+    const top = el('div', 'showcase-top')
+    top.append(el('span', 'tier-tag', T.tierNames[tier]), overallBadge(p, 'lg'))
+    const grades = el('div', 'showcase-grades')
+    for (const v of Object.values(p.ratings)) grades.append(gradeBadge(v, 'md'))
+    inner.append(top, avatar(p.id, 'user', 'showcase-avatar'), el('span', 'showcase-name', p.name), grades)
+    card.append(inner)
+    box.append(card)
+  }
+  return box
+}
+
 function showTitle(): void {
+  setKeys({})
   root.replaceChildren()
   const screen = el('div', 'home-screen')
+  const main = el('div', 'home-main')
   const hero = el('div', 'home-hero')
   hero.insertAdjacentHTML('afterbegin', HOME_RAYS + LOGO)
   const subtitle = el('p', 'home-subtitle')
@@ -59,7 +92,8 @@ function showTitle(): void {
     buttons.append(resume, quick, fresh)
   } else buttons.append(quick, fresh)
 
-  screen.append(hero, buttons)
+  main.append(hero, buttons)
+  screen.append(main, showcaseCards())
   root.append(screen)
 }
 
