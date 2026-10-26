@@ -305,7 +305,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         return `${name(e.runnerId)} ${T.stealResult(e.success)}`
       case 'substitution': {
         const fn = { pinchHit: T.subPinchHit, pinchRun: T.subPinchRun, pitcher: T.subPitcher, defense: T.subDefense }[e.kind]
-        return fn(name(e.inId), name(e.outId))
+        // 對手的換人前面加「對手」，一眼分得出是誰在調度
+        return (e.side === userSide ? '' : T.opponentPrefix) + fn(name(e.inId), name(e.outId))
       }
       case 'halfInningEnd':
         return T.halfEnd(e.inning, e.half === 'top')
@@ -425,6 +426,11 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         await wait(PACE.afterPlay * k)
       } else if (text) {
         addLog(text, e.type === 'halfInningEnd' ? 'divider' : '')
+        // 對手換投、派代打：跳提示，玩家下指令前就知道
+        if (e.type === 'substitution' && e.side !== userSide) {
+          toast(text)
+          await wait(PACE.afterPlay * k)
+        }
         if (e.type === 'halfInningEnd') await wait(PACE.afterHalfInning * k)
       }
     }

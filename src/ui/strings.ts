@@ -42,6 +42,7 @@ export const T = {
   stealResult: (ok: boolean) => (ok ? '盜壘成功' : '盜壘失敗，出局'),
   subPinchHit: (inName: string, outName: string) => `代打：${inName} 替換 ${outName}`,
   subPinchRun: (inName: string, outName: string) => `代跑：${inName} 替換 ${outName}`,
+  opponentPrefix: '對手',
   subPitcher: (inName: string, outName: string) => `換投：${inName} 上場，${outName} 退場`,
   tacticSteal: (from: 1 | 2, name: string) => `盜${from === 1 ? '二' : '三'}壘 ${name}`,
   tacticBunt: '犧牲觸擊',

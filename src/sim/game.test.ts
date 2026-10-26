@@ -807,3 +807,95 @@ describe('個人成績與錦標賽成長', () => {
     expect(roster.lineup[0].player.ratings.contact).toBe(target.ratings.contact)
   })
 })
+
+describe('AI 的左右相剋調度', () => {
+  type Sub = Extract<GameEvent, { type: 'substitution' }>
+  /** 跑很多場，收集 AI（客隊）的換人與當時的情況 */
+  function aiSubs(rules?: number, games = 300) {
+    const found: { e: Sub; g: Game; inning: number; diff: number }[] = []
+    for (let seed = 1; seed <= games; seed++) {
+      const g = new Game({ ...setup(seed), rules })
+      while (!g.over) {
+        const inning = g.inning
+        const diff = Math.abs(g.score.home - g.score.away)
+        for (const e of g.step()) if (e.type === 'substitution' && e.side === 'away') found.push({ e, g, inning, diff })
+      }
+    }
+    return found
+  }
+
+  it('AI 會換上同手的後援對付對側的打者，也會派對側的代打', () => {
+    const subs = aiSubs()
+    expect(subs.filter((s) => s.e.kind === 'pinchHit').length).toBeGreaterThan(10)
+    // 換投包含體力用盡的換投，所以只檢查有出現
+    expect(subs.filter((s) => s.e.kind === 'pitcher').length).toBeGreaterThan(10)
+  })
+
+  /** 打席開始時 AI 的調度：出現在同一步的比賽結果（play）之後，比賽狀態已經是下一個打席 */
+  function platoonMoves(seeds: number, onMove: (e: Sub, g: Game) => void, before?: (g: Game) => void) {
+    for (let seed = 1; seed <= seeds; seed++) {
+      const g = new Game(setup(seed))
+      while (!g.over) {
+        before?.(g)
+        const events = g.step()
+        const playAt = events.findIndex((e) => e.type === 'play' || e.type === 'steal')
+        events.forEach((e, i) => {
+          if (i > playAt && playAt >= 0 && e.type === 'substitution' && e.side === 'away') onMove(e, g)
+        })
+      }
+    }
+  }
+
+  it('AI 派的代打一定是對側，只在第 7 局後、比分差 2 分以內', () => {
+    let n = 0
+    platoonMoves(300, (e, g) => {
+      if (e.kind !== 'pinchHit') return
+      n++
+      expect(g.inning).toBeGreaterThanOrEqual(7)
+      expect(Math.abs(g.score.home - g.score.away)).toBeLessThanOrEqual(2)
+      expect(g.batter.id).toBe(e.inId)
+      expect(g.matchup()).toBe('opposite')
+    })
+    expect(n).toBeGreaterThan(10)
+  })
+
+  it('AI 換上的後援跟打者同手（同側），而且至少留一位後援', () => {
+    let n = 0
+    platoonMoves(300, (e, g) => {
+      if (e.kind !== 'pitcher') return
+      n++
+      expect(g.pitcher.id).toBe(e.inId)
+      expect(g.matchup()).toBe('same')
+      expect(g.teams.away.relievers.length).toBeGreaterThanOrEqual(1)
+    })
+    expect(n).toBeGreaterThan(5)
+  })
+
+  it('玩家換代打，AI 可能立刻換投回應', () => {
+    let responses = 0
+    for (let seed = 1; seed <= 300; seed++) {
+      const g = new Game(setup(seed))
+      while (!g.over) {
+        if (g.battingSide === 'home' && g.balls + g.strikes === 0 && g.inning >= 7 && g.teams.home.bench.length > 0) {
+          const events = g.issue({ type: 'pinchHit', benchIndex: 0 })
+          if (events.some((e) => e.type === 'substitution' && e.side === 'away')) responses++
+        }
+        g.step()
+      }
+    }
+    expect(responses).toBeGreaterThan(3)
+  })
+
+  it('舊規則（版本 3）的比賽，AI 不做左右相剋調度', () => {
+    const subs = aiSubs(3, 150)
+    expect(subs.filter((s) => s.e.kind === 'pinchHit').length).toBe(0)
+  })
+
+  it('加了 AI 調度後，平均得分仍在合理範圍', () => {
+    let runs = 0
+    const n = 300
+    for (let seed = 1; seed <= n; seed++) runs += playOut(new Game(setup(seed))).score.away
+    expect(runs / n).toBeGreaterThan(3)
+    expect(runs / n).toBeLessThan(6)
+  })
+})

@@ -184,8 +184,11 @@ export interface GameSetup {
   rules?: number
 }
 
-/** 目前的規則版本。2：AI 守備時會佈陣；3：左右投打相剋 */
-export const RULES_VERSION = 3
+/** 目前的規則版本。2：AI 守備時會佈陣；3：左右投打相剋；4：AI 依左右相剋換投、派代打 */
+export const RULES_VERSION = 4
+
+/** AI 換上的投手至少要面對幾位打者，才會再被 AI 換掉（避免一直換） */
+const MIN_BATTERS_FACED = 3
 
 /** 一位球員這場比賽的成績（打者看打擊欄，投手看投球欄） */
 export interface PlayerLine {
@@ -218,6 +221,8 @@ export interface TeamState {
   relievers: Pitcher[]
   pitchCount: number
   battingIndex: number
+  /** 目前這位投手是從第幾個打席開始投的 */
+  pitcherSincePa: number
 }
 
 type Bases = [Batter | null, Batter | null, Batter | null]
@@ -256,6 +261,8 @@ export class Game {
   private readonly rng: Rng
   /** AI 守備時會不會佈陣（規則版本 2 起） */
   private readonly aiAligns: boolean
+  /** AI 會不會依左右相剋換投、派代打（規則版本 4 起） */
+  private readonly aiPlatoon: boolean
   /** 有沒有左右投打相剋（規則版本 3 起） */
   readonly platoonOn: boolean
   /** 兩隊開賽時的全部球員編號（換下場的人也算） */
@@ -272,13 +279,49 @@ export class Game {
     this.rosters = { home: ids(setup.home), away: ids(setup.away) }
     this.aiAligns = (setup.rules ?? RULES_VERSION) >= 2
     this.platoonOn = (setup.rules ?? RULES_VERSION) >= 3
+    this.aiPlatoon = (setup.rules ?? RULES_VERSION) >= 4
     this.prepareAtBat()
   }
 
   /** 打席開始：AI 守備時決定佈陣，讓玩家下指令前就看得到 */
-  private prepareAtBat(): void {
-    if (this.over || !this.aiAligns || this.fieldingSide === this.userSide) return
-    this.alignment = this.aiAlignment()
+  private prepareAtBat(): GameEvent[] {
+    if (this.over || this.balls + this.strikes > 0) return []
+    const events = this.aiPlatoonMoves()
+    if (this.aiAligns && this.fieldingSide !== this.userSide) this.alignment = this.aiAlignment()
+    return events
+  }
+
+  /**
+   * AI 的左右相剋調度，只在後段比分接近時：
+   * 守備時，玩家的打者佔對側優勢，就換上同手的後援（不用掉最後一位後援、新投手至少面對三位打者）；
+   * 進攻時，自己的打者遇到同側投手，就派對側、打擊不差的代打
+   */
+  private aiPlatoonMoves(): GameEvent[] {
+    if (!this.aiPlatoon || this.inning < 7 || Math.abs(this.score.home - this.score.away) > 2) return []
+    const batterValue = (b: Batter) => (b.ratings.contact * 2 + b.ratings.power) / 3
+    if (this.fieldingSide !== this.userSide) {
+      const team = this.fielding
+      const batter = this.batter
+      if (batter.bats === 'S' || this.matchup() !== 'opposite') return []
+      if (team.relievers.length < 2 || this.paIndex - team.pitcherSincePa < MIN_BATTERS_FACED) return []
+      const now = team.pitcher.ratings.stuff + team.pitcher.ratings.control
+      const pick = team.relievers
+        .map((p, i) => ({ p, i, value: p.ratings.stuff + p.ratings.control }))
+        .filter(({ p, value }) => p.throws === batter.bats && value >= now - 1)
+        .sort((a, b) => b.value - a.value)[0]
+      return pick ? this.changePitcher(team, this.fieldingSide, pick.i) : []
+    }
+    const team = this.batting
+    const spot = team.lineup[team.battingIndex]
+    if (this.matchup(spot.player) !== 'same') return []
+    const pick = team.bench
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => this.matchup(p) === 'opposite' && batterValue(p) >= batterValue(spot.player) - 0.5)
+      .sort((a, b) => batterValue(b.p) - batterValue(a.p))[0]
+    if (!pick) return []
+    const out = spot.player
+    spot.player = team.bench.splice(pick.i, 1)[0]
+    return [{ type: 'substitution', side: this.battingSide, kind: 'pinchHit', inId: spot.player.id, outId: out.id }]
   }
 
   /**
@@ -310,6 +353,7 @@ export class Game {
       relievers: [...roster.relievers],
       pitchCount: 0,
       battingIndex: 0,
+      pitcherSincePa: 0,
     }
   }
 
@@ -529,9 +573,9 @@ export class Game {
         const spot = team.lineup[team.battingIndex]
         const out = spot.player
         spot.player = team.bench.splice(tactic.benchIndex, 1)[0]
-        // 換了打者，AI 重新判斷佈陣
-        if (this.balls + this.strikes === 0) this.prepareAtBat()
-        return [{ type: 'substitution', side: this.battingSide, kind: 'pinchHit', inId: spot.player.id, outId: out.id }]
+        // 換了打者，AI 重新判斷佈陣，也可能換投回應
+        const sub: GameEvent = { type: 'substitution', side: this.battingSide, kind: 'pinchHit', inId: spot.player.id, outId: out.id }
+        return [sub, ...this.prepareAtBat()]
       }
       case 'pinchRun': {
         const team = this.batting
@@ -560,6 +604,7 @@ export class Game {
     const out = team.pitcher
     team.pitcher = team.relievers.splice(relieverIndex, 1)[0]
     team.pitchCount = 0
+    team.pitcherSincePa = this.paIndex
     return [{ type: 'substitution', side, kind: 'pitcher', inId: team.pitcher.id, outId: out.id }]
   }
 
@@ -958,7 +1003,7 @@ export class Game {
     this.applyMoves(moves)
     const events: GameEvent[] = [{ type: 'steal', runnerId: runner.id, from, success, moves }]
     if (this.outs >= 3) events.push(...this.endHalfInning())
-    this.prepareAtBat()
+    events.push(...this.prepareAtBat())
     return events
   }
 
@@ -1007,7 +1052,7 @@ export class Game {
       return [...events, this.endGame('home')]
     }
     if (this.outs >= 3) events.push(...this.endHalfInning())
-    this.prepareAtBat()
+    events.push(...this.prepareAtBat())
     return events
   }
 

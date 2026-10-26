@@ -13,7 +13,7 @@ export interface Growth {
 /** MVP 的門檻：表現分至少要這麼多才選 */
 const MVP_MIN = 2
 /** 其他人成長的門檻 */
-const GROWTH_MIN = 3
+const GROWTH_MIN = 2
 const MAX_RATING = 10
 
 /**
