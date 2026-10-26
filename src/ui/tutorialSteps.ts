@@ -50,12 +50,12 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
     {
       target: '.pause-btn',
       title: '按「指令」暫停',
-      text: '隨時都能暫停下戰術：盜壘、觸擊、代打、換投……也可以親自出棒或投決勝球，每個打席一次。',
+      text: '隨時都能暫停下戰術：盜壘、觸擊、代打、換投……也可以親自出棒或親自配球。',
     },
     {
       target: '.manual-toggle',
       title: '親自操作',
-      text: '想每一球都自己打、自己投，就打開這裡（或按 T）。每一球投出前都會跳出計量條；某一球不想出手，按「這球交給球員」。',
+      text: '想每一球都自己打、自己投，就打開這裡（或按 T）。每一球投出前都會直接讓你出手（打擊是猜球加計量條、投球是配球）；某一球不想出手，按「這球交給球員」。',
     },
     {
       target: '.speed-toggle',
@@ -78,7 +78,7 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
       target: '.takeover-card',
       optional: true,
       title: '親自出手',
-      text: '點這裡後會出現計量條，紅線會上下來回掃，來到黃色區時點一下（或按 Space）就是好時機。球員能力越好、投手體力越多，黃色區越寬。',
+      text: '打擊時：先猜球，再停紅線，紅線來到黃色區時點一下（或按 Space），偏下拉打、偏上推打。投球時：選球種、點位置，再畫出手勢。球員能力越好、投手體力越多，越容易成功。',
     },
     {
       target: '.decision-panel .option-card',
@@ -107,6 +107,35 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
       target: '.match-field',
       title: '野手會跑到新位置',
       text: '佈陣只對目前這位打者有效，打席結束會回到標準站位。三壘有人時可以「內野前進」擋住得分，怕被打長打就「外野後退」。',
+    },
+  ],
+  pitchCall: [
+    {
+      target: '.pc-pitches',
+      title: '選球種',
+      text: '每位投手會 2～4 種球，標「看家」的是他最拿手的。同一個打席連投同一種球，打者比較容易抓到，記得換著投。',
+    },
+    {
+      target: '.pc-zone-wrap',
+      title: '點一格決定位置',
+      text: '這是從捕手後面看的好球帶，黑色直條是打者站的那一邊。紅色是打者的熱區，投進去容易被打；藍色是弱點。四個角落最難打，但投偏了就是壞球；正中間最好投，也最容易被打。',
+    },
+    {
+      target: '.pitch-call',
+      title: '畫出手勢',
+      text: '點完位置後，從綠點開始照著虛線畫出這個球種的手勢，畫得越像、越快，球就越到位。投手的控球越好、體力越多，手勢越寬容。電腦上也可以用方向鍵。',
+    },
+  ],
+  guess: [
+    {
+      target: '.guess-box',
+      title: '先猜球',
+      text: '投手出手前猜這球是直球還是變化球。猜中，計量條的黃色區變寬、打得更扎實；猜錯變窄。上面的球探機率會隨球數變化：球數落後的投手常搶直球，兩好球後愛用變化球。不想猜就直接打。',
+    },
+    {
+      target: '.guess-box',
+      title: '停紅線決定方向',
+      text: '接著一樣停紅線。停在黃色區偏下是拉打、偏上是推打、正中最強。對手往某一邊佈陣時，故意打向空出來的那一邊吧。',
     },
   ],
   hub: [

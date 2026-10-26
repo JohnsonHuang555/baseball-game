@@ -706,3 +706,424 @@
   transform: scaleX(-1);
   color: #6e9bff;
 }
+
+/* ---- 配球對決：出棒的方向標籤、猜球 ---- */
+.meter-column {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+.meter-marks {
+  position: absolute;
+  right: calc(100% + 6px);
+  top: 3px;
+  bottom: 3px;
+  width: 0;
+  pointer-events: none;
+}
+.meter-mark {
+  position: absolute;
+  right: 0;
+  transform: translateY(50%);
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(20, 22, 51, 0.82);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.meter-mark.center {
+  background: #c6f432;
+  color: var(--ink);
+}
+.meter-banner {
+  position: absolute;
+  left: 50%;
+  top: 50px;
+  transform: translateX(-50%);
+  padding: 5px 14px;
+  border-radius: 12px;
+  border: 2.5px solid var(--ink);
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  animation: title-in 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.meter-banner.good {
+  background: #c6f432;
+  color: var(--ink);
+}
+.meter-banner.bad {
+  background: #ff8a9a;
+  color: var(--ink);
+}
+.guess-layer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  background: rgba(12, 13, 36, 0.55);
+}
+.guess-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: min(300px, calc(100% - 32px));
+  padding: 12px 14px 14px;
+  border-radius: 16px;
+  border: 2.5px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--ink);
+}
+.guess-sub,
+.guess-scout {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.guess-odds {
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  border: 2px solid var(--ink);
+  background: #b58cff;
+  overflow: hidden;
+}
+.guess-odds-bar {
+  display: block;
+  height: 100%;
+  background: #ff6b5e;
+}
+.guess-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  margin-top: 2px;
+}
+.guess-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 2.5px solid var(--ink);
+  box-shadow: 0 3px 0 var(--ink);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--ink);
+  cursor: pointer;
+}
+.guess-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+.guess-btn.fastball {
+  background: #ffb3ab;
+}
+.guess-btn.breaking {
+  background: #dcc8ff;
+}
+.guess-btn.none {
+  grid-column: 1 / -1;
+  min-height: 38px;
+  background: #fff;
+  font-size: 13px;
+}
+
+/* ---- 配球對決：投球（選球種、九宮格、畫手勢） ---- */
+.pitch-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 10px 10px;
+  background: rgba(12, 13, 36, 0.55);
+  user-select: none;
+  -webkit-user-select: none;
+  animation: fade-in 0.15s ease-out;
+}
+.pitch-stage {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  max-height: 100%;
+}
+.pitch-call,
+.pitch-draw {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: min(340px, 100%);
+  padding: 10px 12px 12px;
+  border-radius: 16px;
+  border: 2.5px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--ink);
+}
+.pc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+.pc-hint {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.pc-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pc-zone-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.pc-zone-wrap.bats-left {
+  flex-direction: row-reverse;
+}
+/* 打者站的那一邊：一條直條寫著右打或左打 */
+.pc-batter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+}
+.pc-zone {
+  display: grid;
+  grid-template-columns: repeat(3, 40px);
+  grid-template-rows: repeat(3, 34px);
+  gap: 3px;
+  padding: 3px;
+  border-radius: 8px;
+  border: 2.5px solid var(--ink);
+  background: var(--ink);
+}
+.pc-cell {
+  position: relative;
+  border: 0;
+  border-radius: 5px;
+  background: #f1f2fb;
+  font-family: inherit;
+  cursor: pointer;
+}
+.pc-cell:hover {
+  outline: 3px solid var(--yellow);
+  outline-offset: -3px;
+}
+.pc-cell.hot {
+  background: #ff9c90;
+}
+.pc-cell.cold {
+  background: #9cc4ff;
+}
+.pc-cell .kbd {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  transform: scale(0.8);
+}
+.pc-legend {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.pc-pitches {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.pc-pitch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 2px 8px 2px 5px;
+  border-radius: 11px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 3px 0 var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pc-pitch .kbd {
+  margin-left: auto;
+}
+.pc-pitch.selected {
+  background: var(--yellow);
+}
+.pc-pitch-icon {
+  display: inline-flex;
+  color: #e5383b;
+}
+.pc-tag {
+  padding: 0 5px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+.pc-tag.primary {
+  background: var(--ink);
+  color: var(--yellow);
+}
+.pc-tag.repeat {
+  background: #ff8a9a;
+  color: var(--ink);
+}
+.pc-warning {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #c2410c;
+}
+.pc-back {
+  padding: 3px 10px;
+  border-radius: 9px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink);
+  cursor: pointer;
+}
+.pc-pad {
+  width: 140px;
+  aspect-ratio: 1;
+  border-radius: 14px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  touch-action: none;
+  cursor: crosshair;
+}
+.pc-pad svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pc-guide {
+  fill: none;
+  stroke: #c9ccff;
+  stroke-width: 16;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 2 24;
+}
+.pc-start {
+  fill: #2fbf71;
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+.pc-trail {
+  fill: none;
+  stroke: #e5383b;
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pc-pad.released.perfect {
+  background: #eefcc8;
+}
+.pc-pad.released.good {
+  background: #fff4c7;
+}
+.pc-pad.released.miss {
+  background: #ffe0e5;
+}
+.pc-time {
+  width: 140px;
+  height: 8px;
+  border-radius: 4px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  overflow: hidden;
+}
+.pc-time-fill {
+  display: block;
+  height: 100%;
+  background: #ff6b5e;
+  transform-origin: left;
+  animation: pc-time linear both;
+}
+@keyframes pc-time {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+.pc-draw-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 900;
+  min-height: 20px;
+}
+.pc-draw-hint .meter-grade.late {
+  color: #e5383b;
+}
+.pc-draw-hint .meter-grade.perfect {
+  color: #5c9400;
+}
+.pc-draw-hint .meter-grade.good {
+  color: #b88a00;
+}
+.pc-keys {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+/* 只用觸控的裝置不顯示方向鍵提示 */
+@media (hover: none), (pointer: coarse) {
+  .pc-keys {
+    display: none;
+  }
+}
+
+/* 決策面板的配球卡：列出投手會的球種 */
+.takeover-pitches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.takeover-pitch {
+  padding: 1px 7px;
+  border-radius: 7px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  font-size: 11.5px;
+  font-weight: 900;
+  color: var(--ink);
+}

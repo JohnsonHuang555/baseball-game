@@ -1,3 +1,4 @@
+import { PITCH_WHIFF, aiPitch, coldZone, fastballChance, hotZone, isBreaking, isCorner, repertoire, spotZones, stance, type PitchGuess, type PitchType } from './pitches'
 import { Rng, clamp } from './rng'
 import { hasTrait } from './traits'
 import type { Batter, LineupSpot, Pitcher, Player, Team, Tendency } from './types'
@@ -17,10 +18,15 @@ export type Tactic =
   | { type: 'intentionalWalk' }
   /** 守備替補：板凳球員接手某一棒的守位與棒次 */
   | { type: 'defensiveSub'; benchIndex: number; lineupIndex: number }
-  /** 親自出棒：下一球一定揮棒，timing 是計量條停下的位置（0～1） */
-  | { type: 'swing'; timing: number }
+  /**
+   * 親自出棒：下一球一定揮棒，timing 是計量條停下的位置（0～1）。
+   * 規則版本 5 起：停的位置偏早拉打、偏晚推打；guess 是先猜直球或變化球
+   */
+  | { type: 'swing'; timing: number; guess?: PitchGuess }
   /** 決勝球：下一球由教練親自投，timing 是計量條停下的位置（0～1） */
   | { type: 'aimPitch'; timing: number }
+  /** 配球（規則版本 5 起取代決勝球）：選球種、九宮格位置，accuracy 是手勢畫得多準（0～1） */
+  | { type: 'throw'; pitch: PitchType; spot: number; accuracy: number }
   /** 守備佈陣：只對目前這位打者有效，打席結束恢復標準 */
   | { type: 'alignment'; alignment: Alignment }
 
@@ -69,8 +75,11 @@ export const ALIGNMENT_SPOTS: Record<Alignment, Spots> = {
 /** 擊球方向傾向造成的平均角度偏移 */
 const TENDENCY_MEAN: Record<Tendency, number> = { left: -12, even: 0, right: 12 }
 
-/** 計量條的判定：完美、好、太早、太晚 */
-export type MeterGrade = 'perfect' | 'good' | 'early' | 'late'
+/** 計量條的判定：完美、好、太早、太晚；手勢畫歪了是失投 */
+export type MeterGrade = 'perfect' | 'good' | 'early' | 'late' | 'miss'
+
+/** 親自出手的方式：出棒、決勝球（舊規則）、配球 */
+export type TakeOverKind = 'swing' | 'aimPitch' | 'throw'
 
 /** 計量條上的目標區：center 是中心位置，good、perfect 是往兩側的半寬 */
 export interface MeterZone {
@@ -98,6 +107,10 @@ interface PitchMod {
   hit?: number
   power?: number
   meter?: MeterGrade
+  /** 親自出棒時瞄準的平均擊球角度 */
+  aim?: number
+  /** 這一球的球種（只有親自出手時記下來給畫面看） */
+  pitch?: PitchType
 }
 
 export type PitchResult = 'ball' | 'calledStrike' | 'swingingStrike' | 'foul' | 'inPlay'
@@ -151,7 +164,7 @@ export interface BattedBall {
 }
 
 export type GameEvent =
-  | { type: 'pitch'; result: PitchResult; balls: number; strikes: number; meter?: MeterGrade }
+  | { type: 'pitch'; result: PitchResult; balls: number; strikes: number; meter?: MeterGrade; pitch?: PitchType }
   | {
       type: 'play'
       kind: PlayKind
@@ -184,8 +197,11 @@ export interface GameSetup {
   rules?: number
 }
 
-/** 目前的規則版本。2：AI 守備時會佈陣；3：左右投打相剋；4：AI 依左右相剋換投、派代打 */
-export const RULES_VERSION = 4
+/**
+ * 目前的規則版本。2：AI 守備時會佈陣；3：左右投打相剋；4：AI 依左右相剋換投、派代打；
+ * 5：配球對決（出棒決定擊球方向、猜球，投球改成選球種、位置並畫手勢）
+ */
+export const RULES_VERSION = 5
 
 /** AI 換上的投手至少要面對幾位打者，才會再被 AI 換掉（避免一直換） */
 const MIN_BATTERS_FACED = 3
@@ -263,6 +279,13 @@ export class Game {
   private readonly aiPlatoon: boolean
   /** 有沒有左右投打相剋（規則版本 3 起） */
   readonly platoonOn: boolean
+  /** 有沒有配球對決（規則版本 5 起） */
+  readonly pitchMix: boolean
+  private readonly seed: number
+  /** 這個打席上一球親自投的球種：連投同一種會被打者看穿 */
+  private lastThrow: PitchType | null = null
+  /** 這顆擊球瞄準的平均角度（親自出棒才有） */
+  private aimAngle: number | null = null
   /** 兩隊開賽時的全部球員編號（換下場的人也算） */
   private readonly rosters: Record<Side, Set<string>>
   /** 每位球員這場的成績，用來選 MVP 和錦標賽成長 */
@@ -278,6 +301,8 @@ export class Game {
     this.aiAligns = (setup.rules ?? RULES_VERSION) >= 2
     this.platoonOn = (setup.rules ?? RULES_VERSION) >= 3
     this.aiPlatoon = (setup.rules ?? RULES_VERSION) >= 4
+    this.pitchMix = (setup.rules ?? RULES_VERSION) >= 5
+    this.seed = setup.seed
     this.prepareAtBat()
   }
 
@@ -457,8 +482,7 @@ export class Game {
    * 守備佈陣對目前打者的安打率修正（負數代表比較不容易被打安打）。
    * 偏向打者習慣的方向能沒收安打，猜錯方向反而留下大洞；內野前進、外野後退都會讓一壘安打變多
    */
-  alignmentEffect(alignment: Alignment = this.alignment): number {
-    const tendency = this.batter.tendency
+  alignmentEffect(alignment: Alignment = this.alignment, tendency: Tendency = this.hitDirection()): number {
     switch (alignment) {
       case 'normal':
         return 0
@@ -507,20 +531,60 @@ export class Game {
    * 現在能不能親自出手：每一球都可以（「親自操作」模式就是每球都出手），
    * 只是不能跟其他排著的戰術同時。進攻時是親自出棒，守備時是決勝球
    */
-  takeOver(): 'swing' | 'aimPitch' | null {
+  takeOver(): TakeOverKind | null {
     if (this.over || this.queued) return null
-    return this.battingSide === this.userSide ? 'swing' : 'aimPitch'
+    if (this.battingSide === this.userSide) return 'swing'
+    return this.pitchMix ? 'throw' : 'aimPitch'
   }
 
-  /** 計量條的目標區：出棒看打者的打擊，投球看投手的控球，體力越低越窄 */
-  meterZone(kind: 'swing' | 'aimPitch'): MeterZone {
+  /**
+   * 計量條的目標區：出棒看打者的打擊，投球看投手的控球，體力越低越窄。
+   * 配球對決時先猜球：猜中變寬、猜錯變窄
+   */
+  meterZone(kind: 'swing' | 'aimPitch', guess?: PitchGuess): MeterZone {
     let good: number
-    if (kind === 'swing') good = 0.05 + clamp(this.effectiveContact(this.batter), 0, 10) * 0.008
-    else {
+    if (kind === 'swing') {
+      good = 0.05 + clamp(this.effectiveContact(this.batter), 0, 10) * 0.008
+      if (this.pitchMix && guess) good *= this.guessRight(guess) ? GUESS_ZONE.right : GUESS_ZONE.wrong
+    } else {
       const control = clamp(this.effectivePitcher().control, 0, 10)
       good = (0.05 + control * 0.008) * (0.6 + 0.4 * this.staminaLeft(this.fielding))
     }
     return { center: METER_CENTER, good, perfect: good * 0.35 }
+  }
+
+  /** AI 投手這一球要投的球種（由種子和步數決定，玩家猜球後才會看到） */
+  nextPitch(): PitchType {
+    return aiPitch(this.seed, this.stepIndex, this.pitcher, this.balls, this.strikes)
+  }
+
+  /** 球探報告：這一球投直球的機率 */
+  fastballOdds(): number {
+    return fastballChance(this.pitcher, this.balls, this.strikes)
+  }
+
+  guessRight(guess: PitchGuess): boolean {
+    return isBreaking(this.nextPitch()) === (guess === 'breaking')
+  }
+
+  /** 手勢的門檻：accuracy 到 good 算好球、到 perfect 算完美。控球越好越寬鬆，體力越低越嚴 */
+  gestureZone(): { good: number; perfect: number } {
+    const control = clamp(this.effectivePitcher().control, 0, 10)
+    const slack = (0.2 + control * 0.03) * (0.6 + 0.4 * this.staminaLeft(this.fielding))
+    const good = 1 - slack
+    return { good, perfect: good + slack * 0.45 }
+  }
+
+  gradeGesture(accuracy: number): MeterGrade {
+    const zone = this.gestureZone()
+    return accuracy >= zone.perfect ? 'perfect' : accuracy >= zone.good ? 'good' : 'miss'
+  }
+
+  /** 出棒停的位置換算成擊球角度：偏早（偏下）拉打、偏晚（偏上）推打，正中打向中外野 */
+  aimFor(timing: number, zone: MeterZone = this.meterZone('swing')): number {
+    const offset = clamp((timing - zone.center) / zone.good, -1.5, 1.5)
+    const pullSide = stance(this.batter, this.pitcher) === 'R' ? -1 : 1
+    return -offset * pullSide * AIM_ANGLE
   }
 
   /** 教練現在可以下的指令 */
@@ -558,8 +622,19 @@ export class Game {
   issue(tactic: Tactic): GameEvent[] {
     const allowed =
       tactic.type === 'swing' || tactic.type === 'aimPitch'
-        ? this.takeOver() === tactic.type && tactic.timing >= 0 && tactic.timing <= 1
-        : this.availableTactics().some((t) => sameTactic(t, tactic))
+        ? this.takeOver() === tactic.type &&
+          tactic.timing >= 0 &&
+          tactic.timing <= 1 &&
+          (tactic.type === 'aimPitch' || tactic.guess === undefined || (this.pitchMix && (tactic.guess === 'fastball' || tactic.guess === 'breaking')))
+        : tactic.type === 'throw'
+          ? this.takeOver() === 'throw' &&
+            repertoire(this.pitcher).includes(tactic.pitch) &&
+            Number.isInteger(tactic.spot) &&
+            tactic.spot >= 0 &&
+            tactic.spot <= 8 &&
+            tactic.accuracy >= 0 &&
+            tactic.accuracy <= 1
+          : this.availableTactics().some((t) => sameTactic(t, tactic))
     if (!allowed) throw new Error(`現在不能下這個指令：${tactic.type}`)
     this.commands.push({ stepIndex: this.stepIndex, tactic })
     switch (tactic.type) {
@@ -568,6 +643,7 @@ export class Game {
         return []
       case 'swing':
       case 'aimPitch':
+      case 'throw':
         this.queued = tactic
         return []
       case 'steal':
@@ -633,6 +709,7 @@ export class Game {
     if (tactic?.type === 'steal') events.push(...this.steal(tactic.from, 0))
     else if (tactic?.type === 'bunt') events.push(...this.bunt())
     else if (tactic?.type === 'swing' || tactic?.type === 'aimPitch') events.push(...this.pitch(false, this.takeOverPitch(tactic)))
+    else if (tactic?.type === 'throw') events.push(...this.pitch(false, this.throwPitch(tactic)))
     else events.push(...this.pitch(tactic?.type === 'hitAndRun'))
     this.stepIndex++
     return events
@@ -642,20 +719,25 @@ export class Game {
    * 親自出手的這一球：完美不保證安打，只是大幅提高好結果的機率。
    * 出棒太早多半變界外或軟弱滾地，太晚多半揮空；決勝球失手不是壞球就是甜球
    */
-  private takeOverPitch(t: { type: 'swing' | 'aimPitch'; timing: number }): PitchMod {
+  private takeOverPitch(t: { type: 'swing'; timing: number; guess?: PitchGuess } | { type: 'aimPitch'; timing: number }): PitchMod {
     const rng = this.rng
-    const meter = gradeTiming(this.meterZone(t.type), t.timing)
+    const zone = t.type === 'swing' ? this.meterZone('swing', t.guess) : this.meterZone(t.type)
+    const meter = gradeTiming(zone, t.timing)
     if (t.type === 'swing') {
+      // 配球對決：擊球方向跟著停的位置走，畫面也標出對方投了什麼
+      const mix: PitchMod = this.pitchMix ? { aim: this.aimFor(t.timing, zone), pitch: this.nextPitch() } : {}
+      // 猜中球種，除了黃色區變寬，打出去的球也比較扎實
+      const read = this.pitchMix && t.guess && this.guessRight(t.guess) ? GUESS_HIT : 0
       switch (meter) {
         case 'perfect':
-          return { meter, inZone: true, swing: true, result: 'inPlay', hit: 0.25, power: 3 }
+          return { ...mix, meter, inZone: true, swing: true, result: 'inPlay', hit: 0.25 + read, power: 3 }
         case 'good':
-          return { meter, inZone: true, swing: true, result: rng.chance(0.75) ? 'inPlay' : 'foul', hit: 0.12, power: 1 }
+          return { ...mix, meter, inZone: true, swing: true, result: rng.chance(0.75) ? 'inPlay' : 'foul', hit: 0.12 + read, power: 1 }
         case 'early':
-          return { meter, inZone: true, swing: true, result: rng.chance(0.45) ? 'foul' : 'inPlay', hit: -0.1, power: -2 }
-        case 'late': {
+          return { ...mix, meter, inZone: true, swing: true, result: rng.chance(0.45) ? 'foul' : 'inPlay', hit: -0.1 + read, power: -2 }
+        default: {
           const r = rng.next()
-          return { meter, inZone: true, swing: true, result: r < 0.45 ? 'swingingStrike' : r < 0.7 ? 'foul' : 'inPlay', hit: -0.12, power: -2 }
+          return { ...mix, meter, inZone: true, swing: true, result: r < 0.45 ? 'swingingStrike' : r < 0.7 ? 'foul' : 'inPlay', hit: -0.12 + read, power: -2 }
         }
       }
     }
@@ -670,6 +752,46 @@ export class Game {
       default:
         return r < 0.5 ? { meter, inZone: false, swing: false, result: 'ball' } : { meter, inZone: true, swing: true, result: 'inPlay', hit: 0.15, power: 2 }
     }
+  }
+
+  /**
+   * 配球：手勢畫得準、投在角落、打中打者的弱點、換球種，都讓打者更難打；
+   * 投在正中間、投進打者的熱區、同一個打席連投同一種球，就容易被打。
+   * 手勢畫歪是失投：投在角落多半變壞球，投在中間多半變甜球
+   */
+  private throwPitch(t: { pitch: PitchType; spot: number; accuracy: number }): PitchMod {
+    const rng = this.rng
+    const meter = this.gradeGesture(t.accuracy)
+    const edge = this.pitchEdge(t.pitch, t.spot, meter === 'perfect')
+    this.lastThrow = t.pitch
+    const base: PitchMod = { meter, pitch: t.pitch, inZone: true, swing: true }
+    const r = rng.next()
+    if (meter === 'miss') {
+      const ballP = t.spot === 4 ? 0.2 : isCorner(t.spot) ? 0.65 : 0.5
+      return r < ballP ? { ...base, inZone: false, swing: false, result: 'ball' } : { ...base, result: 'inPlay', hit: 0.15, power: 2 }
+    }
+    const whiff = clamp(0.12 + edge * 0.45 + PITCH_WHIFF[t.pitch], 0.04, 0.6)
+    if (r < whiff) return { ...base, result: 'swingingStrike' }
+    if (r < whiff + 0.18) return { ...base, result: 'foul' }
+    return { ...base, result: 'inPlay', hit: -edge * 0.35, power: Math.round(-edge * 4) }
+  }
+
+  /** 這一球對投手有多有利（約 -0.5～0.8）；畫面上的配球提示也用這個 */
+  pitchEdge(pitch: PitchType, spot: number, perfect = false): number {
+    const zones = spotZones(spot, stance(this.batter, this.pitcher))
+    let edge = perfect ? 0.5 : 0.25
+    if (spot === 4) edge -= 0.2
+    else if (isCorner(spot)) edge += 0.1
+    if (zones.includes(hotZone(this.batter))) edge -= 0.25
+    if (zones.includes(coldZone(this.batter))) edge += 0.1
+    if (this.lastThrow === pitch) edge -= 0.2
+    if (repertoire(this.pitcher)[1] === pitch) edge += 0.05
+    return edge
+  }
+
+  /** 這個打席上一球親自投的球種 */
+  get previousThrow(): PitchType | null {
+    return this.lastThrow
   }
 
   private pitch(hitAndRun: boolean, mod: PitchMod = {}): GameEvent[] {
@@ -710,12 +832,15 @@ export class Game {
     }
 
     if (result === 'inPlay') {
-      return [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter }, ...this.ballInPlay(hitAndRun, mod)]
+      this.aimAngle = mod.aim ?? null
+      const play = this.ballInPlay(hitAndRun, mod)
+      this.aimAngle = null
+      return [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter, pitch: mod.pitch }, ...play]
     }
     if (result === 'ball') this.balls++
     else if (result === 'foul') this.strikes = Math.min(2, this.strikes + 1)
     else this.strikes++
-    const events: GameEvent[] = [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter }]
+    const events: GameEvent[] = [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter, pitch: mod.pitch }]
 
     if (this.balls === 4) return [...events, ...this.walk('walk')]
     if (this.strikes === 3) {
@@ -821,16 +946,33 @@ export class Game {
     return hitGaps(ALIGNMENT_SPOTS[this.alignment], kind)
   }
 
-  /** 打者傾向的平均擊球角度 */
+  /** 打者傾向的平均擊球角度；親自出棒時改成瞄準的方向 */
   private get pull(): number {
-    return TENDENCY_MEAN[this.batter.tendency]
+    return this.aimAngle ?? TENDENCY_MEAN[this.batter.tendency]
+  }
+
+  /** 擊球角度：平均是 pull，親自瞄準時比較集中 */
+  private direction(sd: number): number {
+    return this.rng.normal(this.pull, this.aimAngle === null ? sd : sd * 0.6)
+  }
+
+  /** 這顆球往哪邊飛：親自瞄準就看瞄準的方向，否則看打者的傾向（佈陣的效果照這個算） */
+  private hitDirection(): Tendency {
+    if (this.aimAngle === null) return this.batter.tendency
+    return this.aimAngle < -10 ? 'left' : this.aimAngle > 10 ? 'right' : 'even'
+  }
+
+  /** 長打往哪一邊：瞄準了就往那邊，否則隨機（一樣抽一次亂數） */
+  private gapSide(): number {
+    const side = this.rng.pick([-1, 1])
+    return this.aimAngle !== null && Math.abs(this.aimAngle) > 10 ? Math.sign(this.aimAngle) : side
   }
 
   private outBall(type: BattedBall['type']): BattedBall {
     const rng = this.rng
-    if (type === 'ground') return this.makeBall(type, clamp(rng.normal(this.pull, 22), -42, 42), rng.range(60, 125))
-    if (type === 'fly') return this.makeBall(type, clamp(rng.normal(this.pull, 25), -43, 43), rng.range(180, 370))
-    return this.makeBall(type, clamp(rng.normal(this.pull, 25), -42, 42), rng.range(90, 260))
+    if (type === 'ground') return this.makeBall(type, clamp(this.direction(22), -42, 42), rng.range(60, 125))
+    if (type === 'fly') return this.makeBall(type, clamp(this.direction(25), -43, 43), rng.range(180, 370))
+    return this.makeBall(type, clamp(this.direction(25), -42, 42), rng.range(90, 260))
   }
 
   /** 守備失誤：打者上壘，跑者至少推進一個壘包；外野失誤推進更多 */
@@ -864,7 +1006,7 @@ export class Game {
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
         move(batter, 0, 4)
         // 一定飛過該方向的全壘打牆；力量越大打得越遠。亂數用量跟以前一樣，舊存檔重播不受影響
-        const angle = clamp(rng.normal(this.pull, 25), -43, 43)
+        const angle = clamp(this.direction(25), -43, 43)
         const distance = fenceDistance(angle) + Math.max(5, 8 + rng.range(0, 60) + (batter.ratings.power - 5) * 5)
         ball = { type: 'fly', angle, distance, fielder: fielderFor('fly', angle, distance) }
         break
@@ -873,14 +1015,14 @@ export class Game {
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
         move(batter, 0, 3)
         // 三壘安打：打穿外野空檔或沿著邊線
-        ball = this.makeBall('line', toGap(rng.pick([-1, 1]) * rng.range(25, 42), this.gaps('outfield')), rng.range(330, 390))
+        ball = this.makeBall('line', toGap(this.gapSide() * rng.range(25, 42), this.gaps('outfield')), rng.range(330, 390))
         break
       case 'double':
         if (b3) move(b3, 3, 4)
         if (b2) move(b2, 2, 4)
         if (b1) move(b1, 1, rng.chance(0.35 + spd(b1) * 0.05 + (hitAndRun ? 0.3 : 0)) ? 4 : 3)
         move(batter, 0, 2)
-        ball = this.makeBall('line', toGap(rng.pick([-1, 1]) * rng.range(12, 40), this.gaps('outfield')), rng.range(260, 360))
+        ball = this.makeBall('line', toGap(this.gapSide() * rng.range(12, 40), this.gaps('outfield')), rng.range(260, 360))
         break
       default: {
         if (b3) move(b3, 3, 4)
@@ -893,8 +1035,8 @@ export class Game {
         const ground = rng.chance(0.5)
         // 滾地安打穿過內野手之間的空檔；平飛安打落在外野手之間的前方
         ball = ground
-          ? this.makeBall('ground', toGap(clamp(rng.normal(this.pull, 25), -40, 40), this.gaps('infield')), rng.range(130, 170))
-          : this.makeBall('line', toGap(clamp(rng.normal(this.pull, 25), -40, 40), this.gaps('shallow')), rng.range(160, 240))
+          ? this.makeBall('ground', toGap(clamp(this.direction(25), -40, 40), this.gaps('infield')), rng.range(130, 170))
+          : this.makeBall('line', toGap(clamp(this.direction(25), -40, 40), this.gaps('shallow')), rng.range(160, 240))
       }
     }
     return this.finishPlay(kind, ball, moves)
@@ -1070,6 +1212,7 @@ export class Game {
     this.strikes = 0
     this.paIndex++
     this.alignment = 'normal'
+    this.lastThrow = null
     if (this.half === 'bottom' && this.inning >= 9 && this.score.home > this.score.away) {
       return [...events, this.endGame('home')]
     }
@@ -1131,6 +1274,14 @@ export class Game {
 }
 
 const HIT_KINDS: readonly PlayKind[] = ['single', 'double', 'triple', 'homeRun']
+
+/** 猜球對計量條黃色區的影響：猜中變寬、猜錯變窄 */
+export const GUESS_ZONE = { right: 1.5, wrong: 0.65 }
+/** 猜中球種時的安打率加成 */
+const GUESS_HIT = 0.05
+
+/** 計量條停在黃色區邊緣時，瞄準的擊球角度（度） */
+const AIM_ANGLE = 28
 
 /** 原本會出局的球，被判失誤的機率（真實棒球每隊每場約 0.5 次失誤） */
 const ERROR_RATE: Record<BattedBall['type'], number> = { ground: 0.045, fly: 0.015, line: 0.01 }

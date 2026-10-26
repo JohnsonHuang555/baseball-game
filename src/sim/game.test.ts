@@ -397,10 +397,10 @@ describe('投手疲勞', () => {
 })
 
 describe('親自出手（計量條）', () => {
-  /** 推進到某一方進攻、打席剛開始、而且是關鍵時刻 */
+  /** 推進到玩家可以親自出手、打席剛開始的時候；決勝球是規則 4 以前的玩法 */
   function findTakeOver(kind: 'swing' | 'aimPitch', from = 1): Game {
     for (let seed = from; seed < from + 400; seed++) {
-      const g = new Game(setup(seed))
+      const g = new Game({ ...setup(seed), rules: kind === 'aimPitch' ? 4 : undefined })
       while (!g.over) {
         if (g.balls + g.strikes === 0 && g.takeOver() === kind) return g
         g.step()
@@ -428,9 +428,11 @@ describe('親自出手（計量條）', () => {
 
   it('任何時候都能用，每一球都可以；同一球不能出手兩次；進攻是出棒、守備是決勝球', () => {
     // 比賽剛開始、不是關鍵時刻，主隊守備也能投決勝球
-    const start = new Game(setup(1))
+    const start = new Game({ ...setup(1), rules: 4 })
     expect(start.isCrunchTime()).toBe(false)
     expect(start.takeOver()).toBe('aimPitch')
+    // 規則 5 起，守備時改成配球
+    expect(new Game(setup(1)).takeOver()).toBe('throw')
     // 打席中途（已經有球數）也可以
     while (start.balls + start.strikes === 0) start.step()
     if (!start.over && start.paIndex === 0) expect(start.takeOver()).not.toBeNull()

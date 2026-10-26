@@ -1,10 +1,12 @@
 // 決策面板：標題緞帶、局勢條、打者對投手、重點調度、其他指令格、詳細資訊
-import { ALIGNMENTS, sameTactic, type Alignment, type Game, type Side, type Tactic } from '../sim/game'
+import { ALIGNMENTS, sameTactic, type Alignment, type Game, type Side, type Tactic, type TakeOverKind } from '../sim/game'
+import { repertoire } from '../sim/pitches'
 import type { Batter, Player } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { gradeBadge } from './grades'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { zoneWidthLabel } from './meter'
+import { gestureWidthLabel } from './pitchCall'
 import { el } from './playerCard'
 import { POSITION_FULL, RATING_FULL, T, runnersText } from './strings'
 import { handChip, tendencyChip } from './visual'
@@ -22,7 +24,7 @@ export interface PanelState {
 export interface PanelHandlers {
   choose(t: Tactic): void
   /** 親自出手：打開計量條 */
-  takeOver(kind: 'swing' | 'aimPitch'): void
+  takeOver(kind: TakeOverKind): void
   handOver(): void
   rerender(): void
 }
@@ -193,6 +195,7 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
       }
       case 'swing':
       case 'aimPitch':
+      case 'throw':
         throw new Error('親自出手不用選項卡')
       case 'defensiveSub': {
         const spot = fieldTeam.lineup[t.lineupIndex]
@@ -304,25 +307,36 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     return btn
   }
 
-  /** 親自出手卡：放在推薦指令上面，顯示這次黃色區有多寬 */
-  function takeOverCard(kind: 'swing' | 'aimPitch'): HTMLElement {
-    const zone = game.meterZone(kind)
+  /** 親自出手卡：放在推薦指令上面，顯示這次黃色區有多寬（配球則列出投手的球種） */
+  function takeOverCard(kind: TakeOverKind): HTMLElement {
     const btn = el('button', `takeover-card ${kind}`)
     btn.type = 'button'
     const icon = el('span', 'takeover-icon')
-    icon.innerHTML = TAKEOVER_ICONS[kind]
+    icon.innerHTML = TAKEOVER_ICONS[kind === 'throw' ? 'aimPitch' : kind]
     const body = el('span', 'takeover-body')
-    const preview = el('span', 'takeover-preview')
-    const band = el('span', 'takeover-band')
-    band.style.left = `${(zone.center - zone.good) * 100}%`
-    band.style.width = `${zone.good * 200}%`
-    preview.append(band)
-    body.append(
-      el('span', 'takeover-title', T.takeOverNames[kind]),
-      el('span', 'takeover-sub', T.takeOverSub[kind]),
-      preview,
-      el('span', 'takeover-zone', T.takeOverZone(kind, zoneWidthLabel(zone))),
-    )
+    if (kind === 'throw') {
+      const chips = el('span', 'takeover-pitches')
+      for (const p of repertoire(game.pitcher)) chips.append(el('span', 'takeover-pitch', T.pitchNames[p]))
+      body.append(
+        el('span', 'takeover-title', T.takeOverNames.throw),
+        el('span', 'takeover-sub', T.takeOverSub.throw),
+        chips,
+        el('span', 'takeover-zone', T.takeOverZone(kind, gestureWidthLabel(game))),
+      )
+    } else {
+      const zone = game.meterZone(kind)
+      const preview = el('span', 'takeover-preview')
+      const band = el('span', 'takeover-band')
+      band.style.left = `${(zone.center - zone.good) * 100}%`
+      band.style.width = `${zone.good * 200}%`
+      preview.append(band)
+      body.append(
+        el('span', 'takeover-title', T.takeOverNames[kind]),
+        el('span', 'takeover-sub', kind === 'swing' && game.pitchMix ? T.takeOverSubMix : T.takeOverSub[kind]),
+        preview,
+        el('span', 'takeover-zone', T.takeOverZone(kind, zoneWidthLabel(zone))),
+      )
+    }
     btn.append(icon, body, kbd('ENTER'))
     btn.onclick = () => h.takeOver(kind)
     keys.Enter = () => h.takeOver(kind)

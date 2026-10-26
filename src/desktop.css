@@ -1877,3 +1877,28 @@ button .kbd {
     padding: 4px 10px 4px 12px;
   }
 }
+
+/* 配球對決：電腦版球場比較大，九宮格和手勢板跟著放大 */
+@media (min-width: 1024px) {
+  .pitch-call,
+  .pitch-draw {
+    width: 420px;
+    padding: 14px 16px 16px;
+    gap: 8px;
+  }
+  .pc-zone {
+    grid-template-columns: repeat(3, 54px);
+    grid-template-rows: repeat(3, 46px);
+  }
+  .pc-pitch {
+    min-height: 38px;
+    font-size: 14px;
+  }
+  .pc-pad,
+  .pc-time {
+    width: 220px;
+  }
+  .guess-box {
+    width: 360px;
+  }
+}

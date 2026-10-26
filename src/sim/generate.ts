@@ -80,7 +80,7 @@ function tendencyFor(id: string): Tendency {
   return r < 3 ? 'left' : r < 6 ? 'right' : 'even'
 }
 
-function hashOf(text: string): number {
+export function hashOf(text: string): number {
   let h = 0
   for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0
   return Math.abs(h)
