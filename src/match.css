@@ -441,21 +441,31 @@
 .meter-track {
   position: relative;
   flex: 1;
-  width: 30px;
+  width: 36px;
   border-radius: 15px;
   border: 3px solid var(--ink);
   background: #3a3e6e;
   box-shadow: 0 4px 0 var(--ink);
   overflow: hidden;
 }
-.meter-fill {
+/* 來回掃的紅線：白邊加紅光，在任何底色上都看得清楚 */
+.meter-line {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 0;
-  background: #fff;
-  border-top: 3px solid var(--ink);
+  z-index: 2;
+  height: 4px;
+  margin-bottom: -2px;
+  background: #ff2d46;
+  box-shadow:
+    0 0 0 1.5px #fff,
+    0 0 10px 2px rgba(255, 45, 70, 0.85);
+  pointer-events: none;
+}
+.meter-layer.released .meter-line {
+  height: 6px;
+  margin-bottom: -3px;
 }
 .meter-good,
 .meter-perfect {
@@ -472,11 +482,6 @@
 .meter-perfect {
   background: #c6f432;
 }
-.meter-layer.charging .meter-track {
-  box-shadow:
-    0 4px 0 var(--ink),
-    0 0 18px rgba(255, 210, 63, 0.8);
-}
 .meter-hint {
   position: absolute;
   left: 50%;
@@ -492,9 +497,6 @@
   font-size: 14px;
   font-weight: 900;
   white-space: nowrap;
-}
-.meter-layer.charging .meter-hint {
-  opacity: 0.6;
 }
 .meter-grade {
   font-size: 22px;

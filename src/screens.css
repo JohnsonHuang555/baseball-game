@@ -957,3 +957,28 @@
   border-radius: 16px;
   font-size: 20px;
 }
+
+/* ---- 錦標賽：球員骰子 ---- */
+.dice-chip {
+  align-self: center;
+  padding: 2px 12px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.dice-chip.empty {
+  background: #fff;
+  color: var(--ink-soft);
+}
+.growth-dice {
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  background: #fff1b8;
+  font-size: 12px;
+  font-weight: 900;
+}

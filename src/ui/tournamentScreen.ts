@@ -2,6 +2,7 @@ import { replay } from '../sim/game'
 import { cardTier, teamAverage } from '../sim/generate'
 import { getSlot, type Slot } from '../sim/setup'
 import {
+  FINAL_WINS_NEEDED,
   ROUNDS,
   beginGame,
   bracket,
@@ -11,7 +12,7 @@ import {
   saveProgress,
   skipDraft,
   startTournament,
-  updateRoster,
+  updateLineup,
   updateSetup,
   type Tournament,
 } from '../sim/tournament'
@@ -79,7 +80,13 @@ function playCurrentGame(root: HTMLElement, t: Tournament, go: (t: Tournament) =
       saveTournament(t)
     },
     // 成長名單：結果畫面顯示，按繼續時套用到陣容
-    resultExtra: (g) => growthPanel(g, 'home', gameGrowth(g, 'home')),
+    resultExtra: (g) => {
+      const box = growthPanel(g, 'home', gameGrowth(g, 'home'))
+      // 贏球得到球員骰子；奪冠那一場就不用提了
+      const clinched = currentRound(t) === 'final' && t.series.user + 1 >= FINAL_WINS_NEEDED
+      if (g.winner === 'home' && !clinched) box.append(el('p', 'growth-dice', T.diceEarned))
+      return box
+    },
     resultActions: (g) => [{ label: T.continue, primary: true, onClick: () => go(finishGame(t, g.score, gameGrowth(g, 'home'))) }],
   })
 }
@@ -193,15 +200,19 @@ function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, 
         opponent: () => t.opponent,
         heading: gameSubtitle(t),
         allowReroll: false,
+        // 贏球得到的球員骰子可以在這裡用
+        allowPlayerReroll: true,
         startLabel: T.startGame,
         onChange: (setup) => {
-          t = updateRoster(t, setup.team.roster)
+          t = updateLineup(t, setup)
           saveTournament(t)
         },
-        onStart: (setup) => go(beginGame(updateRoster(t, setup.team.roster))),
+        onStart: (setup) => go(beginGame(updateLineup(t, setup))),
         onBack: () => go(t),
       })
-    bottom.append(vs, next)
+    const dice = el('span', `dice-chip ${t.setup.playerRerollsLeft > 0 ? '' : 'empty'}`, T.diceChip(t.setup.playerRerollsLeft))
+    dice.title = T.lineupDiceHint(t.setup.playerRerollsLeft)
+    bottom.append(vs, dice, next)
   }
   screen.append(bottom)
   root.append(screen)

@@ -17,6 +17,7 @@ import { growthPanel } from './ui/growthPanel'
 import { gradeBadge, overallBadge } from './ui/grades'
 import { setKeys } from './ui/keys'
 import { soundToggle } from './ui/sound'
+import { confirmModal } from './ui/modal'
 import { maybeTutorial, resetTutorials } from './ui/tutorial'
 import { TUTORIAL_STEPS } from './ui/tutorialSteps'
 import { toast } from './ui/visual'
@@ -88,8 +89,8 @@ function showTitle(): void {
   const quick = el('button', saved ? 'btn-white btn-big' : 'btn-yellow btn-big', T.quickMatch)
   quick.onclick = startQuickMatch
   const fresh = el('button', saved ? 'btn-outline-light' : 'btn-white btn-big', saved ? T.newTournament : T.tournament)
-  fresh.onclick = () => {
-    if (saved && !window.confirm(T.confirmOverwrite)) return
+  fresh.onclick = async () => {
+    if (saved && !(await confirmModal({ title: T.newTournament, message: T.confirmOverwrite, confirmLabel: T.overwriteConfirm, danger: true }))) return
     const t = createTournament(randomSeed())
     openTournament(root, updateSetup(t, withSavedName(t.setup)), showTitle)
   }

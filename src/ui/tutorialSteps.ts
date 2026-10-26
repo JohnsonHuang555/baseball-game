@@ -73,7 +73,7 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
       target: '.takeover-card',
       optional: true,
       title: '親自出手',
-      text: '點這裡後，按住計量條蓄力、放開出手，停在黃色區就是好時機。球員能力越好、投手體力越多，黃色區越寬。',
+      text: '點這裡後會出現計量條，紅線會上下來回掃，來到黃色區時點一下（或按 Space）就是好時機。球員能力越好、投手體力越多，黃色區越寬。',
     },
     {
       target: '.decision-panel .option-card',

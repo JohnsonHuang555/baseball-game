@@ -29,8 +29,10 @@ export interface RosterEditorOptions {
   opponent: () => Team
   /** 標題上方的小字，例如「我的球隊」或「錦標賽・八強」 */
   heading: string
-  /** 開打前可以重骰和改隊名；比賽之間只能調整陣容 */
+  /** 開打前可以整隊重骰和改隊名；比賽之間只能調整陣容 */
   allowReroll: boolean
+  /** 能不能重骰單一球員（錦標賽中用贏球得到的球員骰子）；沒給就跟 allowReroll 一樣 */
+  allowPlayerReroll?: boolean
   startLabel: string
   onChange?: (setup: PregameSetup) => void
   onStart: (setup: PregameSetup) => void
@@ -101,6 +103,7 @@ function sameSlot(a: Slot | null, b: Slot): boolean {
 export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): void {
   let setup = opts.setup
   const { allowReroll } = opts
+  const allowPlayerReroll = opts.allowPlayerReroll ?? allowReroll
   /** 正在選交換對象時，記住第一個人 */
   let swapFrom: Slot | null = null
   let revealed: Slot[] | 'all' = 'all'
@@ -200,7 +203,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
       }
       sub.append(random)
     } else {
-      sub.append(el('span', 'lineup-hint', T.lineupOnlyHint))
+      sub.append(el('span', 'lineup-hint', allowPlayerReroll ? T.lineupDiceHint(setup.playerRerollsLeft) : T.lineupOnlyHint))
     }
     const opponent = opts.opponent()
     const vs = el('div', 'vs-pill')
@@ -488,7 +491,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     swap.onclick = startSwap
     row.append(swap)
     let rerollThis: (() => void) | null = null
-    if (allowReroll) {
+    if (allowPlayerReroll) {
       const reroll = el('button', 'btn-indigo', T.rerollPlayer)
       reroll.append(el('span', 'count-pill', String(setup.playerRerollsLeft)), kbd('R'))
       reroll.disabled = setup.playerRerollsLeft <= 0

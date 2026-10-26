@@ -190,29 +190,6 @@ export function play(name: SoundName): void {
   }
 }
 
-/** 計量條蓄力時的上升音，回傳停止函式 */
-export function chargeTone(durationMs: number): () => void {
-  const c = audio()
-  if (!c) return () => {}
-  const t = c.currentTime
-  const o = c.createOscillator()
-  o.type = 'triangle'
-  o.frequency.setValueAtTime(260, t)
-  o.frequency.exponentialRampToValueAtTime(1100, t + durationMs / 1000)
-  const g = c.createGain()
-  g.gain.setValueAtTime(0.0001, t)
-  g.gain.exponentialRampToValueAtTime(0.12, t + 0.05)
-  o.connect(g)
-  g.connect(master!)
-  o.start(t)
-  return () => {
-    const now = c.currentTime
-    g.gain.cancelScheduledValues(now)
-    g.gain.setValueAtTime(g.gain.value, now)
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.05)
-    o.stop(now + 0.08)
-  }
-}
 
 /** 音效開關按鈕（喇叭圖示加鍵帽 M），點一下切換並記在瀏覽器 */
 export function soundToggle(className = 'sound-btn'): HTMLButtonElement {

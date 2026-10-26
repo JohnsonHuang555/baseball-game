@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { RULES_VERSION } from './game'
 import { teamAverage } from './generate'
-import { rerollTeam, swapSlots } from './setup'
+import { rerollPlayer, rerollTeam, swapSlots } from './setup'
 import {
   ROUNDS,
   beginGame,
@@ -12,6 +12,7 @@ import {
   saveProgress,
   skipDraft,
   startTournament,
+  updateLineup,
   updateRoster,
   updateSetup,
   type Tournament,
@@ -205,5 +206,29 @@ describe('錦標賽成長', () => {
     const batter = t.setup.team.roster.lineup[2].player
     const after = finishGame(t, WIN, [{ playerId: batter.id, rating: 'power', amount: 1, mvp: true }])
     expect(after.setup.team.roster.lineup[2].player.ratings.power).toBe(Math.min(10, batter.ratings.power + 1))
+  })
+})
+
+describe('錦標賽中的球員骰子', () => {
+  it('開打時沒用完的重骰作廢；每贏一場多一顆，輸球不會多', () => {
+    let t = startTournament(createTournament(8))
+    expect(t.setup.playerRerollsLeft).toBe(0)
+    t = play(t, WIN)
+    expect(t.setup.playerRerollsLeft).toBe(1)
+    t = skipDraft(t)
+    t = play(t, WIN)
+    expect(t.setup.playerRerollsLeft).toBe(2)
+  })
+
+  it('沒用完會累積；在兩場之間用掉會換人並扣一顆', () => {
+    let t = skipDraft(play(startTournament(createTournament(9)), WIN))
+    const before = t.setup.team.roster.lineup[0].player
+    const rerolled = rerollPlayer(t.setup, { kind: 'lineup', index: 0 })
+    t = updateLineup(t, rerolled)
+    expect(t.setup.playerRerollsLeft).toBe(0)
+    expect(t.setup.team.roster.lineup[0].player.id).not.toBe(before.id)
+    // 沒骰子就不能再骰；也不能憑空變出骰子
+    expect(rerollPlayer(t.setup, { kind: 'lineup', index: 1 }).playerRerollsLeft).toBe(0)
+    expect(() => updateLineup(t, { ...t.setup, playerRerollsLeft: 5 })).toThrow()
   })
 })

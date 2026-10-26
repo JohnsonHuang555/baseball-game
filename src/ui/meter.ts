@@ -1,19 +1,27 @@
-// 計量條：按住蓄力、放開出手，停在黃色區就是好的時機（類似 2K 的投籃條）
+// 計量條：一條紅線由下往上、到頂再往下來回掃，玩家點一下就停住，停在黃色區就是好的時機
 import { gradeTiming, type MeterGrade, type MeterZone } from '../sim/game'
 import { kbd, setKeys } from './keys'
 import { el } from './playerCard'
-import { chargeTone, play } from './sound'
+import { play } from './sound'
 import { T } from './strings'
 
-/** 從空到滿的時間（毫秒），不受比賽速度影響 */
-const FILL_MS = 1000
-/** 放開後顯示判定的時間 */
+/** 紅線從底到頂（或從頂到底）一趟的時間（毫秒），不受比賽速度影響 */
+const SWEEP_MS = 900
+/** 剛打開時先擋掉輸入，避免叫出計量條的那一下被當成出手 */
+const ARM_MS = 250
+/** 停下後顯示判定的時間 */
 const GRADE_MS = 900
 
 export interface MeterResult {
   /** 停下的位置，取到小數第三位，記進指令紀錄 */
   timing: number
   grade: MeterGrade
+}
+
+/** 來回掃的位置：0 在底、1 在頂 */
+function sweep(elapsed: number): number {
+  const phase = (elapsed / SWEEP_MS) % 2
+  return phase <= 1 ? phase : 2 - phase
 }
 
 /** 在 host（球場）上蓋一層計量條，等玩家出手後回傳結果 */
@@ -30,8 +38,8 @@ export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: Me
     const perfect = el('span', 'meter-perfect')
     perfect.style.bottom = `${(zone.center - zone.perfect) * 100}%`
     perfect.style.height = `${zone.perfect * 200}%`
-    const fill = el('span', 'meter-fill')
-    track.append(fill, good, perfect)
+    const line = el('span', 'meter-line')
+    track.append(good, perfect, line)
     meter.append(el('span', 'meter-title', T.takeOverNames[kind]), track)
     const hint = el('div', 'meter-hint')
     hint.append(T.meterHint, kbd('SPACE'))
@@ -39,35 +47,27 @@ export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: Me
     host.append(layer)
 
     const previousKeys = setKeys({})
-    let start = 0
+    const start = performance.now()
     let value = 0
     let frame = 0
     let done = false
-    let stopTone = () => {}
 
     const tick = (now: number) => {
-      value = Math.min(1, (now - start) / FILL_MS)
-      fill.style.height = `${value * 100}%`
-      if (value >= 1) release()
-      else frame = requestAnimationFrame(tick)
-    }
-    const press = () => {
-      if (start || done) return
-      start = performance.now()
-      layer.classList.add('charging')
-      stopTone = chargeTone(FILL_MS)
+      value = sweep(now - start)
+      line.style.bottom = `${value * 100}%`
       frame = requestAnimationFrame(tick)
     }
-    const release = () => {
-      if (!start || done) return
+    frame = requestAnimationFrame(tick)
+
+    const stop = () => {
+      if (done || performance.now() - start < ARM_MS) return
       done = true
       cancelAnimationFrame(frame)
       cleanup()
-      stopTone()
+      value = sweep(performance.now() - start)
       const timing = Math.round(value * 1000) / 1000
       const grade = gradeTiming(zone, timing)
-      fill.style.height = `${timing * 100}%`
-      layer.classList.remove('charging')
+      line.style.bottom = `${timing * 100}%`
       layer.classList.add('released')
       hint.replaceChildren(el('span', `meter-grade ${grade}`, T.meterGrades[grade]))
       play(grade === 'perfect' ? 'perfect' : grade === 'good' ? 'good' : 'miss')
@@ -79,27 +79,17 @@ export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: Me
     }
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== ' ') return
+      if (e.key !== ' ' && e.key !== 'Enter') return
       e.preventDefault()
-      if (!e.repeat) press()
-    }
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key !== ' ') return
-      e.preventDefault()
-      release()
+      if (!e.repeat) stop()
     }
     layer.addEventListener('pointerdown', (e) => {
       e.preventDefault()
-      layer.setPointerCapture(e.pointerId)
-      press()
+      stop()
     })
-    layer.addEventListener('pointerup', release)
-    layer.addEventListener('pointercancel', release)
     document.addEventListener('keydown', onKeyDown)
-    document.addEventListener('keyup', onKeyUp)
     function cleanup(): void {
       document.removeEventListener('keydown', onKeyDown)
-      document.removeEventListener('keyup', onKeyUp)
     }
   })
 }

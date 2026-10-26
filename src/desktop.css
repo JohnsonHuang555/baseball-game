@@ -1025,7 +1025,7 @@ button .kbd {
   }
   .speed-toggle {
     flex: none;
-    grid-template-columns: repeat(3, 52px);
+    grid-template-columns: repeat(3, 60px);
     height: 46px;
     border-width: 3px;
   }
@@ -1851,5 +1851,12 @@ button .kbd {
   }
   .result-inner .growth-row {
     padding: 10px 18px;
+  }
+}
+
+@media (min-width: 1024px) {
+  /* 下一場面板：對戰、球員骰子、開賽按鈕一列 */
+  .hub-bottom {
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 }

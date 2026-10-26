@@ -133,9 +133,26 @@ export function updateRoster(t: Tournament, roster: Roster): Tournament {
   return { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster } } }
 }
 
+/**
+ * 錦標賽中兩場之間：調整陣容，也可以用贏球得到的球員骰子重骰。
+ * 隊名與整隊重骰不能改，只接受陣容、剩下的球員骰子數與亂數狀態
+ */
+export function updateLineup(t: Tournament, setup: PregameSetup): Tournament {
+  expectPhase(t, 'ready')
+  if (setup.playerRerollsLeft > t.setup.playerRerollsLeft) throw new Error('球員骰子不會變多')
+  return {
+    ...t,
+    setup: { ...t.setup, team: { ...t.setup.team, roster: setup.team.roster }, playerRerollsLeft: setup.playerRerollsLeft, rngState: setup.rngState },
+  }
+}
+
+/** 每贏一場得到的球員骰子 */
+export const DICE_PER_WIN = 1
+
+/** 開打：開打前沒用完的重骰作廢，之後的球員骰子只能靠贏球得到 */
 export function startTournament(t: Tournament): Tournament {
   expectPhase(t, 'pregame')
-  return { ...t, phase: 'ready' }
+  return { ...t, phase: 'ready', setup: { ...t.setup, teamRerollsLeft: 0, playerRerollsLeft: 0 } }
 }
 
 export function beginGame(t: Tournament): Tournament {
@@ -164,7 +181,9 @@ export function finishGame(t: Tournament, score: { home: number; away: number },
   const won = score.home > score.away
   const history = [...t.history, { round, userRuns: score.home, opponentRuns: score.away, won }]
   const team = { ...t.setup.team, roster: applyGrowth(t.setup.team.roster, growth) }
-  const base = { ...t, setup: { ...t.setup, team }, history, currentGame: null }
+  // 贏球多一顆球員骰子，沒用完會累積到之後的比賽
+  const playerRerollsLeft = t.setup.playerRerollsLeft + (won ? DICE_PER_WIN : 0)
+  const base = { ...t, setup: { ...t.setup, team, playerRerollsLeft }, history, currentGame: null }
   if (round === 'final') {
     const series = { user: t.series.user + (won ? 1 : 0), opponent: t.series.opponent + (won ? 0 : 1) }
     if (series.user >= FINAL_WINS_NEEDED) return { ...base, series, phase: 'champion' }

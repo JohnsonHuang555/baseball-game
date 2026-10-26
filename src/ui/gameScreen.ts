@@ -36,6 +36,9 @@ export interface GameScreenOptions {
 }
 
 const HIT_KINDS = new Set(['single', 'double', 'triple'])
+/** 比賽速度選項：0.75x 給想看清楚每一球的人，2x 給想快點打完的人 */
+const SPEEDS = [0.75, 1, 2]
+
 const OUT_KINDS = new Set(['groundOut', 'doublePlay', 'flyOut', 'sacrificeFly', 'lineOut', 'buntPopOut', 'sacrificeBunt'])
 
 
@@ -104,9 +107,9 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   speedGroup.setAttribute('aria-label', '速度')
   const setSpeed = (s: number) => {
     speed = s
-    speedBtns.forEach((x, i) => x.setAttribute('aria-pressed', String([1, 2, 4][i] === s)))
+    speedBtns.forEach((x, i) => x.setAttribute('aria-pressed', String(SPEEDS[i] === s)))
   }
-  const speedBtns = [1, 2, 4].map((s) => {
+  const speedBtns = SPEEDS.map((s) => {
     const b = el('button', '', `${s}x`)
     b.setAttribute('aria-pressed', String(s === speed))
     b.onclick = () => setSpeed(s)
@@ -152,10 +155,9 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   screen.append(top, aside, center, sheet)
   root.append(screen)
 
-  const speeds = [1, 2, 4]
   const gameKeys: KeyMap = {
     Space: requestPause,
-    s: () => setSpeed(speeds[(speeds.indexOf(speed) + 1) % speeds.length]),
+    s: () => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]),
     h: cyclePrompt,
     m: () => soundBtn.click(),
   }
