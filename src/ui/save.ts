@@ -7,7 +7,11 @@ const KEY = 'dice-baseball.tournament.v1'
 export function loadTournament(): Tournament | null {
   try {
     const raw = localStorage.getItem(KEY)
-    return raw ? (addMissingFielding(JSON.parse(raw)) as Tournament) : null
+    if (!raw) return null
+    const t = addMissingFielding(JSON.parse(raw)) as Tournament
+    // 打到一半的比賽是舊規則存的，就照舊規則重播，結果才會一樣
+    if (t.currentGame && t.currentGame.setup.rules === undefined) t.currentGame.setup.rules = 1
+    return t
   } catch {
     return null
   }

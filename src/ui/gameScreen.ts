@@ -180,10 +180,12 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     field.battingColor = userFielding ? CPU_COLOR : USER_COLOR
     field.fieldingStroke = userFielding ? '#FFFFFF' : '#141633'
     field.battingStroke = userFielding ? '#141633' : '#FFFFFF'
-    // 打席結束佈陣恢復標準，野手回到原位
+    // 佈陣變了（打席結束恢復標準、AI 換佈陣）：野手跑到新位置；AI 佈陣時記一筆
     if (field.alignment !== game.alignment) {
-      field.alignment = game.alignment
-      field.resetFielders()
+      if (!game.over && game.battingSide === userSide && game.alignment !== 'normal') {
+        addLog(T.enemyAligned(T.alignmentNames[game.alignment]))
+      }
+      void field.align(game.alignment, 450)
     }
     field.sync(
       game.bases.map((b) => b?.id ?? null),
@@ -226,8 +228,12 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
 
     // 球場左上角：我方現在是進攻還是守備
     sideBanner.className = `field-side ${game.battingSide === userSide ? 'batting' : 'fielding'}`
-    const shifted = game.fieldingSide === userSide && game.alignment !== 'normal' ? ` · ${T.alignmentNames[game.alignment]}` : ''
-    sideBanner.textContent = game.over ? '' : game.battingSide === userSide ? T.weAreBatting : T.weAreFielding + shifted
+    const aligned = game.alignment === 'normal' ? '' : T.alignmentNames[game.alignment]
+    sideBanner.textContent = game.over
+      ? ''
+      : game.battingSide === userSide
+        ? T.weAreBatting + (aligned ? T.vsEnemyAlignment(aligned) : '')
+        : T.weAreFielding + (aligned ? ` · ${aligned}` : '')
     sideBanner.hidden = game.over
 
     matchup.replaceChildren()

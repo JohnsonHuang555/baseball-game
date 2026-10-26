@@ -180,7 +180,12 @@ export interface GameSetup {
   away: Team
   seed: number
   userSide: Side
+  /** 規則版本：沒給就是最新版。舊存檔標成 1，照舊規則重播（AI 不佈陣） */
+  rules?: number
 }
+
+/** 目前的規則版本。2：AI 守備時會佈陣 */
+export const RULES_VERSION = 2
 
 /** 教練指令紀錄：在第 stepIndex 步之前下達。種子加上這份紀錄就能重現整場比賽。 */
 export interface Command {
@@ -232,12 +237,38 @@ export class Game {
   private takeOverPa = -1
   readonly commands: Command[] = []
   private readonly rng: Rng
+  /** AI 守備時會不會佈陣（規則版本 2 起） */
+  private readonly aiAligns: boolean
   private readonly players = new Map<string, Player>()
 
   constructor(setup: GameSetup) {
     this.userSide = setup.userSide
     this.rng = new Rng(setup.seed)
     this.teams = { home: this.teamState(setup.home), away: this.teamState(setup.away) }
+    this.aiAligns = (setup.rules ?? RULES_VERSION) >= 2
+    this.prepareAtBat()
+  }
+
+  /** 打席開始：AI 守備時決定佈陣，讓玩家下指令前就看得到 */
+  private prepareAtBat(): void {
+    if (this.over || !this.aiAligns || this.fieldingSide === this.userSide) return
+    this.alignment = this.aiAlignment()
+  }
+
+  /**
+   * AI 的佈陣規則（不抽亂數）：
+   * 後段一分都不能給、三壘有人就內野前進；後段小幅領先、面對強力打者就外野後退；
+   * 打者有明顯擊球方向而且夠強，就往那邊移
+   */
+  private aiAlignment(): Alignment {
+    const b = this.batter
+    const lead = this.score[this.fieldingSide] - this.score[this.battingSide]
+    if (this.bases[2] && this.outs < 2 && this.inning >= 7 && lead >= 0 && lead <= 1) return 'infieldIn'
+    if (this.inning >= 8 && lead >= 1 && lead <= 2 && !this.bases[1] && !this.bases[2] && b.ratings.power >= 7) return 'outfieldBack'
+    const threat = b.ratings.contact + b.ratings.power >= 11
+    if (threat && b.tendency === 'left') return 'shiftLeft'
+    if (threat && b.tendency === 'right') return 'shiftRight'
+    return 'normal'
   }
 
   private teamState(team: Team): TeamState {
@@ -330,7 +361,9 @@ export class Game {
   /** 犧牲觸擊成功率 */
   buntChance(): number {
     const b = this.batter
-    return clamp(0.65 + (hasTrait(b, 'bunter') ? 0.2 : 0) + (b.ratings.contact - 5) * 0.02, 0.3, 0.95)
+    // 偏移佈陣讓另一側空出來，觸擊比較容易成功；內野前進則正好相反
+    const vsAlignment = this.alignment === 'shiftLeft' || this.alignment === 'shiftRight' ? 0.1 : this.alignment === 'infieldIn' ? -0.15 : 0
+    return clamp(0.65 + (hasTrait(b, 'bunter') ? 0.2 : 0) + (b.ratings.contact - 5) * 0.02 + vsAlignment, 0.3, 0.95)
   }
 
   /** 第 7 局以後、比分差 1 分以內、得點圈有人：真正能左右勝負的時刻 */
@@ -466,6 +499,8 @@ export class Game {
         const spot = team.lineup[team.battingIndex]
         const out = spot.player
         spot.player = team.bench.splice(tactic.benchIndex, 1)[0]
+        // 換了打者，AI 重新判斷佈陣
+        if (this.balls + this.strikes === 0) this.prepareAtBat()
         return [{ type: 'substitution', side: this.battingSide, kind: 'pinchHit', inId: spot.player.id, outId: out.id }]
       }
       case 'pinchRun': {
@@ -883,6 +918,7 @@ export class Game {
     this.applyMoves(moves)
     const events: GameEvent[] = [{ type: 'steal', runnerId: runner.id, from, success, moves }]
     if (this.outs >= 3) events.push(...this.endHalfInning())
+    this.prepareAtBat()
     return events
   }
 
@@ -928,6 +964,7 @@ export class Game {
       return [...events, this.endGame('home')]
     }
     if (this.outs >= 3) events.push(...this.endHalfInning())
+    this.prepareAtBat()
     return events
   }
 
@@ -997,12 +1034,13 @@ function hitGaps(spots: Spots, kind: 'infield' | 'outfield' | 'shallow'): number
     const sorted = [...angles].sort((a, b) => a - b)
     return sorted.slice(1).flatMap((a, i) => (a - sorted[i] >= minWidth ? [(a + sorted[i]) / 2] : []))
   }
-  if (kind === 'infield') return [-44, ...between(infield, 0), 44]
+  // 空檔離最近的相關野手至少 minGap 度才算數（偏移佈陣時，靠近野手那側的邊線就不是空檔）
+  const clear = (fielders: number[], minGap: number) => (a: number) => Math.min(...fielders.map((o) => Math.abs(o - a))) >= minGap
+  if (kind === 'infield') return [-44, ...between(infield, 0), 44].filter(clear(infield, 6))
   const everyone = [...infield, ...outfield]
   // 長打：所有人之間的縫，但離外野手至少 7 度，才看得出是打穿外野
-  const awayFromOutfield = (a: number) => Math.min(...outfield.map((o) => Math.abs(o - a))) >= 7
-  if (kind === 'outfield') return [-41, ...between(everyone, 0).filter(awayFromOutfield), 41]
-  return [-44.5, ...between(everyone, 12), 44.5]
+  if (kind === 'outfield') return [-41, ...between(everyone, 0), 41].filter(clear(outfield, 7))
+  return [-44.5, ...between(everyone, 12), 44.5].filter(clear(everyone, 6))
 }
 
 /** 偏移佈陣時，由站位最近的野手處理擊球 */

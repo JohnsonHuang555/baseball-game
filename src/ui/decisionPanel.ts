@@ -118,7 +118,11 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
         const out = game.batter
         return {
           tactic: t, tag: T.tagPinchHit, sub: T.replaces(out.name), main: p.name, who: p, team: teamOf(game.battingSide),
-          diffs: [compare(RATING_FULL.contact, out.ratings.contact, p.ratings.contact), compare(RATING_FULL.power, out.ratings.power, p.ratings.power)],
+          diffs: [
+            compare(RATING_FULL.contact, out.ratings.contact, p.ratings.contact),
+            compare(RATING_FULL.power, out.ratings.power, p.ratings.power),
+            ...(out.tendency !== p.tendency ? [textDiff(T.tendencyLabel, tendencyChip(out.tendency), el('span', 'diff-arrow', '→'), tendencyChip(p.tendency))] : []),
+          ],
         }
       }
       case 'pinchRun': {
@@ -226,8 +230,9 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
           break
         }
       }
-      // 觸擊：無人出局、打者打擊弱，把跑者送上得點圈
-      if (game.outs === 0 && has({ type: 'bunt' }) && !game.bases[2] && batter.ratings.contact <= 5) picks.push({ type: 'bunt' })
+      // 觸擊：無人出局、打者打擊弱，把跑者送上得點圈；對手偏移佈陣時觸擊成功率提高，也值得考慮
+      const shiftedAgainst = (game.alignment === 'shiftLeft' || game.alignment === 'shiftRight') && game.alignmentEffect() < 0
+      if (has({ type: 'bunt' }) && !game.bases[2] && ((game.outs === 0 && batter.ratings.contact <= 5) || shiftedAgainst)) picks.push({ type: 'bunt' })
     } else {
       const team = game.fielding
       // 換投：體力快見底時，提球威加控球最好的後援
@@ -326,6 +331,21 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
       row.append(btn)
     }
     box.append(head, row, el('span', 'alignment-note', T.alignmentNotes[game.alignment]))
+    return box
+  }
+
+  /** 進攻時對手的佈陣：佈什麼陣、對這位打者的影響、可以怎麼應對 */
+  function enemyAlignmentNote(): HTMLElement {
+    const a = game.alignment
+    const pct = Math.round(game.alignmentEffect() * 100)
+    const box = el('section', 'enemy-alignment')
+    const head = el('div', 'enemy-alignment-head')
+    head.append(
+      el('span', 'enemy-alignment-title', T.enemyAlignment(T.alignmentNames[a])),
+      el('span', `alignment-effect ${pct < 0 ? 'bad' : pct > 0 ? 'good' : ''}`, T.enemyAlignmentEffect(pct)),
+    )
+    const tip = a === 'shiftLeft' || a === 'shiftRight' ? T.enemyAlignmentTip.shift : a === 'infieldIn' ? T.enemyAlignmentTip.infieldIn : T.enemyAlignmentTip.outfieldBack
+    box.append(head, el('span', 'alignment-note', tip))
     return box
   }
 
@@ -519,6 +539,7 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     const kind = game.takeOver()
     if (kind) panel.append(takeOverCard(kind))
     if (game.fieldingSide === userSide) panel.append(alignmentBar())
+    else if (game.alignment !== 'normal') panel.append(enemyAlignmentNote())
     const picks = keyTactics()
     if (picks.length) {
       panel.append(el('span', 'section-label', T.keyHeading))

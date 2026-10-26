@@ -141,6 +141,15 @@ export const T = {
   hitChange: (pct: number) => (pct === 0 ? '±0%' : `被安打 ${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`),
   aligned: (name: string) => `守備改成「${name}」，只對這位打者有效`,
   tagAlignment: '佈陣',
+  enemyAligned: (name: string) => `對手改成「${name}」`,
+  enemyAlignment: (name: string) => `對手採取「${name}」`,
+  enemyAlignmentEffect: (pct: number) => `這位打者安打率 ${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`,
+  enemyAlignmentTip: {
+    shift: '可以用觸擊（對偏移佈陣成功率提高），或換上擊球方向不同的代打。換人後對手會重新佈陣',
+    infieldIn: '內野前進：滾地球容易穿過，但三壘跑者遇到滾地球出局時回不來',
+    outfieldBack: '外野後退：長打不容易，一壘安打比較容易',
+  },
+  vsEnemyAlignment: (name: string) => ` · 對手${name}`,
   alignmentSub: (tendency: string) => `打者擊球${tendency}`,
   // ---- 新手教學與我方標示 ----
   tutorialNext: '下一步',

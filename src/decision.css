@@ -670,3 +670,30 @@
 .sheet.settled .decision-panel .ribbon {
   animation: none;
 }
+
+/* ---- 進攻時：對手的佈陣 ---- */
+.enemy-alignment {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 2px solid var(--away);
+  background: #fff4ea;
+}
+.enemy-alignment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.enemy-alignment-title {
+  font-size: 14px;
+  font-weight: 900;
+  color: #b8520a;
+}
+.enemy-alignment .alignment-effect {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}

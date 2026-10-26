@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Game, fenceDistance, fielderFor, homeRunStats, replay, type Alignment, type GameEvent, type GameSetup, type Tactic } from './game'
+import { ALIGNMENT_SPOTS, Game, fenceDistance, fielderFor, homeRunStats, replay, type Alignment, type GameEvent, type GameSetup, type Tactic } from './game'
 import { generateBatter, generateTeam } from './generate'
 import { Rng } from './rng'
 import type { Team } from './types'
@@ -541,14 +541,15 @@ describe('全壘打牆', () => {
 })
 
 describe('安打的落點', () => {
-  it('滾地安打穿過內野手之間，平飛與長打落在外野手之間或邊線', () => {
-    const INFIELD = [-38, -14, 14, 38]
-    const OUTFIELD = [-28, 0, 28]
+  it('滾地安打穿過內野手之間，平飛與長打落在外野手之間或邊線（依當時的佈陣）', () => {
     const gapTo = (angle: number, spots: number[]) => Math.min(...spots.map((s) => Math.abs(s - angle)))
     let checked = 0
     for (let seed = 1; seed <= 100; seed++) {
       const g = new Game(setup(seed))
       while (!g.over) {
+        const spots = ALIGNMENT_SPOTS[g.alignment]
+        const INFIELD = (['3B', 'SS', '2B', '1B'] as const).map((p) => spots[p][0])
+        const OUTFIELD = (['LF', 'CF', 'RF'] as const).map((p) => spots[p][0])
         for (const e of g.step()) {
           if (e.type !== 'play' || !e.ball || !['single', 'double', 'triple'].includes(e.kind)) continue
           checked++
@@ -643,5 +644,70 @@ describe('守備佈陣與擊球傾向', () => {
       return hits.filter((p) => p.kind !== 'single').length / hits.length
     }
     expect(extra(playWith(() => 'outfieldBack', 150))).toBeLessThan(extra(playWith(() => null, 150)) * 0.7)
+  })
+})
+
+describe('AI 的守備佈陣', () => {
+  /** 掃過很多場比賽，在每個打席開始時檢查 */
+  function eachAtBat(check: (g: Game) => void, games = 120, rules?: number): void {
+    for (let seed = 1; seed <= games; seed++) {
+      const g = new Game({ ...setup(seed), rules })
+      let pa = -1
+      while (!g.over) {
+        if (g.paIndex !== pa && g.balls + g.strikes === 0) {
+          pa = g.paIndex
+          check(g)
+        }
+        g.step()
+      }
+    }
+  }
+
+  it('玩家進攻時，AI 對有明顯方向的強打者佈陣，弱打者維持標準（打席開始前就看得到）', () => {
+    let shifted = 0
+    eachAtBat((g) => {
+      if (g.battingSide !== 'home' || g.bases[2] || g.inning >= 8) return
+      const b = g.batter
+      const strong = b.ratings.contact + b.ratings.power >= 11
+      const expected = strong && b.tendency === 'left' ? 'shiftLeft' : strong && b.tendency === 'right' ? 'shiftRight' : 'normal'
+      expect(g.alignment).toBe(expected)
+      if (expected !== 'normal') shifted++
+    })
+    expect(shifted).toBeGreaterThan(50)
+  })
+
+  it('AI 在後段一分都不能給、三壘有人且少於兩出局時內野前進', () => {
+    let seen = 0
+    eachAtBat((g) => {
+      if (g.battingSide !== 'home') return
+      const lead = g.score.away - g.score.home
+      if (g.bases[2] && g.outs < 2 && g.inning >= 7 && lead >= 0 && lead <= 1) {
+        expect(g.alignment).toBe('infieldIn')
+        seen++
+      }
+    }, 300)
+    expect(seen).toBeGreaterThan(3)
+  })
+
+  it('玩家守備時，打席開始一律是標準站位，由玩家自己決定', () => {
+    eachAtBat((g) => {
+      if (g.fieldingSide === 'home') expect(g.alignment).toBe('normal')
+    })
+  })
+
+  it('舊規則（版本 1）的比賽，AI 不佈陣', () => {
+    eachAtBat((g) => expect(g.alignment).toBe('normal'), 60, 1)
+  })
+
+  it('對手偏移佈陣時觸擊比較容易成功', () => {
+    const g = new Game(setup(1))
+    // 打擊差、沒有觸擊特性，成功率才不會一開始就碰到上限
+    g.batter.ratings.contact = 3
+    g.batter.traits = []
+    const base = g.buntChance()
+    g.alignment = 'shiftLeft'
+    expect(g.buntChance()).toBeGreaterThan(base)
+    g.alignment = 'infieldIn'
+    expect(g.buntChance()).toBeLessThan(base)
   })
 })
