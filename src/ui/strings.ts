@@ -244,6 +244,7 @@ export const T = {
   drawHint: (pitch: string) => `照著虛線畫出${pitch}`,
   drawKeys: '或用方向鍵',
   drawBack: '重選',
+  drawBackwards: '方向畫反了：從綠點畫向箭頭',
   gestureWidths: ['嚴格', '普通', '寬鬆'],
   thisRun: '這屆戰績',
   finalNth: (n: number) => `決賽 第 ${n} 戰`,

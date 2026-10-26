@@ -154,8 +154,39 @@ export function scoreKeys(keys: readonly string[], pitch: PitchType, durationMs:
   return Math.round(Math.min(0.88, Math.max(0.5, 0.9 - spare / 1500)) * 1000) / 1000
 }
 
-/** 把樣板畫成 SVG 路徑（size 是方框邊長，pad 是留白） */
-export function gesturePath(pitch: PitchType, size: number, pad: number): string {
+/**
+ * 形狀對了、方向畫反（例如直球從上往下畫）：
+ * 反過來看的分數夠高，而且明顯比正著看高
+ */
+export function drawnBackwards(stroke: readonly Point[], pitch: PitchType, durationMs: number): boolean {
+  if (stroke.length < 2) return false
+  const reversed = scoreGesture([...stroke].reverse(), pitch, durationMs)
+  return reversed >= 0.6 && reversed > scoreGesture(stroke, pitch, durationMs) + 0.25
+}
+
+/** 樣板在方框裡的座標（size 是方框邊長，pad 是留白） */
+export function gesturePoints(pitch: PitchType, size: number, pad: number): Point[] {
   const s = size - pad * 2
-  return GESTURES[pitch].map(([x, y], i) => `${i ? 'L' : 'M'}${(pad + x * s).toFixed(1)} ${(pad + y * s).toFixed(1)}`).join(' ')
+  return GESTURES[pitch].map(([x, y]) => [pad + x * s, pad + y * s])
+}
+
+/** 把樣板畫成 SVG 路徑 */
+export function gesturePath(pitch: PitchType, size: number, pad: number): string {
+  return gesturePoints(pitch, size, pad)
+    .map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`)
+    .join(' ')
+}
+
+/** 終點的箭頭（SVG polygon 的 points），順著最後一段的方向 */
+export function gestureArrow(pitch: PitchType, size: number, pad: number, head: number): string {
+  const pts = gesturePoints(pitch, size, pad)
+  const [ex, ey] = pts[pts.length - 1]
+  const [px, py] = pts[pts.length - 2]
+  const len = Math.hypot(ex - px, ey - py) || 1
+  const [dx, dy] = [(ex - px) / len, (ey - py) / len]
+  const tip: Point = [ex + dx * head * 0.6, ey + dy * head * 0.6]
+  const back: Point = [ex - dx * head * 0.6, ey - dy * head * 0.6]
+  const left: Point = [back[0] - dy * head * 0.7, back[1] + dx * head * 0.7]
+  const right: Point = [back[0] + dy * head * 0.7, back[1] - dx * head * 0.7]
+  return [tip, left, right].map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
 }

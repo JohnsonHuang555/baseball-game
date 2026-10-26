@@ -1044,6 +1044,24 @@
   stroke: var(--ink);
   stroke-width: 3;
 }
+.pc-arrow {
+  fill: #9aa0e8;
+  stroke: #9aa0e8;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+/* 示範方向的小球：從起點沿著虛線跑到箭頭 */
+.pc-tracer {
+  fill: var(--yellow);
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  pointer-events: none;
+}
+.pc-backwards {
+  font-size: 12px;
+  font-weight: 800;
+  color: #c2410c;
+}
 .pc-trail {
   fill: none;
   stroke: #e5383b;

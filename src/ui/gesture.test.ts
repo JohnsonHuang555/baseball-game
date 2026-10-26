@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PITCH_TYPES } from '../sim/pitches'
-import { GESTURES, GESTURE_KEYS, scoreGesture, scoreKeys, type Point } from './gesture'
+import { GESTURES, GESTURE_KEYS, drawnBackwards, scoreGesture, scoreKeys, type Point } from './gesture'
 
 /** 把樣板放大到螢幕大小，加上一點手抖 */
 function draw(points: readonly Point[], size = 200, wobble = 0, seed = 1): Point[] {
@@ -40,6 +40,15 @@ describe('投球手勢', () => {
     expect(scoreGesture(tilted(0), 'fastball', 400)).toBeGreaterThan(scoreGesture(tilted(20), 'fastball', 400))
     // 歪太多就不算直球
     expect(scoreGesture(tilted(60), 'fastball', 400)).toBeLessThan(0.6)
+  })
+
+  it('形狀對了但方向畫反，可以認出來提醒玩家', () => {
+    for (const pitch of PITCH_TYPES) {
+      expect(drawnBackwards(draw([...GESTURES[pitch]].reverse()), pitch, 500)).toBe(true)
+      expect(drawnBackwards(draw(GESTURES[pitch]), pitch, 500)).toBe(false)
+    }
+    // 亂畫一通不算畫反
+    expect(drawnBackwards(draw(GESTURES.curve), 'fastball', 500)).toBe(false)
   })
 
   it('大小、位置不影響分數', () => {
