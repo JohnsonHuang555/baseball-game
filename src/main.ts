@@ -13,6 +13,7 @@ import { createTournament, currentRound, updateSetup } from './sim/tournament'
 import type { Batter, Team } from './sim/types'
 import { avatar } from './ui/avatar'
 import { showGame } from './ui/gameScreen'
+import { growthPanel } from './ui/growthPanel'
 import { gradeBadge, overallBadge } from './ui/grades'
 import { setKeys } from './ui/keys'
 import { soundToggle } from './ui/sound'
@@ -130,6 +131,7 @@ function startQuickMatch(): void {
       showGame(root, {
         game: new Game({ home: final.team, away: opponent, seed: randomSeed(), userSide: 'home' }),
         resultLabel: T.quickMatch,
+        resultExtra: (g) => growthPanel(g, g.userSide, null),
         resultActions: () => [
           { label: T.playAgain, primary: true, onClick: startQuickMatch },
           { label: T.backToTitle, onClick: showTitle },

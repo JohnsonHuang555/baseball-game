@@ -1,4 +1,5 @@
-import type { Command, GameSetup } from './game'
+import { RULES_VERSION, type Command, type GameSetup } from './game'
+import { applyGrowth, type Growth } from './growth'
 import { BASE_MEAN, generateBatter, generatePitcher, generateRoster, teamName } from './generate'
 import { Rng } from './rng'
 import { createSetup, isPitcherSlot, setSlot, type PregameSetup, type Slot } from './setup'
@@ -145,6 +146,8 @@ export function beginGame(t: Tournament): Tournament {
     away: t.opponent,
     seed: rng.int(0, 2 ** 32 - 1),
     userSide: 'home',
+    // 記下規則版本，之後改版時存檔才知道要用哪套規則重播
+    rules: RULES_VERSION,
   }
   return { ...t, phase: 'playing', rngState: rng.state, currentGame: { setup, commands: [], stepIndex: 0 } }
 }
@@ -154,12 +157,14 @@ export function saveProgress(t: Tournament, commands: readonly Command[], stepIn
   return { ...t, currentGame: { ...t.currentGame!, commands: [...commands], stepIndex } }
 }
 
-export function finishGame(t: Tournament, score: { home: number; away: number }): Tournament {
+/** 比賽結束：記戰績、套用這場的成長，再決定下一步（選秀、下一戰、奪冠或淘汰） */
+export function finishGame(t: Tournament, score: { home: number; away: number }, growth: readonly Growth[] = []): Tournament {
   expectPhase(t, 'playing')
   const round = currentRound(t)
   const won = score.home > score.away
   const history = [...t.history, { round, userRuns: score.home, opponentRuns: score.away, won }]
-  const base = { ...t, history, currentGame: null }
+  const team = { ...t.setup.team, roster: applyGrowth(t.setup.team.roster, growth) }
+  const base = { ...t, setup: { ...t.setup, team }, history, currentGame: null }
   if (round === 'final') {
     const series = { user: t.series.user + (won ? 1 : 0), opponent: t.series.opponent + (won ? 0 : 1) }
     if (series.user >= FINAL_WINS_NEEDED) return { ...base, series, phase: 'champion' }

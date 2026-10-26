@@ -13,7 +13,7 @@ import { el } from './playerCard'
 import { PROMPT_LEVELS, loadPromptLevel, savePromptLevel } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
 import { rays } from './setupScreen'
-import { CPU_COLOR, USER_COLOR, sideTag, tendencyChip, toast } from './visual'
+import { CPU_COLOR, USER_COLOR, handChip, sideTag, tendencyChip, toast } from './visual'
 
 export interface ResultAction {
   label: string
@@ -31,6 +31,8 @@ export interface GameScreenOptions {
   resultActions: (game: Game) => ResultAction[]
   /** 結果畫面上方的小字；沒給就用 subtitle */
   resultLabel?: string
+  /** 結果畫面在比分下面多放的內容（例如成長名單） */
+  resultExtra?: (game: Game) => HTMLElement | null
 }
 
 const HIT_KINDS = new Set(['single', 'double', 'triple'])
@@ -248,6 +250,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       const grades = el('div', 'duel-grades')
       for (const v of Object.values(player.ratings)) grades.append(gradeBadge(v, 'sm'))
       if (player.role === 'batter') grades.append(tendencyChip(player.tendency))
+      // 打者標出對這位投手是同側（不利）還是對側
+      grades.append(handChip(player, !isPitcher && game.platoonOn ? game.matchup() : undefined))
       if (isPitcher) grades.append(el('span', `duel-pitches ${tired ? 'warn' : ''}`, T.pitchCount(game.fielding.pitchCount)))
       const label = isPitcher ? T.pitcherPitches(game.fielding.pitchCount) : T.batterNth(game.batting.battingIndex + 1)
       if (isPitcher) {
@@ -563,7 +567,10 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       buttons.append(btn)
     }
     const inner = el('div', 'result-inner')
-    inner.append(head, scoreline, linescoreTable(), buttons)
+    inner.append(head, scoreline, linescoreTable())
+    const extra = opts.resultExtra?.(game)
+    if (extra) inner.append(extra)
+    inner.append(buttons)
     screen.append(inner)
     root.replaceChildren(screen)
     setKeys(keys)

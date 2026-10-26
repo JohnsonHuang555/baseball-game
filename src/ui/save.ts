@@ -1,3 +1,4 @@
+import { batsFor, throwsFor } from '../sim/generate'
 import type { Tournament } from '../sim/tournament'
 
 const KEY = 'dice-baseball.tournament.v1'
@@ -25,6 +26,9 @@ function addMissingFielding(value: unknown): unknown {
     const ratings = obj.ratings as Record<string, number> | undefined
     if (obj.role === 'batter' && ratings && ratings.fielding === undefined) ratings.fielding = 5
     if (obj.role === 'batter' && obj.tendency === undefined) obj.tendency = 'even'
+    // 慣用手由球員編號推算，跟新產生的球員一致
+    if (obj.role === 'batter' && obj.bats === undefined) obj.bats = batsFor(obj.id as string)
+    if (obj.role === 'pitcher' && obj.throws === undefined) obj.throws = throwsFor(obj.id as string)
     Object.values(obj).forEach(addMissingFielding)
   }
   return value

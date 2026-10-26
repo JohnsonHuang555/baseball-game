@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { RULES_VERSION } from './game'
 import { teamAverage } from './generate'
 import { rerollTeam, swapSlots } from './setup'
 import {
@@ -194,5 +195,15 @@ describe('賽程樹', () => {
     const rounds = bracket(t)
     expect(rounds.map((r) => r.length)).toEqual([8, 4, 2, 1])
     expect(rounds[3][0].winner).toBe(0)
+  })
+})
+
+describe('錦標賽成長', () => {
+  it('比賽結束時把成長套用到自己的陣容，而且新開的比賽記下規則版本', () => {
+    const t = beginGame(startTournament(createTournament(5)))
+    expect(t.currentGame!.setup.rules).toBe(RULES_VERSION)
+    const batter = t.setup.team.roster.lineup[2].player
+    const after = finishGame(t, WIN, [{ playerId: batter.id, rating: 'power', amount: 1, mvp: true }])
+    expect(after.setup.team.roster.lineup[2].player.ratings.power).toBe(Math.min(10, batter.ratings.power + 1))
   })
 })

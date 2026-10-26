@@ -1837,3 +1837,19 @@ button .kbd {
     grid-column: 1 / -1;
   }
 }
+
+@media (min-width: 1024px) {
+  .result-inner .growth-box {
+    margin: 0;
+    border-width: 3px;
+    border-radius: 18px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .result-inner .growth-title {
+    padding: 12px 18px;
+    font-size: 16px;
+  }
+  .result-inner .growth-row {
+    padding: 10px 18px;
+  }
+}

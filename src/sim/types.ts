@@ -21,6 +21,11 @@ export interface PitcherRatings {
 /** 擊球方向傾向：偏左外野、平均、偏右外野 */
 export type Tendency = 'left' | 'even' | 'right'
 
+/** 慣用手：左、右 */
+export type Hand = 'L' | 'R'
+/** 打擊：左打、右打、兩打（S，永遠站在有利的一側） */
+export type Bats = Hand | 'S'
+
 export interface Batter {
   id: string
   name: string
@@ -28,6 +33,7 @@ export interface Batter {
   ratings: BatterRatings
   traits: TraitId[]
   tendency: Tendency
+  bats: Bats
 }
 
 export interface Pitcher {
@@ -36,6 +42,7 @@ export interface Pitcher {
   role: 'pitcher'
   ratings: PitcherRatings
   traits: TraitId[]
+  throws: Hand
 }
 
 export type Player = Batter | Pitcher

@@ -7,7 +7,7 @@ import { kbd, setKeys, type KeyMap } from './keys'
 import { zoneWidthLabel } from './meter'
 import { el } from './playerCard'
 import { POSITION_FULL, RATING_FULL, T, runnersText } from './strings'
-import { tendencyChip } from './visual'
+import { handChip, tendencyChip } from './visual'
 
 export type SheetReason = 'leverage' | 'fatigue' | 'pause'
 
@@ -122,6 +122,9 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
             compare(RATING_FULL.contact, out.ratings.contact, p.ratings.contact),
             compare(RATING_FULL.power, out.ratings.power, p.ratings.power),
             ...(out.tendency !== p.tendency ? [textDiff(T.tendencyLabel, tendencyChip(out.tendency), el('span', 'diff-arrow', '→'), tendencyChip(p.tendency))] : []),
+            ...(game.platoonOn && game.matchup(out) !== game.matchup(p)
+              ? [textDiff(T.matchupLabel, handChip(out, game.matchup(out)), el('span', 'diff-arrow', '→'), handChip(p, game.matchup(p)))]
+              : []),
           ],
         }
       }
@@ -162,6 +165,10 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
           diffs: [
             textDiff(T.stamina, pct, el('span', 'diff-arrow', '→'), el('span', 'pct', '100%')),
             textDiff(`${RATING_FULL.stuff}/${RATING_FULL.control}`, gradeBadge(p.ratings.stuff, 'sm'), gradeBadge(p.ratings.control, 'sm')),
+            // 對目前打者：換成同手的投手就變成同側，打者不利
+            ...(game.platoonOn
+              ? [textDiff(T.matchupLabel, handChip(game.pitcher, game.matchup(game.batter, game.pitcher)), el('span', 'diff-arrow', '→'), handChip(p, game.matchup(game.batter, p)))]
+              : []),
           ],
         }
       }
@@ -217,6 +224,14 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
       // 代打：板凳裡打擊最好的人，明顯比現任打者強才提
       const bestHit = team.bench.map((p, i) => ({ p, i })).sort((a, b) => battingValue(b.p) - battingValue(a.p))[0]
       if (bestHit && battingValue(bestHit.p) - battingValue(batter) >= 1) picks.push({ type: 'pinchHit', benchIndex: bestHit.i })
+      // 左右相剋：同側對決時，板凳有對側、打擊不輸太多的人就建議代打
+      if (game.platoonOn && game.matchup() === 'same' && !picks.some((t) => t.type === 'pinchHit')) {
+        const platoonBat = team.bench
+          .map((p, i) => ({ p, i }))
+          .filter(({ p }) => game.matchup(p) === 'opposite' && battingValue(p) >= battingValue(batter) - 0.5)
+          .sort((a, b) => battingValue(b.p) - battingValue(a.p))[0]
+        if (platoonBat) picks.push({ type: 'pinchHit', benchIndex: platoonBat.i })
+      }
       // 盜壘：成功率夠高才提
       for (const from of [2, 1] as const) {
         if (game.bases[from - 1] && has({ type: 'steal', from }) && game.stealChance(from) >= 0.6) picks.push({ type: 'steal', from })
@@ -238,6 +253,15 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
       // 換投：體力快見底時，提球威加控球最好的後援
       const best = team.relievers.map((p, i) => ({ p, i })).sort((a, b) => b.p.ratings.stuff + b.p.ratings.control - (a.p.ratings.stuff + a.p.ratings.control))[0]
       if (best && game.staminaLeft(team) < 0.25) picks.push({ type: 'changePitcher', relieverIndex: best.i })
+      // 左右相剋：後段對方打者是對側，後援有同手、能力不差的人就建議換投（例如左投對左打）
+      if (game.platoonOn && game.inning >= 7 && game.matchup() === 'opposite' && !picks.some((t) => t.type === 'changePitcher')) {
+        const now = game.pitcher.ratings.stuff + game.pitcher.ratings.control
+        const specialist = team.relievers
+          .map((p, i) => ({ p, i }))
+          .filter(({ p }) => game.matchup(game.batter, p) === 'same' && p.ratings.stuff + p.ratings.control >= now - 1)
+          .sort((a, b) => b.p.ratings.stuff + b.p.ratings.control - (a.p.ratings.stuff + a.p.ratings.control))[0]
+        if (specialist) picks.push({ type: 'changePitcher', relieverIndex: specialist.i })
+      }
       // 故意四壞：一壘空著、強打者後面接弱打者
       const next = game.batting.lineup[(game.batting.battingIndex + 1) % 9].player
       if (has({ type: 'intentionalWalk' }) && !game.bases[0] && battingValue(game.batter) >= 6.5 && battingValue(game.batter) - battingValue(next) >= 2) {
@@ -510,7 +534,10 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
       stats.append(s)
     })
     info.append(stats)
-    if (p.role === 'batter') info.append(tendencyChip(p.tendency))
+    const chips = el('span', 'dd-chips')
+    chips.append(handChip(p, !isPitcher && game.platoonOn ? game.matchup() : undefined))
+    if (p.role === 'batter') chips.append(tendencyChip(p.tendency))
+    info.append(chips)
     if (isPitcher) {
       const pct = staminaPct()
       const level = pct >= 50 ? 'high' : pct >= 25 ? 'mid' : 'low'

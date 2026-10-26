@@ -619,3 +619,9 @@
 .mh-name .side-tag {
   margin-left: 2px;
 }
+
+/* 打者卡的標籤比較多，放不下就換行 */
+.duel-grades {
+  flex-wrap: wrap;
+  row-gap: 3px;
+}

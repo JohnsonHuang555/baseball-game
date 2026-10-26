@@ -17,10 +17,12 @@ import {
 } from '../sim/tournament'
 import { avatar } from './avatar'
 import { showGame } from './gameScreen'
+import { growthPanel } from './growthPanel'
+import { gameGrowth } from '../sim/growth'
 import { gradeBadge, gradeOf, overallBadge } from './grades'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { el, traitTag } from './playerCard'
-import { applyCardState, sideTag, tendencyChip, toast } from './visual'
+import { applyCardState, handChip, sideTag, tendencyChip, toast } from './visual'
 import { clearTournament, saveTournament } from './save'
 import { play } from './sound'
 import { maybeTutorial } from './tutorial'
@@ -76,7 +78,9 @@ function playCurrentGame(root: HTMLElement, t: Tournament, go: (t: Tournament) =
       t = saveProgress(t, g.commands, g.stepIndex)
       saveTournament(t)
     },
-    resultActions: (g) => [{ label: T.continue, primary: true, onClick: () => go(finishGame(t, g.score)) }],
+    // 成長名單：結果畫面顯示，按繼續時套用到陣容
+    resultExtra: (g) => growthPanel(g, 'home', gameGrowth(g, 'home')),
+    resultActions: (g) => [{ label: T.continue, primary: true, onClick: () => go(finishGame(t, g.score, gameGrowth(g, 'home'))) }],
   })
 }
 
@@ -467,7 +471,10 @@ function showDraft(root: HTMLElement, t: Tournament, go: (t: Tournament) => void
       topRow.append(el('span', 'tier-tag', T.tierNames[cardTier(p)]), overallBadge(p, 'md'))
       inner.append(topRow, avatar(p.id, 'user', 'draft-avatar'), el('span', 'draft-name', p.name))
       inner.append(el('span', 'draft-role', p.role === 'pitcher' ? T.pitcher : T.batter))
-      if (p.role === 'batter') inner.append(tendencyChip(p.tendency, true))
+      const chips = el('span', 'draft-chips')
+      chips.append(handChip(p))
+      if (p.role === 'batter') chips.append(tendencyChip(p.tendency, true))
+      inner.append(chips)
       const stats = el('span', 'draft-stats')
       Object.entries(p.ratings).forEach(([k, v]) => {
         const row = el('span', 'draft-stat')

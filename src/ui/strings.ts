@@ -3,7 +3,7 @@ import type { Alignment, BattedBall, Fielder, PitchResult, PlayKind } from '../s
 import type { CardTier } from '../sim/generate'
 import type { Round } from '../sim/tournament'
 import type { TraitId } from '../sim/traits'
-import type { Position, Tendency } from '../sim/types'
+import type { Bats, Hand, Position, Tendency } from '../sim/types'
 
 export const T = {
   gameTitle: '骰子棒球',
@@ -117,6 +117,19 @@ export const T = {
   traitsColumn: '特性',
   swapGuide: '點兩名球員交換：點球場上的人交換守位，點打序列表交換棒次',
   logTitle: '比賽紀錄',
+  // ---- 左右投打與成長 ----
+  bats: { L: '左打', R: '右打', S: '兩打' } as Record<Bats, string>,
+  throws: { L: '左投', R: '右投' } as Record<Hand, string>,
+  matchupNames: { same: '同側', opposite: '對側' },
+  matchupTips: { same: '同側對決：打者打擊下修', opposite: '對側對決：打者比較有利' },
+  matchupLabel: '對決',
+  growthTitle: '本場成長',
+  mvpTitle: '本場 MVP',
+  noGrowth: '這場沒有人成長，下一場再加油',
+  growthHint: '錦標賽中表現好的球員會成長：MVP 能力 +1，其他表現好的 +0.5',
+  batterLine: (l: { pa: number; hits: number; hr: number; rbi: number }) =>
+    `${l.pa} 打席 ${l.hits} 安${l.hr ? ` ${l.hr} 轟` : ''}${l.rbi ? ` ${l.rbi} 打點` : ''}`,
+  pitcherLine: (l: { outs: number; k: number; runs: number }) => `${Math.floor(l.outs / 3)}${l.outs % 3 ? `.${l.outs % 3}` : ''} 局 ${l.k} 三振 ${l.runs} 失分`,
   // ---- 守備佈陣與擊球傾向 ----
   tendencyLabel: '擊球方向',
   tendencyNames: { left: '偏左外野', even: '平均', right: '偏右外野' } as Record<Tendency, string>,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ALIGNMENT_SPOTS, Game, fenceDistance, fielderFor, homeRunStats, replay, type Alignment, type GameEvent, type GameSetup, type Tactic } from './game'
-import { generateBatter, generateTeam } from './generate'
+import { generateBatter, generatePitcher, generateTeam } from './generate'
+import { applyGrowth, gameGrowth, performance } from './growth'
 import { Rng } from './rng'
 import type { Team } from './types'
 
@@ -709,5 +710,100 @@ describe('AI 的守備佈陣', () => {
     expect(g.buntChance()).toBeGreaterThan(base)
     g.alignment = 'infieldIn'
     expect(g.buntChance()).toBeLessThan(base)
+  })
+})
+
+describe('左右投打相剋', () => {
+  it('打者大多右打、也有左打與兩打；投手大多右投', () => {
+    const rng = new Rng(11)
+    const bats = Array.from({ length: 2000 }, () => generateBatter(rng).bats)
+    const share = (h: string) => bats.filter((b) => b === h).length / bats.length
+    expect(share('R')).toBeGreaterThan(0.5)
+    expect(share('L')).toBeGreaterThan(0.25)
+    expect(share('S')).toBeGreaterThan(0.03)
+    const throws = Array.from({ length: 2000 }, () => generatePitcher(rng).throws)
+    expect(throws.filter((t) => t === 'R').length / throws.length).toBeGreaterThan(0.6)
+  })
+
+  it('兩打永遠站對側；同手是同側', () => {
+    const g = new Game(setup(1))
+    const b = { ...g.batter }
+    const p = { ...g.pitcher, throws: 'R' as const }
+    expect(g.matchup({ ...b, bats: 'S' }, p)).toBe('opposite')
+    expect(g.matchup({ ...b, bats: 'R' }, p)).toBe('same')
+    expect(g.matchup({ ...b, bats: 'L' }, p)).toBe('opposite')
+  })
+
+  it('同側對決的安打率明顯低於對側；舊規則（版本 2）沒有差別', () => {
+    const rate = (rules?: number) => {
+      const r = { same: [0, 0], opposite: [0, 0] }
+      for (let seed = 1; seed <= 250; seed++) {
+        const g = new Game({ ...setup(seed), rules })
+        while (!g.over) {
+          const m = g.matchup()
+          for (const e of g.step()) {
+            if (e.type !== 'play' || e.kind === 'walk' || e.kind === 'intentionalWalk') continue
+            r[m][1]++
+            if (['single', 'double', 'triple', 'homeRun'].includes(e.kind)) r[m][0]++
+          }
+        }
+      }
+      return { same: r.same[0] / r.same[1], opposite: r.opposite[0] / r.opposite[1] }
+    }
+    const now = rate()
+    expect(now.opposite - now.same).toBeGreaterThan(0.02)
+    const old = rate(2)
+    expect(Math.abs(old.opposite - old.same)).toBeLessThan(0.015)
+  })
+})
+
+describe('個人成績與錦標賽成長', () => {
+  const games = Array.from({ length: 60 }, (_, i) => playOut(new Game(setup(i + 1))))
+
+  it('個人安打加總等於球隊安打；投手抓的出局數至少 24 個', () => {
+    for (const g of games) {
+      for (const side of ['home', 'away'] as const) {
+        const ids = [...g.rosterIds(side)]
+        const hits = ids.reduce((n, id) => n + (g.box[id]?.hits ?? 0), 0)
+        expect(hits).toBe(g.hits[side])
+        const other = side === 'home' ? 'away' : 'home'
+        const outs = [...g.rosterIds(other)].reduce((n, id) => n + (g.box[id]?.outs ?? 0), 0)
+        expect(outs).toBeGreaterThanOrEqual(24)
+      }
+    }
+  })
+
+  it('每場最多一位 MVP（+1），其他成長都是 +0.5，而且不超過 10', () => {
+    for (const g of games) {
+      const growth = gameGrowth(g, 'home')
+      expect(growth.filter((x) => x.mvp).length).toBeLessThanOrEqual(1)
+      for (const x of growth) {
+        expect(x.amount).toBeLessThanOrEqual(x.mvp ? 1 : 0.5)
+        const p = g.player(x.playerId)!
+        expect((p.ratings as unknown as Record<string, number>)[x.rating] + x.amount).toBeLessThanOrEqual(10)
+      }
+    }
+    expect(games.filter((g) => gameGrowth(g, 'home').some((x) => x.mvp)).length).toBeGreaterThan(40)
+  })
+
+  it('MVP 是表現分最高的人：有全壘打的打者長力量', () => {
+    for (const g of games) {
+      const growth = gameGrowth(g, 'home')
+      const mvp = growth.find((x) => x.mvp)
+      if (!mvp) continue
+      const p = g.player(mvp.playerId)!
+      const best = Math.max(...[...g.rosterIds('home')].filter((id) => g.box[id]).map((id) => performance(g.player(id)!, g.box[id])))
+      expect(performance(p, g.box[p.id])).toBe(best)
+      if (p.role === 'batter') expect(mvp.rating).toBe(g.box[p.id].hr > 0 ? 'power' : 'contact')
+    }
+  })
+
+  it('applyGrowth 只改到成長名單上的球員，上限 10', () => {
+    const roster = setup(3).home.roster
+    const target = roster.lineup[0].player
+    const grown = applyGrowth(roster, [{ playerId: target.id, rating: 'contact', amount: 1, mvp: true }])
+    expect(grown.lineup[0].player.ratings.contact).toBe(Math.min(10, target.ratings.contact + 1))
+    expect(grown.lineup[1].player).toBe(roster.lineup[1].player)
+    expect(roster.lineup[0].player.ratings.contact).toBe(target.ratings.contact)
   })
 })

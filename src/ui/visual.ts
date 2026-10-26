@@ -54,6 +54,14 @@ export function tendencyChip(t: Tendency, full = false): HTMLElement {
   return chip
 }
 
+/** 慣用手標籤：右打、左打、兩打、右投、左投。給 matchup 時用顏色標出同側（不利）或對側 */
+export function handChip(p: Player, matchup?: 'same' | 'opposite'): HTMLElement {
+  const text = p.role === 'batter' ? T.bats[p.bats] : T.throws[p.throws]
+  const chip = el('span', `hand-chip ${matchup ?? ''}`, matchup ? `${text}・${T.matchupNames[matchup]}` : text)
+  if (matchup) chip.title = T.matchupTips[matchup]
+  return chip
+}
+
 /** 「我方」或「對手」的小標籤，讓玩家一眼分出自己的球隊 */
 export function sideTag(isUser: boolean): HTMLElement {
   return el('span', `side-tag ${isUser ? 'user' : 'opponent'}`, isUser ? T.mySide : T.opponentSide)
@@ -118,6 +126,7 @@ export function playerHeader(p: Player, label: string, team: AvatarTeam = 'user'
   frame.append(avatar(p.id, team, 'detail-avatar'))
   const info = el('div', 'detail-info')
   info.append(el('span', 'tier-tag', T.tierNames[tier]), el('h2', 'detail-name', p.name), el('span', 'detail-label', label))
+  info.append(handChip(p))
   if (p.role === 'batter') info.append(tendencyChip(p.tendency, true))
   const ovr = el('div', 'detail-ovr')
   ovr.append(el('span', 'eyebrow-ink', T.overallLabel), overallBadge(p, 'lg'))

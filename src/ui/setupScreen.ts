@@ -284,7 +284,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
       const row = el('button', `order-row ${sameSlot(swapFrom, slot) ? 'selected' : ''}`)
       row.type = 'button'
       const who = el('span', 'order-who')
-      who.append(el('span', 'order-name', p.name), el('span', 'order-pos', POSITION_FULL[spot.position]))
+      who.append(el('span', 'order-name', p.name), el('span', 'order-pos', `${POSITION_FULL[spot.position]}・${T.bats[p.bats]}`))
       who.append(el('span', `tier-tag desk-only tier-${cardTier(p)}`, T.tierNames[cardTier(p)]))
       row.append(el('span', 'order-num', String(i + 1)), avatar(p.id, 'user', 'ring'), who)
       for (const k of ['contact', 'power', 'speed', 'fielding'] as const) row.append(gradeBadge(p.ratings[k], 'md'))
@@ -302,7 +302,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     const pitcherRow = el('button', 'order-pitcher desk-only')
     pitcherRow.type = 'button'
     const who = el('span', 'order-who')
-    who.append(el('span', 'order-name', starter.name), el('span', 'order-pos', T.pitcher))
+    who.append(el('span', 'order-name', starter.name), el('span', 'order-pos', `${T.pitcher}・${T.throws[starter.throws]}`))
     pitcherRow.append(el('span', 'order-num-label', T.starter), avatar(starter.id, 'user', 'ring'), who)
     for (const [k, v] of Object.entries(starter.ratings)) {
       const cell = el('span', 'pitcher-stat')

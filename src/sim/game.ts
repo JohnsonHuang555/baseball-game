@@ -184,8 +184,25 @@ export interface GameSetup {
   rules?: number
 }
 
-/** 目前的規則版本。2：AI 守備時會佈陣 */
-export const RULES_VERSION = 2
+/** 目前的規則版本。2：AI 守備時會佈陣；3：左右投打相剋 */
+export const RULES_VERSION = 3
+
+/** 一位球員這場比賽的成績（打者看打擊欄，投手看投球欄） */
+export interface PlayerLine {
+  /** 打席、安打、全壘打、打點、被三振 */
+  pa: number
+  hits: number
+  hr: number
+  rbi: number
+  so: number
+  /** 投手：抓到的出局數、失分、三振 */
+  outs: number
+  runs: number
+  k: number
+}
+
+/** 同側（右投對右打、左投對左打）打擊下修，對側小幅上修 */
+export const PLATOON = { same: -1, opposite: 0.5 }
 
 /** 教練指令紀錄：在第 stepIndex 步之前下達。種子加上這份紀錄就能重現整場比賽。 */
 export interface Command {
@@ -239,13 +256,22 @@ export class Game {
   private readonly rng: Rng
   /** AI 守備時會不會佈陣（規則版本 2 起） */
   private readonly aiAligns: boolean
+  /** 有沒有左右投打相剋（規則版本 3 起） */
+  readonly platoonOn: boolean
+  /** 兩隊開賽時的全部球員編號（換下場的人也算） */
+  private readonly rosters: Record<Side, Set<string>>
+  /** 每位球員這場的成績，用來選 MVP 和錦標賽成長 */
+  readonly box: Record<string, PlayerLine> = {}
   private readonly players = new Map<string, Player>()
 
   constructor(setup: GameSetup) {
     this.userSide = setup.userSide
     this.rng = new Rng(setup.seed)
     this.teams = { home: this.teamState(setup.home), away: this.teamState(setup.away) }
+    const ids = (t: Team) => new Set([...t.roster.lineup.map((s) => s.player), ...t.roster.bench, t.roster.starter, ...t.roster.relievers].map((p) => p.id))
+    this.rosters = { home: ids(setup.home), away: ids(setup.away) }
     this.aiAligns = (setup.rules ?? RULES_VERSION) >= 2
+    this.platoonOn = (setup.rules ?? RULES_VERSION) >= 3
     this.prepareAtBat()
   }
 
@@ -288,6 +314,10 @@ export class Game {
   }
 
   // ---- 查詢 ----
+
+  rosterIds(side: Side): ReadonlySet<string> {
+    return this.rosters[side]
+  }
 
   player(id: string): Player | undefined {
     return this.players.get(id)
@@ -653,8 +683,18 @@ export class Game {
     return { stuff: p.ratings.stuff - penalty, control: p.ratings.control - penalty }
   }
 
+  /** 打者對投手是同側還是對側；兩打永遠站對側 */
+  matchup(batter: Batter = this.batter, pitcher: Pitcher = this.pitcher): 'same' | 'opposite' {
+    return batter.bats !== 'S' && batter.bats === pitcher.throws ? 'same' : 'opposite'
+  }
+
+  /** 左右相剋對打擊的修正；舊規則的比賽沒有 */
+  platoonEffect(batter: Batter = this.batter, pitcher: Pitcher = this.pitcher): number {
+    return this.platoonOn ? PLATOON[this.matchup(batter, pitcher)] : 0
+  }
+
   private effectiveContact(b: Batter): number {
-    let k = b.ratings.contact
+    let k = b.ratings.contact + this.platoonEffect(b)
     if (this.bases[1] || this.bases[2]) {
       if (hasTrait(b, 'clutch')) k += 2
       if (hasTrait(b, 'clutchBad')) k -= 2
@@ -950,9 +990,12 @@ export class Game {
   /** 打席結束：套用跑壘、換下一棒、檢查再見或半局結束 */
   private finishPlay(kind: PlayKind, ball: BattedBall | null, moves: RunnerMove[], notation: string | null = null): GameEvent[] {
     const batterId = this.batter.id
+    const pitcherId = this.pitcher.id
     if (HIT_KINDS.includes(kind)) this.hits[this.battingSide]++
     if (kind === 'error') this.errors[this.fieldingSide]++
+    const outsBefore = this.outs
     const runs = this.applyMoves(moves)
+    this.record(batterId, pitcherId, kind, runs, Math.min(3, this.outs) - outsBefore)
     const events: GameEvent[] = [{ type: 'play', kind, batterId, ball, moves, runs, notation }]
     const team = this.batting
     team.battingIndex = (team.battingIndex + 1) % 9
@@ -966,6 +1009,24 @@ export class Game {
     if (this.outs >= 3) events.push(...this.endHalfInning())
     this.prepareAtBat()
     return events
+  }
+
+  private line(id: string): PlayerLine {
+    return (this.box[id] ??= { pa: 0, hits: 0, hr: 0, rbi: 0, so: 0, outs: 0, runs: 0, k: 0 })
+  }
+
+  /** 記下這個打席的個人成績：失誤和雙殺不算打點 */
+  private record(batterId: string, pitcherId: string, kind: PlayKind, runs: number, outs: number): void {
+    const b = this.line(batterId)
+    b.pa++
+    if (HIT_KINDS.includes(kind)) b.hits++
+    if (kind === 'homeRun') b.hr++
+    if (kind !== 'error' && kind !== 'doublePlay') b.rbi += runs
+    if (kind === 'strikeout') b.so++
+    const p = this.line(pitcherId)
+    p.outs += Math.max(0, outs)
+    p.runs += runs
+    if (kind === 'strikeout') p.k++
   }
 
   private endHalfInning(): GameEvent[] {
@@ -1109,10 +1170,18 @@ export function sameTactic(a: Tactic, b: Tactic): boolean {
 export function replay(setup: GameSetup, commands: readonly Command[], steps = Infinity): Game {
   const game = new Game(setup)
   let c = 0
+  // 規則改版後，舊紀錄裡的指令可能已經不合法（例如壘上沒人了還要盜壘）；略過它，不要讓整場比賽打不開
+  const issue = (t: Tactic) => {
+    try {
+      game.issue(t)
+    } catch {
+      // 略過
+    }
+  }
   while (!game.over && game.stepIndex < steps) {
-    while (c < commands.length && commands[c].stepIndex === game.stepIndex) game.issue(commands[c++].tactic)
+    while (c < commands.length && commands[c].stepIndex === game.stepIndex) issue(commands[c++].tactic)
     game.step()
   }
-  while (c < commands.length && commands[c].stepIndex === game.stepIndex && !game.over) game.issue(commands[c++].tactic)
+  while (c < commands.length && commands[c].stepIndex === game.stepIndex && !game.over) issue(commands[c++].tactic)
   return game
 }

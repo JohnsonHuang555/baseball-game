@@ -881,3 +881,127 @@
   font-size: 11px;
   line-height: 18px;
 }
+
+/* ---- 慣用手標籤：同側（打者不利）紅、對側綠 ---- */
+.hand-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.hand-chip.same {
+  background: #ffe3e6;
+  border-color: #d9283c;
+  color: #b3122a;
+}
+.hand-chip.opposite {
+  background: #e3f7e6;
+  border-color: #1e8a3a;
+  color: #156b2c;
+}
+.detail-info .hand-chip,
+.draft-inner .hand-chip {
+  font-size: 11px;
+  line-height: 18px;
+}
+.dd-chips,
+.draft-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+}
+.dd-chips {
+  justify-content: flex-start;
+}
+
+/* ---- 結果畫面：成長名單／本場 MVP ---- */
+.growth-box {
+  position: relative;
+  margin-top: 16px;
+  width: 100%;
+  background: #fff;
+  border: 2.5px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 0 4px 0 var(--ink);
+  overflow: hidden;
+  color: var(--ink);
+}
+.growth-title {
+  padding: 8px 12px;
+  background: #fff1b8;
+  font-size: 13px;
+  font-weight: 900;
+}
+.growth-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+.growth-row .avatar {
+  width: 34px;
+  height: 34px;
+}
+.growth-who {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.growth-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.growth-line {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-faint);
+}
+.mvp-tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--yellow);
+  border: 1.5px solid var(--ink);
+  font-family: var(--font-display);
+  font-size: 10px;
+  line-height: 15px;
+}
+.growth-change {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.growth-rating {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.growth-empty,
+.growth-hint {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.growth-hint {
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 11px;
+}

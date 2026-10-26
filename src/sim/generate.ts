@@ -1,6 +1,6 @@
 import { Rng, clamp } from './rng'
 import { TRAITS, conflicts, type TraitId, type TraitTier } from './traits'
-import { POSITIONS, type Batter, type Pitcher, type Player, type Roster, type Team, type Tendency } from './types'
+import { POSITIONS, type Bats, type Batter, type Hand, type Pitcher, type Player, type Roster, type Team, type Tendency } from './types'
 
 const ZH_SURNAMES = ['陳', '林', '黃', '張', '李', '王', '吳', '劉', '蔡', '楊', '許', '鄭', '謝', '郭', '洪', '曾']
 const ZH_GIVEN = ['建宏', '志明', '冠宇', '家豪', '承翰', '柏翰', '宗翰', '俊傑', '彥廷', '子軒', '品睿', '哲瑋', '士豪', '信宏', '威廷', '育成']
@@ -66,6 +66,7 @@ export function generateBatter(rng: Rng, mean = BASE_MEAN): Batter {
     },
     traits: traits(rng, 'batter'),
     tendency: tendencyFor(id),
+    bats: batsFor(id),
   }
 }
 
@@ -74,19 +75,36 @@ export function generateBatter(rng: Rng, mean = BASE_MEAN): Batter {
  * 不多抽亂數，同一個種子產生的隊伍跟以前一模一樣
  */
 function tendencyFor(id: string): Tendency {
-  let h = 0
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
-  const r = Math.abs(h) % 10
+  const r = hashOf(id) % 10
   return r < 3 ? 'left' : r < 6 ? 'right' : 'even'
 }
 
+function hashOf(text: string): number {
+  let h = 0
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+/** 打者的慣用手：右打六成、左打三成多、兩打少數。一樣由編號決定，不多抽亂數 */
+export function batsFor(id: string): Bats {
+  const r = hashOf(id + '#bats') % 100
+  return r < 60 ? 'R' : r < 93 ? 'L' : 'S'
+}
+
+/** 投手的慣用手：右投約七成 */
+export function throwsFor(id: string): Hand {
+  return hashOf(id + '#throws') % 100 < 72 ? 'R' : 'L'
+}
+
 export function generatePitcher(rng: Rng, mean = BASE_MEAN): Pitcher {
+  const id = playerId(rng)
   return {
-    id: playerId(rng),
+    id,
     name: playerName(rng),
     role: 'pitcher',
     ratings: { stuff: rating(rng, mean), control: rating(rng, mean), stamina: rating(rng, mean) },
     traits: traits(rng, 'pitcher'),
+    throws: throwsFor(id),
   }
 }
 
