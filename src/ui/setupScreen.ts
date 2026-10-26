@@ -1,4 +1,4 @@
-import { teamAverage, teamName } from '../sim/generate'
+import { cardTier, isSpecial, overall, teamAverage, teamName } from '../sim/generate'
 import { Rng } from '../sim/rng'
 import {
   getSlot,
@@ -10,13 +10,14 @@ import {
   type PregameSetup,
   type Slot,
 } from '../sim/setup'
-import type { Position, Team } from '../sim/types'
+import { TRAITS } from '../sim/traits'
+import type { Player, Position, Team } from '../sim/types'
 import { avatar } from './avatar'
 import { gradeBadge, overallBadge } from './grades'
-import { el } from './playerCard'
+import { el, traitTag } from './playerCard'
 import { TEAM_NAME_MAX, saveTeamName } from './prefs'
-import { POSITION_NAMES, T } from './strings'
-import { USER_COLOR, applyCardState, gradeLine, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
+import { POSITION_FULL, T } from './strings'
+import { applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
 
 export interface RosterEditorOptions {
   setup: PregameSetup
@@ -32,35 +33,67 @@ export interface RosterEditorOptions {
   onBack: () => void
 }
 
-/** 球場圖上各守位的位置（百分比），對照一般的守備位置圖 */
+/** 球場圖（366 × 286）上各守位的中心點，對照一般的守備位置圖 */
+const FIELD_W = 366
+const FIELD_H = 286
 const SPOTS: Record<Position | 'P', [number, number]> = {
-  CF: [50, 14],
-  LF: [16, 27],
-  RF: [84, 27],
-  SS: [35, 44],
-  '2B': [65, 44],
-  '3B': [17, 58],
-  '1B': [83, 58],
-  P: [50, 62],
-  C: [50, 85],
-  DH: [13, 87],
+  CF: [183, 28],
+  LF: [58, 50],
+  RF: [308, 50],
+  SS: [123, 104],
+  '2B': [243, 104],
+  '3B': [76, 166],
+  '1B': [290, 166],
+  P: [183, 176],
+  C: [183, 240],
+  DH: [104, 240],
 }
 
-const FIELD_SVG = `<svg viewBox="0 0 100 95" preserveAspectRatio="none" aria-hidden="true">
-  <rect width="100" height="95" fill="#1d5a2a"/>
-  <path d="M50 92 L2 44 A68 68 0 0 1 98 44 Z" fill="#2f8a3e"/>
-  <path d="M50 92 L20 62 A42 42 0 0 1 80 62 Z" fill="#b98558"/>
-  <path d="M50 86 L33 69 L50 52 L67 69 Z" fill="#2f8a3e"/>
-  <circle cx="50" cy="69" r="3" fill="#b98558"/>
-  <path d="M50 92 L2 44 M50 92 L98 44" stroke="#f4f1e8" stroke-width="0.4"/>
-  <path d="M2 44 A68 68 0 0 1 98 44" fill="none" stroke="#f2c94c" stroke-width="0.8"/>
+const FIELD_SVG = `<svg viewBox="0 0 366 286" aria-hidden="true">
+  <defs><pattern id="mow" width="20" height="20" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="10" height="20" fill="#000" opacity="0.07"/></pattern></defs>
+  <rect width="366" height="286" fill="#2E8C43"/>
+  <path d="M183 262 L0 79 A259 259 0 0 1 366 79 Z" fill="#43B356"/>
+  <path d="M183 262 L0 79 A259 259 0 0 1 366 79 Z" fill="url(#mow)"/>
+  <path d="M0 79 A259 259 0 0 1 366 79" fill="none" stroke="#E3A867" stroke-width="10"/>
+  <path d="M183 282 L279 190 L183 96 L87 190 Z" fill="#E3A867"/>
+  <path d="M183 250 L241 190 L183 132 L125 190 Z" fill="#43B356"/>
+  <path d="M183 262 L0 79 M183 262 L366 79" stroke="#FFF" stroke-width="2.5"/>
+  <circle cx="183" cy="190" r="11" fill="#E3A867"/>
+  <rect x="249" y="184" width="12" height="12" fill="#FFF" stroke="#141633" stroke-width="1.5" transform="rotate(45 255 190)"/>
+  <rect x="177" y="112" width="12" height="12" fill="#FFF" stroke="#141633" stroke-width="1.5" transform="rotate(45 183 118)"/>
+  <rect x="105" y="184" width="12" height="12" fill="#FFF" stroke="#141633" stroke-width="1.5" transform="rotate(45 111 190)"/>
 </svg>`
+
+const ICONS = {
+  back: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  pencil: '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  shuffle: '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>',
+  dice: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="16" cy="16" r="1.4" fill="currentColor"/></svg>',
+  close: '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  star: '<svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7 7 .6-5.3 4.7 1.6 7.2L12 17.8 5.7 21.5l1.6-7.2L2 9.6 9 9z"/></svg>',
+}
+
+function iconButton(className: string, icon: string, label: string): HTMLButtonElement {
+  const b = el('button', className)
+  b.type = 'button'
+  b.innerHTML = icon
+  b.setAttribute('aria-label', label)
+  return b
+}
+
+function withIcon(className: string, icon: string, text: string): HTMLButtonElement {
+  const b = el('button', className)
+  b.type = 'button'
+  b.innerHTML = icon
+  b.append(text)
+  return b
+}
 
 function sameSlot(a: Slot | null, b: Slot): boolean {
   return !!a && JSON.stringify(a) === JSON.stringify(b)
 }
 
-/** 組隊畫面：球場上的先發、板凳與後援；點球員看詳細資料、重骰或交換 */
+/** 組隊畫面：球場上的先發、板凳與後援、打序表；點球員看詳細資料、重骰或交換 */
 export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): void {
   let setup = opts.setup
   const { allowReroll } = opts
@@ -82,34 +115,6 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     render()
   }
 
-  function nameEditor(): HTMLElement {
-    const box = el('div', 'rename')
-    const input = el('input', 'rename-input')
-    input.value = setup.team.name
-    input.maxLength = TEAM_NAME_MAX
-    input.placeholder = T.teamNamePlaceholder
-    const save = el('button', 'btn btn-primary', T.save)
-    save.onclick = () => {
-      const name = input.value.trim().slice(0, TEAM_NAME_MAX)
-      if (!name) return input.focus()
-      saveTeamName(name)
-      rename(name)
-    }
-    input.onkeydown = (e) => {
-      if (e.key === 'Enter') save.click()
-    }
-    const cancel = el('button', 'btn btn-ghost', T.cancel)
-    cancel.onclick = () => {
-      renaming = false
-      render()
-    }
-    const row = el('div', 'row')
-    row.append(cancel, save)
-    box.append(input, row)
-    queueMicrotask(() => input.focus())
-    return box
-  }
-
   function isRevealed(slot: Slot): boolean {
     return revealed === 'all' || revealed.some((s) => sameSlot(s, slot))
   }
@@ -118,7 +123,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     switch (slot.kind) {
       case 'lineup': {
         const spot = setup.team.roster.lineup[slot.index]
-        return `${T.battingOrder} ${slot.index + 1}・${POSITION_NAMES[spot.position]}`
+        return T.orderAndPosition(slot.index + 1, POSITION_FULL[spot.position])
       }
       case 'bench':
         return T.bench
@@ -129,26 +134,59 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     }
   }
 
-  function header(screen: HTMLElement): void {
-    const head = el('header', 'setup-header')
-    const back = el('button', 'link', '‹')
+  function header(): HTMLElement {
+    const head = el('header', 'team-header')
+    const top = el('div', 'team-header-row')
+    const back = iconButton('icon-btn', ICONS.back, T.backToTitle)
     back.onclick = opts.onBack
-    const titles = el('div', 'grow')
-    titles.append(el('div', 'eyebrow', opts.heading), el('h1', '', setup.team.name))
-    const ovr = el('div', 'team-ovr')
-    ovr.append(el('span', 'eyebrow', T.overallLabel), gradeBadge(teamAverage(setup.team.roster), 'lg'))
-    head.append(back, titles, ovr)
-    screen.append(head)
+    top.append(back)
 
-    if (allowReroll && renaming) screen.append(nameEditor())
-    else if (allowReroll) {
-      const row = el('div', 'row chips')
-      const edit = el('button', 'chip', T.rename)
-      edit.onclick = () => {
-        renaming = true
-        render()
+    if (allowReroll && renaming) {
+      const box = el('div', 'rename')
+      const label = el('label', 'sr-only', T.teamNamePlaceholder)
+      label.htmlFor = 'team-name'
+      const input = el('input', 'rename-input')
+      input.id = 'team-name'
+      input.value = setup.team.name
+      input.maxLength = TEAM_NAME_MAX
+      input.placeholder = T.teamNamePlaceholder
+      const save = el('button', 'btn-small btn-yellow', T.confirm)
+      save.onclick = () => {
+        const name = input.value.trim().slice(0, TEAM_NAME_MAX)
+        if (!name) return input.focus()
+        saveTeamName(name)
+        rename(name)
       }
-      const random = el('button', 'chip', T.randomName)
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') save.click()
+        if (e.key === 'Escape') {
+          renaming = false
+          render()
+        }
+      }
+      box.append(label, input, save)
+      top.append(box)
+      queueMicrotask(() => input.focus())
+    } else {
+      const titles = el('div', 'team-titles')
+      titles.append(el('span', 'eyebrow-light', opts.heading), el('h1', 'team-name', setup.team.name))
+      top.append(titles)
+    }
+    const ovr = el('div', 'team-ovr')
+    ovr.append(el('span', 'eyebrow-light', T.overallLabel), gradeBadge(teamAverage(setup.team.roster), 'xl'))
+    top.append(ovr)
+
+    const sub = el('div', 'team-header-row')
+    if (allowReroll) {
+      if (!renaming) {
+        const edit = withIcon('pill-btn', ICONS.pencil, T.rename)
+        edit.onclick = () => {
+          renaming = true
+          render()
+        }
+        sub.append(edit)
+      }
+      const random = withIcon('pill-btn', ICONS.shuffle, T.randomName)
       random.onclick = () => {
         // 選隨機隊名代表不再沿用自訂的名字
         saveTeamName(null)
@@ -156,35 +194,41 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
         while (name === setup.team.name) name = teamName(new Rng(randomSeed()))
         rename(name)
       }
-      row.append(edit, random)
-      screen.append(row)
+      sub.append(random)
+    } else {
+      sub.append(el('span', 'lineup-hint', T.lineupOnlyHint))
     }
-
     const opponent = opts.opponent()
-    const vs = el('div', 'versus')
-    const right = el('span', 'versus-right')
-    right.append(el('span', 'muted', T.overallLabel), gradeBadge(teamAverage(opponent.roster), 'sm'))
-    vs.append(el('span', '', `${T.opponent}：${opponent.name}`), right)
-    screen.append(vs)
+    const vs = el('div', 'vs-pill')
+    vs.append(el('span', 'vs-mark', T.versus), el('span', 'vs-name', opponent.name), gradeBadge(teamAverage(opponent.roster), 'sm'))
+    sub.append(vs)
+    head.append(top, sub)
+    return head
   }
 
-  /** 球場圖：九個守位加上指定打擊 */
+  /** 球場圖：九個守位加上指定打擊，重骰時依打序一張張翻開 */
   function field(): HTMLElement {
     const r = setup.team.roster
-    const box = el('div', 'diamond')
+    const box = el('section', 'pitch')
+    box.setAttribute('aria-label', '守備位置')
     box.innerHTML = FIELD_SVG
     const place = (slot: Slot, spot: Position | 'P', order: number | null) => {
       const p = getSlot(r, slot)
       const node = el('button', 'field-node')
+      node.type = 'button'
+      node.dataset.pid = p.id
       const [x, y] = SPOTS[spot]
-      node.style.left = `${x}%`
-      node.style.top = `${y}%`
+      node.style.left = `${(x / FIELD_W) * 100}%`
+      node.style.top = `${(y / FIELD_H) * 100}%`
       applyCardState(node, p, { selected: sameSlot(swapFrom, slot), reveal: isRevealed(slot) })
-      const face = el('div', 'node-face')
-      face.append(avatar(p.id, USER_COLOR), overallBadge(p, 'sm'))
-      if (order !== null) face.append(el('span', 'order', String(order)))
-      node.append(face, el('div', 'node-name', p.name))
-      if (spot === 'DH') node.append(el('div', 'node-tag', T.designatedHitter))
+      if (swapFrom && !sameSlot(swapFrom, slot) && isPitcherSlot(swapFrom) === isPitcherSlot(slot)) node.classList.add('target')
+      if (isRevealed(slot)) node.style.setProperty('--delay', `${(order ?? 0) * 60}ms`)
+      const ring = el('span', 'node-ring')
+      ring.append(avatar(p.id, 'user'), overallBadge(p, 'sm'))
+      ring.append(el('span', order === null ? 'node-tag-p' : 'node-order', order === null ? T.pitcherMark : String(order)))
+      node.append(ring, el('span', 'node-name', p.name))
+      if (spot === 'DH') node.append(el('span', 'node-dh', T.designatedHitter))
+      node.setAttribute('aria-label', `${slotLabel(slot)} ${p.name}`)
       node.onclick = () => onTap(slot, 'field')
       box.append(node)
     }
@@ -193,102 +237,122 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     return box
   }
 
-  function render(): void {
-    root.replaceChildren()
-    const scrollTop = root.querySelector('.order-list')?.scrollTop ?? 0
-    const screen = el('div', 'screen setup editor')
-    header(screen)
-    screen.append(field())
-
+  function reserves(): HTMLElement {
     const r = setup.team.roster
-    const reserves = el('div', 'reserves')
-    const group = (title: string, slots: Slot[]) => {
-      const g = el('div', 'reserve-group')
-      g.append(el('div', 'eyebrow', title))
-      const row = el('div', 'reserve-row')
-      for (const slot of slots) {
-        const card = miniCard(getSlot(r, slot), slotLabel(slot), USER_COLOR, {
-          selected: sameSlot(swapFrom, slot),
-          reveal: isRevealed(slot),
-        })
-        card.onclick = () => onTap(slot, 'reserve')
-        row.append(card)
-      }
-      g.append(row)
-      reserves.append(g)
+    const sec = el('section', 'reserves')
+    const labels = el('div', 'reserve-labels')
+    labels.append(el('span', '', T.bench), el('span', '', T.relievers))
+    const grid = el('div', 'reserve-grid')
+    const slots: Slot[] = [
+      ...r.bench.map((_, i): Slot => ({ kind: 'bench', index: i })),
+      ...r.relievers.map((_, i): Slot => ({ kind: 'reliever', index: i })),
+    ]
+    for (const slot of slots) {
+      const card = miniCard(getSlot(r, slot), '', 'user', { selected: sameSlot(swapFrom, slot), reveal: isRevealed(slot) })
+      card.onclick = () => onTap(slot, 'reserve')
+      grid.append(card)
     }
-    group(
-      T.bench,
-      r.bench.map((_, i): Slot => ({ kind: 'bench', index: i })),
-    )
-    group(
-      T.reliever,
-      r.relievers.map((_, i): Slot => ({ kind: 'reliever', index: i })),
-    )
-    screen.append(reserves)
-    if (!allowReroll) screen.append(el('div', 'hint', T.lineupOnlyHint))
+    sec.append(labels, grid)
+    return sec
+  }
 
-    // 條列式打序：填滿下方空間，可以捲動；點一列跟點球場上的人一樣
-    const order = el('section', 'order-section')
-    order.append(el('div', 'eyebrow', T.battingOrder))
-    const list = el('ol', 'order-list')
-    r.lineup.forEach((spot, i) => {
+  /** 打序表：可以捲動；點一列跟點球場上的人一樣 */
+  function orderTable(): { section: HTMLElement; list: HTMLElement } {
+    const sec = el('section', 'order-panel')
+    sec.setAttribute('aria-label', T.battingOrder)
+    const head = el('div', 'order-head')
+    head.append(el('span', '', T.orderColumn), el('span'), el('span', 'left', T.playerColumn))
+    for (const k of ['contact', 'power', 'speed', 'fielding'] as const) head.append(el('span', '', RATING_SHORT[k]))
+    const list = el('div', 'order-list')
+    setup.team.roster.lineup.forEach((spot, i) => {
       const slot: Slot = { kind: 'lineup', index: i }
-      const row = el('li')
-      const btn = el('button', `order-row ${sameSlot(swapFrom, slot) ? 'selected' : ''}`)
-      btn.append(
-        el('span', 'order-num', String(i + 1)),
-        avatar(spot.player.id, USER_COLOR, 'sm'),
-        el('span', 'order-name', spot.player.name),
-        el('span', 'order-pos', POSITION_NAMES[spot.position]),
-        gradeLine(spot.player),
-      )
-      btn.onclick = () => onTap(slot, 'list')
-      row.append(btn)
+      const row = el('button', `order-row ${sameSlot(swapFrom, slot) ? 'selected' : ''}`)
+      row.type = 'button'
+      const who = el('span', 'order-who')
+      who.append(el('span', 'order-name', spot.player.name), el('span', 'order-pos', POSITION_FULL[spot.position]))
+      row.append(el('span', 'order-num', String(i + 1)), avatar(spot.player.id, 'user', 'ring'), who)
+      const ratings = spot.player.ratings
+      for (const k of ['contact', 'power', 'speed', 'fielding'] as const) row.append(gradeBadge(ratings[k], 'md'))
+      row.setAttribute('aria-label', `第 ${i + 1} 棒 ${spot.player.name}`)
+      row.onclick = () => onTap(slot, 'list')
       list.append(row)
     })
-    order.append(list)
-    screen.append(order)
+    sec.append(head, list)
+    return { section: sec, list }
+  }
 
-    const bar = el('div', 'action-bar')
+  function footer(): HTMLElement {
+    const bar = el('footer', 'team-footer')
     if (swapFrom) {
-      bar.append(el('div', 'hint', T.swapPick(getSlot(r, swapFrom).name)))
-      if (swapFrom.kind === 'lineup') bar.append(el('div', 'hint', T.swapHintLineup))
-      const cancel = el('button', 'btn btn-ghost', T.cancel)
+      const words = el('div', 'swap-words')
+      words.append(el('span', 'swap-title', T.swapPick(getSlot(setup.team.roster, swapFrom).name)))
+      if (swapFrom.kind === 'lineup') words.append(el('span', 'swap-hint', T.swapHintLineup))
+      const cancel = el('button', 'btn-outline-light', T.cancel)
       cancel.onclick = () => {
         swapFrom = null
         render()
       }
-      bar.append(cancel)
-    } else {
-      const row = el('div', 'row')
-      if (allowReroll) {
-        const rerollAll = el('button', 'btn btn-secondary', `${T.rerollTeam}（${setup.teamRerollsLeft}）`)
-        rerollAll.disabled = setup.teamRerollsLeft <= 0
-        rerollAll.onclick = () => {
-          update(rerollTeam(setup))
-          toast(T.rerolledTeam(setup.teamRerollsLeft))
-          revealed = 'all'
-          render()
-        }
-        row.append(rerollAll)
-      }
-      const start = el('button', 'btn btn-primary', opts.startLabel)
-      start.onclick = () => opts.onStart(setup)
-      row.append(start)
-      bar.append(row)
+      bar.append(words, cancel)
+      return bar
     }
-    screen.append(bar)
+    const row = el('div', 'footer-buttons')
+    if (allowReroll) {
+      const rerollAll = withIcon('btn-indigo', ICONS.dice, T.rerollTeam)
+      rerollAll.append(el('span', 'count-pill', String(setup.teamRerollsLeft)))
+      rerollAll.disabled = setup.teamRerollsLeft <= 0
+      rerollAll.onclick = () => {
+        const before = new Set(allIds())
+        update(rerollTeam(setup))
+        toast(T.rerolledTeam(setup.teamRerollsLeft))
+        revealed = 'all'
+        render()
+        celebrate(newPlayers(before))
+      }
+      row.append(rerollAll)
+    }
+    const start = el('button', 'btn-yellow btn-big', opts.startLabel)
+    start.onclick = () => opts.onStart(setup)
+    row.append(start)
+    bar.append(row)
+    return bar
+  }
+
+  function allIds(): string[] {
+    const r = setup.team.roster
+    return [...r.lineup.map((s) => s.player), ...r.bench, r.starter, ...r.relievers].map((p) => p.id)
+  }
+
+  function newPlayers(before: Set<string>): Player[] {
+    const r = setup.team.roster
+    return [...r.lineup.map((s) => s.player), ...r.bench, r.starter, ...r.relievers].filter((p) => !before.has(p.id))
+  }
+
+  function render(): void {
+    // 記下球場上每個人的位置，重畫後讓換位置的人滑過去（FLIP）
+    const before = new Map<string, DOMRect>()
+    root.querySelectorAll<HTMLElement>('.field-node').forEach((n) => before.set(n.dataset.pid!, n.getBoundingClientRect()))
+    const scrollTop = root.querySelector('.order-list')?.scrollTop ?? 0
+
+    root.replaceChildren()
+    const screen = el('div', 'team-screen')
+    const { section, list } = orderTable()
+    screen.append(header(), field(), reserves(), section, footer())
     root.append(screen)
-    // 重畫時保留打序列表的捲動位置
     list.scrollTop = scrollTop
+
+    if (revealed.length === 0) {
+      root.querySelectorAll<HTMLElement>('.field-node').forEach((n) => {
+        const old = before.get(n.dataset.pid!)
+        if (!old) return
+        const now = n.getBoundingClientRect()
+        const dx = old.left - now.left
+        const dy = old.top - now.top
+        if (dx || dy) n.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0 0' }], { duration: 280, easing: 'ease-out' })
+      })
+    }
     revealed = []
   }
 
-  /**
-   * 點球員。選交換對象時，第二下點在哪裡決定換什麼：
-   * 球場上的兩名先發互換守位；打序列表上的兩名先發互換棒次；牽涉板凳就是換人上場
-   */
   function onTap(slot: Slot, source: 'field' | 'list' | 'reserve'): void {
     if (!swapFrom) return openDetail(slot)
     if (sameSlot(swapFrom, slot)) swapFrom = null
@@ -296,7 +360,6 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
       const roster = setup.team.roster
       const a = getSlot(roster, swapFrom)
       const b = getSlot(roster, slot)
-      const bothStarters = swapFrom.kind === 'lineup' && slot.kind === 'lineup'
       if (swapFrom.kind === 'lineup' && slot.kind === 'lineup' && source === 'field') {
         update({ ...setup, team: { ...setup.team, roster: swapPositions(roster, swapFrom.index, slot.index) } })
         toast(T.swappedPositions(a.name, b.name))
@@ -304,6 +367,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
         const swapped = swapSlots(roster, swapFrom, slot)
         if (swapped) {
           update({ ...setup, team: { ...setup.team, roster: swapped } })
+          const bothStarters = swapFrom.kind === 'lineup' && slot.kind === 'lineup'
           toast(bothStarters ? T.swappedOrder(a.name, b.name) : T.swapped(a.name, b.name))
         }
       }
@@ -312,20 +376,26 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     render()
   }
 
-  /** 點球員：大頭像、能力值字母與長條、特性說明，加上重骰與交換 */
+  /** 點球員：卡色外框的大頭像、能力值字母與長條、特性說明，加上交換與重骰 */
   function openDetail(slot: Slot): void {
     const p = getSlot(setup.team.roster, slot)
     const sheet = el('div', 'sheet')
-    const panel = el('div', 'sheet-panel')
-    panel.append(playerHeader(p, slotLabel(slot), USER_COLOR), ratingBars(p))
-    if (p.traits.length) panel.append(traitList(p))
+    const panel = el('section', 'sheet-panel paper')
+    panel.setAttribute('role', 'dialog')
+    panel.setAttribute('aria-label', p.name)
     const close = () => sheet.remove()
     sheet.onclick = (e) => {
       if (e.target === sheet) close()
     }
+    const x = iconButton('icon-btn sheet-close', ICONS.close, T.close)
+    x.onclick = close
+    const stats = el('div', 'stat-box')
+    stats.append(ratingBars(p))
+    panel.append(el('span', 'sheet-handle'), x, playerHeader(p, slotLabel(slot)), stats)
+    if (p.traits.length) panel.append(traitList(p))
 
-    const row = el('div', 'row')
-    const swap = el('button', 'btn btn-secondary', T.swap)
+    const row = el('div', 'detail-buttons')
+    const swap = el('button', 'btn-white', T.swap)
     swap.onclick = () => {
       swapFrom = slot
       close()
@@ -333,25 +403,77 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     }
     row.append(swap)
     if (allowReroll) {
-      const reroll = el('button', 'btn btn-secondary', `${T.rerollPlayer}（${setup.playerRerollsLeft}）`)
+      const reroll = el('button', 'btn-indigo', T.rerollPlayer)
+      reroll.append(el('span', 'count-pill', String(setup.playerRerollsLeft)))
       reroll.disabled = setup.playerRerollsLeft <= 0
       reroll.onclick = () => {
         update(rerollPlayer(setup, slot))
-        toast(T.rerolledPlayer(p.name, getSlot(setup.team.roster, slot).name))
+        const fresh = getSlot(setup.team.roster, slot)
+        toast(T.rerolledPlayer(p.name, fresh.name))
         revealed = [slot]
         close()
         render()
+        celebrate([fresh])
       }
       row.append(reroll)
-    }
-    const done = el('button', 'btn btn-ghost', T.close)
-    done.onclick = close
-    panel.append(row, done)
+    } else row.classList.add('single')
+    panel.append(row)
     sheet.append(panel)
     root.append(sheet)
   }
 
+  /** 抽到彩虹卡或帶金特的球員：全螢幕登場特效，挑最強的一位 */
+  function celebrate(players: Player[]): void {
+    const special = players.filter(isSpecial).sort((a, b) => overall(b) - overall(a))[0]
+    if (!special) return
+    const r = setup.team.roster
+    const slot = (
+      [
+        ...r.lineup.map((_, i): Slot => ({ kind: 'lineup', index: i })),
+        ...r.bench.map((_, i): Slot => ({ kind: 'bench', index: i })),
+        { kind: 'starter' } as Slot,
+        ...r.relievers.map((_, i): Slot => ({ kind: 'reliever', index: i })),
+      ] as Slot[]
+    ).find((s) => getSlot(r, s).id === special.id)!
+
+    const overlay = el('div', 'reveal-overlay')
+    overlay.innerHTML = `<svg class="rays" aria-hidden="true" viewBox="-380 -380 760 760">${rays(380)}</svg>`
+    const tier = cardTier(special)
+    // 彩虹卡用彩虹框；因為金特而稀有的其他卡色用金框
+    const card = el('div', `reveal-card ${tier === 'rainbow' ? 'frame-rainbow' : 'frame-gold'}`)
+    const inner = el('div', 'reveal-inner')
+    const top = el('div', 'reveal-top')
+    top.append(el('span', 'tier-tag', T.tierNames[tier]), overallBadge(special, 'lg'))
+    inner.append(el('span', 'sheen'), top, avatar(special.id, 'user', 'reveal-avatar'), el('span', 'reveal-name', special.name))
+    inner.append(el('span', 'reveal-label', slotLabel(slot)), ratingBars(special))
+    const gold = special.traits.filter((t) => TRAITS[t].tier === 'gold')
+    if (gold.length) {
+      const tags = el('div', 'traits')
+      tags.append(...gold.map(traitTag))
+      inner.append(tags)
+    }
+    card.append(inner)
+    const ok = el('button', 'btn-yellow btn-big reveal-ok', T.accept)
+    ok.onclick = () => overlay.remove()
+    overlay.append(el('p', 'reveal-title', T.rareArrived), card, ok)
+    // 等翻牌跑完再登場
+    window.setTimeout(() => root.append(overlay), 700)
+  }
+
   render()
+}
+
+const RATING_SHORT = { contact: '打', power: '力', speed: '速', fielding: '守' } as const
+
+/** 放射狀的光芒，給登場特效和勝利畫面用 */
+export function rays(radius: number): string {
+  let d = ''
+  for (let i = 0; i < 12; i++) {
+    const a0 = ((i * 30 - 6) * Math.PI) / 180
+    const a1 = ((i * 30 + 6) * Math.PI) / 180
+    d += `<path d="M0 0 L${(radius * Math.cos(a0)).toFixed(1)} ${(radius * Math.sin(a0)).toFixed(1)} L${(radius * Math.cos(a1)).toFixed(1)} ${(radius * Math.sin(a1)).toFixed(1)} Z"/>`
+  }
+  return d
 }
 
 /** 介面層產生種子，模擬內部不碰 Math.random()（ADR-0001） */

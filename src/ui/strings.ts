@@ -1,5 +1,6 @@
 // 所有介面文字集中在這裡，之後要加語系只改這個檔
 import type { BattedBall, Fielder, PitchResult, PlayKind } from '../sim/game'
+import type { CardTier } from '../sim/generate'
 import type { Round } from '../sim/tournament'
 import type { TraitId } from '../sim/traits'
 import type { Position } from '../sim/types'
@@ -65,6 +66,16 @@ export const T = {
   skipDraft: '放棄選秀',
   champion: '奪冠！',
   overallLabel: '總評',
+  tierNames: { bronze: '銅卡', silver: '銀卡', gold: '金卡', rainbow: '彩虹卡' } as Record<CardTier, string>,
+  rareArrived: '稀有球員登場！',
+  accept: '收下',
+  confirm: '確定',
+  relievers: '後援投手',
+  orderColumn: '棒',
+  playerColumn: '球員',
+  pitcherMark: '投',
+  versus: 'VS',
+  orderAndPosition: (order: number, pos: string) => `打序 ${order}・${pos}`,
   swap: '交換',
   close: '關閉',
   swapPick: (name: string) => `選擇要和 ${name} 交換的球員`,
@@ -105,6 +116,18 @@ export const T = {
   subDefense: (inName: string, outName: string) => `守備替補：${inName} 替換 ${outName}`,
   swappedPositions: (a: string, b: string) => `${a} 與 ${b} 交換守位`,
   swappedOrder: (a: string, b: string) => `${a} 與 ${b} 交換棒次`,
+}
+
+export const POSITION_FULL: Record<Position, string> = {
+  C: '捕手',
+  '1B': '一壘手',
+  '2B': '二壘手',
+  '3B': '三壘手',
+  SS: '游擊手',
+  LF: '左外野',
+  CF: '中外野',
+  RF: '右外野',
+  DH: '指定打擊',
 }
 
 export const POSITION_NAMES: Record<Position, string> = {

@@ -115,11 +115,12 @@ export function overall(p: Player): number {
   return values.reduce((a, b) => a + b, 0) / values.length
 }
 
+/** 卡色對齊字母等級：彩虹＝A 以上、金＝B、銀＝D～C、銅＝E 以下 */
 export function cardTier(p: Player): CardTier {
   const o = overall(p)
   if (o >= 7.5) return 'rainbow'
   if (o >= 6.5) return 'gold'
-  if (o >= 5.5) return 'silver'
+  if (o >= 4.5) return 'silver'
   return 'bronze'
 }
 

@@ -1,0 +1,388 @@
+/* 組隊畫面：頂部列、球場圖、板凳與後援、打序表、底部按鈕列 */
+
+.team-screen {
+  max-width: 480px;
+  margin: 0 auto;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  color: var(--ink);
+}
+.team-screen > * {
+  flex-shrink: 0;
+}
+
+/* ---- 頂部列 ---- */
+.team-header {
+  padding: 10px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.team-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+.team-header-row:first-child {
+  gap: 10px;
+  height: 52px;
+}
+.team-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.team-name {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 900;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.team-ovr {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.rename {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.rename-input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border-radius: 12px;
+  border: 2.5px solid var(--yellow);
+  background: #fff;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--ink);
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(255, 210, 63, 0.35);
+}
+.lineup-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 700;
+  color: var(--lilac);
+}
+.vs-pill {
+  margin-left: auto;
+  min-width: 0;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border-radius: 18px;
+  border: 2px solid var(--away);
+  background: var(--indigo-deep);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vs-mark {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: #ff9a4d;
+}
+.vs-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- 球場圖 ---- */
+.pitch {
+  position: relative;
+  margin: 8px 12px 0;
+  aspect-ratio: 366 / 286;
+  border-radius: 18px;
+  border: 2.5px solid var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+  overflow: hidden;
+}
+.pitch > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.field-node {
+  position: absolute;
+  transform: translate(-50%, -20px);
+  width: 80px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+.node-ring {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid var(--home);
+  background: #fff;
+}
+.node-ring .avatar {
+  width: 100%;
+  height: 100%;
+}
+.node-ring .grade {
+  position: absolute;
+  right: -9px;
+  bottom: -6px;
+}
+.node-order {
+  position: absolute;
+  left: -8px;
+  top: -6px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 1.5px solid #fff;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+.node-tag-p {
+  position: absolute;
+  left: -9px;
+  top: -6px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--ink);
+  border: 1.5px solid #fff;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 15px;
+}
+.node-name {
+  max-width: 76px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1.5px solid var(--ink);
+  background: var(--tier-bg);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.node-dh {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--ink);
+  background: #fff;
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 14px;
+}
+.field-node.has-gold .node-ring {
+  box-shadow: 0 0 12px rgba(255, 210, 63, 0.95);
+}
+.field-node.selected {
+  z-index: 2;
+  animation: bounce 1.1s ease-in-out infinite;
+}
+.field-node.selected .node-ring {
+  border-color: var(--yellow);
+  box-shadow:
+    0 0 0 4px rgba(255, 210, 63, 0.6),
+    0 0 18px rgba(255, 210, 63, 0.9);
+}
+.field-node.target .node-ring {
+  outline: 2px dashed #fff;
+  outline-offset: 3px;
+}
+/* 重骰翻牌：依打序延遲，翻在子元素上，不動到節點本身的定位 */
+.field-node.reveal > *,
+.field-node.reveal-special > * {
+  animation: flip 0.32s ease-out both;
+  animation-delay: var(--delay, 0ms);
+}
+.field-node.reveal-special .node-ring {
+  animation:
+    flip 0.32s ease-out both,
+    flash 0.2s ease-out both;
+  animation-delay: var(--delay, 0ms), calc(var(--delay, 0ms) + 0.32s);
+}
+
+/* ---- 板凳與後援 ---- */
+.reserves {
+  margin: 8px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.reserve-labels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding-left: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lilac);
+}
+.reserve-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+/* ---- 打序表 ---- */
+.order-panel {
+  flex: 1 1 0;
+  flex-shrink: 1;
+  min-height: 150px;
+  margin: 10px 12px 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 2.5px solid var(--ink);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+}
+.order-head,
+.order-row {
+  display: grid;
+  grid-template-columns: 22px 34px minmax(0, 1fr) repeat(4, 26px);
+  gap: 8px;
+  align-items: center;
+  padding: 0 10px;
+}
+.order-head {
+  flex: none;
+  height: 26px;
+  background: #eef0ff;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.order-head .left {
+  text-align: left;
+}
+.order-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.order-row {
+  width: 100%;
+  height: 50px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.order-row.selected {
+  background: #fff1b8;
+  box-shadow: inset 0 0 0 2.5px #ffb800;
+}
+.order-num {
+  font-family: var(--font-display);
+  font-size: 17px;
+  text-align: center;
+}
+.order-row .avatar {
+  width: 34px;
+  height: 34px;
+}
+.order-who {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.order-name {
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.order-pos {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-faint);
+}
+
+/* ---- 底部按鈕列 ---- */
+.team-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: var(--ink);
+  padding: 10px 12px calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 82px;
+}
+.footer-buttons {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 10px;
+}
+.footer-buttons > :only-child {
+  grid-column: 1 / -1;
+}
+.team-footer .btn-indigo {
+  border-color: #fff;
+  box-shadow: 0 4px 0 #000;
+  font-size: 15px;
+}
+.swap-words {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.swap-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--yellow);
+}
+.swap-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--lilac);
+}

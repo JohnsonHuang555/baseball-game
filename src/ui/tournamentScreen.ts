@@ -17,7 +17,7 @@ import {
 } from '../sim/tournament'
 import { showGame } from './gameScreen'
 import { el } from './playerCard'
-import { USER_COLOR, applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
+import { applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
 import { clearTournament, saveTournament } from './save'
 import { showRosterEditor } from './setupScreen'
 import { POSITION_NAMES, T } from './strings'
@@ -177,7 +177,7 @@ function showDraft(root: HTMLElement, t: Tournament, go: (t: Tournament) => void
       // 選秀卡：大頭像、總評、能力值長條與特性說明
       const card = el('button', 'draft-card')
       applyCardState(card, p, { selected: chosen === i, reveal: firstRender })
-      card.append(playerHeader(p, p.role === 'pitcher' ? T.pitcher : T.batter, USER_COLOR), ratingBars(p))
+      card.append(playerHeader(p, p.role === 'pitcher' ? T.pitcher : T.batter), ratingBars(p))
       if (p.traits.length) card.append(traitList(p))
       card.onclick = () => {
         chosen = chosen === i ? null : i
@@ -204,7 +204,7 @@ function showDraft(root: HTMLElement, t: Tournament, go: (t: Tournament) => void
             ]
       const releaseList = el('div', 'mini-grid release')
       for (const [slot, label] of slots) {
-        const card = miniCard(getSlot(r, slot), label, USER_COLOR)
+        const card = miniCard(getSlot(r, slot), label)
         card.onclick = () => {
           toast(T.drafted(pick.name, getSlot(r, slot).name))
           go(draftPick(t, chosen!, slot))

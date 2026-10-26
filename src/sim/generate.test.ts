@@ -62,12 +62,13 @@ describe('能力值與特性', () => {
     expect(rate).toBeLessThan(0.05)
   })
 
-  it('卡色依總評分級，彩虹卡最稀有', () => {
+  it('卡色依總評分級：平均水準是銀卡，彩虹卡最稀有', () => {
     const counts = { bronze: 0, silver: 0, gold: 0, rainbow: 0 }
     for (const p of players) counts[cardTier(p)]++
-    expect(counts.bronze).toBeGreaterThan(counts.silver)
+    expect(counts.silver).toBeGreaterThan(counts.bronze)
     expect(counts.silver).toBeGreaterThan(counts.gold)
     expect(counts.gold).toBeGreaterThan(counts.rainbow)
+    expect(counts.bronze).toBeGreaterThan(0)
     expect(counts.rainbow).toBeGreaterThan(0)
   })
 

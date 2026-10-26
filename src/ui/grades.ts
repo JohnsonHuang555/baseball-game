@@ -17,11 +17,11 @@ export function gradeOf(value: number): Grade {
   return 'G'
 }
 
-export function gradeBadge(value: number, size: 'sm' | 'md' | 'lg' = 'md'): HTMLElement {
+export function gradeBadge(value: number, size: 'sm' | 'md' | 'lg' | 'xl' = 'md'): HTMLElement {
   const g = gradeOf(value)
   return el('span', `grade grade-${g} grade-${size}`, g)
 }
 
-export function overallBadge(p: Player, size: 'sm' | 'md' | 'lg' = 'md'): HTMLElement {
+export function overallBadge(p: Player, size: 'sm' | 'md' | 'lg' | 'xl' = 'md'): HTMLElement {
   return gradeBadge(overall(p), size)
 }

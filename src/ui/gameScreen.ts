@@ -1,6 +1,6 @@
 import { LEVERAGE_THRESHOLD, sameTactic, type Game, type GameEvent, type Side, type Tactic } from '../sim/game'
 import type { Batter, Player } from '../sim/types'
-import { avatar } from './avatar'
+import { avatar, type AvatarTeam } from './avatar'
 import { FieldRenderer } from './field'
 import { gradeBadge } from './grades'
 import { el, traitChips } from './playerCard'
@@ -31,7 +31,7 @@ type SheetReason = 'leverage' | 'fatigue' | 'pause'
 export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   const { game } = opts
   const userSide = game.userSide
-  const sideColor = (side: Side) => (side === userSide ? USER_COLOR : CPU_COLOR)
+  const sideTeam = (side: Side): AvatarTeam => (side === userSide ? 'user' : 'opponent')
   let promptLevel = loadPromptLevel()
   let speed = 1
   let pauseRequested = false
@@ -134,7 +134,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       const head = el('div', 'mu-head')
       const names = el('div', 'grow')
       names.append(el('div', 'mu-label', label), el('div', 'mu-name', player.name))
-      head.append(avatar(player.id, sideColor(s), 'sm'), names)
+      head.append(avatar(player.id, sideTeam(s), 'sm'), names)
       box.append(head, gradeLine(player))
       if (extra) box.append(el('div', `mu-extra ${tired ? 'warn' : ''}`, extra))
       if (player.traits.length) box.append(traitChips(player))
@@ -454,9 +454,9 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         // 核心對決：打者對投手，只放字母等級和體力
         const duel = el('div', 'duel')
         const batterBox = el('div', `duel-side ${game.battingSide === userSide ? 'mine' : ''}`)
-        batterBox.append(avatar(game.batter.id, sideColor(game.battingSide)), el('div', 'duel-name', game.batter.name), gradeLine(game.batter))
+        batterBox.append(avatar(game.batter.id, sideTeam(game.battingSide)), el('div', 'duel-name', game.batter.name), gradeLine(game.batter))
         const pitcherBox = el('div', `duel-side ${game.fieldingSide === userSide ? 'mine' : ''}`)
-        pitcherBox.append(avatar(game.pitcher.id, sideColor(game.fieldingSide)), el('div', 'duel-name', game.pitcher.name), staminaBar(game.fielding))
+        pitcherBox.append(avatar(game.pitcher.id, sideTeam(game.fieldingSide)), el('div', 'duel-name', game.pitcher.name), staminaBar(game.fielding))
         duel.append(batterBox, el('div', 'vs', 'VS'), pitcherBox)
         panel.append(duel)
         if (game.queued) panel.append(el('div', 'queued', T.queued(tacticLabel(game.queued))))
