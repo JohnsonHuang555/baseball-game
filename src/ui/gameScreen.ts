@@ -28,6 +28,33 @@ const OUT_KINDS = new Set(['groundOut', 'doublePlay', 'flyOut', 'sacrificeFly', 
 
 type SheetReason = 'leverage' | 'fatigue' | 'pause'
 
+const PAUSE_ICON =
+  '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>'
+/** 進攻方標記：用 SVG 三角形，不用 ▶ 字元（部分手機會變成 emoji） */
+const BATTING_MARK =
+  '<svg class="mh-mark" aria-hidden="true" width="9" height="10" viewBox="0 0 9 10"><path d="M0 0 L9 5 L0 10 Z" fill="currentColor"/></svg>'
+
+/** 大字提示後面的爆炸框 */
+const BURST_SVG = (() => {
+  const pts: string[] = []
+  for (let i = 0; i < 24; i++) {
+    const r = i % 2 ? 46 : 74
+    const a = (i * Math.PI) / 12
+    pts.push(`${(Math.cos(a) * r * 1.5).toFixed(1)},${(Math.sin(a) * r * 0.9).toFixed(1)}`)
+  }
+  return `<svg class="burst" aria-hidden="true" viewBox="-125 -75 250 150"><polygon points="${pts.join(' ')}"/></svg>`
+})()
+
+/** 壘包狀態小菱形：有人的壘亮黃燈 */
+export function basesSvg(on: readonly boolean[]): string {
+  const fill = (i: number) => (on[i] ? '#FFD23F' : '#FFFFFF')
+  return `<svg aria-hidden="true" viewBox="0 0 54 38">
+    <rect x="20" y="3" width="14" height="14" rx="2" transform="rotate(45 27 10)" fill="${fill(1)}" stroke="#141633" stroke-width="2"/>
+    <rect x="35" y="18" width="14" height="14" rx="2" transform="rotate(45 42 25)" fill="${fill(0)}" stroke="#141633" stroke-width="2"/>
+    <rect x="5" y="18" width="14" height="14" rx="2" transform="rotate(45 12 25)" fill="${fill(2)}" stroke="#141633" stroke-width="2"/>
+  </svg>`
+}
+
 export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   const { game } = opts
   const userSide = game.userSide
@@ -39,45 +66,55 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   let warnedPitcherId = ''
 
   root.replaceChildren()
-  const screen = el('div', 'screen game')
+  const screen = el('div', 'match-screen')
   if (opts.subtitle) screen.append(el('div', 'game-subtitle', opts.subtitle))
 
-  const board = el('div', 'scoreboard')
-  const canvasWrap = el('div', 'field-wrap')
+  const board = el('header', 'match-header')
+  const canvasWrap = el('section', 'match-field')
+  canvasWrap.setAttribute('aria-label', '球場')
   const canvas = el('canvas', 'field')
   const callout = el('div', 'callout')
   canvasWrap.append(canvas, callout)
-  const matchup = el('div', 'matchup')
-  const lastPlay = el('div', 'last-play')
-  const controls = el('div', 'controls')
-  const pauseBtn = el('button', 'btn btn-primary', T.command)
+  const matchup = el('section', 'match-duel')
+  const lastPlay = el('p', 'last-play')
+  const controls = el('div', 'match-controls')
+  const pauseBtn = el('button', 'btn-yellow pause-btn')
+  pauseBtn.innerHTML = PAUSE_ICON
+  pauseBtn.append(T.command)
   pauseBtn.onclick = () => {
     pauseRequested = true
     pauseBtn.disabled = true
   }
-  const speedGroup = el('div', 'speed')
+  const speedGroup = el('div', 'speed-toggle')
+  speedGroup.setAttribute('role', 'group')
+  speedGroup.setAttribute('aria-label', '速度')
   const speedBtns = [1, 2, 4].map((s) => {
-    const b = el('button', 'chip', `${s}x`)
+    const b = el('button', '', `${s}x`)
+    b.setAttribute('aria-pressed', String(s === speed))
     b.onclick = () => {
       speed = s
-      speedBtns.forEach((x, i) => x.classList.toggle('active', [1, 2, 4][i] === s))
+      speedBtns.forEach((x, i) => x.setAttribute('aria-pressed', String([1, 2, 4][i] === s)))
     }
     return b
   })
-  speedBtns[0].classList.add('active')
   speedGroup.append(...speedBtns)
-  controls.append(pauseBtn, speedGroup)
   // 決策提示頻率：點一下切換，記在瀏覽器
-  const promptBtn = el('button', 'chip prompt-chip', T.prompts(PROMPT_NAMES[promptLevel]))
+  const promptBtn = el('button', 'prompt-btn')
+  const renderPrompt = () => {
+    promptBtn.replaceChildren(el('span', '', T.promptLabel), el('span', '', PROMPT_NAMES[promptLevel]))
+  }
+  renderPrompt()
   promptBtn.onclick = () => {
     promptLevel = PROMPT_LEVELS[(PROMPT_LEVELS.indexOf(promptLevel) + 1) % PROMPT_LEVELS.length]
     savePromptLevel(promptLevel)
-    promptBtn.textContent = T.prompts(PROMPT_NAMES[promptLevel])
-    toast(promptBtn.textContent)
+    renderPrompt()
+    toast(T.prompts(PROMPT_NAMES[promptLevel]))
   }
-  const log = el('ol', 'log')
+  controls.append(pauseBtn, speedGroup, promptBtn)
+  const log = el('ol', 'match-log')
+  log.setAttribute('aria-label', '比賽紀錄')
   const sheet = el('div', 'sheet hidden')
-  screen.append(board, canvasWrap, matchup, lastPlay, controls, promptBtn, log, sheet)
+  screen.append(board, canvasWrap, matchup, lastPlay, controls, log, sheet)
   root.append(screen)
 
   const field = new FieldRenderer(canvas)
@@ -90,60 +127,64 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   const name = (id: string) => game.player(id)?.name ?? '?'
 
   function syncField(): void {
-    field.fieldingColor = game.fieldingSide === userSide ? USER_COLOR : CPU_COLOR
-    field.battingColor = game.battingSide === userSide ? USER_COLOR : CPU_COLOR
+    const userFielding = game.fieldingSide === userSide
+    field.fieldingColor = userFielding ? USER_COLOR : CPU_COLOR
+    field.battingColor = userFielding ? CPU_COLOR : USER_COLOR
+    field.fieldingStroke = userFielding ? '#FFFFFF' : '#141633'
+    field.battingStroke = userFielding ? '#141633' : '#FFFFFF'
     field.sync(
       game.bases.map((b) => b?.id ?? null),
       game.over ? null : game.batter.id,
     )
   }
 
+  /** 比分條：兩隊比分、局數、壘包狀態、好壞球與出局燈號 */
   function renderBoard(): void {
     board.replaceChildren()
-    const teamRow = (side: Side) => {
-      const row = el('div', `team-row ${side === userSide ? 'mine' : ''}`)
+    const teams = el('div', 'mh-teams')
+    for (const side of ['away', 'home'] as const) {
       const batting = !game.over && game.battingSide === side
-      row.append(
-        el('span', 'team-name', `${batting ? '▸ ' : ''}${game.teams[side].name}`),
-        el('span', 'team-score', String(game.score[side])),
-      )
-      return row
+      const row = el('div', `mh-team ${batting ? 'batting' : ''}`)
+      const swatch = el('span', `mh-swatch ${side === userSide ? 'user' : 'opponent'}`)
+      const nameEl = el('span', 'mh-name')
+      if (batting) nameEl.innerHTML = BATTING_MARK
+      nameEl.append(game.teams[side].name)
+      row.append(swatch, nameEl, el('span', 'mh-score', String(game.score[side])))
+      teams.append(row)
     }
-    const teams = el('div', 'teams')
-    teams.append(teamRow('away'), teamRow('home'))
-    const state = el('div', 'state')
-    state.append(el('div', 'inning', T.inning(game.inning, game.half === 'top')))
-    const count = el('div', 'count')
-    const dots = (label: string, n: number, max: number, cls: string) => {
-      const row = el('div', 'count-row')
-      row.append(el('span', 'count-label', label))
-      for (let i = 0; i < max; i++) row.append(el('span', `count-dot ${i < n ? cls : ''}`))
-      return row
+    const inning = el('div', 'mh-inning')
+    inning.append(el('span', 'mh-inning-num', String(game.inning)), el('span', 'mh-inning-half', game.half === 'top' ? T.halfTop : T.halfBottom))
+    const bases = el('div', 'mh-bases')
+    bases.innerHTML = basesSvg(game.bases.map(Boolean))
+    bases.setAttribute('role', 'img')
+    bases.setAttribute('aria-label', runnersText(game.bases.map(Boolean)))
+    const count = el('div', 'mh-count')
+    const lights = (label: string, n: number, max: number, cls: string) => {
+      count.append(el('span', 'mh-count-label', label))
+      for (let i = 0; i < 3; i++) count.append(el('span', i < max ? `mh-light ${i < n ? cls : ''}` : ''))
     }
-    count.append(dots('B', game.balls, 3, 'on-ball'), dots('S', game.strikes, 2, 'on-strike'), dots('O', game.outs, 2, 'on-out'))
-    state.append(count)
-    board.append(teams, state)
+    lights('B', game.balls, 3, 'on-ball')
+    lights('S', game.strikes, 2, 'on-strike')
+    lights('O', game.outs, 2, 'on-out')
+    board.append(teams, inning, bases, count)
 
     matchup.replaceChildren()
     if (game.over) return
-    const b = game.batter
-    const p = game.pitcher
     const tired = game.isFatigued(game.fielding)
-    const side = (label: string, player: Player, s: Side, extra: string) => {
-      const box = el('div', `mu ${s === userSide ? 'mine' : ''}`)
-      const head = el('div', 'mu-head')
-      const names = el('div', 'grow')
-      names.append(el('div', 'mu-label', label), el('div', 'mu-name', player.name))
-      head.append(avatar(player.id, sideTeam(s), 'sm'), names)
-      box.append(head, gradeLine(player))
-      if (extra) box.append(el('div', `mu-extra ${tired ? 'warn' : ''}`, extra))
-      if (player.traits.length) box.append(traitChips(player))
+    const card = (player: Player, s: Side, isPitcher: boolean) => {
+      const box = el('div', 'duel-card')
+      const info = el('div', 'duel-info')
+      const top = el('div', 'duel-top')
+      top.append(el('span', 'duel-card-name', player.name))
+      if (isPitcher && tired) top.append(el('span', 'tired-tag', T.tiredTag))
+      const grades = el('div', 'duel-grades')
+      for (const v of Object.values(player.ratings)) grades.append(gradeBadge(v, 'sm'))
+      if (isPitcher) grades.append(el('span', `duel-pitches ${tired ? 'warn' : ''}`, T.pitchCount(game.fielding.pitchCount)))
+      info.append(top, grades)
+      box.append(avatar(player.id, sideTeam(s), `team-ring ${sideTeam(s)}`), info)
       return box
     }
-    matchup.append(
-      side(T.batter, b, game.battingSide, ''),
-      side(T.pitcher, p, game.fieldingSide, `${T.pitchCount(game.fielding.pitchCount)}${tired ? `・${T.tired}` : ''}`),
-    )
+    matchup.append(card(game.batter, game.battingSide, false), card(game.pitcher, game.fieldingSide, true))
   }
 
   function describe(e: GameEvent): string | null {
@@ -168,14 +209,19 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   }
 
   function addLog(text: string, cls = ''): void {
-    const li = el('li', cls, text)
+    log.querySelector('.latest')?.classList.remove('latest')
+    const li = el('li', `${cls} ${cls === 'divider' ? '' : 'latest'}`, text)
     log.prepend(li)
     while (log.children.length > 40) log.lastChild?.remove()
   }
 
-  function flash(text: string, cls: string): void {
-    callout.textContent = text
-    callout.className = `callout show ${cls}`
+  /** 球場上的爆炸框大字：label 是主要文字，top 是上方的小一行（例如 6-4-3） */
+  function flash(label: string, tone: 'hr' | 'score' | 'dp' | 'error', top = ''): void {
+    callout.replaceChildren()
+    callout.insertAdjacentHTML('afterbegin', BURST_SVG)
+    if (top) callout.append(el('span', 'callout-top', top))
+    callout.append(el('span', 'callout-label', label))
+    callout.className = `callout show ${tone}`
     window.setTimeout(() => (callout.className = 'callout'), 1600 / speed)
   }
 
@@ -200,7 +246,10 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       if (e.type === 'pitch') {
         lastPlay.textContent = PITCH_TEXT[e.result]
         await field.pitch(e.result, PACE.pitch * k)
-        if (e.result !== 'inPlay') await wait(PACE.afterPitch * k)
+        if (e.result !== 'inPlay') {
+          renderBoard()
+          await wait(PACE.afterPitch * k)
+        }
       } else if (e.type === 'play') {
         const caught = OUT_KINDS.has(e.kind)
         const ms = (PACE.flightBase + (e.ball?.distance ?? 0) * PACE.flightPerFoot) * k
@@ -208,15 +257,17 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         const cls = e.kind === 'homeRun' ? 'hr' : e.runs > 0 ? 'score' : e.kind === 'error' ? 'error' : ''
         if (e.kind === 'homeRun') flash(`${homeRunName(e.runs)}！`, 'hr')
         else if (e.runs > 0) flash(T.scored(e.runs).replace('，', ''), 'score')
-        else if (e.kind === 'doublePlay') flash(`${e.notation} ${T.callDoublePlay}`, 'dp')
+        else if (e.kind === 'doublePlay') flash(T.callDoublePlay, 'dp', e.notation ?? '')
         else if (e.kind === 'error') flash(T.callError, 'error')
         lastPlay.textContent = text
         addLog(text!, cls)
+        renderBoard()
         await wait(PACE.afterPlay * k)
       } else if (e.type === 'steal') {
         await field.run(e.moves, PACE.steal * k)
         lastPlay.textContent = text
         addLog(text!)
+        renderBoard()
         await wait(PACE.afterPlay * k)
       } else if (text) {
         addLog(text, e.type === 'halfInningEnd' ? 'divider' : '')

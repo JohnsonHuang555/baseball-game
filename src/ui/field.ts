@@ -6,7 +6,6 @@ interface Pt {
 }
 
 const FENCE_FT = 400
-const INFIELD_FT = 150
 /** [角度, 距離英呎]：角度 0 為中外野方向 */
 const BASES: Record<0 | 1 | 2 | 3, [number, number]> = { 0: [0, 0], 1: [45, 90], 2: [0, 127.3], 3: [-45, 90] }
 const MOUND: [number, number] = [0, 60.5]
@@ -23,11 +22,12 @@ const FIELDER_SPOTS: Record<string, [number, number]> = {
 }
 
 const COLORS = {
-  foul: '#1d5a2a',
-  fair: '#2f8a3e',
-  dirt: '#b98558',
-  line: '#f4f1e8',
-  fence: '#f2c94c',
+  foul: '#2E8C43',
+  fair: '#43B356',
+  mow: 'rgba(0,0,0,0.07)',
+  dirt: '#E3A867',
+  line: '#FFFFFF',
+  ink: '#141633',
   ball: '#ffffff',
   shadow: 'rgba(0,0,0,0.35)',
 }
@@ -47,8 +47,11 @@ export class FieldRenderer {
   private runners = new Map<string, Dot>()
   private batterId: string | null = null
   private ball: (Pt & { height: number }) | null = null
-  fieldingColor = '#ef4444'
-  battingColor = '#3b82f6'
+  fieldingColor = '#FF7A1A'
+  battingColor = '#2D7CFF'
+  /** 圓點外圈：我方白圈、對手深色圈，色弱也分得出兩隊 */
+  fieldingStroke = '#FFFFFF'
+  battingStroke = '#141633'
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d')!
@@ -113,50 +116,79 @@ export class FieldRenderer {
       c.fill()
     }
     wedge(FENCE_FT, COLORS.fair)
-    wedge(INFIELD_FT, COLORS.dirt)
 
-    // 內野草皮：壘包連線往投手丘內縮
+    // 外野草皮的割草斜紋：只畫在界內
+    c.save()
+    c.beginPath()
+    c.moveTo(home.x, home.y)
+    c.arc(home.x, home.y, FENCE_FT * scale, -Math.PI * 0.75, -Math.PI * 0.25)
+    c.closePath()
+    c.clip()
+    c.strokeStyle = COLORS.mow
+    c.lineWidth = 10
+    for (let x = -this.h; x < this.w + this.h; x += 20) {
+      c.beginPath()
+      c.moveTo(x, 0)
+      c.lineTo(x + this.h, this.h)
+      c.stroke()
+    }
+    c.restore()
+
+    // 全壘打牆前的警戒區
+    c.strokeStyle = COLORS.dirt
+    c.lineWidth = 9
+    c.beginPath()
+    c.arc(home.x, home.y, FENCE_FT * scale - 4, -Math.PI * 0.75, -Math.PI * 0.25)
+    c.stroke()
+
+    // 內野：以本壘到二壘的中點為中心，土色菱形往外擴、中間草皮往內縮
+    const second = this.basePt(2)
+    const center = { x: (home.x + second.x) / 2, y: (home.y + second.y) / 2 }
+    const diamond = (k: number, color: string) => {
+      c.beginPath()
+      ;[0, 1, 2, 3].forEach((n, i) => {
+        const b = this.basePt(n)
+        const p = { x: center.x + (b.x - center.x) * k, y: center.y + (b.y - center.y) * k }
+        if (i === 0) c.moveTo(p.x, p.y)
+        else c.lineTo(p.x, p.y)
+      })
+      c.closePath()
+      c.fillStyle = color
+      c.fill()
+    }
+    diamond(1.33, COLORS.dirt)
+    diamond(0.8, COLORS.fair)
+
     const mound = this.toPx(...MOUND)
     c.beginPath()
-    ;[0, 1, 2, 3].forEach((n, i) => {
-      const b = this.basePt(n)
-      const p = { x: mound.x + (b.x - mound.x) * 0.72, y: mound.y + (b.y - mound.y) * 0.72 }
-      if (i === 0) c.moveTo(p.x, p.y)
-      else c.lineTo(p.x, p.y)
-    })
-    c.closePath()
-    c.fillStyle = COLORS.fair
-    c.fill()
-
-    c.beginPath()
-    c.arc(mound.x, mound.y, 9 * scale, 0, Math.PI * 2)
+    c.arc(mound.x, mound.y, 11 * scale, 0, Math.PI * 2)
     c.fillStyle = COLORS.dirt
     c.fill()
 
     c.strokeStyle = COLORS.line
-    c.lineWidth = 1.5
+    c.lineWidth = 2.5
     for (const a of [-45, 45]) {
-      const end = this.toPx(a, FENCE_FT)
+      const end = this.toPx(a, FENCE_FT + 40)
       c.beginPath()
       c.moveTo(home.x, home.y)
       c.lineTo(end.x, end.y)
       c.stroke()
     }
-    c.strokeStyle = COLORS.fence
-    c.lineWidth = 3
-    c.beginPath()
-    c.arc(home.x, home.y, FENCE_FT * scale, -Math.PI * 0.75, -Math.PI * 0.25)
-    c.stroke()
 
+    // 壘包：白底深框的小菱形
+    c.lineWidth = 1.5
+    c.strokeStyle = COLORS.ink
     c.fillStyle = COLORS.line
     for (const n of [1, 2, 3]) {
       const b = this.basePt(n)
       c.save()
       c.translate(b.x, b.y)
       c.rotate(Math.PI / 4)
-      c.fillRect(-3.5, -3.5, 7, 7)
+      c.fillRect(-5, -5, 10, 10)
+      c.strokeRect(-5, -5, 10, 10)
       c.restore()
     }
+    c.fillStyle = COLORS.line
     c.beginPath()
     c.moveTo(home.x - 4, home.y - 4)
     c.lineTo(home.x + 4, home.y - 4)
@@ -166,9 +198,9 @@ export class FieldRenderer {
     c.closePath()
     c.fill()
 
-    for (const p of this.fielders.values()) this.dot(p, this.fieldingColor, 1)
-    if (this.batterId && !this.runners.has(this.batterId)) this.dot(this.batterPt(), this.battingColor, 1)
-    for (const r of this.runners.values()) this.dot(r, this.battingColor, r.alpha)
+    for (const p of this.fielders.values()) this.dot(p, this.fieldingColor, this.fieldingStroke, 1, 7.5)
+    if (this.batterId && !this.runners.has(this.batterId)) this.dot(this.batterPt(), this.battingColor, this.battingStroke, 1, 8.5)
+    for (const r of this.runners.values()) this.dot(r, this.battingColor, this.battingStroke, r.alpha, 8.5)
 
     if (this.ball) {
       const { x, y, height } = this.ball
@@ -185,15 +217,15 @@ export class FieldRenderer {
     }
   }
 
-  private dot(p: Pt, color: string, alpha: number): void {
+  private dot(p: Pt, color: string, stroke: string, alpha: number, radius: number): void {
     const c = this.ctx
     c.globalAlpha = alpha
     c.beginPath()
-    c.arc(p.x, p.y, 6.5, 0, Math.PI * 2)
+    c.arc(p.x, p.y, radius, 0, Math.PI * 2)
     c.fillStyle = color
     c.fill()
-    c.lineWidth = 1.5
-    c.strokeStyle = '#ffffff'
+    c.lineWidth = 2.5
+    c.strokeStyle = stroke
     c.stroke()
     c.globalAlpha = 1
   }
