@@ -567,3 +567,30 @@
   font-size: 11px;
   color: #fff;
 }
+
+/* ---- 音效開關（比賽控制列與首頁共用） ---- */
+.sound-btn {
+  flex: none;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  background: transparent;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.sound-btn[aria-pressed='false'] {
+  color: #8a8fd8;
+  border-color: #8a8fd8;
+}
+.home-sound {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top));
+  right: 14px;
+  z-index: 2;
+}

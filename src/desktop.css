@@ -1804,3 +1804,15 @@ button .kbd {
     grid-template-columns: minmax(0, 1fr) 340px;
   }
 }
+
+@media (min-width: 1024px) {
+  .match-controls .sound-btn {
+    height: 46px;
+    border-width: 2.5px;
+  }
+  .home-sound {
+    top: 24px;
+    right: 24px;
+    position: fixed;
+  }
+}

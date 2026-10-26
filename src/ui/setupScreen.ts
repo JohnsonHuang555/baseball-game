@@ -17,6 +17,7 @@ import { gradeBadge, overallBadge } from './grades'
 import { el, traitTag } from './playerCard'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { TEAM_NAME_MAX, saveTeamName } from './prefs'
+import { play } from './sound'
 import { POSITION_FULL, RATING_FULL, T } from './strings'
 import { applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
 
@@ -338,6 +339,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
   function rerollWholeTeam(): void {
     if (!allowReroll || setup.teamRerollsLeft <= 0) return
     const before = new Set(allIds())
+    play('dice')
     update(rerollTeam(setup))
     toast(T.rerolledTeam(setup.teamRerollsLeft))
     revealed = 'all'
@@ -490,6 +492,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
       reroll.disabled = setup.playerRerollsLeft <= 0
       rerollThis = () => {
         if (setup.playerRerollsLeft <= 0) return
+        play('dice')
         update(rerollPlayer(setup, slot))
         const fresh = getSlot(setup.team.roster, slot)
         toast(T.rerolledPlayer(p.name, fresh.name))
@@ -542,7 +545,10 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     ok.onclick = () => overlay.remove()
     overlay.append(el('p', 'reveal-title', T.rareArrived), card, ok)
     // 等翻牌跑完再登場
-    window.setTimeout(() => root.append(overlay), 700)
+    window.setTimeout(() => {
+      root.append(overlay)
+      play('sparkle')
+    }, 700)
   }
 
   render()

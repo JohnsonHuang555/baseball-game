@@ -46,6 +46,25 @@ export function savePromptLevel(level: PromptLevel): void {
   }
 }
 
+const SOUND_KEY = 'dice-baseball.sound'
+
+/** 音效開關，預設開啟 */
+export function loadSoundOn(): boolean {
+  try {
+    return localStorage.getItem(SOUND_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
+
+export function saveSoundOn(on: boolean): void {
+  try {
+    localStorage.setItem(SOUND_KEY, on ? 'on' : 'off')
+  } catch {
+    // 記不住就用預設
+  }
+}
+
 /** 新的隊伍套用玩家記住的隊名 */
 export function withSavedName(setup: PregameSetup): PregameSetup {
   const name = loadTeamName()

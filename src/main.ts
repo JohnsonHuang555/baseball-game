@@ -15,6 +15,7 @@ import { avatar } from './ui/avatar'
 import { showGame } from './ui/gameScreen'
 import { gradeBadge, overallBadge } from './ui/grades'
 import { setKeys } from './ui/keys'
+import { soundToggle } from './ui/sound'
 import { el } from './ui/playerCard'
 import { withSavedName } from './ui/prefs'
 import { loadTournament } from './ui/save'
@@ -66,9 +67,11 @@ function showcaseCards(): HTMLElement {
 }
 
 function showTitle(): void {
-  setKeys({})
   root.replaceChildren()
   const screen = el('div', 'home-screen')
+  // 首頁右上角的音效開關，按 M 也可以切換
+  const sound = soundToggle('sound-btn home-sound')
+  setKeys({ m: () => sound.click() })
   const main = el('div', 'home-main')
   const hero = el('div', 'home-hero')
   hero.insertAdjacentHTML('afterbegin', HOME_RAYS + LOGO)
@@ -93,7 +96,7 @@ function showTitle(): void {
   } else buttons.append(quick, fresh)
 
   main.append(hero, buttons)
-  screen.append(main, showcaseCards())
+  screen.append(sound, main, showcaseCards())
   root.append(screen)
 }
 

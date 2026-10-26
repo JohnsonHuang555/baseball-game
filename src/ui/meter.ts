@@ -2,6 +2,7 @@
 import { gradeTiming, type MeterGrade, type MeterZone } from '../sim/game'
 import { kbd, setKeys } from './keys'
 import { el } from './playerCard'
+import { chargeTone, play } from './sound'
 import { T } from './strings'
 
 /** 從空到滿的時間（毫秒），不受比賽速度影響 */
@@ -42,6 +43,7 @@ export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: Me
     let value = 0
     let frame = 0
     let done = false
+    let stopTone = () => {}
 
     const tick = (now: number) => {
       value = Math.min(1, (now - start) / FILL_MS)
@@ -53,6 +55,7 @@ export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: Me
       if (start || done) return
       start = performance.now()
       layer.classList.add('charging')
+      stopTone = chargeTone(FILL_MS)
       frame = requestAnimationFrame(tick)
     }
     const release = () => {
@@ -60,12 +63,14 @@ export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: Me
       done = true
       cancelAnimationFrame(frame)
       cleanup()
+      stopTone()
       const timing = Math.round(value * 1000) / 1000
       const grade = gradeTiming(zone, timing)
       fill.style.height = `${timing * 100}%`
       layer.classList.remove('charging')
       layer.classList.add('released')
       hint.replaceChildren(el('span', `meter-grade ${grade}`, T.meterGrades[grade]))
+      play(grade === 'perfect' ? 'perfect' : grade === 'good' ? 'good' : 'miss')
       window.setTimeout(() => {
         layer.remove()
         setKeys(previousKeys)

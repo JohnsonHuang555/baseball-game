@@ -5,6 +5,7 @@ import type { Player } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { gradeBadge, overallBadge } from './grades'
 import { el, traitTag } from './playerCard'
+import { play } from './sound'
 import { RATING_FULL, RATING_LABELS, T, TRAIT_DESC } from './strings'
 
 /** 球場動畫用的隊伍顏色，和頭像帽子同色：我方藍、對手橘 */
@@ -38,6 +39,7 @@ export function miniCard(p: Player, label: string, team: AvatarTeam = 'user', st
 
 /** 畫面下方短暫出現的提示，幾秒後自己消失 */
 export function toast(text: string): void {
+  play('pop')
   document.querySelector('.toast')?.remove()
   const node = el('div', 'toast')
   node.setAttribute('role', 'status')

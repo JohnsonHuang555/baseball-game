@@ -116,6 +116,8 @@ export const T = {
   traitsColumn: '特性',
   swapGuide: '點兩名球員交換：點球場上的人交換守位，點打序列表交換棒次',
   logTitle: '比賽紀錄',
+  soundOn: '音效：開（按 M 關閉）',
+  soundOff: '音效：關（按 M 開啟）',
   // ---- 全壘打數據 ----
   hrDistance: '飛行距離',
   hrExitVelocity: '擊球初速',

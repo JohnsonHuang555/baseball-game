@@ -22,6 +22,7 @@ import { kbd, setKeys, type KeyMap } from './keys'
 import { el, traitTag } from './playerCard'
 import { applyCardState, toast } from './visual'
 import { clearTournament, saveTournament } from './save'
+import { play } from './sound'
 import { rays, showRosterEditor } from './setupScreen'
 import { POSITION_FULL, RATING_FULL, RATING_LABELS, T, TRAIT_DESC } from './strings'
 
@@ -396,6 +397,7 @@ const BALL_ICON = `<svg role="img" aria-label="${T.ballLabel}" viewBox="0 0 64 6
 /** 錦標賽結束：奪冠（獎盃、光芒、紙花）或止步某輪，列出這屆每一場 */
 function showTourEnd(root: HTMLElement, t: Tournament, toTitle: () => void): void {
   const champ = t.phase === 'champion'
+  play(champ ? 'champion' : 'lose')
   const screen = el('div', `end-screen ${champ ? 'champ' : 'out'}`)
   if (champ) {
     screen.insertAdjacentHTML('afterbegin', `<svg class="end-rays" aria-hidden="true" viewBox="-700 -700 1400 1400">${rays(700)}</svg>${confetti(1440, 420, 60, 11)}`)

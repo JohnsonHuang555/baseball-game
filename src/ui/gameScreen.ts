@@ -6,6 +6,7 @@ import { gradeBadge } from './grades'
 import { renderDecisionPanel, type PanelState, type SheetReason } from './decisionPanel'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { runMeter } from './meter'
+import { play, soundToggle } from './sound'
 import { el } from './playerCard'
 import { PROMPT_LEVELS, loadPromptLevel, savePromptLevel } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
@@ -30,6 +31,7 @@ export interface GameScreenOptions {
   resultLabel?: string
 }
 
+const HIT_KINDS = new Set(['single', 'double', 'triple'])
 const OUT_KINDS = new Set(['groundOut', 'doublePlay', 'flyOut', 'sacrificeFly', 'lineOut', 'buntPopOut', 'sacrificeBunt'])
 
 
@@ -121,7 +123,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   promptBtn.onclick = cyclePrompt
   const speedHint = el('span', 'speed-hint desk-only')
   speedHint.append(kbd('S'), T.cycleSpeed)
-  controls.append(pauseBtn, speedGroup, promptBtn, speedHint)
+  const soundBtn = soundToggle()
+  controls.append(pauseBtn, speedGroup, promptBtn, soundBtn, speedHint)
   const log = el('ol', 'match-log')
   log.setAttribute('aria-label', '比賽紀錄')
   const sheet = el('div', 'sheet hidden')
@@ -149,6 +152,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     Space: requestPause,
     s: () => setSpeed(speeds[(speeds.indexOf(speed) + 1) % speeds.length]),
     h: cyclePrompt,
+    m: () => soundBtn.click(),
   }
   setKeys(gameKeys)
 
@@ -343,11 +347,24 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   async function animate(events: GameEvent[], important: boolean): Promise<void> {
     // 關鍵時刻用正常速度，平常稍微快一點
     const k = 1 / (speed * (important ? 1 : 1.4))
-    for (const e of events) {
+    for (const [i, e] of events.entries()) {
       const text = describe(e)
       if (e.type === 'pitch') {
         lastPlay.textContent = PITCH_TEXT[e.result]
         await field.pitch(e.result, PACE.pitch * k)
+        // 球到本壘的那一刻發聲：進手套、揮空、擦棒，或打進場內（全壘打更響）
+        const next = events[i + 1]
+        play(
+          e.result === 'inPlay'
+            ? next?.type === 'play' && next.kind === 'homeRun'
+              ? 'bigCrack'
+              : 'crack'
+            : e.result === 'foul'
+              ? 'foul'
+              : e.result === 'swingingStrike'
+                ? 'whoosh'
+                : 'mitt',
+        )
         if (e.result !== 'inPlay') {
           renderBoard()
           await wait(PACE.afterPitch * k)
@@ -356,6 +373,9 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         const caught = OUT_KINDS.has(e.kind)
         const ms = (PACE.flightBase + (e.ball?.distance ?? 0) * PACE.flightPerFoot) * k
         await field.play(e.ball, e.moves, caught, ms)
+        if (e.kind === 'homeRun') play('roar')
+        else if (e.kind === 'strikeout') play('strikeout')
+        else if (e.runs > 0 || HIT_KINDS.has(e.kind) || e.kind === 'doublePlay') play('cheer')
         const cls = e.kind === 'homeRun' ? 'hr' : e.runs > 0 ? 'score' : e.kind === 'error' ? 'error' : ''
         if (e.kind === 'homeRun') {
           flash(`${homeRunName(e.runs)}！`, 'hr')
@@ -434,6 +454,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       render()
       sheet.classList.remove('hidden')
       screen.classList.add('deciding')
+      play('alert')
     })
   }
 
@@ -467,6 +488,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   function showResult(): void {
     resizeObserver.disconnect()
     const won = game.winner === userSide
+    play(won ? 'win' : 'lose')
     const opponentSide: Side = userSide === 'home' ? 'away' : 'home'
     const screen = el('div', `result-screen ${won ? 'won' : 'lost'}`)
     if (won) screen.insertAdjacentHTML('afterbegin', `<svg class="result-rays" aria-hidden="true" viewBox="-350 -350 700 700">${rays(350)}</svg>`)
