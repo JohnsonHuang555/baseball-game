@@ -20,9 +20,11 @@ import { showGame } from './gameScreen'
 import { gradeBadge, gradeOf, overallBadge } from './grades'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { el, traitTag } from './playerCard'
-import { applyCardState, toast } from './visual'
+import { applyCardState, sideTag, toast } from './visual'
 import { clearTournament, saveTournament } from './save'
 import { play } from './sound'
+import { maybeTutorial } from './tutorial'
+import { TUTORIAL_STEPS } from './tutorialSteps'
 import { rays, showRosterEditor } from './setupScreen'
 import { POSITION_FULL, RATING_FULL, RATING_LABELS, T, TRAIT_DESC } from './strings'
 
@@ -169,6 +171,7 @@ function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, 
       const box = el('div', `hub-side ${team}`)
       const words = el('span', 'hub-side-words')
       words.append(el('span', 'hub-side-name', name), gradeBadge(avg, 'sm'))
+      if (team === 'user') words.append(sideTag(true))
       box.append(teamTile(name, team), words)
       return box
     }
@@ -198,6 +201,7 @@ function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, 
   }
   screen.append(bottom)
   root.append(screen)
+  void maybeTutorial('hub', TUTORIAL_STEPS.hub)
 }
 
 /** 賽程樹：四欄、每場一個小方框，用線連起來；自己的晉級路線用藍線 */
@@ -545,6 +549,7 @@ function showDraft(root: HTMLElement, t: Tournament, go: (t: Tournament) => void
     side.append(release, footer)
     screen.append(side)
     root.append(screen)
+    if (firstRender) void maybeTutorial('draft', TUTORIAL_STEPS.draft)
     firstRender = false
 
     // ← → 選卡；Enter 先跳到替換名單，在名單上再按 Enter 就換掉那一位

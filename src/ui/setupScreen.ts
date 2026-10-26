@@ -18,6 +18,8 @@ import { el, traitTag } from './playerCard'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { TEAM_NAME_MAX, saveTeamName } from './prefs'
 import { play } from './sound'
+import { maybeTutorial } from './tutorial'
+import { TUTORIAL_STEPS } from './tutorialSteps'
 import { POSITION_FULL, RATING_FULL, T } from './strings'
 import { applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
 
@@ -552,6 +554,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
   }
 
   render()
+  void maybeTutorial('team', TUTORIAL_STEPS.team)
 }
 
 const RATING_SHORT = { contact: '打', power: '力', speed: '速', fielding: '守' } as const

@@ -38,6 +38,11 @@ export function miniCard(p: Player, label: string, team: AvatarTeam = 'user', st
 }
 
 /** 畫面下方短暫出現的提示，幾秒後自己消失 */
+/** 「我方」或「對手」的小標籤，讓玩家一眼分出自己的球隊 */
+export function sideTag(isUser: boolean): HTMLElement {
+  return el('span', `side-tag ${isUser ? 'user' : 'opponent'}`, isUser ? T.mySide : T.opponentSide)
+}
+
 export function toast(text: string): void {
   play('pop')
   document.querySelector('.toast')?.remove()

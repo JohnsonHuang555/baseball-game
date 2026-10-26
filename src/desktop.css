@@ -1816,3 +1816,24 @@ button .kbd {
     position: fixed;
   }
 }
+
+@media (min-width: 1024px) {
+  .home-buttons > .home-link {
+    grid-column: 1 / -1;
+    height: auto;
+    border: 0;
+    font-size: 14px;
+  }
+  .field-side {
+    left: 14px;
+    top: 14px;
+    font-size: 14px;
+    padding: 4px 12px;
+  }
+}
+@media (min-width: 1024px) {
+  /* 沒有存檔時：快速比賽、錦標賽各佔一整列 */
+  .home-buttons > :nth-child(2):nth-last-child(2) {
+    grid-column: 1 / -1;
+  }
+}

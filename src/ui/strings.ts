@@ -116,6 +116,16 @@ export const T = {
   traitsColumn: '特性',
   swapGuide: '點兩名球員交換：點球場上的人交換守位，點打序列表交換棒次',
   logTitle: '比賽紀錄',
+  // ---- 新手教學與我方標示 ----
+  tutorialNext: '下一步',
+  tutorialDone: '開始玩',
+  tutorialSkip: '跳過教學',
+  tutorialReplay: '重看新手教學',
+  tutorialReset: '已重設，進入各畫面時會再顯示教學',
+  mySide: '我方',
+  opponentSide: '對手',
+  weAreBatting: '我方進攻中',
+  weAreFielding: '我方守備中',
   soundOn: '音效：開（按 M 關閉）',
   soundOff: '音效：關（按 M 開啟）',
   // ---- 全壘打數據 ----

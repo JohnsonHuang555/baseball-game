@@ -594,3 +594,28 @@
   right: 14px;
   z-index: 2;
 }
+
+/* ---- 球場左上角：我方進攻中／守備中 ---- */
+.field-side {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 1;
+  padding: 3px 10px;
+  border-radius: 10px;
+  border: 2px solid var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+  pointer-events: none;
+}
+.field-side.batting {
+  background: var(--home);
+  color: #fff;
+}
+.field-side.fielding {
+  background: #fff;
+  color: #1a4fb8;
+}
+.mh-name .side-tag {
+  margin-left: 2px;
+}

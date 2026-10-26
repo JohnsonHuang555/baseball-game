@@ -6,12 +6,14 @@ import { gradeBadge } from './grades'
 import { renderDecisionPanel, type PanelState, type SheetReason } from './decisionPanel'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { runMeter } from './meter'
+import { maybeTutorial } from './tutorial'
+import { TUTORIAL_STEPS } from './tutorialSteps'
 import { play, soundToggle } from './sound'
 import { el } from './playerCard'
 import { PROMPT_LEVELS, loadPromptLevel, savePromptLevel } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
 import { rays } from './setupScreen'
-import { CPU_COLOR, USER_COLOR, toast } from './visual'
+import { CPU_COLOR, USER_COLOR, sideTag, toast } from './visual'
 
 export interface ResultAction {
   label: string
@@ -82,7 +84,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   canvasWrap.setAttribute('aria-label', '球場')
   const canvas = el('canvas', 'field')
   const callout = el('div', 'callout')
-  canvasWrap.append(canvas, callout)
+  const sideBanner = el('div', 'field-side')
+  canvasWrap.append(canvas, callout, sideBanner)
   const matchup = el('section', 'match-duel')
   const lastPlay = el('p', 'last-play')
   const controls = el('div', 'match-controls')
@@ -194,6 +197,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       const nameEl = el('span', 'mh-name')
       if (batting) nameEl.innerHTML = BATTING_MARK
       nameEl.append(game.teams[side].name)
+      if (side === userSide) nameEl.append(sideTag(true))
       row.append(swatch, nameEl, el('span', 'mh-score', String(game.score[side])))
       teams.append(row)
     }
@@ -215,6 +219,11 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     lines.replaceChildren(linescoreTable(true))
     renderLineup()
 
+    // 球場左上角：我方現在是進攻還是守備
+    sideBanner.className = `field-side ${game.battingSide === userSide ? 'batting' : 'fielding'}`
+    sideBanner.textContent = game.over ? '' : game.battingSide === userSide ? T.weAreBatting : T.weAreFielding
+    sideBanner.hidden = game.over
+
     matchup.replaceChildren()
     if (game.over) return
     const tired = game.isFatigued(game.fielding)
@@ -222,7 +231,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       const box = el('div', 'duel-card')
       const info = el('div', 'duel-info')
       const top = el('div', 'duel-top')
-      top.append(el('span', 'duel-card-name', player.name))
+      top.append(el('span', 'duel-card-name', player.name), sideTag(s === userSide))
       if (isPitcher && tired) top.append(el('span', 'tired-tag', T.tiredTag))
       const grades = el('div', 'duel-grades')
       for (const v of Object.values(player.ratings)) grades.append(gradeBadge(v, 'sm'))
@@ -250,7 +259,9 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     if (game.over) return
     const side = game.battingSide
     const team = game.batting
-    lineup.append(el('h2', 'panel-title', T.lineupTitle(team.name)))
+    const title = el('h2', 'panel-title', T.lineupTitle(team.name))
+    title.append(sideTag(side === userSide))
+    lineup.append(title)
     team.lineup.forEach((spot, i) => {
       const current = i === team.battingIndex
       const base = game.bases.findIndex((b) => b?.id === spot.player.id)
@@ -455,6 +466,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       sheet.classList.remove('hidden')
       screen.classList.add('deciding')
       play('alert')
+      // 面板滑出後再講解，位置才準
+      window.setTimeout(() => void maybeTutorial('decision', TUTORIAL_STEPS.decision), 350)
     })
   }
 
@@ -501,6 +514,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     const teamTile = (side: Side) => {
       const box = el('div', `result-team ${side === userSide ? 'user' : 'opponent'}`)
       box.append(el('span', 'result-tile', game.teams[side].name.slice(0, 1)), el('span', 'result-team-name', game.teams[side].name))
+      if (side === userSide) box.append(sideTag(true))
       return box
     }
     const scoreline = el('div', 'result-scoreline')
@@ -545,6 +559,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         if (!game.over && game.battingSide === side) nameCell.insertAdjacentHTML('beforeend', BATTING_MARK)
       }
       nameCell.append(game.teams[side].name)
+      if (side === userSide) nameCell.append(sideTag(true))
       row.append(nameCell)
       for (let i = 0; i < innings; i++) {
         const v = game.linescore[side][i]
@@ -567,5 +582,6 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
 
   syncField()
   renderBoard()
-  void loop()
+  // 第一次進比賽先看教學，看完才開打
+  void maybeTutorial('match', TUTORIAL_STEPS.match).then(loop)
 }

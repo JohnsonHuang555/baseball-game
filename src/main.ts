@@ -16,6 +16,9 @@ import { showGame } from './ui/gameScreen'
 import { gradeBadge, overallBadge } from './ui/grades'
 import { setKeys } from './ui/keys'
 import { soundToggle } from './ui/sound'
+import { maybeTutorial, resetTutorials } from './ui/tutorial'
+import { TUTORIAL_STEPS } from './ui/tutorialSteps'
+import { toast } from './ui/visual'
 import { el } from './ui/playerCard'
 import { withSavedName } from './ui/prefs'
 import { loadTournament } from './ui/save'
@@ -94,10 +97,19 @@ function showTitle(): void {
     resume.onclick = () => openTournament(root, saved, showTitle)
     buttons.append(resume, quick, fresh)
   } else buttons.append(quick, fresh)
+  const replay = el('button', 'home-link', T.tutorialReplay)
+  replay.type = 'button'
+  replay.onclick = () => {
+    resetTutorials()
+    toast(T.tutorialReset)
+    void maybeTutorial('home', TUTORIAL_STEPS.home)
+  }
+  buttons.append(replay)
 
   main.append(hero, buttons)
   screen.append(sound, main, showcaseCards())
   root.append(screen)
+  void maybeTutorial('home', TUTORIAL_STEPS.home)
 }
 
 function startQuickMatch(): void {
