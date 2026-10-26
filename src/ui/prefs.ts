@@ -67,6 +67,25 @@ export function saveAvatarSpecies(species: AvatarSpecies): void {
   }
 }
 
+const MANUAL_KEY = 'dice-baseball.manual'
+
+/** 親自操作模式：每一球都跳出計量條，預設關閉 */
+export function loadManual(): boolean {
+  try {
+    return localStorage.getItem(MANUAL_KEY) === 'on'
+  } catch {
+    return false
+  }
+}
+
+export function saveManual(on: boolean): void {
+  try {
+    localStorage.setItem(MANUAL_KEY, on ? 'on' : 'off')
+  } catch {
+    // 記不住就算了
+  }
+}
+
 const SOUND_KEY = 'dice-baseball.sound'
 
 /** 音效開關，預設開啟 */

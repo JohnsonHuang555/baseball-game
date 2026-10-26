@@ -255,8 +255,6 @@ export class Game {
   queued: Tactic | null = null
   /** 目前的守備佈陣：教練守備時可以改，打席結束恢復標準 */
   alignment: Alignment = 'normal'
-  /** 教練最近一次親自出手的打席，每個打席只能一次 */
-  private takeOverPa = -1
   readonly commands: Command[] = []
   private readonly rng: Rng
   /** AI 守備時會不會佈陣（規則版本 2 起） */
@@ -506,11 +504,11 @@ export class Game {
   }
 
   /**
-   * 現在能不能親自出手：教練面板打開時都能用（關鍵時刻或主動暫停），
-   * 但每個打席一次，而且不能跟其他排著的戰術同時。進攻時是親自出棒，守備時是決勝球
+   * 現在能不能親自出手：每一球都可以（「親自操作」模式就是每球都出手），
+   * 只是不能跟其他排著的戰術同時。進攻時是親自出棒，守備時是決勝球
    */
   takeOver(): 'swing' | 'aimPitch' | null {
-    if (this.over || this.queued || this.takeOverPa === this.paIndex) return null
+    if (this.over || this.queued) return null
     return this.battingSide === this.userSide ? 'swing' : 'aimPitch'
   }
 
@@ -570,7 +568,6 @@ export class Game {
         return []
       case 'swing':
       case 'aimPitch':
-        this.takeOverPa = this.paIndex
         this.queued = tactic
         return []
       case 'steal':

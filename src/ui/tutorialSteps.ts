@@ -53,6 +53,11 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
       text: '隨時都能暫停下戰術：盜壘、觸擊、代打、換投……也可以親自出棒或投決勝球，每個打席一次。',
     },
     {
+      target: '.manual-toggle',
+      title: '親自操作',
+      text: '想每一球都自己打、自己投，就打開這裡（或按 T）。每一球投出前都會跳出計量條；某一球不想出手，按「這球交給球員」。',
+    },
+    {
       target: '.speed-toggle',
       title: '比賽速度',
       text: '嫌慢可以切到 2x 或 4x，關鍵時刻會自動放慢。',

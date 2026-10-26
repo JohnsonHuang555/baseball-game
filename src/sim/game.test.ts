@@ -426,7 +426,7 @@ describe('親自出手（計量條）', () => {
     return kinds.filter((k) => HITS.has(k)).length / kinds.length
   }
 
-  it('任何時候都能用（關鍵時刻或教練暫停），每個打席一次，進攻是出棒、守備是決勝球', () => {
+  it('任何時候都能用，每一球都可以；同一球不能出手兩次；進攻是出棒、守備是決勝球', () => {
     // 比賽剛開始、不是關鍵時刻，主隊守備也能投決勝球
     const start = new Game(setup(1))
     expect(start.isCrunchTime()).toBe(false)
@@ -437,8 +437,16 @@ describe('親自出手（計量條）', () => {
 
     const g = findTakeOver('swing')
     g.issue({ type: 'swing', timing: 0.8 })
+    // 這一球已經排好了，不能再出手
     expect(g.takeOver()).toBeNull()
     expect(() => g.issue({ type: 'swing', timing: 0.8 })).toThrow()
+    // 投完這一球，同一個打席的下一球（或下一棒）又可以出手
+    const pa = g.paIndex
+    g.step()
+    if (!g.over && g.battingSide === 'home') {
+      expect(g.takeOver()).toBe('swing')
+      if (g.paIndex === pa) g.issue({ type: 'swing', timing: 0.5 })
+    }
     expect(findTakeOver('aimPitch').fieldingSide).toBe('home')
     expect(() => new Game(setup(1)).issue({ type: 'swing', timing: 0.8 })).toThrow()
   })

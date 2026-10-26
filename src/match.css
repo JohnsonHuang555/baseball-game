@@ -627,3 +627,58 @@
   flex-wrap: wrap;
   row-gap: 3px;
 }
+
+/* ---- 球場右上角：親自操作開關（疊在計量條上面，出手前也能關掉） ---- */
+.manual-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 10px;
+  border-radius: 10px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.manual-toggle b {
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #e3e6f5;
+  color: var(--ink-soft);
+}
+.manual-toggle[aria-pressed='true'] {
+  background: var(--yellow);
+  box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.45);
+}
+.manual-toggle[aria-pressed='true'] b {
+  background: var(--ink);
+  color: var(--yellow);
+}
+/* 計量條的標題移到下面一點，讓開關的位置 */
+.meter {
+  top: 15%;
+}
+.meter-skip {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  border: 2px solid #fff;
+  background: rgba(20, 22, 51, 0.75);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}

@@ -24,8 +24,8 @@ function sweep(elapsed: number): number {
   return phase <= 1 ? phase : 2 - phase
 }
 
-/** 在 host（球場）上蓋一層計量條，等玩家出手後回傳結果 */
-export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: MeterZone): Promise<MeterResult> {
+/** 在 host（球場）上蓋一層計量條，等玩家出手後回傳結果；按「這球交給球員」（Esc）回傳 null */
+export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: MeterZone): Promise<MeterResult | null> {
   return new Promise((resolve) => {
     const layer = el('div', `meter-layer ${kind}`)
     layer.setAttribute('role', 'application')
@@ -43,7 +43,10 @@ export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: Me
     meter.append(el('span', 'meter-title', T.takeOverNames[kind]), track)
     const hint = el('div', 'meter-hint')
     hint.append(T.meterHint, kbd('SPACE'))
-    layer.append(meter, hint)
+    const skip = el('button', 'meter-skip', T.meterSkip)
+    skip.type = 'button'
+    skip.append(kbd('ESC'))
+    layer.append(meter, hint, skip)
     host.append(layer)
 
     const previousKeys = setKeys({})
@@ -78,15 +81,30 @@ export function runMeter(host: HTMLElement, kind: 'swing' | 'aimPitch', zone: Me
       }, GRADE_MS)
     }
 
+    const giveUp = () => {
+      if (done) return
+      done = true
+      cancelAnimationFrame(frame)
+      cleanup()
+      layer.remove()
+      setKeys(previousKeys)
+      resolve(null)
+    }
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        return giveUp()
+      }
       if (e.key !== ' ' && e.key !== 'Enter') return
       e.preventDefault()
       if (!e.repeat) stop()
     }
     layer.addEventListener('pointerdown', (e) => {
+      if (skip.contains(e.target as Node)) return
       e.preventDefault()
       stop()
     })
+    skip.onclick = giveUp
     document.addEventListener('keydown', onKeyDown)
     function cleanup(): void {
       document.removeEventListener('keydown', onKeyDown)

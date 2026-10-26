@@ -10,7 +10,7 @@ import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
 import { play, soundToggle } from './sound'
 import { el } from './playerCard'
-import { PROMPT_LEVELS, loadPromptLevel, savePromptLevel } from './prefs'
+import { PROMPT_LEVELS, loadManual, loadPromptLevel, saveManual, savePromptLevel } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
 import { rays } from './setupScreen'
 import { CPU_COLOR, USER_COLOR, handChip, sideTag, tendencyChip, toast } from './visual'
@@ -79,6 +79,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   let pauseRequested = false
   let offeredPa = -1
   let warnedPitcherId = ''
+  /** 這場是否已經提示過「親自操作」 */
+  let hinted = false
 
   root.replaceChildren()
   const screen = el('div', 'match-screen')
@@ -90,7 +92,23 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   const canvas = el('canvas', 'field')
   const callout = el('div', 'callout')
   const sideBanner = el('div', 'field-side')
-  canvasWrap.append(canvas, callout, sideBanner)
+  // 球場右上角：親自操作開關，打開後每一球都直接跳出計量條
+  let manual = loadManual()
+  const manualBtn = el('button', 'manual-toggle')
+  manualBtn.type = 'button'
+  const renderManual = () => {
+    manualBtn.setAttribute('aria-pressed', String(manual))
+    manualBtn.replaceChildren(el('span', '', T.manualLabel), el('b', '', manual ? T.manualStates.on : T.manualStates.off), kbd('T'))
+  }
+  renderManual()
+  const toggleManual = () => {
+    manual = !manual
+    saveManual(manual)
+    renderManual()
+    toast(T.manualToast(manual))
+  }
+  manualBtn.onclick = toggleManual
+  canvasWrap.append(canvas, callout, sideBanner, manualBtn)
   const matchup = el('section', 'match-duel')
   const lastPlay = el('p', 'last-play')
   const controls = el('div', 'match-controls')
@@ -160,6 +178,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     s: () => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]),
     h: cyclePrompt,
     m: () => soundBtn.click(),
+    t: toggleManual,
   }
   setKeys(gameKeys)
 
@@ -489,10 +508,12 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         sheet.classList.add('hidden')
         screen.classList.remove('deciding')
         setKeys({})
-        const { timing, grade } = await runMeter(canvasWrap, kind, game.meterZone(kind))
-        game.issue({ type: kind, timing })
-        opts.onProgress?.(game)
-        addLog(T.meterLog(kind, T.meterGrades[grade]), grade === 'perfect' ? 'score' : '')
+        const pitched = await personallyPlay(kind)
+        // 第一次從面板親自出手後，提醒可以打開親自操作，省得每球都要按指令
+        if (pitched && !manual && !hinted) {
+          hinted = true
+          toast(T.manualHint)
+        }
         close()
       }
       const render = () => {
@@ -512,6 +533,16 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     })
   }
 
+  /** 跑一次計量條並送出指令；選了「這球交給球員」就什麼都不做，回傳 false */
+  async function personallyPlay(kind: 'swing' | 'aimPitch'): Promise<boolean> {
+    const result = await runMeter(canvasWrap, kind, game.meterZone(kind))
+    if (!result) return false
+    game.issue({ type: kind, timing: result.timing })
+    opts.onProgress?.(game)
+    addLog(T.meterLog(kind, T.meterGrades[result.grade]), result.grade === 'perfect' ? 'score' : '')
+    return true
+  }
+
   async function loop(): Promise<void> {
     while (!game.over) {
       if (pauseRequested) {
@@ -529,6 +560,14 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
           await openSheet(fatigue ? 'fatigue' : 'leverage')
           if (game.over) break
         }
+      }
+      // 親自操作：每一球投出前都跳出計量條（已經排了其他戰術的那一球除外）
+      const kind = manual && !pauseRequested ? game.takeOver() : null
+      if (kind) {
+        setKeys({})
+        await personallyPlay(kind)
+        setKeys(gameKeys)
+        if (game.over) break
       }
       const important = game.leverage() >= LEVERAGE_THRESHOLD
       const events = game.step()

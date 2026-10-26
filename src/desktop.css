@@ -1868,3 +1868,12 @@ button .kbd {
     left: 24px;
   }
 }
+
+@media (min-width: 1024px) {
+  .manual-toggle {
+    top: 14px;
+    right: 14px;
+    font-size: 14px;
+    padding: 4px 10px 4px 12px;
+  }
+}
