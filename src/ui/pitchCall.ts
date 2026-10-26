@@ -36,12 +36,6 @@ export function spotName(spot: number, hand: Hand): string {
   return `${side ? T.zoneNames[side] : ''}${height ? T.zoneNames[height] : ''}`
 }
 
-/** 手勢寬容度的文字：嚴格、普通、寬鬆 */
-export function gestureWidthLabel(game: Game): string {
-  const slack = 1 - game.gestureZone().good
-  return T.gestureWidths[slack < 0.28 ? 0 : slack < 0.38 ? 1 : 2]
-}
-
 /** 球種的小圖示：把手勢樣板縮小畫出來，起點畫一個圓點分出方向（直球往上、指叉往下） */
 function pitchIcon(pitch: PitchType, size = 26): string {
   const path = gesturePath(pitch, PAD, 34)

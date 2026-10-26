@@ -1111,19 +1111,3 @@
     display: none;
   }
 }
-
-/* 決策面板的配球卡：列出投手會的球種 */
-.takeover-pitches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.takeover-pitch {
-  padding: 1px 7px;
-  border-radius: 7px;
-  border: 1.5px solid var(--ink);
-  background: #fff;
-  font-size: 11.5px;
-  font-weight: 900;
-  color: var(--ink);
-}

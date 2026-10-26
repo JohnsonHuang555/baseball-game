@@ -200,7 +200,3 @@ export function runGuess(host: HTMLElement, fastballOdds: number): Promise<Pitch
   })
 }
 
-/** 目標區寬度的文字：窄、普通、寬 */
-export function zoneWidthLabel(zone: MeterZone): string {
-  return T.zoneWidths[zone.good < 0.075 ? 0 : zone.good < 0.1 ? 1 : 2]
-}

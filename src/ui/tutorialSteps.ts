@@ -50,12 +50,12 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
     {
       target: '.pause-btn',
       title: '按「指令」暫停',
-      text: '隨時都能暫停下戰術：盜壘、觸擊、代打、換投……也可以親自出棒或親自配球。',
+      text: '隨時都能暫停下戰術：盜壘、觸擊、代打、換投、守備佈陣……',
     },
     {
       target: '.manual-toggle',
       title: '親自操作',
-      text: '想每一球都自己打、自己投，就打開這裡（或按 T）。每一球投出前都會直接讓你出手（打擊是猜球加計量條、投球是配球）；某一球不想出手，按「這球交給球員」。',
+      text: '想自己打、自己投，就打開這裡（或按 T）。每一球投出前都會直接讓你出手：打擊是先猜球再停紅線（偏下拉打、偏上推打），投球是選球種、點位置再畫手勢。某一球不想出手，按「這球交給球員」。',
     },
     {
       target: '.speed-toggle',
@@ -73,12 +73,6 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
       target: '.decision-panel .situation-bar',
       title: '現在的局勢',
       text: '局數與出局數、比分（藍色是我方）、壘上有沒有人。',
-    },
-    {
-      target: '.takeover-card',
-      optional: true,
-      title: '親自出手',
-      text: '打擊時：先猜球，再停紅線，紅線來到黃色區時點一下（或按 Space），偏下拉打、偏上推打。投球時：選球種、點位置，再畫出手勢。球員能力越好、投手體力越多，越容易成功。',
     },
     {
       target: '.decision-panel .option-card',

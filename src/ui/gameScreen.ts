@@ -81,8 +81,6 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   let pauseRequested = false
   let offeredPa = -1
   let warnedPitcherId = ''
-  /** 這場是否已經提示過「親自操作」 */
-  let hinted = false
 
   root.replaceChildren()
   const screen = el('div', 'match-screen')
@@ -511,21 +509,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         screen.classList.add('deciding')
         render()
       }
-      // 親自出手：收起面板、跑計量條，把停下的位置當成指令送出
-      const takeOver = async (kind: TakeOverKind) => {
-        sheet.classList.add('hidden')
-        screen.classList.remove('deciding')
-        setKeys({})
-        const pitched = await personallyPlay(kind)
-        // 第一次從面板親自出手後，提醒可以打開親自操作，省得每球都要按指令
-        if (pitched && !manual && !hinted) {
-          hinted = true
-          toast(T.manualHint)
-        }
-        close()
-      }
       const render = () => {
-        sheet.replaceChildren(renderDecisionPanel(game, reason, state, { choose, handOver, takeOver, rerender: render }))
+        sheet.replaceChildren(renderDecisionPanel(game, reason, state, { choose, handOver, rerender: render }))
       }
       render()
       sheet.classList.remove('hidden')
