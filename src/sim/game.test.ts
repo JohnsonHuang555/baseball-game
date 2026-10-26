@@ -539,3 +539,25 @@ describe('全壘打牆', () => {
     }
   })
 })
+
+describe('安打的落點', () => {
+  it('滾地安打穿過內野手之間，平飛與長打落在外野手之間或邊線', () => {
+    const INFIELD = [-38, -14, 14, 38]
+    const OUTFIELD = [-28, 0, 28]
+    const gapTo = (angle: number, spots: number[]) => Math.min(...spots.map((s) => Math.abs(s - angle)))
+    let checked = 0
+    for (let seed = 1; seed <= 100; seed++) {
+      const g = new Game(setup(seed))
+      while (!g.over) {
+        for (const e of g.step()) {
+          if (e.type !== 'play' || !e.ball || !['single', 'double', 'triple'].includes(e.kind)) continue
+          checked++
+          // 一壘安打（滾地或落在外野手前方）要避開內野手；二、三壘安打要穿過外野手之間
+          if (e.kind === 'single') expect(gapTo(e.ball.angle, INFIELD)).toBeGreaterThanOrEqual(4)
+          else expect(gapTo(e.ball.angle, OUTFIELD)).toBeGreaterThanOrEqual(7)
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(500)
+  })
+})

@@ -643,14 +643,15 @@ export class Game {
       case 'triple':
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
         move(batter, 0, 3)
-        ball = this.makeBall('line', rng.pick([-1, 1]) * rng.range(25, 42), rng.range(330, 390))
+        // 三壘安打：打穿外野空檔或沿著邊線
+        ball = this.makeBall('line', toGap(rng.pick([-1, 1]) * rng.range(25, 42), OUTFIELD_GAPS), rng.range(330, 390))
         break
       case 'double':
         if (b3) move(b3, 3, 4)
         if (b2) move(b2, 2, 4)
         if (b1) move(b1, 1, rng.chance(0.35 + spd(b1) * 0.05 + (hitAndRun ? 0.3 : 0)) ? 4 : 3)
         move(batter, 0, 2)
-        ball = this.makeBall('line', rng.pick([-1, 1]) * rng.range(12, 40), rng.range(260, 360))
+        ball = this.makeBall('line', toGap(rng.pick([-1, 1]) * rng.range(12, 40), OUTFIELD_GAPS), rng.range(260, 360))
         break
       default: {
         if (b3) move(b3, 3, 4)
@@ -661,9 +662,10 @@ export class Game {
         }
         move(batter, 0, 1)
         const ground = rng.chance(0.5)
+        // 滾地安打穿過內野手之間的空檔；平飛安打落在外野手之間的前方
         ball = ground
-          ? this.makeBall('ground', clamp(rng.normal(0, 25), -40, 40), rng.range(130, 170))
-          : this.makeBall('line', clamp(rng.normal(0, 25), -40, 40), rng.range(160, 240))
+          ? this.makeBall('ground', toGap(clamp(rng.normal(0, 25), -40, 40), INFIELD_GAPS), rng.range(130, 170))
+          : this.makeBall('line', toGap(clamp(rng.normal(0, 25), -40, 40), SHALLOW_GAPS), rng.range(160, 240))
       }
     }
     return this.finishPlay(kind, ball, moves)
@@ -885,6 +887,21 @@ const OUTFIELDERS: readonly Fielder[] = ['LF', 'CF', 'RF']
  * 全壘打牆的距離（英呎）：跟真實球場一樣兩邊淺、中間深，
  * 左右外野標竿約 330 英呎（101 公尺），中外野 400 英呎（122 公尺）
  */
+/**
+ * 安打的方向往最近的空檔靠：守備員站位之間，或沿著邊線。
+ * 只改角度、不多抽亂數，所以舊存檔重播的結果不變
+ */
+function toGap(angle: number, gaps: readonly number[]): number {
+  const gap = gaps.reduce((best, g) => (Math.abs(g - angle) < Math.abs(best - angle) ? g : best))
+  return gap + clamp((angle - gap) * 0.2, -2, 2)
+}
+/** 內野空檔：三壘線、三游之間、二遊中間、一二壘之間、一壘線（內野手約在 ±38、±14 度） */
+const INFIELD_GAPS = [-44, -26, 0, 26, 44]
+/** 長打的外野空檔：左外野線、左中外野、右中外野、右外野線（外野手約在 ±28、0 度） */
+const OUTFIELD_GAPS = [-41, -18, 18, 41]
+/** 平飛一壘安打：同時避開內野手（±14、±38）與外野手（0、±28）的方向 */
+const SHALLOW_GAPS = [-44.5, -21, 21, 44.5]
+
 export function fenceDistance(angle: number): number {
   const a = (clamp(angle, -45, 45) * Math.PI) / 180
   return 330 + 70 * Math.cos(2 * a)

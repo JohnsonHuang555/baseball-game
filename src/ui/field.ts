@@ -24,6 +24,24 @@ const FIELDER_SPOTS: Record<string, [number, number]> = {
   RF: [28, 285],
 }
 
+const FIELDERS = ['P', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'] as const
+/** 撲球的內野手不含投手：投手站在中間，球往中間跑會看起來穿過他 */
+const INFIELDERS = ['1B', '2B', 'SS', '3B'] as const
+const OUTFIELDERS = ['LF', 'CF', 'RF'] as const
+
+/** 點 p 在線段 a→b 上最近的位置 */
+function closestOnPath(p: Pt, a: Pt, b: Pt): Pt {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)))
+  return { x: a.x + dx * t, y: a.y + dy * t }
+}
+
+function distanceToPath(p: Pt, a: Pt, b: Pt): number {
+  const q = closestOnPath(p, a, b)
+  return Math.hypot(p.x - q.x, p.y - q.y)
+}
+
 const COLORS = {
   foul: '#2E8C43',
   fair: '#43B356',
@@ -50,6 +68,8 @@ export class FieldRenderer {
   private runners = new Map<string, Dot>()
   private batterId: string | null = null
   private ball: (Pt & { height: number }) | null = null
+  /** 擊球飛行時留下的軌跡（畫面座標，已含高度），讓人看清楚球往哪裡去 */
+  private trail: Pt[] = []
   fieldingColor = '#FF7A1A'
   battingColor = '#2D7CFF'
   /** 圓點外圈：我方白圈、對手深色圈，色弱也分得出兩隊 */
@@ -213,16 +233,27 @@ export class FieldRenderer {
 
     if (this.ball) {
       const { x, y, height } = this.ball
+      // 軌跡：越舊越淡、越細
+      this.trail.forEach((p, i) => {
+        const k = (i + 1) / this.trail.length
+        c.beginPath()
+        c.arc(p.x, p.y, 1.5 + k * 2.5, 0, Math.PI * 2)
+        c.fillStyle = `rgba(255,255,255,${(k * 0.55).toFixed(2)})`
+        c.fill()
+      })
       if (height > 0) {
         c.beginPath()
-        c.ellipse(x, y, 3, 1.8, 0, 0, Math.PI * 2)
+        c.ellipse(x, y, 4, 2.4, 0, 0, Math.PI * 2)
         c.fillStyle = COLORS.shadow
         c.fill()
       }
       c.beginPath()
-      c.arc(x, y - height, 3 + height * 0.04, 0, Math.PI * 2)
+      c.arc(x, y - height, 4.5 + height * 0.04, 0, Math.PI * 2)
       c.fillStyle = COLORS.ball
       c.fill()
+      c.lineWidth = 1.5
+      c.strokeStyle = COLORS.ink
+      c.stroke()
     }
   }
 
@@ -277,6 +308,7 @@ export class FieldRenderer {
     const flight = ball ? this.flight(ball, caught, ms) : Promise.resolve()
     await Promise.all([flight, this.run(moves, ms * 0.45)])
     this.ball = null
+    this.trail = []
     this.resetFielders()
     this.draw()
   }
@@ -285,26 +317,40 @@ export class FieldRenderer {
     const start = { x: this.home.x, y: this.home.y - 2 }
     const land = this.toPx(ball.angle, ball.distance)
     const peak = ball.type === 'fly' ? 40 + ball.distance * 0.12 : ball.type === 'line' ? 12 : 0
-    // 離落點最近的守備員去追球
-    let chaser: string | null = null
-    let best = Infinity
-    for (const [pos, p] of this.fielders) {
-      if (pos === 'C') continue
-      const d = Math.hypot(p.x - land.x, p.y - land.y)
-      if (d < best) {
-        best = d
-        chaser = pos
+    const nearest = (positions: readonly string[], to: (p: Pt) => number): string | null => {
+      let found: string | null = null
+      let best = Infinity
+      for (const pos of positions) {
+        const d = to(this.fielders.get(pos)!)
+        if (d < best) {
+          best = d
+          found = pos
+        }
       }
+      return found
     }
+    // 接殺、刺殺：離落點最近的守備員準時到位。
+    // 安打：外野手晚一步起跑、只追到一半，讓人看得出球落在空檔
+    const chaser = nearest(caught ? FIELDERS : OUTFIELDERS, (p) => Math.hypot(p.x - land.x, p.y - land.y))
     const chaserStart = chaser ? { ...this.fielders.get(chaser)! } : null
-    const reach = caught ? 1 : 0.8
     const fence = fenceDistance(ball.angle)
     const target = ball.distance > fence ? this.toPx(ball.angle, fence - 8) : land
+    // 滾地安打：離球路最近的內野手撲過去，但差一點碰不到
+    const diver = !caught && ball.type === 'ground' ? nearest(INFIELDERS, (p) => distanceToPath(p, start, land)) : null
+    const diverStart = diver ? { ...this.fielders.get(diver)! } : null
+    const diveTo = diverStart ? closestOnPath(diverStart, start, land) : null
+    this.trail = []
     await this.tween(ms, (t) => {
       this.ball = { x: lerp(start.x, land.x, t), y: lerp(start.y, land.y, t), height: Math.sin(t * Math.PI) * peak }
+      this.trail.push({ x: this.ball.x, y: this.ball.y - this.ball.height })
+      if (this.trail.length > 14) this.trail.shift()
       if (chaser && chaserStart) {
-        const k = Math.min(1, t * 1.15) * reach
+        const k = caught ? Math.min(1, t * 1.15) : Math.max(0, (t - 0.25) / 0.75) * 0.5
         this.fielders.set(chaser, { x: lerp(chaserStart.x, target.x, k), y: lerp(chaserStart.y, target.y, k) })
+      }
+      if (diver && diverStart && diveTo) {
+        const k = Math.min(1, t * 2.5) * 0.35
+        this.fielders.set(diver, { x: lerp(diverStart.x, diveTo.x, k), y: lerp(diverStart.y, diveTo.y, k) })
       }
     })
   }
