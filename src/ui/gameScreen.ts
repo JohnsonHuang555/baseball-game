@@ -346,7 +346,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   }
 
   /** 球場上的爆炸框大字：label 是主要文字，top 是上方的小一行（例如 6-4-3） */
-  function flash(label: string, tone: 'hr' | 'score' | 'dp' | 'error', top = ''): void {
+  function flash(label: string, tone: 'hr' | 'score' | 'dp' | 'error' | 'k' | 'k looking', top = ''): void {
     callout.replaceChildren()
     callout.insertAdjacentHTML('afterbegin', BURST_SVG)
     if (top) callout.append(el('span', 'callout-top', top))
@@ -392,6 +392,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     steal: 650,
     afterHalfInning: 900,
     homeRunStats: 1400,
+    strikeout: 500,
   }
 
   async function animate(events: GameEvent[], important: boolean): Promise<void> {
@@ -430,15 +431,19 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         if (e.kind === 'homeRun') {
           flash(`${homeRunName(e.runs)}！`, 'hr')
           if (e.ball) showHomeRunStats(e.ball)
-        }
-        else if (e.runs > 0) flash(T.scored(e.runs).replace('，', ''), 'score')
+        } else if (e.kind === 'strikeout') {
+          // 三振：大大的 K；站著不動被三振（第三個好球沒揮棒）照記分慣例把 K 反過來
+          const prev = events[i - 1]
+          const looking = prev?.type === 'pitch' && prev.result === 'calledStrike'
+          flash('K', looking ? 'k looking' : 'k', looking ? T.calledStrikeout : T.callStrikeout)
+        } else if (e.runs > 0) flash(T.scored(e.runs).replace('，', ''), 'score')
         else if (e.kind === 'doublePlay') flash(T.callDoublePlay, 'dp', e.notation ?? '')
         else if (e.kind === 'error') flash(T.callError, 'error')
         lastPlay.textContent = text
         addLog(text!, cls)
         renderBoard()
         // 全壘打多停一下，讓人看清楚擊球數據
-        await wait((PACE.afterPlay + (e.kind === 'homeRun' ? PACE.homeRunStats : 0)) * k)
+        await wait((PACE.afterPlay + (e.kind === 'homeRun' ? PACE.homeRunStats : e.kind === 'strikeout' ? PACE.strikeout : 0)) * k)
       } else if (e.type === 'steal') {
         await field.run(e.moves, PACE.steal * k)
         lastPlay.textContent = text

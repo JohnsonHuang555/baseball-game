@@ -682,3 +682,27 @@
   font-weight: 900;
   cursor: pointer;
 }
+
+/* ---- 三振：跟全壘打一樣的爆炸框，中間一個大 K ---- */
+.callout.k .callout-label {
+  font-family: var(--font-display);
+  font-size: 72px;
+  line-height: 0.95;
+  color: #ff4f7b;
+  text-shadow:
+    0 4px 0 var(--ink),
+    3px 0 0 var(--ink),
+    -3px 0 0 var(--ink),
+    0 -3px 0 var(--ink);
+}
+.callout.k .callout-top {
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+}
+/* 站著被三振：K 左右反轉 */
+.callout.k.looking .callout-label {
+  display: inline-block;
+  transform: scaleX(-1);
+  color: #6e9bff;
+}

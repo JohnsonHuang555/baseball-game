@@ -122,6 +122,8 @@ export const T = {
   traitsColumn: '特性',
   swapGuide: '點兩名球員交換：點球場上的人交換守位，點打序列表交換棒次',
   logTitle: '比賽紀錄',
+  callStrikeout: '三振！',
+  calledStrikeout: '站著被三振',
   speciesLabel: '球員頭像',
   speciesNames: { cat: '貓咪', dog: '小狗' },
   // ---- 左右投打與成長 ----
