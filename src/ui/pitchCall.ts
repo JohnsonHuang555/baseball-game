@@ -1,7 +1,20 @@
 // 配球：選一個球種，再照著虛線畫出這個球種的手勢
 import type { Game, MeterGrade } from '../sim/game'
 import { repertoire, type PitchType } from '../sim/pitches'
-import { GESTURE_KEYS, drawnBackwards, gestureArrow, gesturePath, scoreGesture, scoreKeys, type Point } from './gesture'
+import {
+  PLAIN,
+  TEMPO,
+  drawnBackwards,
+  gestureArrow,
+  gestureKeys,
+  gesturePath,
+  randomVariant,
+  scoreGesture,
+  scoreKeys,
+  tempoMiss,
+  type GestureVariant,
+  type Point,
+} from './gesture'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { el } from './playerCard'
 import { play } from './sound'
@@ -25,11 +38,11 @@ const PAD = 200
 const PITCH_KEYS = ['q', 'w', 'e', 'r']
 const ARROWS: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }
 
-/** 球種的小圖示：把手勢樣板縮小畫出來，起點一個圓點、終點一個箭頭（直球往上、指叉往下） */
-function pitchIcon(pitch: PitchType, size = 26): string {
-  const path = gesturePath(pitch, PAD, 40)
+/** 球種的小圖示：把手勢樣板縮小畫出來，起點一個圓點、終點一個箭頭（直球往上、指叉往下；左投手左右相反） */
+function pitchIcon(pitch: PitchType, v: GestureVariant, size = 26): string {
+  const path = gesturePath(pitch, PAD, 40, v)
   const [, x, y] = path.match(/^M([\d.]+) ([\d.]+)/)!
-  return `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 ${PAD} ${PAD}"><path d="${path}" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${x}" cy="${y}" r="20" fill="#2fbf71" stroke="#141633" stroke-width="8"/><polygon points="${gestureArrow(pitch, PAD, 40, 64)}" fill="currentColor" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/></svg>`
+  return `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 ${PAD} ${PAD}"><path d="${path}" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${x}" cy="${y}" r="20" fill="#2fbf71" stroke="#141633" stroke-width="8"/><polygon points="${gestureArrow(pitch, PAD, 40, 64, v)}" fill="currentColor" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/></svg>`
 }
 
 /** 在 host（球場）上蓋一層配球畫面；按「這球交給球員」（Esc）回傳 null */
@@ -37,6 +50,8 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
   return new Promise((resolve) => {
     const kinds = repertoire(game.pitcher)
     const last = game.previousThrow
+    const hand = game.pitcher.throws
+    const iconVariant: GestureVariant = { ...PLAIN, mirror: hand === 'L' }
 
     const layer = el('div', 'pitch-layer')
     const skip = el('button', 'meter-skip', T.meterSkip)
@@ -71,7 +86,7 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
         const b = el('button', `pc-pitch${pitch === last ? ' repeated' : ''}`)
         b.type = 'button'
         const icon = el('span', 'pc-pitch-icon')
-        icon.innerHTML = pitchIcon(pitch)
+        icon.innerHTML = pitchIcon(pitch, iconVariant)
         b.append(icon, el('span', 'pc-pitch-name', T.pitchNames[pitch]))
         if (i === 1) b.append(el('span', 'pc-tag primary', T.primaryPitch))
         if (pitch === last) b.append(el('span', 'pc-tag repeat', T.repeatedPitch))
@@ -88,6 +103,9 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
 
     // ---- 第二步：照著虛線畫手勢（或用方向鍵） ----
     function renderDraw(pitch: PitchType): void {
+      // 每一球的虛線都稍微轉個角度、換個大小和位置；左投手左右鏡像
+      const variant = randomVariant(hand)
+      const tempo = TEMPO[pitch]
       const box = el('div', 'pitch-draw')
       const head = el('div', 'pc-head')
       const back = el('button', 'pc-back', T.drawBack)
@@ -97,14 +115,14 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
       const ns = 'http://www.w3.org/2000/svg'
       const svg = document.createElementNS(ns, 'svg')
       svg.setAttribute('viewBox', `0 0 ${PAD} ${PAD}`)
-      const guide = gesturePath(pitch, PAD, 34)
-      // 起點畫綠點、終點畫箭頭，再讓一顆小球沿著虛線從起點跑到終點示範方向；開始畫就收起來
+      const guide = gesturePath(pitch, PAD, 34, variant)
+      // 起點畫綠點、終點畫箭頭，再讓一顆小球沿著虛線從起點跑到終點示範方向和節奏；開始畫就收起來
       const start = guide.match(/^M([\d.]+) ([\d.]+)/)!
       svg.innerHTML =
         `<path class="pc-guide" d="${guide}"/>` +
-        `<polygon class="pc-arrow" points="${gestureArrow(pitch, PAD, 34, 30)}"/>` +
+        `<polygon class="pc-arrow" points="${gestureArrow(pitch, PAD, 34, 30, variant)}"/>` +
         `<circle class="pc-start" cx="${start[1]}" cy="${start[2]}" r="9"/>` +
-        `<circle class="pc-tracer" r="7"><animateMotion dur="1.1s" repeatCount="indefinite" path="${guide}"/></circle>`
+        `<circle class="pc-tracer" r="7"><animateMotion dur="${tempo.show}ms" repeatCount="indefinite" path="${guide}"/></circle>`
       const trail = document.createElementNS(ns, 'polyline')
       trail.setAttribute('class', 'pc-trail')
       svg.append(trail)
@@ -114,7 +132,9 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
       timeFill.style.animationDuration = `${DRAW_MS}ms`
       timeBar.append(timeFill)
       const hint = el('div', 'pc-draw-hint')
-      hint.append(T.drawHint(T.pitchNames[pitch]), el('span', 'pc-keys', `${T.drawKeys} ${GESTURE_KEYS[pitch].map((k) => ARROWS[k]).join('')}`))
+      const line = el('span', 'pc-hint-line')
+      line.append(T.drawHint(T.pitchNames[pitch]), el('span', `pc-tempo ${tempo.tempo}`, T.tempoNames[tempo.tempo]))
+      hint.append(line, el('span', 'pc-keys', `${T.drawKeys} ${gestureKeys(pitch, variant).map((k) => ARROWS[k]).join('')}`))
       box.append(head, pad, timeBar, hint)
       stage.replaceChildren(box)
 
@@ -125,7 +145,8 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
       let released = false
       const typed: string[] = []
 
-      const release = (accuracy: number, backwards = false) => {
+      /** note：畫反方向、節奏不對時附上的提醒 */
+      const release = (accuracy: number, note: { backwards: boolean; tempo: 'fast' | 'slow' | null } = { backwards: false, tempo: null }) => {
         if (released) return
         released = true
         window.clearTimeout(timer)
@@ -133,18 +154,24 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
         svg.querySelector('.pc-tracer')?.remove()
         const grade = game.gradeGesture(accuracy)
         hint.replaceChildren(el('span', `meter-grade ${grade === 'miss' ? 'late' : grade}`, T.meterGrades[grade]))
-        if (backwards && grade === 'miss') hint.append(el('span', 'pc-backwards', T.drawBackwards))
+        if (note.backwards && grade === 'miss') hint.append(el('span', 'pc-backwards', T.drawBackwards))
+        else if (note.tempo && grade !== 'perfect') hint.append(el('span', 'pc-backwards', T.tempoOff[note.tempo](T.pitchNames[pitch])))
         pad.classList.add('released', grade)
         play(grade === 'perfect' ? 'perfect' : grade === 'good' ? 'good' : 'miss')
         setKeys({})
         window.setTimeout(() => finish({ pitch, accuracy, grade }), GRADE_MS)
       }
-      // 時間到還沒畫完就是失投
-      timer = window.setTimeout(() => release(drawing ? scoreGesture(stroke, pitch, DRAW_MS) : 0), DRAW_MS)
+      // 時間到還沒畫完：照著畫到一半的筆畫算，通常就是失投
+      timer = window.setTimeout(() => release(drawing ? scoreGesture(toPx(stroke), pitch, DRAW_MS, variant) : 0), DRAW_MS)
 
       const toPad = (e: PointerEvent): Point => {
         const r = svg.getBoundingClientRect()
         return [((e.clientX - r.left) / r.width) * PAD, ((e.clientY - r.top) / r.height) * PAD]
+      }
+      // 分數用螢幕上的像素長度判斷有沒有畫，所以換算回像素
+      const toPx = (pts: Point[]): Point[] => {
+        const scale = svg.getBoundingClientRect().width / PAD
+        return pts.map(([x, y]): Point => [x * scale, y * scale])
       }
       const show = () => trail.setAttribute('points', stroke.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' '))
       pad.addEventListener('pointerdown', (e) => {
@@ -165,21 +192,19 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
       const end = () => {
         if (!drawing || released) return
         drawing = false
-        // 分數用螢幕上的像素長度判斷有沒有畫，所以換算回像素
-        const scale = svg.getBoundingClientRect().width / PAD
-        const px = stroke.map(([x, y]): Point => [x * scale, y * scale])
+        const px = toPx(stroke)
         const ms = performance.now() - strokeStart
-        release(scoreGesture(px, pitch, ms), drawnBackwards(px, pitch, ms))
+        release(scoreGesture(px, pitch, ms, variant), { backwards: drawnBackwards(px, pitch, ms, variant), tempo: tempoMiss(pitch, ms) })
       }
       pad.addEventListener('pointerup', end)
       pad.addEventListener('pointercancel', end)
 
-      const want = GESTURE_KEYS[pitch]
+      const want = gestureKeys(pitch, variant)
       const arrow = (key: string) => () => {
         if (released) return
         typed.push(key)
         stroke = []
-        if (typed.length >= want.length || key !== want[typed.length - 1]) release(scoreKeys(typed, pitch, performance.now() - began))
+        if (typed.length >= want.length || key !== want[typed.length - 1]) release(scoreKeys(typed, pitch, performance.now() - began, variant))
       }
       const keys: KeyMap = { Escape: () => finish(null) }
       for (const key of Object.keys(ARROWS)) keys[key] = arrow(key)

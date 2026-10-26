@@ -287,6 +287,11 @@ export const T = {
   drawKeys: '或用方向鍵',
   drawBack: '重選',
   drawBackwards: '方向畫反了：從綠點畫向箭頭',
+  tempoNames: { fast: '要快', medium: '中等速度', slow: '要慢' },
+  tempoOff: {
+    fast: (pitch: string) => `太快了：${pitch}要畫慢一點`,
+    slow: (pitch: string) => `太慢了：${pitch}要畫快一點`,
+  },
   thisRun: '這屆戰績',
   finalNth: (n: number) => `決賽 第 ${n} 戰`,
   trophyLabel: '冠軍獎盃',

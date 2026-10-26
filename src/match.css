@@ -902,6 +902,29 @@
   stroke-width: 2.5;
   pointer-events: none;
 }
+.pc-hint-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 節奏標籤：快紅、中黃、慢藍 */
+.pc-tempo {
+  padding: 0 7px;
+  border-radius: 7px;
+  border: 1.5px solid var(--ink);
+  font-size: 11.5px;
+  font-weight: 900;
+  line-height: 18px;
+}
+.pc-tempo.fast {
+  background: #ff8a7a;
+}
+.pc-tempo.medium {
+  background: var(--yellow);
+}
+.pc-tempo.slow {
+  background: #9cc4ff;
+}
 .pc-backwards {
   font-size: 12px;
   font-weight: 800;
