@@ -1,6 +1,6 @@
 import { Rng, clamp } from './rng'
 import { hasTrait } from './traits'
-import type { Batter, LineupSpot, Pitcher, Player, Team } from './types'
+import type { Batter, LineupSpot, Pitcher, Player, Team, Tendency } from './types'
 
 export type Side = 'home' | 'away'
 export type Half = 'top' | 'bottom'
@@ -21,6 +21,53 @@ export type Tactic =
   | { type: 'swing'; timing: number }
   /** 決勝球：下一球由教練親自投，timing 是計量條停下的位置（0～1） */
   | { type: 'aimPitch'; timing: number }
+  /** 守備佈陣：只對目前這位打者有效，打席結束恢復標準 */
+  | { type: 'alignment'; alignment: Alignment }
+
+/** 守備佈陣：標準、偏左、偏右、內野前進、外野後退 */
+export type Alignment = 'normal' | 'shiftLeft' | 'shiftRight' | 'infieldIn' | 'outfieldBack'
+export const ALIGNMENTS: readonly Alignment[] = ['normal', 'shiftLeft', 'shiftRight', 'infieldIn', 'outfieldBack']
+
+/** 野手站位 [角度, 距離英呎]：角度 0 為中外野方向，負數偏左外野 */
+export type Spots = Record<'1B' | '2B' | 'SS' | '3B' | 'LF' | 'CF' | 'RF', [number, number]>
+const NORMAL_SPOTS: Spots = {
+  '1B': [38, 105],
+  '2B': [14, 145],
+  SS: [-14, 145],
+  '3B': [-38, 105],
+  LF: [-28, 285],
+  CF: [0, 315],
+  RF: [28, 285],
+}
+const SHIFT_LEFT_SPOTS: Spots = {
+  '1B': [30, 110],
+  '2B': [-6, 140],
+  SS: [-26, 140],
+  '3B': [-40, 105],
+  LF: [-34, 280],
+  CF: [-10, 315],
+  RF: [18, 290],
+}
+const mirror = (spots: Spots): Spots => ({
+  '1B': [-spots['3B'][0], spots['3B'][1]],
+  '2B': [-spots.SS[0], spots.SS[1]],
+  SS: [-spots['2B'][0], spots['2B'][1]],
+  '3B': [-spots['1B'][0], spots['1B'][1]],
+  LF: [-spots.RF[0], spots.RF[1]],
+  CF: [-spots.CF[0], spots.CF[1]],
+  RF: [-spots.LF[0], spots.LF[1]],
+})
+/** 各種佈陣的野手站位（畫面也照這份畫） */
+export const ALIGNMENT_SPOTS: Record<Alignment, Spots> = {
+  normal: NORMAL_SPOTS,
+  shiftLeft: SHIFT_LEFT_SPOTS,
+  shiftRight: mirror(SHIFT_LEFT_SPOTS),
+  infieldIn: { ...NORMAL_SPOTS, '1B': [38, 85], '3B': [-38, 85], '2B': [14, 115], SS: [-14, 115] },
+  outfieldBack: { ...NORMAL_SPOTS, LF: [-28, 315], CF: [0, 345], RF: [28, 315] },
+}
+
+/** 擊球方向傾向造成的平均角度偏移 */
+const TENDENCY_MEAN: Record<Tendency, number> = { left: -12, even: 0, right: 12 }
 
 /** 計量條的判定：完美、好、太早、太晚 */
 export type MeterGrade = 'perfect' | 'good' | 'early' | 'late'
@@ -179,6 +226,8 @@ export class Game {
   /** 第幾個打席，從 0 開始 */
   paIndex = 0
   queued: Tactic | null = null
+  /** 目前的守備佈陣：教練守備時可以改，打席結束恢復標準 */
+  alignment: Alignment = 'normal'
   /** 教練最近一次親自出手的打席，每個打席只能一次 */
   private takeOverPa = -1
   readonly commands: Command[] = []
@@ -289,6 +338,26 @@ export class Game {
     return this.inning >= 7 && Math.abs(this.score.home - this.score.away) <= 1 && !!(this.bases[1] || this.bases[2])
   }
 
+  /**
+   * 守備佈陣對目前打者的安打率修正（負數代表比較不容易被打安打）。
+   * 偏向打者習慣的方向能沒收安打，猜錯方向反而留下大洞；內野前進、外野後退都會讓一壘安打變多
+   */
+  alignmentEffect(alignment: Alignment = this.alignment): number {
+    const tendency = this.batter.tendency
+    switch (alignment) {
+      case 'normal':
+        return 0
+      case 'shiftLeft':
+        return tendency === 'left' ? -0.07 : tendency === 'right' ? 0.07 : 0.03
+      case 'shiftRight':
+        return tendency === 'right' ? -0.07 : tendency === 'left' ? 0.07 : 0.03
+      case 'infieldIn':
+        return 0.04
+      case 'outfieldBack':
+        return 0.02
+    }
+  }
+
   /** 槓桿指數：越高代表這個時刻越能左右勝負 */
   leverage(): number {
     const diff = Math.abs(this.score.home - this.score.away)
@@ -356,6 +425,7 @@ export class Game {
       })
     } else {
       const team = this.fielding
+      for (const alignment of ALIGNMENTS) if (alignment !== this.alignment) tactics.push({ type: 'alignment', alignment })
       team.relievers.forEach((_, relieverIndex) => tactics.push({ type: 'changePitcher', relieverIndex }))
       if (this.balls + this.strikes === 0) tactics.push({ type: 'intentionalWalk' })
       team.bench.forEach((_, benchIndex) =>
@@ -378,6 +448,9 @@ export class Game {
     if (!allowed) throw new Error(`現在不能下這個指令：${tactic.type}`)
     this.commands.push({ stepIndex: this.stepIndex, tactic })
     switch (tactic.type) {
+      case 'alignment':
+        this.alignment = tactic.alignment
+        return []
       case 'swing':
       case 'aimPitch':
         this.takeOverPa = this.paIndex
@@ -569,11 +642,13 @@ export class Game {
       0.5,
     )
 
-    if (rng.chance(clamp(hitP + (mod.hit ?? 0), 0.05, 0.85))) {
+    if (rng.chance(clamp(hitP + (mod.hit ?? 0) + this.alignmentEffect(), 0.05, 0.85))) {
+      // 外野後退：長打大多被攔下來變成一壘安打
+      const deep = this.alignment === 'outfieldBack' ? 0.4 : 1
       const kind = rng.weighted<PlayKind>([
         ['homeRun', Math.max(0.02, 0.1 + (power - 5) * 0.035 + (hasTrait(batter, 'slugger') ? 0.08 : 0))],
-        ['triple', Math.max(0.005, 0.025 + (speed - 5) * 0.006)],
-        ['double', Math.max(0.08, 0.2 + (power - 5) * 0.02)],
+        ['triple', Math.max(0.005, 0.025 + (speed - 5) * 0.006) * deep],
+        ['double', Math.max(0.08, 0.2 + (power - 5) * 0.02) * deep],
         ['single', 0.65],
       ])
       return this.hit(kind, hitAndRun)
@@ -595,14 +670,26 @@ export class Game {
   /** 擊球：沒出牆的球一定落在全壘打牆前面 */
   private makeBall(type: BattedBall['type'], angle: number, distance: number): BattedBall {
     const d = Math.min(distance, fenceDistance(angle) - 10)
-    return { type, angle, distance: d, fielder: fielderFor(type, angle, d) }
+    const fielder =
+      this.alignment === 'normal' ? fielderFor(type, angle, d) : nearestFielder(type, angle, d, ALIGNMENT_SPOTS[this.alignment])
+    return { type, angle, distance: d, fielder }
+  }
+
+  /** 安打的空檔，依現在的佈陣算出來 */
+  private gaps(kind: 'infield' | 'outfield' | 'shallow'): number[] {
+    return hitGaps(ALIGNMENT_SPOTS[this.alignment], kind)
+  }
+
+  /** 打者傾向的平均擊球角度 */
+  private get pull(): number {
+    return TENDENCY_MEAN[this.batter.tendency]
   }
 
   private outBall(type: BattedBall['type']): BattedBall {
     const rng = this.rng
-    if (type === 'ground') return this.makeBall(type, clamp(rng.normal(0, 22), -42, 42), rng.range(60, 125))
-    if (type === 'fly') return this.makeBall(type, clamp(rng.normal(0, 25), -43, 43), rng.range(180, 370))
-    return this.makeBall(type, clamp(rng.normal(0, 25), -42, 42), rng.range(90, 260))
+    if (type === 'ground') return this.makeBall(type, clamp(rng.normal(this.pull, 22), -42, 42), rng.range(60, 125))
+    if (type === 'fly') return this.makeBall(type, clamp(rng.normal(this.pull, 25), -43, 43), rng.range(180, 370))
+    return this.makeBall(type, clamp(rng.normal(this.pull, 25), -42, 42), rng.range(90, 260))
   }
 
   /** 守備失誤：打者上壘，跑者至少推進一個壘包；外野失誤推進更多 */
@@ -635,7 +722,7 @@ export class Game {
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
         move(batter, 0, 4)
         // 一定飛過該方向的全壘打牆；力量越大打得越遠。亂數用量跟以前一樣，舊存檔重播不受影響
-        const angle = clamp(rng.normal(0, 25), -43, 43)
+        const angle = clamp(rng.normal(this.pull, 25), -43, 43)
         const distance = fenceDistance(angle) + Math.max(5, 8 + rng.range(0, 60) + (batter.ratings.power - 5) * 5)
         ball = { type: 'fly', angle, distance, fielder: fielderFor('fly', angle, distance) }
         break
@@ -644,14 +731,14 @@ export class Game {
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
         move(batter, 0, 3)
         // 三壘安打：打穿外野空檔或沿著邊線
-        ball = this.makeBall('line', toGap(rng.pick([-1, 1]) * rng.range(25, 42), OUTFIELD_GAPS), rng.range(330, 390))
+        ball = this.makeBall('line', toGap(rng.pick([-1, 1]) * rng.range(25, 42), this.gaps('outfield')), rng.range(330, 390))
         break
       case 'double':
         if (b3) move(b3, 3, 4)
         if (b2) move(b2, 2, 4)
         if (b1) move(b1, 1, rng.chance(0.35 + spd(b1) * 0.05 + (hitAndRun ? 0.3 : 0)) ? 4 : 3)
         move(batter, 0, 2)
-        ball = this.makeBall('line', toGap(rng.pick([-1, 1]) * rng.range(12, 40), OUTFIELD_GAPS), rng.range(260, 360))
+        ball = this.makeBall('line', toGap(rng.pick([-1, 1]) * rng.range(12, 40), this.gaps('outfield')), rng.range(260, 360))
         break
       default: {
         if (b3) move(b3, 3, 4)
@@ -664,8 +751,8 @@ export class Game {
         const ground = rng.chance(0.5)
         // 滾地安打穿過內野手之間的空檔；平飛安打落在外野手之間的前方
         ball = ground
-          ? this.makeBall('ground', toGap(clamp(rng.normal(0, 25), -40, 40), INFIELD_GAPS), rng.range(130, 170))
-          : this.makeBall('line', toGap(clamp(rng.normal(0, 25), -40, 40), SHALLOW_GAPS), rng.range(160, 240))
+          ? this.makeBall('ground', toGap(clamp(rng.normal(this.pull, 25), -40, 40), this.gaps('infield')), rng.range(130, 170))
+          : this.makeBall('line', toGap(clamp(rng.normal(this.pull, 25), -40, 40), this.gaps('shallow')), rng.range(160, 240))
       }
     }
     return this.finishPlay(kind, ball, moves)
@@ -691,7 +778,9 @@ export class Game {
     const forced2 = !!b1
     const forced3 = forced2 && !!b2
     const forcedHome = forced3 && !!b3
-    if (b3) moves.push({ runnerId: b3.id, from: 3, to: forcedHome || (this.outs < 2 && rng.chance(0.45)) ? 4 : 3 })
+    // 內野前進守備：三壘跑者沒被迫進壘就跑不回來
+    const holdThird = this.alignment === 'infieldIn'
+    if (b3) moves.push({ runnerId: b3.id, from: 3, to: forcedHome || (!holdThird && this.outs < 2 && rng.chance(0.45)) ? 4 : 3 })
     const thirdFree = !moves.some((m) => m.to === 3)
     if (b2) moves.push({ runnerId: b2.id, from: 2, to: forced3 || (thirdFree && rng.chance(0.5)) ? 3 : 2 })
     if (b1) moves.push({ runnerId: b1.id, from: 1, to: 2 })
@@ -834,6 +923,7 @@ export class Game {
     this.balls = 0
     this.strikes = 0
     this.paIndex++
+    this.alignment = 'normal'
     if (this.half === 'bottom' && this.inning >= 9 && this.score.home > this.score.away) {
       return [...events, this.endGame('home')]
     }
@@ -895,12 +985,33 @@ function toGap(angle: number, gaps: readonly number[]): number {
   const gap = gaps.reduce((best, g) => (Math.abs(g - angle) < Math.abs(best - angle) ? g : best))
   return gap + clamp((angle - gap) * 0.2, -2, 2)
 }
-/** 內野空檔：三壘線、三游之間、二遊中間、一二壘之間、一壘線（內野手約在 ±38、±14 度） */
-const INFIELD_GAPS = [-44, -26, 0, 26, 44]
-/** 長打的外野空檔：左外野線、左中外野、右中外野、右外野線（外野手約在 ±28、0 度） */
-const OUTFIELD_GAPS = [-41, -18, 18, 41]
-/** 平飛一壘安打：同時避開內野手（±14、±38）與外野手（0、±28）的方向 */
-const SHALLOW_GAPS = [-44.5, -21, 21, 44.5]
+/**
+ * 依野手站位算出安打的空檔。
+ * infield：內野手之間與兩條邊線；outfield：外野手之間（偏到外野手和邊線中間就用邊線）；
+ * shallow（平飛一壘安打）：內外野所有人之間夠寬的縫與邊線
+ */
+function hitGaps(spots: Spots, kind: 'infield' | 'outfield' | 'shallow'): number[] {
+  const infield = (['3B', 'SS', '2B', '1B'] as const).map((p) => spots[p][0])
+  const outfield = (['LF', 'CF', 'RF'] as const).map((p) => spots[p][0])
+  const between = (angles: number[], minWidth: number) => {
+    const sorted = [...angles].sort((a, b) => a - b)
+    return sorted.slice(1).flatMap((a, i) => (a - sorted[i] >= minWidth ? [(a + sorted[i]) / 2] : []))
+  }
+  if (kind === 'infield') return [-44, ...between(infield, 0), 44]
+  const everyone = [...infield, ...outfield]
+  // 長打：所有人之間的縫，但離外野手至少 7 度，才看得出是打穿外野
+  const awayFromOutfield = (a: number) => Math.min(...outfield.map((o) => Math.abs(o - a))) >= 7
+  if (kind === 'outfield') return [-41, ...between(everyone, 0).filter(awayFromOutfield), 41]
+  return [-44.5, ...between(everyone, 12), 44.5]
+}
+
+/** 偏移佈陣時，由站位最近的野手處理擊球 */
+function nearestFielder(type: BattedBall['type'], angle: number, distance: number, spots: Spots): Fielder {
+  const infield = type === 'ground' ? distance <= 125 : distance < 150
+  if (infield && distance < 45) return fielderFor(type, angle, distance)
+  const pool = infield ? (['3B', 'SS', '2B', '1B'] as const) : (['LF', 'CF', 'RF'] as const)
+  return pool.reduce((best, p) => (Math.abs(spots[p][0] - angle) < Math.abs(spots[best][0] - angle) ? p : best))
+}
 
 export function fenceDistance(angle: number): number {
   const a = (clamp(angle, -45, 45) * Math.PI) / 180

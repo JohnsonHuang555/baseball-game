@@ -13,7 +13,7 @@ import { el } from './playerCard'
 import { PROMPT_LEVELS, loadPromptLevel, savePromptLevel } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
 import { rays } from './setupScreen'
-import { CPU_COLOR, USER_COLOR, sideTag, toast } from './visual'
+import { CPU_COLOR, USER_COLOR, sideTag, tendencyChip, toast } from './visual'
 
 export interface ResultAction {
   label: string
@@ -180,6 +180,11 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     field.battingColor = userFielding ? CPU_COLOR : USER_COLOR
     field.fieldingStroke = userFielding ? '#FFFFFF' : '#141633'
     field.battingStroke = userFielding ? '#141633' : '#FFFFFF'
+    // 打席結束佈陣恢復標準，野手回到原位
+    if (field.alignment !== game.alignment) {
+      field.alignment = game.alignment
+      field.resetFielders()
+    }
     field.sync(
       game.bases.map((b) => b?.id ?? null),
       game.over ? null : game.batter.id,
@@ -221,7 +226,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
 
     // 球場左上角：我方現在是進攻還是守備
     sideBanner.className = `field-side ${game.battingSide === userSide ? 'batting' : 'fielding'}`
-    sideBanner.textContent = game.over ? '' : game.battingSide === userSide ? T.weAreBatting : T.weAreFielding
+    const shifted = game.fieldingSide === userSide && game.alignment !== 'normal' ? ` · ${T.alignmentNames[game.alignment]}` : ''
+    sideBanner.textContent = game.over ? '' : game.battingSide === userSide ? T.weAreBatting : T.weAreFielding + shifted
     sideBanner.hidden = game.over
 
     matchup.replaceChildren()
@@ -235,6 +241,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       if (isPitcher && tired) top.append(el('span', 'tired-tag', T.tiredTag))
       const grades = el('div', 'duel-grades')
       for (const v of Object.values(player.ratings)) grades.append(gradeBadge(v, 'sm'))
+      if (player.role === 'batter') grades.append(tendencyChip(player.tendency))
       if (isPitcher) grades.append(el('span', `duel-pitches ${tired ? 'warn' : ''}`, T.pitchCount(game.fielding.pitchCount)))
       const label = isPitcher ? T.pitcherPitches(game.fielding.pitchCount) : T.batterNth(game.batting.battingIndex + 1)
       if (isPitcher) {
@@ -421,6 +428,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       const state: PanelState = { showOthers: false, showDetails: false, picking: null }
       const close = () => {
         sheet.classList.add('hidden')
+        sheet.classList.remove('settled')
         screen.classList.remove('deciding')
         setKeys(gameKeys)
         resolve()
@@ -430,6 +438,16 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         close()
       }
       const choose = async (t: Tactic) => {
+        // 佈陣立刻生效，面板留著，可以接著下其他指令或親自投球
+        if (t.type === 'alignment') {
+          game.issue(t)
+          opts.onProgress?.(game)
+          toast(T.aligned(T.alignmentNames[t.alignment]))
+          renderBoard()
+          render()
+          void field.align(t.alignment, 450)
+          return
+        }
         // 名字要在下指令前取，換人之後打者和投手就變了
         const queuedText = T.queued(T.commandNames[t.type])
         const walkText = T.walkedIntentionally(game.batter.name)
@@ -466,8 +484,13 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       sheet.classList.remove('hidden')
       screen.classList.add('deciding')
       play('alert')
+      // 滑入動畫只在第一次打開時播；之後重畫（佈陣、展開其他指令）不再重播
+      window.setTimeout(() => sheet.classList.add('settled'), 400)
       // 面板滑出後再講解，位置才準
-      window.setTimeout(() => void maybeTutorial('decision', TUTORIAL_STEPS.decision), 350)
+      window.setTimeout(async () => {
+        await maybeTutorial('decision', TUTORIAL_STEPS.decision)
+        if (game.fieldingSide === userSide) await maybeTutorial('alignment', TUTORIAL_STEPS.alignment)
+      }, 350)
     })
   }
 

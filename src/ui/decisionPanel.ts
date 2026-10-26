@@ -1,5 +1,5 @@
 // 決策面板：標題緞帶、局勢條、打者對投手、重點調度、其他指令格、詳細資訊
-import { sameTactic, type Game, type Side, type Tactic } from '../sim/game'
+import { ALIGNMENTS, sameTactic, type Alignment, type Game, type Side, type Tactic } from '../sim/game'
 import type { Batter, Player } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { gradeBadge } from './grades'
@@ -7,6 +7,7 @@ import { kbd, setKeys, type KeyMap } from './keys'
 import { zoneWidthLabel } from './meter'
 import { el } from './playerCard'
 import { POSITION_FULL, RATING_FULL, T, runnersText } from './strings'
+import { tendencyChip } from './visual'
 
 export type SheetReason = 'leverage' | 'fatigue' | 'pause'
 
@@ -171,6 +172,14 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
         )
         return { tactic: t, tag: T.tagWalk, sub: T.walkSub, main: b.name, who: b, team: teamOf(game.battingSide), diffs: [c] }
       }
+      case 'alignment': {
+        const b = game.batter
+        const pct = Math.round(game.alignmentEffect(t.alignment) * 100)
+        return {
+          tactic: t, tag: T.tagAlignment, sub: T.alignmentSub(T.tendencyNames[b.tendency]), main: T.alignmentNames[t.alignment], who: b, team: teamOf(game.battingSide),
+          diffs: [textDiff(T.alignmentTitle, el('span', `pct ${pct < 0 ? 'good' : pct > 0 ? 'low' : ''}`, T.hitChange(pct)))],
+        }
+      }
       case 'swing':
       case 'aimPitch':
         throw new Error('親自出手不用選項卡')
@@ -230,6 +239,11 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
         picks.push({ type: 'intentionalWalk' })
       }
       // 守備替補：後段領先或平手時守住比分，板凳有守備明顯更好的人才提
+      // 佈陣：打者有明顯的擊球方向就建議往那邊移；後段比分接近、三壘有人時建議內野前進
+      const toward: Alignment | null = game.batter.tendency === 'left' ? 'shiftLeft' : game.batter.tendency === 'right' ? 'shiftRight' : null
+      if (toward && game.alignment === 'normal') picks.push({ type: 'alignment', alignment: toward })
+      const close = Math.abs(game.score.home - game.score.away) <= 1
+      if (game.bases[2] && game.outs < 2 && game.inning >= 7 && close && game.alignment === 'normal') picks.push({ type: 'alignment', alignment: 'infieldIn' })
       const ahead = game.score[userSide] >= game.score[game.battingSide]
       const top = defensiveSubs()[0]
       if (game.inning >= 7 && ahead && top && top.gain >= 3) picks.push(top.tactic)
@@ -284,6 +298,35 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     btn.onclick = () => h.takeOver(kind)
     keys.Enter = () => h.takeOver(kind)
     return btn
+  }
+
+  /**
+   * 守備佈陣列：五種站位一字排開，每格標出對這位打者的被安打率變化。
+   * 像戰棋攻擊前的預覽，讓教練看得到猜對、猜錯的代價
+   */
+  function alignmentBar(): HTMLElement {
+    const box = el('section', 'alignment-bar')
+    box.setAttribute('aria-label', T.alignmentTitle)
+    const head = el('div', 'alignment-head')
+    head.append(el('span', 'section-label', T.alignmentTitle), tendencyChip(game.batter.tendency, true))
+    const row = el('div', 'alignment-options')
+    for (const a of ALIGNMENTS) {
+      const pct = Math.round(game.alignmentEffect(a) * 100)
+      const btn = el('button', `alignment-option ${a}`)
+      btn.type = 'button'
+      btn.setAttribute('aria-pressed', String(game.alignment === a))
+      btn.title = T.alignmentNotes[a]
+      btn.append(
+        el('span', 'alignment-name', T.alignmentShort[a]),
+        el('span', `alignment-effect ${pct < 0 ? 'good' : pct > 0 ? 'bad' : ''}`, pct === 0 ? '±0%' : `${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`),
+      )
+      btn.onclick = () => {
+        if (game.alignment !== a) h.choose({ type: 'alignment', alignment: a })
+      }
+      row.append(btn)
+    }
+    box.append(head, row, el('span', 'alignment-note', T.alignmentNotes[game.alignment]))
+    return box
   }
 
   // ---- 其他指令格：每種指令一格，不能用的變灰並寫原因 ----
@@ -447,6 +490,7 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
       stats.append(s)
     })
     info.append(stats)
+    if (p.role === 'batter') info.append(tendencyChip(p.tendency))
     if (isPitcher) {
       const pct = staminaPct()
       const level = pct >= 50 ? 'high' : pct >= 25 ? 'mid' : 'low'
@@ -474,6 +518,7 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
   } else {
     const kind = game.takeOver()
     if (kind) panel.append(takeOverCard(kind))
+    if (game.fieldingSide === userSide) panel.append(alignmentBar())
     const picks = keyTactics()
     if (picks.length) {
       panel.append(el('span', 'section-label', T.keyHeading))

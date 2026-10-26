@@ -1,6 +1,6 @@
 import { Rng, clamp } from './rng'
 import { TRAITS, conflicts, type TraitId, type TraitTier } from './traits'
-import { POSITIONS, type Batter, type Pitcher, type Player, type Roster, type Team } from './types'
+import { POSITIONS, type Batter, type Pitcher, type Player, type Roster, type Team, type Tendency } from './types'
 
 const ZH_SURNAMES = ['陳', '林', '黃', '張', '李', '王', '吳', '劉', '蔡', '楊', '許', '鄭', '謝', '郭', '洪', '曾']
 const ZH_GIVEN = ['建宏', '志明', '冠宇', '家豪', '承翰', '柏翰', '宗翰', '俊傑', '彥廷', '子軒', '品睿', '哲瑋', '士豪', '信宏', '威廷', '育成']
@@ -53,8 +53,9 @@ function traits(rng: Rng, role: Player['role']): TraitId[] {
 }
 
 export function generateBatter(rng: Rng, mean = BASE_MEAN): Batter {
+  const id = playerId(rng)
   return {
-    id: playerId(rng),
+    id,
     name: playerName(rng),
     role: 'batter',
     ratings: {
@@ -64,7 +65,19 @@ export function generateBatter(rng: Rng, mean = BASE_MEAN): Batter {
       fielding: rating(rng, mean),
     },
     traits: traits(rng, 'batter'),
+    tendency: tendencyFor(id),
   }
+}
+
+/**
+ * 擊球方向傾向由球員編號決定：偏左、偏右各三成，平均四成。
+ * 不多抽亂數，同一個種子產生的隊伍跟以前一模一樣
+ */
+function tendencyFor(id: string): Tendency {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+  const r = Math.abs(h) % 10
+  return r < 3 ? 'left' : r < 6 ? 'right' : 'even'
 }
 
 export function generatePitcher(rng: Rng, mean = BASE_MEAN): Pitcher {

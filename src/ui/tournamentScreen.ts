@@ -20,7 +20,7 @@ import { showGame } from './gameScreen'
 import { gradeBadge, gradeOf, overallBadge } from './grades'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { el, traitTag } from './playerCard'
-import { applyCardState, sideTag, toast } from './visual'
+import { applyCardState, sideTag, tendencyChip, toast } from './visual'
 import { clearTournament, saveTournament } from './save'
 import { play } from './sound'
 import { maybeTutorial } from './tutorial'
@@ -467,6 +467,7 @@ function showDraft(root: HTMLElement, t: Tournament, go: (t: Tournament) => void
       topRow.append(el('span', 'tier-tag', T.tierNames[cardTier(p)]), overallBadge(p, 'md'))
       inner.append(topRow, avatar(p.id, 'user', 'draft-avatar'), el('span', 'draft-name', p.name))
       inner.append(el('span', 'draft-role', p.role === 'pitcher' ? T.pitcher : T.batter))
+      if (p.role === 'batter') inner.append(tendencyChip(p.tendency, true))
       const stats = el('span', 'draft-stats')
       Object.entries(p.ratings).forEach(([k, v]) => {
         const row = el('span', 'draft-stat')

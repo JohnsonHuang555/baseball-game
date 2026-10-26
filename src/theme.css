@@ -854,3 +854,30 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* ---- 擊球方向標籤 ---- */
+.tendency-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px 0 4px;
+  border-radius: 6px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.tendency-chip.left,
+.tendency-chip.right {
+  background: #e7f0ff;
+  color: #1a4fb8;
+}
+.detail-info .tendency-chip,
+.draft-inner .tendency-chip {
+  font-size: 11px;
+  line-height: 18px;
+}

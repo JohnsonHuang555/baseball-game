@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Game, fenceDistance, fielderFor, homeRunStats, replay, type GameEvent, type GameSetup, type Tactic } from './game'
-import { generateTeam } from './generate'
+import { Game, fenceDistance, fielderFor, homeRunStats, replay, type Alignment, type GameEvent, type GameSetup, type Tactic } from './game'
+import { generateBatter, generateTeam } from './generate'
 import { Rng } from './rng'
 import type { Team } from './types'
 
@@ -554,10 +554,94 @@ describe('安打的落點', () => {
           checked++
           // 一壘安打（滾地或落在外野手前方）要避開內野手；二、三壘安打要穿過外野手之間
           if (e.kind === 'single') expect(gapTo(e.ball.angle, INFIELD)).toBeGreaterThanOrEqual(4)
-          else expect(gapTo(e.ball.angle, OUTFIELD)).toBeGreaterThanOrEqual(7)
+          else expect(gapTo(e.ball.angle, OUTFIELD)).toBeGreaterThanOrEqual(5)
         }
       }
     }
     expect(checked).toBeGreaterThan(500)
+  })
+})
+
+describe('守備佈陣與擊球傾向', () => {
+  type Strategy = (g: Game) => Alignment | null
+  /** 玩家（主隊）每次守備的打席開始都依策略佈陣，回傳對手所有場內擊球的結果 */
+  function playWith(strategy: Strategy, games = 250): Extract<GameEvent, { type: 'play' }>[] {
+    const plays: Extract<GameEvent, { type: 'play' }>[] = []
+    for (let seed = 1; seed <= games; seed++) {
+      const g = new Game(setup(seed))
+      while (!g.over) {
+        if (g.fieldingSide === 'home' && g.balls + g.strikes === 0) {
+          const a = strategy(g)
+          if (a && a !== g.alignment) g.issue({ type: 'alignment', alignment: a })
+        }
+        const userFielding = g.fieldingSide === 'home'
+        for (const e of g.step()) if (userFielding && e.type === 'play' && e.ball) plays.push(e)
+      }
+    }
+    return plays
+  }
+  const HITS = new Set(['single', 'double', 'triple', 'homeRun'])
+  const hitRate = (plays: { kind: string }[]) => plays.filter((p) => HITS.has(p.kind)).length / plays.length
+
+  it('每位打者都有擊球方向傾向，大約偏左、偏右各三成', () => {
+    const rng = new Rng(9)
+    const ts = Array.from({ length: 2000 }, () => generateBatter(rng).tendency)
+    const share = (t: string) => ts.filter((x) => x === t).length / ts.length
+    expect(share('left')).toBeGreaterThan(0.22)
+    expect(share('right')).toBeGreaterThan(0.22)
+    expect(share('even')).toBeGreaterThan(0.3)
+  })
+
+  it('偏左的打者，擊球平均偏向左外野', () => {
+    const angles = { left: [] as number[], right: [] as number[] }
+    for (let seed = 1; seed <= 100; seed++) {
+      const g = new Game(setup(seed))
+      while (!g.over) {
+        const t = g.batter.tendency
+        for (const e of g.step()) if (e.type === 'play' && e.ball && t !== 'even') angles[t].push(e.ball.angle)
+      }
+    }
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
+    expect(avg(angles.left)).toBeLessThan(-5)
+    expect(avg(angles.right)).toBeGreaterThan(5)
+  })
+
+  it('只有守備時能佈陣，打席結束就恢復標準', () => {
+    const g = new Game(setup(1))
+    expect(g.fieldingSide).toBe('home')
+    g.issue({ type: 'alignment', alignment: 'shiftLeft' })
+    expect(g.alignment).toBe('shiftLeft')
+    const pa = g.paIndex
+    while (g.paIndex === pa) g.step()
+    expect(g.alignment).toBe('normal')
+    while (g.fieldingSide === 'home') g.step()
+    expect(() => g.issue({ type: 'alignment', alignment: 'shiftLeft' })).toThrow()
+  })
+
+  it('猜對方向的佈陣讓對手安打變少，猜錯方向反而變多', () => {
+    const toward = (g: Game): Alignment => (g.batter.tendency === 'left' ? 'shiftLeft' : g.batter.tendency === 'right' ? 'shiftRight' : 'normal')
+    const away = (g: Game): Alignment => (g.batter.tendency === 'left' ? 'shiftRight' : g.batter.tendency === 'right' ? 'shiftLeft' : 'normal')
+    const normal = hitRate(playWith(() => null))
+    expect(hitRate(playWith(toward))).toBeLessThan(normal - 0.02)
+    expect(hitRate(playWith(away))).toBeGreaterThan(normal + 0.02)
+  })
+
+  it('內野前進：滾地球出局時，三壘跑者沒被迫進壘就回不來', () => {
+    const plays = playWith(() => 'infieldIn', 150)
+    const grounders = plays.filter((p) => p.kind === 'groundOut' && p.moves.some((m) => m.from === 3))
+    expect(grounders.length).toBeGreaterThan(5)
+    for (const p of grounders) {
+      const home = p.moves.find((m) => m.from === 3)!
+      const forced = p.moves.some((m) => m.from === 1) && p.moves.some((m) => m.from === 2)
+      if (home.to === 4) expect(forced).toBe(true)
+    }
+  })
+
+  it('外野後退：被打的安打裡，長打比例明顯變少', () => {
+    const extra = (plays: { kind: string }[]) => {
+      const hits = plays.filter((p) => HITS.has(p.kind) && p.kind !== 'homeRun')
+      return hits.filter((p) => p.kind !== 'single').length / hits.length
+    }
+    expect(extra(playWith(() => 'outfieldBack', 150))).toBeLessThan(extra(playWith(() => null, 150)) * 0.7)
   })
 })

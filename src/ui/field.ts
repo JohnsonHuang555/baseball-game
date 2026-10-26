@@ -1,4 +1,4 @@
-import { fenceDistance, type BattedBall, type PitchResult, type RunnerMove } from '../sim/game'
+import { ALIGNMENT_SPOTS, fenceDistance, type Alignment, type BattedBall, type PitchResult, type RunnerMove } from '../sim/game'
 
 interface Pt {
   x: number
@@ -71,6 +71,8 @@ export class FieldRenderer {
   /** 擊球飛行時留下的軌跡（畫面座標，已含高度），讓人看清楚球往哪裡去 */
   private trail: Pt[] = []
   fieldingColor = '#FF7A1A'
+  /** 守備方的佈陣，決定野手站在哪裡 */
+  alignment: Alignment = 'normal'
   battingColor = '#2D7CFF'
   /** 圓點外圈：我方白圈、對手深色圈，色弱也分得出兩隊 */
   fieldingStroke = '#FFFFFF'
@@ -109,8 +111,31 @@ export class FieldRenderer {
     return { x: this.home.x - 15, y: this.home.y - 4 }
   }
 
+  /** 野手站位：投手、捕手固定，其他人依佈陣 */
+  private spots(): [string, [number, number]][] {
+    return [
+      ['P', FIELDER_SPOTS.P],
+      ['C', FIELDER_SPOTS.C],
+      ...Object.entries(ALIGNMENT_SPOTS[this.alignment]),
+    ]
+  }
+
   resetFielders(): void {
-    for (const [pos, [a, d]] of Object.entries(FIELDER_SPOTS)) this.fielders.set(pos, this.toPx(a, d))
+    for (const [pos, [a, d]] of this.spots()) this.fielders.set(pos, this.toPx(a, d))
+  }
+
+  /** 換佈陣：野手跑到新的站位 */
+  async align(alignment: Alignment, ms: number): Promise<void> {
+    this.alignment = alignment
+    const from = new Map([...this.fielders].map(([pos, p]) => [pos, { ...p }]))
+    const to = new Map(this.spots().map(([pos, [a, d]]) => [pos, this.toPx(a, d)]))
+    await this.tween(ms, (t) => {
+      const k = 1 - (1 - t) ** 2
+      for (const [pos, p] of to) {
+        const f = from.get(pos) ?? p
+        this.fielders.set(pos, { x: lerp(f.x, p.x, k), y: lerp(f.y, p.y, k) })
+      }
+    })
   }
 
   /** 讓畫面上的跑者與打者對齊模擬狀態 */

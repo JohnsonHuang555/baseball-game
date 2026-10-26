@@ -13,13 +13,14 @@ export function loadTournament(): Tournament | null {
   }
 }
 
-/** 加入守備能力之前的存檔，打者沒有守備值；補上聯盟平均 5 */
+/** 舊存檔補上後來新增的欄位：打者的守備值（聯盟平均 5）、擊球方向傾向（平均，跟以前的模擬一樣） */
 function addMissingFielding(value: unknown): unknown {
   if (Array.isArray(value)) value.forEach(addMissingFielding)
   else if (value && typeof value === 'object') {
     const obj = value as Record<string, unknown>
     const ratings = obj.ratings as Record<string, number> | undefined
     if (obj.role === 'batter' && ratings && ratings.fielding === undefined) ratings.fielding = 5
+    if (obj.role === 'batter' && obj.tendency === undefined) obj.tendency = 'even'
     Object.values(obj).forEach(addMissingFielding)
   }
   return value

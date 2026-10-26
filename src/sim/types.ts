@@ -18,12 +18,16 @@ export interface PitcherRatings {
   stamina: number
 }
 
+/** 擊球方向傾向：偏左外野、平均、偏右外野 */
+export type Tendency = 'left' | 'even' | 'right'
+
 export interface Batter {
   id: string
   name: string
   role: 'batter'
   ratings: BatterRatings
   traits: TraitId[]
+  tendency: Tendency
 }
 
 export interface Pitcher {

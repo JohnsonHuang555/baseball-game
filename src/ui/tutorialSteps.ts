@@ -92,6 +92,18 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
       text: '不想下指令就交給球員，比賽繼續進行。',
     },
   ],
+  alignment: [
+    {
+      target: '.alignment-bar',
+      title: '守備佈陣',
+      text: '每位打者都有擊球方向（偏左、平均、偏右）。把野手往他習慣的方向移，就能少被打安打；猜錯方向反而留下大洞。每格的百分比是對這位打者的被安打率變化。',
+    },
+    {
+      target: '.match-field',
+      title: '野手會跑到新位置',
+      text: '佈陣只對目前這位打者有效，打席結束會回到標準站位。三壘有人時可以「內野前進」擋住得分，怕被打長打就「外野後退」。',
+    },
+  ],
   hub: [
     {
       target: '.bracket-panel',

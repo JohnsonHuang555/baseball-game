@@ -590,3 +590,83 @@
   border-bottom-width: 4px;
   background: var(--yellow);
 }
+
+/* ---- 守備佈陣列 ---- */
+.alignment-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 2px solid var(--ink);
+  background: #fff;
+}
+.alignment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.alignment-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+.alignment-option {
+  min-width: 0;
+  padding: 6px 2px;
+  border-radius: 10px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+.alignment-option[aria-pressed='true'] {
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 0 0 3px var(--yellow);
+}
+.alignment-name {
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.alignment-effect {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.alignment-option[aria-pressed='true'] .alignment-effect {
+  color: #dadfff;
+}
+.alignment-effect.good {
+  color: #1e8a3a;
+}
+.alignment-effect.bad {
+  color: #d9283c;
+}
+.alignment-option[aria-pressed='true'] .alignment-effect.good {
+  color: #8ee05a;
+}
+.alignment-option[aria-pressed='true'] .alignment-effect.bad {
+  color: #ff8a9a;
+}
+.alignment-note {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.pct.good {
+  color: #1e8a3a;
+}
+
+/* 面板打開後重畫時不再重播滑入動畫 */
+.sheet.settled .decision-panel.sheet-panel,
+.sheet.settled .decision-panel .ribbon {
+  animation: none;
+}

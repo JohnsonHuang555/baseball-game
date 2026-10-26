@@ -1,7 +1,7 @@
 // 圖像化的球員元件：小卡、詳細資料、能力值、特性、toast
 import { cardTier, isSpecial } from '../sim/generate'
 import { TRAITS } from '../sim/traits'
-import type { Player } from '../sim/types'
+import type { Player, Tendency } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { gradeBadge, overallBadge } from './grades'
 import { el, traitTag } from './playerCard'
@@ -38,6 +38,22 @@ export function miniCard(p: Player, label: string, team: AvatarTeam = 'user', st
 }
 
 /** 畫面下方短暫出現的提示，幾秒後自己消失 */
+/** 擊球方向的箭頭：往左上、正上、右上 */
+const TENDENCY_ARROWS: Record<Tendency, string> = {
+  left: 'M15 15 L6 6 M6 13 V6 H13',
+  even: 'M10 17 V4 M5 9 L10 4 L15 9',
+  right: 'M5 15 L14 6 M7 6 H14 V13',
+}
+
+/** 擊球方向標籤：箭頭加「偏左／平均／偏右」；full 時寫成「擊球方向：偏左外野」 */
+export function tendencyChip(t: Tendency, full = false): HTMLElement {
+  const chip = el('span', `tendency-chip ${t}`)
+  chip.innerHTML = `<svg aria-hidden="true" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="${TENDENCY_ARROWS[t]}"/></svg>`
+  chip.append(full ? `${T.tendencyLabel}：${T.tendencyNames[t]}` : T.tendencyShort[t])
+  chip.title = `${T.tendencyLabel}：${T.tendencyNames[t]}`
+  return chip
+}
+
 /** 「我方」或「對手」的小標籤，讓玩家一眼分出自己的球隊 */
 export function sideTag(isUser: boolean): HTMLElement {
   return el('span', `side-tag ${isUser ? 'user' : 'opponent'}`, isUser ? T.mySide : T.opponentSide)
@@ -102,6 +118,7 @@ export function playerHeader(p: Player, label: string, team: AvatarTeam = 'user'
   frame.append(avatar(p.id, team, 'detail-avatar'))
   const info = el('div', 'detail-info')
   info.append(el('span', 'tier-tag', T.tierNames[tier]), el('h2', 'detail-name', p.name), el('span', 'detail-label', label))
+  if (p.role === 'batter') info.append(tendencyChip(p.tendency, true))
   const ovr = el('div', 'detail-ovr')
   ovr.append(el('span', 'eyebrow-ink', T.overallLabel), overallBadge(p, 'lg'))
   head.append(frame, info, ovr)

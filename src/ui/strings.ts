@@ -1,9 +1,9 @@
 // 所有介面文字集中在這裡，之後要加語系只改這個檔
-import type { BattedBall, Fielder, PitchResult, PlayKind } from '../sim/game'
+import type { Alignment, BattedBall, Fielder, PitchResult, PlayKind } from '../sim/game'
 import type { CardTier } from '../sim/generate'
 import type { Round } from '../sim/tournament'
 import type { TraitId } from '../sim/traits'
-import type { Position } from '../sim/types'
+import type { Position, Tendency } from '../sim/types'
 
 export const T = {
   gameTitle: '骰子棒球',
@@ -97,6 +97,7 @@ export const T = {
     changePitcher: '換投',
     intentionalWalk: '故意四壞',
     defensiveSub: '守備替補',
+    alignment: '守備佈陣',
   } as Record<string, string>,
   benchLeft: (n: number) => `板凳 ${n} 人`,
   relieversLeft: (n: number) => `後援 ${n} 人`,
@@ -116,6 +117,31 @@ export const T = {
   traitsColumn: '特性',
   swapGuide: '點兩名球員交換：點球場上的人交換守位，點打序列表交換棒次',
   logTitle: '比賽紀錄',
+  // ---- 守備佈陣與擊球傾向 ----
+  tendencyLabel: '擊球方向',
+  tendencyNames: { left: '偏左外野', even: '平均', right: '偏右外野' } as Record<Tendency, string>,
+  tendencyShort: { left: '偏左', even: '平均', right: '偏右' } as Record<Tendency, string>,
+  alignmentTitle: '守備佈陣',
+  alignmentNames: {
+    normal: '標準',
+    shiftLeft: '偏左佈陣',
+    shiftRight: '偏右佈陣',
+    infieldIn: '內野前進',
+    outfieldBack: '外野後退',
+  } as Record<Alignment, string>,
+  alignmentShort: { normal: '標準', shiftLeft: '偏左', shiftRight: '偏右', infieldIn: '內野前進', outfieldBack: '外野後退' } as Record<Alignment, string>,
+  alignmentNotes: {
+    normal: '一般站位',
+    shiftLeft: '野手往左外野方向移',
+    shiftRight: '野手往右外野方向移',
+    infieldIn: '三壘跑者回不來，但滾地球較易穿過',
+    outfieldBack: '少被打長打，但前方空出來',
+  } as Record<Alignment, string>,
+  alignmentHint: (batter: string, tendency: string) => `${batter} 擊球方向：${tendency}。只對這位打者有效`,
+  hitChange: (pct: number) => (pct === 0 ? '±0%' : `被安打 ${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`),
+  aligned: (name: string) => `守備改成「${name}」，只對這位打者有效`,
+  tagAlignment: '佈陣',
+  alignmentSub: (tendency: string) => `打者擊球${tendency}`,
   // ---- 新手教學與我方標示 ----
   tutorialNext: '下一步',
   tutorialDone: '開始玩',
