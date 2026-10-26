@@ -202,7 +202,9 @@ export class FieldRenderer {
     return new Promise((resolve) => {
       const start = performance.now()
       const tick = (now: number) => {
-        const t = ms <= 0 ? 1 : Math.min(1, (now - start) / ms)
+        // 瀏覽器給的幀時間戳記可能比 start 還早一點，進度要夾在 0～1，
+        // 否則跑者動畫會用負數去查路徑而出錯，整場比賽就卡住
+        const t = ms <= 0 ? 1 : Math.max(0, Math.min(1, (now - start) / ms))
         fn(t)
         this.draw()
         if (t < 1) requestAnimationFrame(tick)

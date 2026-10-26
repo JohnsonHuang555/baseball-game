@@ -176,20 +176,34 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   function flash(text: string, cls: string): void {
     callout.textContent = text
     callout.className = `callout show ${cls}`
-    window.setTimeout(() => (callout.className = 'callout'), 1200 / speed)
+    window.setTimeout(() => (callout.className = 'callout'), 1600 / speed)
+  }
+
+  const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+  /** 1x 時的節奏（毫秒）：動畫本身加上之後的停頓，讓人看得清楚每一球 */
+  const PACE = {
+    pitch: 600,
+    afterPitch: 300,
+    flightBase: 650,
+    flightPerFoot: 2.6,
+    afterPlay: 800,
+    steal: 650,
+    afterHalfInning: 900,
   }
 
   async function animate(events: GameEvent[], important: boolean): Promise<void> {
-    // 關鍵時刻放慢，平常快轉
-    const k = 1 / (speed * (important ? 1 : 2.2))
+    // 關鍵時刻用正常速度，平常稍微快一點
+    const k = 1 / (speed * (important ? 1 : 1.4))
     for (const e of events) {
       const text = describe(e)
       if (e.type === 'pitch') {
         lastPlay.textContent = PITCH_TEXT[e.result]
-        await field.pitch(e.result, 420 * k)
+        await field.pitch(e.result, PACE.pitch * k)
+        if (e.result !== 'inPlay') await wait(PACE.afterPitch * k)
       } else if (e.type === 'play') {
         const caught = OUT_KINDS.has(e.kind)
-        const ms = e.ball ? (500 + e.ball.distance * 2.2) * k : 500 * k
+        const ms = (PACE.flightBase + (e.ball?.distance ?? 0) * PACE.flightPerFoot) * k
         await field.play(e.ball, e.moves, caught, ms)
         const cls = e.kind === 'homeRun' ? 'hr' : e.runs > 0 ? 'score' : e.kind === 'error' ? 'error' : ''
         if (e.kind === 'homeRun') flash(`${homeRunName(e.runs)}！`, 'hr')
@@ -198,12 +212,15 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         else if (e.kind === 'error') flash(T.callError, 'error')
         lastPlay.textContent = text
         addLog(text!, cls)
+        await wait(PACE.afterPlay * k)
       } else if (e.type === 'steal') {
-        await field.run(e.moves, 500 * k)
+        await field.run(e.moves, PACE.steal * k)
         lastPlay.textContent = text
         addLog(text!)
+        await wait(PACE.afterPlay * k)
       } else if (text) {
         addLog(text, e.type === 'halfInningEnd' ? 'divider' : '')
+        if (e.type === 'halfInningEnd') await wait(PACE.afterHalfInning * k)
       }
     }
     syncField()
