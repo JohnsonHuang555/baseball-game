@@ -116,6 +116,13 @@ export const T = {
   traitsColumn: '特性',
   swapGuide: '點兩名球員交換：點球場上的人交換守位，點打序列表交換棒次',
   logTitle: '比賽紀錄',
+  // ---- 全壘打數據 ----
+  hrDistance: '飛行距離',
+  hrExitVelocity: '擊球初速',
+  hrLaunchAngle: '仰角',
+  meters: (ft: number) => `${Math.round(ft * 0.3048)}`,
+  kmh: (mph: number) => `${Math.round(mph * 1.609)}`,
+  hrLog: (ft: number) => `（飛行 ${Math.round(ft * 0.3048)} 公尺）`,
   // ---- 親自出手（計量條） ----
   takeOverNames: { swing: '親自出棒', aimPitch: '決勝球' },
   takeOverTag: { swing: '出棒', aimPitch: '投球' },

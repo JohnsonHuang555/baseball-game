@@ -1,4 +1,4 @@
-import { LEVERAGE_THRESHOLD, type Game, type GameEvent, type Side, type Tactic } from '../sim/game'
+import { LEVERAGE_THRESHOLD, homeRunStats, type BattedBall, type Game, type GameEvent, type Side, type Tactic } from '../sim/game'
 import type { Player } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { FieldRenderer } from './field'
@@ -266,7 +266,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     switch (e.type) {
       case 'play': {
         const text = describePlay(e.kind, e.ball, e.runs, e.notation)
-        return `${name(e.batterId)} ${text}${e.runs && e.kind !== 'homeRun' ? T.scored(e.runs) : ''}`
+        const hr = e.kind === 'homeRun' && e.ball ? T.hrLog(e.ball.distance) : ''
+        return `${name(e.batterId)} ${text}${hr}${e.runs && e.kind !== 'homeRun' ? T.scored(e.runs) : ''}`
       }
       case 'steal':
         return `${name(e.runnerId)} ${T.stealResult(e.success)}`
@@ -300,6 +301,31 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     window.setTimeout(() => (callout.className = 'callout'), 1600 / speed)
   }
 
+  /** 全壘打的擊球數據卡：飛行距離、擊球初速、仰角，蓋在球場下緣 */
+  function showHomeRunStats(ball: BattedBall): void {
+    const stats = homeRunStats(ball)
+    canvasWrap.querySelector('.hr-stats')?.remove()
+    const card = el('div', 'hr-stats')
+    card.setAttribute('role', 'status')
+    const tile = (label: string, value: string, unit: string) => {
+      const t = el('div', 'hr-stat')
+      const v = el('span', 'hr-stat-value', value)
+      v.append(el('span', 'hr-stat-unit', unit))
+      t.append(el('span', 'hr-stat-label', label), v)
+      return t
+    }
+    card.append(
+      tile(T.hrDistance, T.meters(stats.distanceFt), 'm'),
+      tile(T.hrExitVelocity, T.kmh(stats.exitVelocityMph), 'km/h'),
+      tile(T.hrLaunchAngle, String(stats.launchAngle), '°'),
+    )
+    canvasWrap.append(card)
+    // 快轉時也至少留一秒多，讓人看得到
+    const shown = 2600 / Math.min(speed, 2)
+    window.setTimeout(() => card.classList.add('leaving'), shown)
+    window.setTimeout(() => card.remove(), shown + 300)
+  }
+
   const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
   /** 1x 時的節奏（毫秒）：動畫本身加上之後的停頓，讓人看得清楚每一球 */
@@ -311,6 +337,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     afterPlay: 800,
     steal: 650,
     afterHalfInning: 900,
+    homeRunStats: 1400,
   }
 
   async function animate(events: GameEvent[], important: boolean): Promise<void> {
@@ -330,14 +357,18 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         const ms = (PACE.flightBase + (e.ball?.distance ?? 0) * PACE.flightPerFoot) * k
         await field.play(e.ball, e.moves, caught, ms)
         const cls = e.kind === 'homeRun' ? 'hr' : e.runs > 0 ? 'score' : e.kind === 'error' ? 'error' : ''
-        if (e.kind === 'homeRun') flash(`${homeRunName(e.runs)}！`, 'hr')
+        if (e.kind === 'homeRun') {
+          flash(`${homeRunName(e.runs)}！`, 'hr')
+          if (e.ball) showHomeRunStats(e.ball)
+        }
         else if (e.runs > 0) flash(T.scored(e.runs).replace('，', ''), 'score')
         else if (e.kind === 'doublePlay') flash(T.callDoublePlay, 'dp', e.notation ?? '')
         else if (e.kind === 'error') flash(T.callError, 'error')
         lastPlay.textContent = text
         addLog(text!, cls)
         renderBoard()
-        await wait(PACE.afterPlay * k)
+        // 全壘打多停一下，讓人看清楚擊球數據
+        await wait((PACE.afterPlay + (e.kind === 'homeRun' ? PACE.homeRunStats : 0)) * k)
       } else if (e.type === 'steal') {
         await field.run(e.moves, PACE.steal * k)
         lastPlay.textContent = text

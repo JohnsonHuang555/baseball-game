@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Game, fielderFor, replay, type GameEvent, type GameSetup, type Tactic } from './game'
+import { Game, fielderFor, homeRunStats, replay, type GameEvent, type GameSetup, type Tactic } from './game'
 import { generateTeam } from './generate'
 import { Rng } from './rng'
 import type { Team } from './types'
@@ -473,4 +473,39 @@ describe('親自出手（計量條）', () => {
     }
     throw new Error('找不到種子')
   }
+})
+
+describe('全壘打數據', () => {
+  /** 收集很多場比賽的全壘打，連同打者的力量 */
+  function collect(): { ball: NonNullable<Extract<GameEvent, { type: 'play' }>['ball']>; power: number }[] {
+    const out: { ball: NonNullable<Extract<GameEvent, { type: 'play' }>['ball']>; power: number }[] = []
+    for (let seed = 1; seed <= 200; seed++) {
+      const g = new Game(setup(seed))
+      while (!g.over) {
+        const power = g.batter.ratings.power
+        for (const e of g.step()) if (e.type === 'play' && e.kind === 'homeRun' && e.ball) out.push({ ball: e.ball, power })
+      }
+    }
+    return out
+  }
+  const all = collect()
+
+  it('仰角在 24～34 度，初速在合理範圍，同一顆球每次算出一樣的數字', () => {
+    expect(all.length).toBeGreaterThan(50)
+    for (const { ball } of all) {
+      const s = homeRunStats(ball)
+      expect(s.launchAngle).toBeGreaterThanOrEqual(24)
+      expect(s.launchAngle).toBeLessThanOrEqual(34)
+      expect(s.exitVelocityMph).toBeGreaterThan(95)
+      expect(s.exitVelocityMph).toBeLessThan(125)
+      expect(homeRunStats(ball)).toEqual(s)
+    }
+  })
+
+  it('力量大的打者，全壘打平均飛得比較遠', () => {
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
+    const strong = all.filter((h) => h.power >= 7).map((h) => h.ball.distance)
+    const weak = all.filter((h) => h.power <= 4).map((h) => h.ball.distance)
+    expect(avg(strong)).toBeGreaterThan(avg(weak))
+  })
 })

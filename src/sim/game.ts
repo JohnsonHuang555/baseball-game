@@ -633,7 +633,8 @@ export class Game {
       case 'homeRun':
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
         move(batter, 0, 4)
-        ball = this.makeBall('fly', clamp(rng.normal(0, 25), -43, 43), rng.range(380, 450))
+        // 力量越大打得越遠；亂數用量跟以前一樣，舊存檔重播不受影響
+        ball = this.makeBall('fly', clamp(rng.normal(0, 25), -43, 43), Math.max(365, 375 + rng.range(0, 70) + (batter.ratings.power - 5) * 5))
         break
       case 'triple':
         for (const [i, r] of [b3, b2, b1].entries()) if (r) move(r, (3 - i) as BaseNumber, 4)
@@ -876,6 +877,28 @@ const ERROR_RATE: Record<BattedBall['type'], number> = { ground: 0.045, fly: 0.0
 const OUTFIELDERS: readonly Fielder[] = ['LF', 'CF', 'RF']
 
 /** 依擊球方向和距離，判斷由哪個守備員處理 */
+export interface HomeRunStats {
+  distanceFt: number
+  /** 仰角（度） */
+  launchAngle: number
+  /** 擊球初速（英哩／時） */
+  exitVelocityMph: number
+}
+
+/**
+ * 全壘打的擊球數據：由飛行距離與方向推算仰角和初速。
+ * 不另外抽亂數，同一顆球永遠算出一樣的數據，也不影響模擬
+ */
+export function homeRunStats(ball: BattedBall): HomeRunStats {
+  // 用距離和方向做出穩定、看起來隨機的仰角：24～34 度
+  const wobble = Math.abs(Math.sin(ball.distance * 12.9898 + ball.angle * 78.233))
+  const launchAngle = Math.round(24 + wobble * 10)
+  // 約 28 度最有效率，偏離越多需要越大的初速才打得一樣遠
+  const efficiency = 1 - 0.3 * ((launchAngle - 28) / 14) ** 2
+  const exitVelocityMph = Math.round(((ball.distance / efficiency + 230) / 6) * 10) / 10
+  return { distanceFt: Math.round(ball.distance), launchAngle, exitVelocityMph }
+}
+
 export function fielderFor(type: BattedBall['type'], angle: number, distance: number): Fielder {
   const infield = type === 'ground' ? distance <= 125 : distance < 150
   if (!infield) return angle < -15 ? 'LF' : angle > 15 ? 'RF' : 'CF'
