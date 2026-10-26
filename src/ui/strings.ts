@@ -1,9 +1,15 @@
 // 所有介面文字集中在這裡，之後要加語系只改這個檔
-import type { Alignment, BattedBall, Fielder, PitchResult, PlayKind } from '../sim/game'
-import type { CardTier } from '../sim/generate'
-import type { Round } from '../sim/tournament'
-import type { TraitId } from '../sim/traits'
-import type { Bats, Hand, Position, Tendency } from '../sim/types'
+import type {
+  Alignment,
+  BattedBall,
+  Fielder,
+  PitchResult,
+  PlayKind,
+} from '../sim/game';
+import type { CardTier } from '../sim/generate';
+import type { Round } from '../sim/tournament';
+import type { TraitId } from '../sim/traits';
+import type { Bats, Hand, Position, Tendency } from '../sim/types';
 
 export const T = {
   gameTitle: '骰子棒球',
@@ -40,18 +46,30 @@ export const T = {
   gameOver: '比賽結束',
   scored: (runs: number) => `，得 ${runs} 分`,
   stealResult: (ok: boolean) => (ok ? '盜壘成功' : '盜壘失敗，出局'),
-  subPinchHit: (inName: string, outName: string) => `代打：${inName} 替換 ${outName}`,
-  subPinchRun: (inName: string, outName: string) => `代跑：${inName} 替換 ${outName}`,
+  subPinchHit: (inName: string, outName: string) =>
+    `代打：${inName} 替換 ${outName}`,
+  subPinchRun: (inName: string, outName: string) =>
+    `代跑：${inName} 替換 ${outName}`,
   opponentPrefix: '對手',
-  subPitcher: (inName: string, outName: string) => `換投：${inName} 上場，${outName} 退場`,
-  tacticSteal: (from: 1 | 2, name: string) => `盜${from === 1 ? '二' : '三'}壘 ${name}`,
+  subPitcher: (inName: string, outName: string) =>
+    `換投：${inName} 上場，${outName} 退場`,
+  tacticSteal: (from: 1 | 2, name: string) =>
+    `盜${from === 1 ? '二' : '三'}壘 ${name}`,
   tacticBunt: '犧牲觸擊',
   tacticHitAndRun: '打帶跑',
   lineupOnlyHint: '錦標賽開打後不能重骰，只能調整打序、投手與板凳',
-  lineupDiceHint: (n: number) => (n > 0 ? `有 ${n} 顆球員骰子：點球員就能重骰，沒用完會留到下一場` : '沒有球員骰子了；每贏一場會多一顆'),
+  lineupDiceHint: (n: number) =>
+    n > 0
+      ? `有 ${n} 顆球員骰子：點球員就能重骰，沒用完會留到下一場`
+      : '沒有球員骰子了；每贏一場會多一顆',
   diceEarned: '贏球獎勵：球員骰子 +1（沒用完會累積）',
   diceChip: (n: number) => `球員骰子 ×${n}`,
-  roundNames: { r16: '十六強', qf: '八強', sf: '四強', final: '決賽' } as Record<Round, string>,
+  roundNames: {
+    r16: '十六強',
+    qf: '八強',
+    sf: '四強',
+    final: '決賽',
+  } as Record<Round, string>,
   tournamentHeading: (round: string) => `錦標賽・${round}`,
   startTournament: '開始錦標賽',
   continueTournament: (round: string) => `繼續錦標賽（${round}）`,
@@ -60,7 +78,8 @@ export const T = {
   overwriteConfirm: '清除並重新開始',
   nextGame: '調整陣容並開賽',
   nextOpponent: '下一個對手',
-  finalGame: (n: number, user: number, opp: number) => `決賽 第 ${n} 戰（系列 ${user}-${opp}）`,
+  finalGame: (n: number, user: number, opp: number) =>
+    `決賽 第 ${n} 戰（系列 ${user}-${opp}）`,
   bracketTitle: '賽程',
   historyTitle: '戰績',
   pending: '待定',
@@ -133,7 +152,10 @@ export const T = {
   bats: { L: '左打', R: '右打', S: '兩打' } as Record<Bats, string>,
   throws: { L: '左投', R: '右投' } as Record<Hand, string>,
   matchupNames: { same: '同側', opposite: '對側' },
-  matchupTips: { same: '同側對決：打者打擊下修', opposite: '對側對決：打者比較有利' },
+  matchupTips: {
+    same: '同側對決：打者打擊下修',
+    opposite: '對側對決：打者比較有利',
+  },
   matchupLabel: '對決',
   growthTitle: '本場成長',
   mvpTitle: '本場 MVP',
@@ -141,11 +163,19 @@ export const T = {
   growthHint: '錦標賽中表現好的球員會成長：MVP 能力 +1，其他表現好的 +0.5',
   batterLine: (l: { pa: number; hits: number; hr: number; rbi: number }) =>
     `${l.pa} 打席 ${l.hits} 安${l.hr ? ` ${l.hr} 轟` : ''}${l.rbi ? ` ${l.rbi} 打點` : ''}`,
-  pitcherLine: (l: { outs: number; k: number; runs: number }) => `${Math.floor(l.outs / 3)}${l.outs % 3 ? `.${l.outs % 3}` : ''} 局 ${l.k} 三振 ${l.runs} 失分`,
+  pitcherLine: (l: { outs: number; k: number; runs: number }) =>
+    `${Math.floor(l.outs / 3)}${l.outs % 3 ? `.${l.outs % 3}` : ''} 局 ${l.k} 三振 ${l.runs} 失分`,
   // ---- 守備佈陣與擊球傾向 ----
   tendencyLabel: '擊球方向',
-  tendencyNames: { left: '偏左外野', even: '平均', right: '偏右外野' } as Record<Tendency, string>,
-  tendencyShort: { left: '偏左', even: '平均', right: '偏右' } as Record<Tendency, string>,
+  tendencyNames: {
+    left: '偏左外野',
+    even: '平均',
+    right: '偏右外野',
+  } as Record<Tendency, string>,
+  tendencyShort: { left: '偏左', even: '平均', right: '偏右' } as Record<
+    Tendency,
+    string
+  >,
   alignmentTitle: '守備佈陣',
   alignmentNames: {
     normal: '標準',
@@ -154,7 +184,13 @@ export const T = {
     infieldIn: '內野前進',
     outfieldBack: '外野後退',
   } as Record<Alignment, string>,
-  alignmentShort: { normal: '標準', shiftLeft: '偏左', shiftRight: '偏右', infieldIn: '內野前進', outfieldBack: '外野後退' } as Record<Alignment, string>,
+  alignmentShort: {
+    normal: '標準',
+    shiftLeft: '偏左',
+    shiftRight: '偏右',
+    infieldIn: '內野前進',
+    outfieldBack: '外野後退',
+  } as Record<Alignment, string>,
   alignmentNotes: {
     normal: '一般站位',
     shiftLeft: '野手往左外野方向移',
@@ -162,15 +198,19 @@ export const T = {
     infieldIn: '三壘跑者回不來，但滾地球較易穿過',
     outfieldBack: '少被打長打，但前方空出來',
   } as Record<Alignment, string>,
-  alignmentHint: (batter: string, tendency: string) => `${batter} 擊球方向：${tendency}。只對這位打者有效`,
-  hitChange: (pct: number) => (pct === 0 ? '±0%' : `被安打 ${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`),
+  alignmentHint: (batter: string, tendency: string) =>
+    `${batter} 擊球方向：${tendency}。只對這位打者有效`,
+  hitChange: (pct: number) =>
+    pct === 0 ? '±0%' : `被安打 ${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`,
   aligned: (name: string) => `守備改成「${name}」，只對這位打者有效`,
   tagAlignment: '佈陣',
   enemyAligned: (name: string) => `對手改成「${name}」`,
   enemyAlignment: (name: string) => `對手採取「${name}」`,
-  enemyAlignmentEffect: (pct: number) => `這位打者安打率 ${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`,
+  enemyAlignmentEffect: (pct: number) =>
+    `這位打者安打率 ${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`,
   enemyAlignmentTip: {
-    shift: '可以用觸擊（對偏移佈陣成功率提高），或換上擊球方向不同的代打。換人後對手會重新佈陣',
+    shift:
+      '可以用觸擊（對偏移佈陣成功率提高），或換上擊球方向不同的代打。換人後對手會重新佈陣',
     infieldIn: '內野前進：滾地球容易穿過，但三壘跑者遇到滾地球出局時回不來',
     outfieldBack: '外野後退：長打不容易，一壘安打比較容易',
   },
@@ -197,55 +237,62 @@ export const T = {
   hrLog: (ft: number) => `（飛行 ${Math.round(ft * 0.3048)} 公尺）`,
   // ---- 親自出手（計量條） ----
   takeOverNames: { swing: '親自出棒', aimPitch: '決勝球', throw: '配球' },
-  takeOverTag: { swing: '出棒', aimPitch: '投球', throw: '投球' },
-  takeOverSub: {
-    swing: '下一球一定揮棒，停在黃色區就能打出好球',
-    aimPitch: '這一球由你來投，停在黃色區就能壓制打者',
-    throw: '選球種和位置，再畫出手勢把球投出去',
-  },
-  takeOverSubMix: '先猜球，再停紅線：偏下拉打、偏上推打',
-  takeOverZone: (kind: 'swing' | 'aimPitch' | 'throw', width: string) =>
-    kind === 'throw' ? `投手控球與體力決定手勢的寬容度：${width}` : `${kind === 'swing' ? '打者打擊' : '投手控球與體力'}決定黃色區寬度：${width}`,
-  zoneWidths: ['窄', '普通', '寬'],
   meterHint: '紅線來到黃色區時點一下',
   meterSkip: '這球交給球員',
   manualLabel: '親自操作',
   manualStates: { on: '開', off: '關' },
-  manualToast: (on: boolean) => (on ? '親自操作：開，每一球都由你出手（再按一次或 T 關閉）' : '親自操作：關，交還給球員'),
-  manualHint: '下一球也想自己來？打開球場右上角的「親自操作」（T），每一球都會直接讓你出手',
-  meterGrades: { perfect: '完美！', good: '不錯！', early: '太早了', late: '太晚了', miss: '失投' },
-  meterLog: (kind: 'swing' | 'aimPitch', grade: string) => `${kind === 'swing' ? '親自出棒' : '決勝球'}：${grade}`,
+  manualToast: (on: boolean) =>
+    on
+      ? '親自操作：開，每一球都由你出手（再按一次或 T 關閉）'
+      : '親自操作：關，交還給球員',
+  meterGrades: {
+    perfect: '完美！',
+    good: '不錯！',
+    early: '太早了',
+    late: '太晚了',
+    miss: '失投',
+  },
+  meterLog: (kind: 'swing' | 'aimPitch', grade: string) =>
+    `${kind === 'swing' ? '親自出棒' : '決勝球'}：${grade}`,
   // ---- 配球對決 ----
-  pitchNames: { fastball: '直球', slider: '滑球', curve: '曲球', change: '變速球', splitter: '指叉球' },
-  pitchShort: { fastball: '直', slider: '滑', curve: '曲', change: '變', splitter: '叉' },
+  pitchNames: {
+    fastball: '直球',
+    slider: '滑球',
+    curve: '曲球',
+    change: '變速球',
+    splitter: '指叉球',
+  },
+  pitchShort: {
+    fastball: '直',
+    slider: '滑',
+    curve: '曲',
+    change: '變',
+    splitter: '叉',
+  },
   pitchesLabel: '球種',
-  pitchesTitle: (list: string, primary: string) => `球種：${list}（看家：${primary}）`,
-  zoneNames: { high: '高', low: '低', in: '內角', out: '外角' },
-  spotMiddle: '正中',
+  pitchesTitle: (list: string, primary: string) =>
+    `球種：${list}（專長：${primary}）`,
   aimMarks: { pull: '拉打', center: '中間', oppo: '推打' },
-  swingLog: (grade: string, aim: string, pitch: string) => `親自出棒：${grade}（${aim}）・對方投${pitch}`,
-  throwLog: (pitch: string, spot: string, grade: string) => `配球：${pitch}・${spot}（${grade}）`,
+  swingLog: (grade: string, aim: string, pitch: string) =>
+    `親自出棒：${grade}（${aim}）・對方投${pitch}`,
+  throwLog: (pitch: string, grade: string) => `配球：${pitch}（${grade}）`,
   guessTitle: '猜球',
   guessSub: '猜中黃色區變寬，猜錯變窄',
   guessNames: { fastball: '猜直球', breaking: '猜變化球' },
   guessNone: '不猜',
-  scout: (fastPct: number) => `球探：這一球直球 ${fastPct}%、變化球 ${100 - fastPct}%`,
+  scout: (fastPct: number) =>
+    `球探：這一球直球 ${fastPct}%、變化球 ${100 - fastPct}%`,
   guessRight: (pitch: string) => `猜中了！是${pitch}`,
   guessWrong: (pitch: string) => `猜錯了，來的是${pitch}`,
   pitchCallTitle: '配球',
-  pitchCallHint: '選球種，再點一格決定位置',
-  batterStance: (hand: 'L' | 'R') => (hand === 'R' ? '右打' : '左打'),
-  hotZone: '熱區',
-  coldZone: '弱點',
-  hotLegend: (hot: string, cold: string) => `熱區 ${hot}・弱點 ${cold}`,
-  primaryPitch: '看家',
+  pitchCallHint: '點一個球種開始投',
+  primaryPitch: '專長',
   repeatedPitch: '剛投過',
   repeatWarning: '同一個打席連投同一種球，打者比較容易抓到',
   drawHint: (pitch: string) => `照著虛線畫出${pitch}`,
   drawKeys: '或用方向鍵',
   drawBack: '重選',
   drawBackwards: '方向畫反了：從綠點畫向箭頭',
-  gestureWidths: ['嚴格', '普通', '寬鬆'],
   thisRun: '這屆戰績',
   finalNth: (n: number) => `決賽 第 ${n} 戰`,
   trophyLabel: '冠軍獎盃',
@@ -270,7 +317,12 @@ export const T = {
   halfBottom: '局下',
   tiredTag: '疲勞',
   promptLabel: '決策提示',
-  tierNames: { bronze: '銅卡', silver: '銀卡', gold: '金卡', rainbow: '彩虹卡' } as Record<CardTier, string>,
+  tierNames: {
+    bronze: '銅卡',
+    silver: '銀卡',
+    gold: '金卡',
+    rainbow: '彩虹卡',
+  } as Record<CardTier, string>,
   rareArrived: '稀有球員登場！',
   accept: '收下',
   confirm: '確定',
@@ -311,16 +363,20 @@ export const T = {
   runnerOn: (base: 1 | 2 | 3) => `${['一', '二', '三'][base - 1]}壘跑者`,
   eliminated: (round: string) => `止步${round}`,
   tournamentOver: '這支隊伍的旅程結束了，下次會是全新的隊伍。',
-  gameRecord: (round: string, won: boolean, u: number, o: number) => `${round}　${won ? '勝' : '敗'} ${u}:${o}`,
+  gameRecord: (round: string, won: boolean, u: number, o: number) =>
+    `${round}　${won ? '勝' : '敗'} ${u}:${o}`,
   tacticPinchHit: '代打',
-  tacticPinchRun: (base: 1 | 2 | 3, runner: string) => `代跑 ${['一', '二', '三'][base - 1]}壘 ${runner}`,
+  tacticPinchRun: (base: 1 | 2 | 3, runner: string) =>
+    `代跑 ${['一', '二', '三'][base - 1]}壘 ${runner}`,
   tacticChangePitcher: '換投',
   tacticIntentionalWalk: '故意四壞',
-  tacticDefensiveSub: (pos: string, out: string, inName: string) => `守備替補 ${pos} ${out} → ${inName}`,
-  subDefense: (inName: string, outName: string) => `守備替補：${inName} 替換 ${outName}`,
+  tacticDefensiveSub: (pos: string, out: string, inName: string) =>
+    `守備替補 ${pos} ${out} → ${inName}`,
+  subDefense: (inName: string, outName: string) =>
+    `守備替補：${inName} 替換 ${outName}`,
   swappedPositions: (a: string, b: string) => `${a} 與 ${b} 交換守位`,
   swappedOrder: (a: string, b: string) => `${a} 與 ${b} 交換棒次`,
-}
+};
 
 export const POSITION_FULL: Record<Position, string> = {
   C: '捕手',
@@ -332,7 +388,7 @@ export const POSITION_FULL: Record<Position, string> = {
   CF: '中外野',
   RF: '右外野',
   DH: '指定打擊',
-}
+};
 
 export const POSITION_NAMES: Record<Position, string> = {
   C: '捕',
@@ -344,7 +400,7 @@ export const POSITION_NAMES: Record<Position, string> = {
   CF: '中',
   RF: '右',
   DH: '指',
-}
+};
 
 export const RATING_LABELS = {
   contact: '打',
@@ -354,7 +410,7 @@ export const RATING_LABELS = {
   stuff: '威',
   control: '控',
   stamina: '耐',
-} as const
+} as const;
 
 export const RATING_FULL = {
   contact: '打擊',
@@ -364,7 +420,7 @@ export const RATING_FULL = {
   stuff: '球威',
   control: '控球',
   stamina: '體力',
-} as const
+} as const;
 
 export const TRAIT_DESC: Record<TraitId, string> = {
   slugger: '長打能力大幅提升，更容易擊出全壘打',
@@ -386,21 +442,26 @@ export const TRAIT_DESC: Record<TraitId, string> = {
   wild: '控球不穩，容易投出四壞',
   homerProne: '容易被打出全壘打',
   lowStamina: '體力消耗快，比較早累',
-}
+};
 
-export const PROMPT_NAMES = { few: '少', many: '多', pitcher: '只提醒換投', off: '關閉' } as const
+export const PROMPT_NAMES = {
+  few: '少',
+  many: '多',
+  pitcher: '只提醒換投',
+  off: '關閉',
+} as const;
 
 export const TRAIT_NAMES: Record<TraitId, string> = {
   slugger: '怪力',
   clutch: '得點圈強打',
   eye: '選球眼',
-  stealer: '盜壘○',
-  bunter: '觸擊○',
-  clutchBad: '得點圈×',
+  stealer: '盜壘',
+  bunter: '觸擊',
+  clutchBad: '得點圈',
   freeSwinger: '扇風機',
   goodGlove: '好手套',
   lineDrive: '平飛打者',
-  baserunner: '跑壘○',
+  baserunner: '跑壘',
   errorProne: '守備不穩',
   ironArm: '鐵腕',
   closer: '終結者',
@@ -410,8 +471,7 @@ export const TRAIT_NAMES: Record<TraitId, string> = {
   wild: '四死球',
   homerProne: '被全壘打',
   lowStamina: '體力差',
-}
-
+};
 
 export const PITCH_TEXT: Record<PitchResult, string> = {
   ball: '壞球',
@@ -419,7 +479,7 @@ export const PITCH_TEXT: Record<PitchResult, string> = {
   swingingStrike: '揮棒落空',
   foul: '界外',
   inPlay: '擊出！',
-}
+};
 
 /** 擊球方向，用守備位置稱呼 */
 const AREA: Record<Fielder, string> = {
@@ -432,7 +492,7 @@ const AREA: Record<Fielder, string> = {
   LF: '左外野',
   CF: '中外野',
   RF: '右外野',
-}
+};
 
 export const FIELDER_TITLES: Record<Fielder, string> = {
   P: '投手',
@@ -444,57 +504,72 @@ export const FIELDER_TITLES: Record<Fielder, string> = {
   LF: '左外野手',
   CF: '中外野手',
   RF: '右外野手',
-}
+};
 
-const BALL_TYPES: Record<BattedBall['type'], string> = { ground: '滾地球', fly: '高飛球', line: '平飛球' }
+const BALL_TYPES: Record<BattedBall['type'], string> = {
+  ground: '滾地球',
+  fly: '高飛球',
+  line: '平飛球',
+};
 
 /** 依得分數稱呼全壘打：陽春、兩分、三分、滿貫 */
 export function homeRunName(runs: number): string {
-  return ['陽春全壘打', '兩分全壘打', '三分全壘打', '滿貫全壘打'][Math.min(4, Math.max(1, runs)) - 1]
+  return ['陽春全壘打', '兩分全壘打', '三分全壘打', '滿貫全壘打'][
+    Math.min(4, Math.max(1, runs)) - 1
+  ];
 }
 
 /** 壘上情況：三個壘包都有人時說「滿壘」 */
 export function runnersText(occupied: readonly boolean[]): string {
-  const bases = occupied.flatMap((on, i) => (on ? [['一', '二', '三'][i]] : []))
-  if (bases.length === 0) return '壘上無人'
-  if (bases.length === 3) return '滿壘'
-  return `${bases.join('、')}壘有人`
+  const bases = occupied.flatMap((on, i) =>
+    on ? [['一', '二', '三'][i]] : [],
+  );
+  if (bases.length === 0) return '壘上無人';
+  if (bases.length === 3) return '滿壘';
+  return `${bases.join('、')}壘有人`;
 }
 
-export function describePlay(kind: PlayKind, ball: BattedBall | null, runs: number, notation: string | null): string {
-  const area = ball ? AREA[ball.fielder] : ''
+export function describePlay(
+  kind: PlayKind,
+  ball: BattedBall | null,
+  runs: number,
+  notation: string | null,
+): string {
+  const area = ball ? AREA[ball.fielder] : '';
   switch (kind) {
     case 'single':
-      return `擊出${area}方向一壘安打`
+      return `擊出${area}方向一壘安打`;
     case 'double':
-      return `擊出${area}方向二壘安打`
+      return `擊出${area}方向二壘安打`;
     case 'triple':
-      return `擊出${area}方向三壘安打`
+      return `擊出${area}方向三壘安打`;
     case 'homeRun':
-      return `轟出${homeRunName(runs)}！`
+      return `轟出${homeRunName(runs)}！`;
     case 'groundOut':
-      return `${area}方向滾地球出局`
+      return `${area}方向滾地球出局`;
     case 'flyOut':
-      return `${area}方向高飛球被接殺`
+      return `${area}方向高飛球被接殺`;
     case 'lineOut':
-      return `${area}方向平飛球被接殺`
+      return `${area}方向平飛球被接殺`;
     case 'sacrificeFly':
-      return `${area}方向高飛犧牲打`
+      return `${area}方向高飛犧牲打`;
     case 'doublePlay':
-      if (ball?.type === 'ground') return `${area}方向滾地球，形成 ${notation} 雙殺`
-      if (ball?.type === 'fly') return `${area}高飛球被接殺，三壘跑者衝本壘遭觸殺，形成 ${notation} 雙殺`
-      return `${area}方向平飛球被接殺，跑者回壘不及，形成 ${notation} 雙殺`
+      if (ball?.type === 'ground')
+        return `${area}方向滾地球，形成 ${notation} 雙殺`;
+      if (ball?.type === 'fly')
+        return `${area}高飛球被接殺，三壘跑者衝本壘遭觸殺，形成 ${notation} 雙殺`;
+      return `${area}方向平飛球被接殺，跑者回壘不及，形成 ${notation} 雙殺`;
     case 'error':
-      return `擊出${area}方向${BALL_TYPES[ball!.type]}，${FIELDER_TITLES[ball!.fielder]}失誤上壘`
+      return `擊出${area}方向${BALL_TYPES[ball!.type]}，${FIELDER_TITLES[ball!.fielder]}失誤上壘`;
     case 'strikeout':
-      return '被三振'
+      return '被三振';
     case 'walk':
-      return '獲得四壞球保送'
+      return '獲得四壞球保送';
     case 'intentionalWalk':
-      return '被故意四壞保送'
+      return '被故意四壞保送';
     case 'sacrificeBunt':
-      return '犧牲觸擊成功'
+      return '犧牲觸擊成功';
     case 'buntPopOut':
-      return '觸擊失敗，小飛球出局'
+      return '觸擊失敗，小飛球出局';
   }
 }

@@ -1,5 +1,5 @@
 import { LEVERAGE_THRESHOLD, homeRunStats, type BattedBall, type Game, type GameEvent, type Side, type Tactic, type TakeOverKind } from '../sim/game'
-import { stance, type PitchGuess } from '../sim/pitches'
+import type { PitchGuess } from '../sim/pitches'
 import type { Player } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { FieldRenderer } from './field'
@@ -7,7 +7,7 @@ import { gradeBadge } from './grades'
 import { renderDecisionPanel, type PanelState, type SheetReason } from './decisionPanel'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { aimLabel, runGuess, runMeter, type MeterOptions } from './meter'
-import { runPitchCall, spotName } from './pitchCall'
+import { runPitchCall } from './pitchCall'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
 import { play, soundToggle } from './sound'
@@ -534,10 +534,9 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     if (kind === 'throw') {
       const call = await runPitchCall(canvasWrap, game)
       if (!call) return false
-      const where = spotName(call.spot, stance(game.batter, game.pitcher))
-      game.issue({ type: 'throw', pitch: call.pitch, spot: call.spot, accuracy: call.accuracy })
+      game.issue({ type: 'throw', pitch: call.pitch, accuracy: call.accuracy })
       opts.onProgress?.(game)
-      addLog(T.throwLog(T.pitchNames[call.pitch], where, T.meterGrades[call.grade]), call.grade === 'perfect' ? 'score' : '')
+      addLog(T.throwLog(T.pitchNames[call.pitch], T.meterGrades[call.grade]), call.grade === 'perfect' ? 'score' : '')
       return true
     }
     if (kind === 'aimPitch' || !game.pitchMix) {

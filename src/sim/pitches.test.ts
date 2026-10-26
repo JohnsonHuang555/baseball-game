@@ -180,10 +180,30 @@ describe('配球對決：投球', () => {
     expect(hitRate(true)).toBeLessThan(hitRate(false) - 0.1)
   })
 
+  it('不選位置也能投：沒有位置的加減，畫得準還是比畫歪好', () => {
+    const g = findTakeOver('throw', 1)!
+    expect(g.pitchEdge('fastball', undefined, true)).toBeCloseTo(0.5 + (repertoire(g.pitcher)[1] === 'fastball' ? 0.05 : 0))
+    const hitRate = (accuracy: number) => {
+      let hits = 0
+      let n = 0
+      for (let seed = 1; seed <= 400; seed++) {
+        const game = findTakeOver('throw', seed)
+        if (!game) continue
+        n++
+        if (playPitch(game, { type: 'throw', pitch: 'fastball', accuracy }).some((e) => e.type === 'play' && HITS.has(e.kind))) hits++
+      }
+      return hits / n
+    }
+    expect(hitRate(1)).toBeLessThan(hitRate(0) - 0.1)
+  })
+
   it('配球的紀錄可以重播出一樣的比賽（ADR-0001）', () => {
     const g = findTakeOver('throw', 5)!
     g.issue({ type: 'throw', pitch: repertoire(g.pitcher).at(-1)!, spot: 6, accuracy: 0.83 })
     g.step()
+    // 新的紀錄不帶位置
+    while (!g.over && g.takeOver() !== 'throw') g.step()
+    if (!g.over) g.issue({ type: 'throw', pitch: 'fastball', accuracy: 0.9 })
     while (!g.over && g.takeOver() !== 'swing') g.step()
     if (!g.over) g.issue({ type: 'swing', timing: 0.74, guess: 'breaking' })
     while (!g.over) g.step()

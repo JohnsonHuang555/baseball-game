@@ -25,8 +25,11 @@ export type Tactic =
   | { type: 'swing'; timing: number; guess?: PitchGuess }
   /** 決勝球：下一球由教練親自投，timing 是計量條停下的位置（0～1） */
   | { type: 'aimPitch'; timing: number }
-  /** 配球（規則版本 5 起取代決勝球）：選球種、九宮格位置，accuracy 是手勢畫得多準（0～1） */
-  | { type: 'throw'; pitch: PitchType; spot: number; accuracy: number }
+  /**
+   * 配球（規則版本 5 起取代決勝球）：選球種，accuracy 是手勢畫得多準（0～1）。
+   * spot 是九宮格位置，現在的畫面不讓玩家選了，只有早期的紀錄會有
+   */
+  | { type: 'throw'; pitch: PitchType; spot?: number; accuracy: number }
   /** 守備佈陣：只對目前這位打者有效，打席結束恢復標準 */
   | { type: 'alignment'; alignment: Alignment }
 
@@ -629,9 +632,7 @@ export class Game {
         : tactic.type === 'throw'
           ? this.takeOver() === 'throw' &&
             repertoire(this.pitcher).includes(tactic.pitch) &&
-            Number.isInteger(tactic.spot) &&
-            tactic.spot >= 0 &&
-            tactic.spot <= 8 &&
+            (tactic.spot === undefined || (Number.isInteger(tactic.spot) && tactic.spot >= 0 && tactic.spot <= 8)) &&
             tactic.accuracy >= 0 &&
             tactic.accuracy <= 1
           : this.availableTactics().some((t) => sameTactic(t, tactic))
@@ -755,11 +756,11 @@ export class Game {
   }
 
   /**
-   * 配球：手勢畫得準、投在角落、打中打者的弱點、換球種，都讓打者更難打；
-   * 投在正中間、投進打者的熱區、同一個打席連投同一種球，就容易被打。
-   * 手勢畫歪是失投：投在角落多半變壞球，投在中間多半變甜球
+   * 配球：手勢畫得準、用看家球種、換著球種投，都讓打者更難打；同一個打席連投同一種球就容易被打。
+   * 手勢畫歪是失投：一半變壞球、一半變甜球。
+   * 早期的紀錄還有九宮格位置：投在角落、打者的弱點比較有利，投在正中間、打者的熱區比較不利
    */
-  private throwPitch(t: { pitch: PitchType; spot: number; accuracy: number }): PitchMod {
+  private throwPitch(t: { pitch: PitchType; spot?: number; accuracy: number }): PitchMod {
     const rng = this.rng
     const meter = this.gradeGesture(t.accuracy)
     const edge = this.pitchEdge(t.pitch, t.spot, meter === 'perfect')
@@ -767,7 +768,7 @@ export class Game {
     const base: PitchMod = { meter, pitch: t.pitch, inZone: true, swing: true }
     const r = rng.next()
     if (meter === 'miss') {
-      const ballP = t.spot === 4 ? 0.2 : isCorner(t.spot) ? 0.65 : 0.5
+      const ballP = t.spot === undefined ? 0.5 : t.spot === 4 ? 0.2 : isCorner(t.spot) ? 0.65 : 0.5
       return r < ballP ? { ...base, inZone: false, swing: false, result: 'ball' } : { ...base, result: 'inPlay', hit: 0.15, power: 2 }
     }
     const whiff = clamp(0.12 + edge * 0.45 + PITCH_WHIFF[t.pitch], 0.04, 0.6)
@@ -776,14 +777,16 @@ export class Game {
     return { ...base, result: 'inPlay', hit: -edge * 0.35, power: Math.round(-edge * 4) }
   }
 
-  /** 這一球對投手有多有利（約 -0.5～0.8）；畫面上的配球提示也用這個 */
-  pitchEdge(pitch: PitchType, spot: number, perfect = false): number {
-    const zones = spotZones(spot, stance(this.batter, this.pitcher))
+  /** 這一球對投手有多有利（約 -0.5～0.8）；沒有位置就不算位置的加減 */
+  pitchEdge(pitch: PitchType, spot?: number, perfect = false): number {
     let edge = perfect ? 0.5 : 0.25
-    if (spot === 4) edge -= 0.2
-    else if (isCorner(spot)) edge += 0.1
-    if (zones.includes(hotZone(this.batter))) edge -= 0.25
-    if (zones.includes(coldZone(this.batter))) edge += 0.1
+    if (spot !== undefined) {
+      const zones = spotZones(spot, stance(this.batter, this.pitcher))
+      if (spot === 4) edge -= 0.2
+      else if (isCorner(spot)) edge += 0.1
+      if (zones.includes(hotZone(this.batter))) edge -= 0.25
+      if (zones.includes(coldZone(this.batter))) edge += 0.1
+    }
     if (this.lastThrow === pitch) edge -= 0.2
     if (repertoire(this.pitcher)[1] === pitch) edge += 0.05
     return edge

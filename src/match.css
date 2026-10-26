@@ -885,102 +885,43 @@
   font-weight: 700;
   color: var(--ink-soft);
 }
-.pc-body {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.pc-zone-wrap {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  gap: 6px;
-}
-.pc-zone-wrap.bats-left {
-  flex-direction: row-reverse;
-}
-/* 打者站的那一邊：一條直條寫著右打或左打 */
-.pc-batter {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  border-radius: 8px;
-  background: var(--ink);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 900;
-  writing-mode: vertical-rl;
-  letter-spacing: 2px;
-}
-.pc-zone {
-  display: grid;
-  grid-template-columns: repeat(3, 40px);
-  grid-template-rows: repeat(3, 34px);
-  gap: 3px;
-  padding: 3px;
-  border-radius: 8px;
-  border: 2.5px solid var(--ink);
-  background: var(--ink);
-}
-.pc-cell {
-  position: relative;
-  border: 0;
-  border-radius: 5px;
-  background: #f1f2fb;
-  font-family: inherit;
-  cursor: pointer;
-}
-.pc-cell:hover {
-  outline: 3px solid var(--yellow);
-  outline-offset: -3px;
-}
-.pc-cell.hot {
-  background: #ff9c90;
-}
-.pc-cell.cold {
-  background: #9cc4ff;
-}
-.pc-cell .kbd {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  transform: scale(0.8);
-}
-.pc-legend {
-  margin: 0;
-  font-size: 11.5px;
-  font-weight: 800;
-  color: var(--ink-soft);
-}
 .pc-pitches {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 .pc-pitch {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 30px;
-  padding: 2px 8px 2px 5px;
+  min-height: 48px;
+  padding: 4px 10px 4px 6px;
   border-radius: 11px;
   border: 2.5px solid var(--ink);
   background: #fff;
   box-shadow: 0 3px 0 var(--ink);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 900;
   color: var(--ink);
   white-space: nowrap;
   cursor: pointer;
 }
+.pc-pitch:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+.pc-pitch:hover {
+  background: var(--yellow);
+}
+/* 剛投過的球種：再投一次比較容易被打 */
+.pc-pitch.repeated {
+  background: #fff1f3;
+}
 .pc-pitch .kbd {
   margin-left: auto;
-}
-.pc-pitch.selected {
-  background: var(--yellow);
 }
 .pc-pitch-icon {
   display: inline-flex;

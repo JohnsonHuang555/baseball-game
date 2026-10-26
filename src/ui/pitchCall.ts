@@ -1,7 +1,6 @@
-// 配球：先選球種、點九宮格決定位置，再照著虛線畫出這個球種的手勢
+// 配球：選一個球種，再照著虛線畫出這個球種的手勢
 import type { Game, MeterGrade } from '../sim/game'
-import { coldZone, hotZone, repertoire, spotZones, stance, type PitchType } from '../sim/pitches'
-import type { Hand } from '../sim/types'
+import { repertoire, type PitchType } from '../sim/pitches'
 import { GESTURE_KEYS, drawnBackwards, gestureArrow, gesturePath, scoreGesture, scoreKeys, type Point } from './gesture'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { el } from './playerCard'
@@ -12,7 +11,6 @@ import { TUTORIAL_STEPS } from './tutorialSteps'
 
 export interface PitchCall {
   pitch: PitchType
-  spot: number
   accuracy: number
   grade: MeterGrade
 }
@@ -27,15 +25,6 @@ const PAD = 200
 const PITCH_KEYS = ['q', 'w', 'e', 'r']
 const ARROWS: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }
 
-/** 九宮格位置的名稱，例如「內角高」「外角」「正中」 */
-export function spotName(spot: number, hand: Hand): string {
-  const zones = spotZones(spot, hand)
-  if (zones.length === 0) return T.spotMiddle
-  const side = zones.find((z) => z === 'in' || z === 'out')
-  const height = zones.find((z) => z === 'high' || z === 'low')
-  return `${side ? T.zoneNames[side] : ''}${height ? T.zoneNames[height] : ''}`
-}
-
 /** 球種的小圖示：把手勢樣板縮小畫出來，起點一個圓點、終點一個箭頭（直球往上、指叉往下） */
 function pitchIcon(pitch: PitchType, size = 26): string {
   const path = gesturePath(pitch, PAD, 40)
@@ -47,11 +36,7 @@ function pitchIcon(pitch: PitchType, size = 26): string {
 export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall | null> {
   return new Promise((resolve) => {
     const kinds = repertoire(game.pitcher)
-    const hand = stance(game.batter, game.pitcher)
-    const hot = hotZone(game.batter)
-    const cold = coldZone(game.batter)
     const last = game.previousThrow
-    let selected: PitchType = last === kinds[1] ? kinds[0] : kinds[1]
 
     const layer = el('div', 'pitch-layer')
     const skip = el('button', 'meter-skip', T.meterSkip)
@@ -74,64 +59,40 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
     }
     skip.onclick = () => finish(null)
 
-    // ---- 第一步：選球種、點位置 ----
+    // ---- 第一步：選球種，點一下就開始畫 ----
     function renderCall(): void {
       const keys: KeyMap = { Escape: () => finish(null) }
       const box = el('div', 'pitch-call')
       const head = el('div', 'pc-head')
       head.append(el('span', 'meter-title', T.pitchCallTitle), el('span', 'pc-hint', T.pitchCallHint))
       box.append(head)
-
-      const zoneWrap = el('div', `pc-zone-wrap ${hand === 'R' ? 'bats-right' : 'bats-left'}`)
-      zoneWrap.append(el('span', 'pc-batter', T.batterStance(hand)))
-      const zone = el('div', 'pc-zone')
-      for (let spot = 0; spot < 9; spot++) {
-        const zones = spotZones(spot, hand)
-        const cls = zones.includes(hot) ? 'hot' : zones.includes(cold) ? 'cold' : ''
-        const cell = el('button', `pc-cell ${cls}`)
-        cell.type = 'button'
-        cell.setAttribute('aria-label', `${spotName(spot, hand)}${cls ? `（${cls === 'hot' ? T.hotZone : T.coldZone}）` : ''}`)
-        cell.append(kbd(String(spot + 1)))
-        cell.onclick = () => renderDraw(selected, spot)
-        keys[String(spot + 1)] = () => renderDraw(selected, spot)
-        zone.append(cell)
-      }
-      zoneWrap.append(zone)
-      const body = el('div', 'pc-body')
       const pitches = el('div', 'pc-pitches')
-      body.append(zoneWrap, pitches)
-      box.append(body, el('p', 'pc-legend', T.hotLegend(T.zoneNames[hot], T.zoneNames[cold])))
-
       kinds.forEach((pitch, i) => {
-        const b = el('button', `pc-pitch${pitch === selected ? ' selected' : ''}`)
+        const b = el('button', `pc-pitch${pitch === last ? ' repeated' : ''}`)
         b.type = 'button'
-        b.setAttribute('aria-pressed', String(pitch === selected))
         const icon = el('span', 'pc-pitch-icon')
         icon.innerHTML = pitchIcon(pitch)
         b.append(icon, el('span', 'pc-pitch-name', T.pitchNames[pitch]))
         if (i === 1) b.append(el('span', 'pc-tag primary', T.primaryPitch))
         if (pitch === last) b.append(el('span', 'pc-tag repeat', T.repeatedPitch))
         b.append(kbd(PITCH_KEYS[i].toUpperCase()))
-        const pick = () => {
-          selected = pitch
-          renderCall()
-        }
-        b.onclick = pick
-        keys[PITCH_KEYS[i]] = pick
+        b.onclick = () => renderDraw(pitch)
+        keys[PITCH_KEYS[i]] = () => renderDraw(pitch)
         pitches.append(b)
       })
-      if (selected === last) box.append(el('p', 'pc-warning', T.repeatWarning))
+      box.append(pitches)
+      if (last) box.append(el('p', 'pc-warning', T.repeatWarning))
       stage.replaceChildren(box)
       setKeys(keys)
     }
 
     // ---- 第二步：照著虛線畫手勢（或用方向鍵） ----
-    function renderDraw(pitch: PitchType, spot: number): void {
+    function renderDraw(pitch: PitchType): void {
       const box = el('div', 'pitch-draw')
       const head = el('div', 'pc-head')
       const back = el('button', 'pc-back', T.drawBack)
       back.type = 'button'
-      head.append(el('span', 'meter-title', `${T.pitchNames[pitch]}・${spotName(spot, hand)}`), back)
+      head.append(el('span', 'meter-title', T.pitchNames[pitch]), back)
       const pad = el('div', 'pc-pad')
       const ns = 'http://www.w3.org/2000/svg'
       const svg = document.createElementNS(ns, 'svg')
@@ -176,7 +137,7 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
         pad.classList.add('released', grade)
         play(grade === 'perfect' ? 'perfect' : grade === 'good' ? 'good' : 'miss')
         setKeys({})
-        window.setTimeout(() => finish({ pitch, spot, accuracy, grade }), GRADE_MS)
+        window.setTimeout(() => finish({ pitch, accuracy, grade }), GRADE_MS)
       }
       // 時間到還沒畫完就是失投
       timer = window.setTimeout(() => release(drawing ? scoreGesture(stroke, pitch, DRAW_MS) : 0), DRAW_MS)
