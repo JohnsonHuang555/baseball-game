@@ -500,6 +500,62 @@
   flex-direction: column;
   gap: 8px;
 }
+/* 佈陣時的裝備：身上的（點了卸下）與背包裡能帶的（點了裝上） */
+.gear-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 2px solid var(--ink);
+  background: #fff;
+}
+.gear-title {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.gear-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.gear-empty {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a8fae;
+}
+.gear-item {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 0 8px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  border: 2px solid var(--ink);
+  background: var(--tier-bg);
+  box-shadow: 0 2px 0 var(--ink);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.gear-item span:not(.gear-action) {
+  grid-column: 1;
+  font-size: 11px;
+  font-weight: 700;
+}
+.gear-action {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
 .trait-item {
   display: flex;
   gap: 10px;

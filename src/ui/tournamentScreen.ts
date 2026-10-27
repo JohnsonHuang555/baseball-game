@@ -214,6 +214,20 @@ function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, 
       allowReroll: false,
       allowPlayerReroll: false,
       startLabel: T.startGame,
+      // 點球員可以從背包裝上、卸下裝備；名單隨後由 onChange 同步回錦標賽
+      gear: {
+        bag: () => t.bag,
+        equip: (playerId, bagIndex, replace) => {
+          t = equipFromBag(t, bagIndex, playerId, replace)
+          saveTournament(t)
+          return t.setup.team.roster
+        },
+        unequip: (playerId, index) => {
+          t = unequip(t, playerId, index)
+          saveTournament(t)
+          return t.setup.team.roster
+        },
+      },
       onChange: (setup) => {
         t = updateLineup(t, setup)
         saveTournament(t)

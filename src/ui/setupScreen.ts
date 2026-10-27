@@ -10,18 +10,19 @@ import {
   type PregameSetup,
   type Slot,
 } from '../sim/setup'
+import { EQUIPMENT, MAX_EQUIPMENT, type EquipmentId } from '../sim/items'
 import { TRAITS } from '../sim/traits'
-import type { Player, Position, Team } from '../sim/types'
+import type { Player, Position, Roster, Team } from '../sim/types'
 import { avatar } from './avatar'
 import { gradeBadge, overallBadge } from './grades'
 import { el, potentialTag, traitTag } from './playerCard'
 import { kbd, setKeys, type KeyMap } from './keys'
-import { infoModal } from './modal'
+import { choiceModal, infoModal } from './modal'
 import { TEAM_NAME_MAX, saveTeamName } from './prefs'
 import { play } from './sound'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
-import { POSITION_FULL, RATING_FULL, RATING_LABELS, T } from './strings'
+import { EQUIPMENT_NAMES, POSITION_FULL, RATING_FULL, RATING_LABELS, T, equipmentDesc } from './strings'
 import { applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
 
 export interface RosterEditorOptions {
@@ -37,9 +38,19 @@ export interface RosterEditorOptions {
   /** 能不能重骰單一球員（錦標賽中用贏球得到的球員骰子）；沒給就跟 allowReroll 一樣 */
   allowPlayerReroll?: boolean
   startLabel: string
+  /** 錦標賽兩場之間：點球員可以從背包裝上裝備、卸下身上的裝備 */
+  gear?: GearOptions
   onChange?: (setup: PregameSetup) => void
   onStart: (setup: PregameSetup) => void
   onBack: () => void
+}
+
+/** 佈陣時管理裝備：裝上、卸下後回傳新的名單（呼叫端負責存檔） */
+export interface GearOptions {
+  bag: () => readonly EquipmentId[]
+  /** 把背包第 bagIndex 件裝到球員身上；裝滿時 replace 指定換下哪一件 */
+  equip: (playerId: string, bagIndex: number, replace?: number) => Roster
+  unequip: (playerId: string, index: number) => Roster
 }
 
 /** 球場圖（366 × 286）上各守位的中心點，對照一般的守備位置圖 */
@@ -519,7 +530,12 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     const stats = el('div', 'stat-box')
     stats.append(ratingBars(p))
     panel.append(el('span', 'sheet-handle'), x, playerHeader(p, slotLabel(slot)), stats)
-    if (p.traits.length) panel.append(traitList(p))
+    if (p.traits.length || p.potential) panel.append(traitList(p))
+    if (opts.gear) panel.append(gearSection(p, opts.gear, () => {
+      close()
+      render()
+      openDetail(slot)
+    }))
 
     const row = el('div', 'detail-buttons')
     const swap = el('button', 'btn-white', T.swap)
@@ -554,6 +570,54 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     sheet.append(panel)
     root.append(sheet)
     previousKeys = setKeys({ Escape: close, x: startSwap, ...(rerollThis ? { r: rerollThis } : {}) })
+  }
+
+  /** 球員詳細資料裡的裝備：身上的可以卸下，背包裡同角色能用的可以裝上（裝滿時選換下哪一件） */
+  function gearSection(p: Player, gear: GearOptions, refresh: () => void): HTMLElement {
+    const box = el('div', 'gear-box')
+    const apply = (roster: Roster, message: string) => {
+      update({ ...setup, team: { ...setup.team, roster } })
+      toast(message)
+      refresh()
+    }
+    const worn = p.equipment ?? []
+    box.append(el('span', 'gear-title', `${T.equippedTitle}（${worn.length}/${MAX_EQUIPMENT}）`))
+    const wornList = el('div', 'gear-list')
+    if (!worn.length) wornList.append(el('span', 'gear-empty', T.noneOption))
+    worn.forEach((id, i) => {
+      const b = el('button', `gear-item tier-${EQUIPMENT[id].tier}`)
+      b.type = 'button'
+      b.append(el('b', '', EQUIPMENT_NAMES[id]), el('span', '', equipmentDesc(id)), el('span', 'gear-action', T.unequip))
+      b.onclick = () => apply(gear.unequip(p.id, i), T.unequipped(EQUIPMENT_NAMES[id], p.name))
+      wornList.append(b)
+    })
+    box.append(wornList)
+
+    // 背包：只列這位球員能帶的（打者的不給投手）
+    const usable = gear.bag().map((id, i) => [id, i] as const).filter(([id]) => EQUIPMENT[id].role === p.role)
+    box.append(el('span', 'gear-title', T.bagTitle))
+    const bagList = el('div', 'gear-list')
+    if (!usable.length) bagList.append(el('span', 'gear-empty', T.bagNoneUsable))
+    for (const [id, bagIndex] of usable) {
+      const b = el('button', `gear-item tier-${EQUIPMENT[id].tier}`)
+      b.type = 'button'
+      b.append(el('b', '', EQUIPMENT_NAMES[id]), el('span', '', equipmentDesc(id)), el('span', 'gear-action', T.equip))
+      b.onclick = async () => {
+        let replace: number | undefined
+        if (worn.length >= MAX_EQUIPMENT) {
+          const picked = await choiceModal<number>({
+            title: T.pickReplace(p.name),
+            options: worn.map((x, i) => ({ value: i, label: T.replaceItem(EQUIPMENT_NAMES[x]), sub: equipmentDesc(x) })),
+          })
+          if (picked === null) return
+          replace = picked
+        }
+        apply(gear.equip(p.id, bagIndex, replace), T.equipped(EQUIPMENT_NAMES[id], p.name))
+      }
+      bagList.append(b)
+    }
+    box.append(bagList)
+    return box
   }
 
   /** 抽到彩虹卡或帶金特的球員：全螢幕登場特效，挑最強的一位 */
