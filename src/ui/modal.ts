@@ -124,8 +124,8 @@ export function choiceModal<V>(opts: { title: string; message?: string; options:
   })
 }
 
-/** 只用來看的視窗（例如對手陣容）：關閉鈕、Esc、點外面都能關 */
-export function infoModal(title: string, body: HTMLElement, wide = false): void {
+/** 只用來看的視窗（例如對手陣容）：關閉鈕、Esc、點外面都能關。回傳關閉視窗的函式 */
+export function infoModal(title: string, body: HTMLElement, wide = false): () => void {
   const overlay = el('div', 'modal-overlay')
   const box = el('section', `modal-box info-box${wide ? ' wide' : ''}`)
   box.setAttribute('role', 'dialog')
@@ -149,4 +149,5 @@ export function infoModal(title: string, body: HTMLElement, wide = false): void 
     if (e.target === overlay) done()
   }
   close.focus()
+  return done
 }

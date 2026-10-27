@@ -1542,6 +1542,216 @@ button.trophy-card {
   color: var(--ink-soft);
 }
 
+/* ---- 自由練習 ---- */
+.practice-screen .opp-title,
+.editor-screen .opp-title {
+  color: var(--lilac);
+}
+.practice-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.practice-side,
+.practice-teams,
+.editor-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.practice-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 2.5px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.practice-option b {
+  font-size: 15px;
+}
+.practice-option.selected {
+  box-shadow:
+    0 0 0 4px var(--yellow),
+    0 3px 0 var(--ink);
+}
+.practice-random {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--ink);
+  cursor: pointer;
+}
+.practice-levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.practice-levels .level-tag {
+  margin-left: 0;
+  border: 2px solid transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+.practice-levels .level-tag.current {
+  border-color: var(--ink);
+}
+.practice-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.practice-team-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.practice-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.editor-name {
+  font-size: 18px;
+}
+.kit-chip.off {
+  opacity: 0.4;
+  box-shadow: none;
+}
+.editor-player {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.editor-player .avatar {
+  width: 34px;
+  height: 34px;
+}
+.editor-equip {
+  background: #fff;
+  color: var(--ink);
+  border-style: dashed;
+}
+
+/* 編輯球員的視窗 */
+.player-editor {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pe-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.pe-seg,
+.pe-chips,
+.pe-equips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pe-seg-btn {
+  min-width: 56px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.pe-seg-btn[aria-pressed='true'] {
+  background: var(--yellow);
+}
+.pe-ratings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pe-rating {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 34px 24px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.pe-rating:has(select) {
+  grid-template-columns: 60px minmax(0, 1fr);
+}
+.pe-range {
+  width: 100%;
+  accent-color: var(--home);
+}
+.pe-num {
+  font-family: var(--font-display);
+  text-align: right;
+}
+.pe-trait {
+  padding: 2px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  background: none;
+  opacity: 0.45;
+  cursor: pointer;
+}
+.pe-trait.on {
+  opacity: 1;
+  border-color: var(--ink);
+}
+.pe-trait:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+.pe-select {
+  min-width: 140px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: 10px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 /* ---- 奪冠回顧 ---- */
 .recap {
   min-height: 0;

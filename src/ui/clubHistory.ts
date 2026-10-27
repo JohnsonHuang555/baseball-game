@@ -108,7 +108,8 @@ export function showRecap(t: Trophy): void {
   const box = el('div', 'recap')
   if (!t.recap) {
     box.append(el('p', 'recap-none', T.recapNone))
-    return infoModal(T.recapTitle(t.teamName), box, true)
+    infoModal(T.recapTitle(t.teamName), box, true)
+    return
   }
   const { recap } = t
   const section = (title: string, ...children: HTMLElement[]) => box.append(el('h3', 'opp-title', title), ...children)

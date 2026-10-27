@@ -1,4 +1,4 @@
-// 比賽結果的成長名單：錦標賽列出誰成長了多少；快速比賽只列本場 MVP
+// 比賽結果的成長名單：錦標賽列出誰成長了多少；自由練習只列本場 MVP
 import type { Game, Side } from '../sim/game'
 import { performance, type Growth } from '../sim/growth'
 import { avatar } from './avatar'
@@ -6,7 +6,7 @@ import { gradeBadge } from './grades'
 import { el } from './playerCard'
 import { RATING_FULL, T } from './strings'
 
-/** growth 給 null 代表不成長（快速比賽），只顯示 MVP */
+/** growth 給 null 代表不成長（自由練習），只顯示 MVP */
 export function growthPanel(game: Game, side: Side, growth: readonly Growth[] | null): HTMLElement {
   const box = el('section', 'growth-box')
   box.setAttribute('aria-label', growth ? T.growthTitle : T.mvpTitle)
@@ -36,7 +36,7 @@ export function growthPanel(game: Game, side: Side, growth: readonly Growth[] | 
     box.append(el('p', 'growth-hint', T.growthHint))
     return box
   }
-  // 快速比賽：本場表現分最高的人
+  // 自由練習：本場表現分最高的人
   const best = [...game.rosterIds(side)]
     .filter((id) => game.box[id])
     .sort((a, b) => performance(game.player(b)!, game.box[b]) - performance(game.player(a)!, game.box[a]))[0]

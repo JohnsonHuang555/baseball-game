@@ -5,18 +5,15 @@ import './match.css'
 import './decision.css'
 import './screens.css'
 import './desktop.css'
-import { Game } from './sim/game'
-import { cardTier, generateBatter, generateTeam, teamName, type CardTier } from './sim/generate'
+import { cardTier, generateBatter, type CardTier } from './sim/generate'
 import { Rng } from './sim/rng'
-import { createSetup } from './sim/setup'
 import { addLegend, createTournament, updateSetup, type Tier, type Tournament } from './sim/tournament'
 import { availableTiers, clearedTier, legends, outfitForTier, trophies } from './ui/progress'
 import { showClubHistory } from './ui/clubHistory'
-import type { Batter, Team } from './sim/types'
+import type { Batter } from './sim/types'
 import { avatar, avatarSpecies, avatarSvg, setAvatarSpecies } from './ui/avatar'
-import { showGame } from './ui/gameScreen'
-import { growthPanel } from './ui/growthPanel'
 import { gradeBadge, overallBadge } from './ui/grades'
+import { showPractice } from './ui/practice'
 import { setKeys } from './ui/keys'
 import { soundToggle } from './ui/sound'
 import { choiceModal, confirmModal } from './ui/modal'
@@ -26,7 +23,7 @@ import { toast } from './ui/visual'
 import { el } from './ui/playerCard'
 import { withSavedName } from './ui/prefs'
 import { discardOldTournament, loadTournament } from './ui/save'
-import { randomSeed, rays, showRosterEditor } from './ui/setupScreen'
+import { randomSeed, rays } from './ui/setupScreen'
 import { T } from './ui/strings'
 import { openTournament } from './ui/tournamentScreen'
 
@@ -155,7 +152,7 @@ function showTitle(): void {
   const buttons = el('div', 'home-buttons')
   const saved = loadTournament()
   const quick = el('button', saved ? 'btn-white btn-big' : 'btn-yellow btn-big', T.quickMatch)
-  quick.onclick = startQuickMatch
+  quick.onclick = startPractice
   const fresh = el('button', saved ? 'btn-outline-light' : 'btn-white btn-big', saved ? T.newTournament : T.tournament)
   fresh.onclick = async () => {
     if (saved && !(await confirmModal({ title: T.newTournament, message: T.confirmOverwrite, confirmLabel: T.overwriteConfirm, danger: true }))) return
@@ -190,33 +187,8 @@ function showTitle(): void {
   void maybeTutorial('home', TUTORIAL_STEPS.home)
 }
 
-function startQuickMatch(): void {
-  // 快速比賽的對手跟玩家一樣全隨機，不能重骰
-  let opponent: Team = generateTeam(new Rng(randomSeed()))
-  let setup = withSavedName(createSetup(randomSeed()))
-  showRosterEditor(root, {
-    setup,
-    opponent: () => {
-      while (opponent.name === setup.team.name) opponent = { ...opponent, name: teamName(new Rng(randomSeed())) }
-      return opponent
-    },
-    heading: T.myTeam,
-    allowReroll: true,
-    startLabel: T.startGame,
-    onChange: (next) => (setup = next),
-    onStart: (final) =>
-      showGame(root, {
-        game: new Game({ home: final.team, away: opponent, seed: randomSeed(), userSide: 'home' }),
-        resultLabel: T.quickMatch,
-        manualToggle: true,
-        resultExtra: (g) => growthPanel(g, g.userSide, null),
-        resultActions: () => [
-          { label: T.playAgain, primary: true, onClick: startQuickMatch },
-          { label: T.backToTitle, onClick: showTitle },
-        ],
-      }),
-    onBack: showTitle,
-  })
+function startPractice(): void {
+  showPractice(root, showTitle)
 }
 
 showTitle()

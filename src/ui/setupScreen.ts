@@ -27,7 +27,9 @@ import { applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } 
 export interface RosterEditorOptions {
   setup: PregameSetup
   /** 每次重畫時取得；改隊名可能會讓對手換名字 */
-  opponent: () => Team
+  opponent?: () => Team
+  /** 標題下的說明；沒給就依能不能重骰顯示預設的說明 */
+  hint?: string
   /** 標題上方的小字，例如「我的球隊」或「錦標賽・八強」 */
   heading: string
   /** 開打前可以整隊重骰和改隊名；比賽之間只能調整陣容 */
@@ -234,16 +236,18 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
       }
       sub.append(random)
     } else {
-      sub.append(el('span', 'lineup-hint', allowPlayerReroll ? T.lineupDiceHint(setup.playerRerollsLeft) : T.lineupOnlyHint))
+      sub.append(el('span', 'lineup-hint', opts.hint ?? (allowPlayerReroll ? T.lineupDiceHint(setup.playerRerollsLeft) : T.lineupOnlyHint)))
     }
-    // 對手：點一下看完整陣容，佈陣時可以對照
-    const opponent = opts.opponent()
-    const vs = el('button', 'vs-pill')
-    vs.type = 'button'
-    vs.title = T.opponentRoster
-    vs.append(el('span', 'vs-mark', T.versus), el('span', 'vs-name', opponent.name), gradeBadge(teamAverage(opponent.roster), 'sm'), el('span', 'vs-more', T.viewRoster))
-    vs.onclick = () => infoModal(T.opponentRosterOf(opponent.name), opponentRoster(opponent), true)
-    sub.append(vs)
+    // 對手：點一下看完整陣容，佈陣時可以對照（自由練習編輯球隊時沒有對手）
+    const opponent = opts.opponent?.()
+    if (opponent) {
+      const vs = el('button', 'vs-pill')
+      vs.type = 'button'
+      vs.title = T.opponentRoster
+      vs.append(el('span', 'vs-mark', T.versus), el('span', 'vs-name', opponent.name), gradeBadge(teamAverage(opponent.roster), 'sm'), el('span', 'vs-more', T.viewRoster))
+      vs.onclick = () => infoModal(T.opponentRosterOf(opponent.name), opponentRoster(opponent), true)
+      sub.append(vs)
+    }
     head.append(top, sub)
     return head
   }
