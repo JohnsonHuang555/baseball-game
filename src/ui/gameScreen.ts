@@ -12,7 +12,7 @@ import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
 import { play, soundToggle } from './sound'
 import { el } from './playerCard'
-import { MANUAL_MODES, PROMPT_LEVELS, loadManual, loadPromptLevel, saveManual, savePromptLevel } from './prefs'
+import { MANUAL_MODES, PROMPT_LEVELS, loadManual, loadPromptLevel, saveManual, savePromptLevel, type ManualMode } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
 import { rays } from './setupScreen'
 import { CPU_COLOR, USER_COLOR, handChip, pitchChip, sideTag, tendencyChip, toast } from './visual'
@@ -35,11 +35,13 @@ export interface GameScreenOptions {
   resultLabel?: string
   /** 結果畫面在比分下面多放的內容（例如成長名單） */
   resultExtra?: (game: Game) => HTMLElement | null
+  /** 顯示「親自操作」三段開關；沒有開關時只在關鍵打席親自出手（錦標賽） */
+  manualToggle?: boolean
 }
 
 const HIT_KINDS = new Set(['single', 'double', 'triple'])
-/** 比賽速度選項：0.75x 給想看清楚每一球的人，2x 給想快點打完的人 */
-const SPEEDS = [0.75, 1, 2]
+/** 比賽速度選項，預設 1x；2x、4x 給想快點打完的人 */
+const SPEEDS = [1, 2, 4]
 
 const OUT_KINDS = new Set(['groundOut', 'doublePlay', 'flyOut', 'sacrificeFly', 'lineOut', 'buntPopOut', 'sacrificeBunt'])
 
@@ -92,8 +94,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   const canvas = el('canvas', 'field')
   const callout = el('div', 'callout')
   const sideBanner = el('div', 'field-side')
-  // 球場右上角：親自操作開關，打開後每一球都直接跳出計量條
-  let manual = loadManual()
+  // 球場右上角：親自操作開關，打開後每一球都直接跳出計量條；錦標賽沒有開關，固定是關鍵打席
+  let manual: ManualMode = opts.manualToggle ? loadManual() : 'clutch'
   const manualBtn = el('button', 'manual-toggle')
   manualBtn.type = 'button'
   const renderManual = () => {
@@ -104,28 +106,31 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   renderManual()
   // 關 → 關鍵 → 每球 → 關
   const toggleManual = () => {
+    if (!opts.manualToggle) return
     manual = MANUAL_MODES[(MANUAL_MODES.indexOf(manual) + 1) % MANUAL_MODES.length]
     saveManual(manual)
     renderManual()
     toast(T.manualToast[manual])
   }
-  /** 「關鍵」模式下已經提示過的打席 */
-  let clutchPa = -1
+  /** 正在親自出手的關鍵打席；打席中途局面變了也打完這個打席 */
+  let keyPa = -1
   /** 這一球要不要讓教練親自出手 */
   const wantsTakeOver = (): boolean => {
     if (manual === 'all') return true
-    if (manual !== 'clutch' || !game.isClutch()) return false
+    if (manual !== 'clutch') return false
+    if (keyPa === game.paIndex) return true
+    const reason = game.keyAtBat()
+    if (!reason) return false
     // 進入關鍵打席時提示一次
-    if (clutchPa !== game.paIndex) {
-      clutchPa = game.paIndex
-      toast(T.clutchToast)
-    }
+    keyPa = game.paIndex
+    toast(T.keyAtBatToast[reason])
     return true
   }
   manualBtn.onclick = toggleManual
   // 投球視角小窗：投球時出現在球場左下角
   const pitchCam = new PitchCam()
-  canvasWrap.append(canvas, callout, sideBanner, manualBtn, pitchCam.root)
+  canvasWrap.append(canvas, callout, sideBanner, pitchCam.root)
+  if (opts.manualToggle) canvasWrap.append(manualBtn)
   const matchup = el('section', 'match-duel')
   const lastPlay = el('p', 'last-play')
   const controls = el('div', 'match-controls')
@@ -456,7 +461,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
           flash(`${homeRunName(e.runs)}！`, 'hr')
           if (e.ball) showHomeRunStats(e.ball)
         } else if (e.kind === 'strikeout') {
-          // 三振：大大的 K；站著不動被三振（第三個好球沒揮棒）照記分慣例把 K 反過來
+          // 三振：大大的 K；站著不動被三振（第三個好球沒揮棒）換個顏色、小字註明
           const prev = events[i - 1]
           const looking = prev?.type === 'pitch' && prev.result === 'calledStrike'
           flash('K', looking ? 'k looking' : 'k', looking ? T.calledStrikeout : T.callStrikeout)

@@ -1,75 +1,119 @@
 import { replay } from '../sim/game'
-import { cardTier, teamAverage } from '../sim/generate'
-import { getSlot, type Slot } from '../sim/setup'
+import { allPlayers, teamAverage } from '../sim/generate'
+import { gameGrowth } from '../sim/growth'
+import { EQUIPMENT, MAX_EQUIPMENT, RELICS } from '../sim/items'
+import { gameFunds, releaseValue } from '../sim/prices'
+import { repertoire } from '../sim/pitches'
+import { statOf } from '../sim/potential'
+import { getSlot } from '../sim/setup'
 import {
   FINAL_WINS_NEEDED,
-  ROUNDS,
+  MAX_SEASON_LOSSES,
+  PLAYOFF_ROUNDS,
+  SEASON_GAMES,
+  TIERS,
+  WINS_TO_ADVANCE,
   beginGame,
-  bracket,
-  currentRound,
-  draftPick,
+  canEquip,
+  canLearnPitch,
+  canLearnPitchTrait,
+  canLearnTrait,
+  chooseStartingRelic,
+  equipFromBag,
   finishGame,
+  pickEquipment,
+  pickNewPitch,
+  pickPitchTrait,
+  pickPlayer,
+  pickRelic,
+  pickTrait,
+  playoffSeed,
+  relicsOf,
   saveProgress,
-  skipDraft,
+  seasonRecord,
+  skipReward,
   startTournament,
-  tierOf,
+  unequip,
   updateLineup,
   updateSetup,
-  TIERS,
+  type RewardCard,
   type Tournament,
 } from '../sim/tournament'
-import { recordChampion, type Trophy } from './progress'
+import { TRAITS } from '../sim/traits'
+import type { Player } from '../sim/types'
+import { induct, recordChampion, recordRun, type Trophy } from './progress'
+import { showRecap } from './clubHistory'
 import { avatar, avatarSvg } from './avatar'
+import { TROPHY, backButton, cardKeys, chooseWearer, itemCard, kitChip, pickHeader, playerCard, rosterSlots } from './cards'
 import { showGame } from './gameScreen'
 import { growthPanel } from './growthPanel'
-import { gameGrowth } from '../sim/growth'
-import { gradeBadge, gradeOf, overallBadge } from './grades'
-import { kbd, setKeys, type KeyMap } from './keys'
-import { el, traitTag } from './playerCard'
-import { applyCardState, handChip, pitchChip, sideTag, tendencyChip, toast } from './visual'
+import { showEvent, showRest, showShop, showTraining } from './restScreen'
+import { gradeBadge, overallBadge } from './grades'
+import { kbd, setKeys } from './keys'
+import { el, potentialTag, traitTag } from './playerCard'
+import { pitchChip, sideTag, toast } from './visual'
 import { clearTournament, saveTournament } from './save'
 import { play } from './sound'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
 import { rays, showRosterEditor } from './setupScreen'
-import { POSITION_FULL, RATING_FULL, RATING_LABELS, T, TRAIT_DESC } from './strings'
+import { EQUIPMENT_NAMES, PITCH_TRAIT_NAMES, RELIC_DESC, RELIC_NAMES, T, TRAIT_NAMES, equipmentDesc } from './strings'
 
 /** 依錦標賽目前的階段，打開對應的畫面。每次狀態改變都會存檔 */
 export function openTournament(root: HTMLElement, t: Tournament, toTitle: () => void): void {
   const go = (next: Tournament) => openTournament(root, next, toTitle)
-  const roundName = T.roundNames[currentRound(t)]
   if (t.phase === 'champion' || t.phase === 'eliminated') clearTournament()
   else saveTournament(t)
   // 奪冠：放進獎盃櫃（同一屆只記一次），第一次通過這個難度會解鎖裝扮
   if (t.phase === 'champion') recordChampion(t)
+  // 不論奪冠或淘汰，這一輪都記進球團史的歷程
+  if (t.phase === 'champion' || t.phase === 'eliminated') recordRun(t)
 
   switch (t.phase) {
     case 'pregame':
       return showRosterEditor(root, {
         setup: t.setup,
         opponent: () => t.opponent,
-        heading: T.tournamentHeading(roundName),
+        heading: T.tournamentHeading(T.seasonGame(1)),
         allowReroll: true,
+        allowPlayerReroll: false,
         startLabel: T.startTournament,
         onChange: (setup) => {
           t = updateSetup(t, setup)
           saveTournament(t)
         },
-        onStart: (setup) => go(beginGame(startTournament(updateSetup(t, setup)))),
+        onStart: (setup) => go(startTournament(updateSetup(t, setup))),
         onBack: toTitle,
       })
+    case 'relic':
+      return showRelicPick(root, t, go, toTitle)
     case 'playing':
       return playCurrentGame(root, t, go)
-    case 'draft':
-      return showDraft(root, t, go, toTitle)
+    case 'reward':
+      return showReward(root, t, go, toTitle)
+    case 'rest':
+      return showRest(root, t, go, toTitle)
+    case 'shop':
+      return showShop(root, t, go, toTitle)
+    case 'training':
+      return showTraining(root, t, go, toTitle)
+    case 'event':
+      return showEvent(root, t, go, toTitle)
+    case 'champion':
+    case 'eliminated':
+      return showTourEnd(root, t, toTitle)
     default:
       return showHub(root, t, go, toTitle)
   }
 }
 
+/** 計分板上方的小字：例行賽第幾場、季後賽哪一輪、決賽第幾戰 */
 function gameSubtitle(t: Tournament): string {
-  const round = currentRound(t)
-  if (round !== 'final') return T.tournamentHeading(T.roundNames[round])
+  if (t.round === 'season') {
+    const { wins, losses } = seasonRecord(t)
+    return T.tournamentHeading(T.seasonGame(wins + losses + 1))
+  }
+  if (t.round !== 'final') return T.tournamentHeading(T.roundNames[t.round])
   return T.finalGame(t.series.user + t.series.opponent + 1, t.series.user, t.series.opponent)
 }
 
@@ -77,6 +121,8 @@ function playCurrentGame(root: HTMLElement, t: Tournament, go: (t: Tournament) =
   const saved = t.currentGame!
   // 用種子和指令紀錄重播回中斷的那一步（ADR-0001）
   const game = replay(saved.setup, saved.commands, saved.stepIndex)
+  // 成長照沒有裝備加成的原始能力算上限
+  const growth = () => gameGrowth(game, 'home', t.setup.team.roster)
   showGame(root, {
     game,
     subtitle: gameSubtitle(t),
@@ -84,30 +130,18 @@ function playCurrentGame(root: HTMLElement, t: Tournament, go: (t: Tournament) =
       t = saveProgress(t, g.commands, g.stepIndex)
       saveTournament(t)
     },
-    // 成長名單：結果畫面顯示，按繼續時套用到陣容
+    // 結果畫面：成長名單、這場覺醒的球員、賺到的球團資金；按繼續時才套用到陣容
     resultExtra: (g) => {
-      const box = growthPanel(g, 'home', gameGrowth(g, 'home'))
-      // 贏球得到球員骰子；奪冠那一場就不用提了
-      const clinched = currentRound(t) === 'final' && t.series.user + 1 >= FINAL_WINS_NEEDED
-      if (g.winner === 'home' && !clinched) box.append(el('p', 'growth-dice', T.diceEarned))
+      const box = growthPanel(g, 'home', growth())
+      for (const p of allPlayers(t.setup.team.roster)) {
+        const pot = p.potential
+        if (pot && pot.progress + statOf(g.box[p.id], pot.stat) >= pot.need) box.append(el('p', 'growth-awaken', T.awakened(p.name, TRAIT_NAMES[pot.trait])))
+      }
+      box.append(el('p', 'growth-funds', T.fundsEarned(gameFunds(g.winner === 'home', g.score.home))))
       return box
     },
-    resultActions: (g) => [{ label: T.continue, primary: true, onClick: () => go(finishGame(t, g.score, gameGrowth(g, 'home'))) }],
+    resultActions: (g) => [{ label: T.continue, primary: true, onClick: () => go(finishGame(t, g.score, growth(), g.box)) }],
   })
-}
-
-const BACK_ICON =
-  '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
-const CHECK_ICON =
-  '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
-
-function backButton(onClick: () => void): HTMLButtonElement {
-  const b = el('button', 'icon-btn')
-  b.type = 'button'
-  b.innerHTML = BACK_ICON
-  b.setAttribute('aria-label', T.backToTitle)
-  b.onclick = onClick
-  return b
 }
 
 /** 斜切的小緞帶，給下一個對手、奪冠、淘汰用 */
@@ -123,281 +157,404 @@ function teamTile(name: string, team: 'user' | 'opponent'): HTMLElement {
   return el('span', `team-tile ${team}`, name.slice(0, 1))
 }
 
-/** 電腦版版面的分界，跟 desktop.css 一致 */
-const DESKTOP = window.matchMedia('(min-width: 1024px)')
-
-/** 畫面還在的話，視窗跨過電腦版分界時重畫一次（賽程樹是用像素排的） */
-function redrawOnLayoutChange(screen: HTMLElement, redraw: () => void): void {
-  DESKTOP.addEventListener('change', () => screen.isConnected && redraw(), { once: true })
-}
-
-/** 每一場的戰績：決賽三戰兩勝要標第幾戰 */
+/** 每一場的戰績：例行賽標第幾場，決賽三戰兩勝標第幾戰 */
 function recordRows(t: Tournament): { round: string; won: boolean; score: string; opponent: string }[] {
+  let season = 0
   let finals = 0
   return t.history.map((g) => ({
-    round: g.round === 'final' ? T.finalNth(++finals) : T.roundNames[g.round],
+    round: g.round === 'season' ? T.seasonGame(++season) : g.round === 'final' ? T.finalNth(++finals) : T.roundNames[g.round],
     won: g.won,
     score: `${g.userRuns}:${g.opponentRuns}`,
-    opponent: t.teamNames[t.opponents[ROUNDS.indexOf(g.round)]],
+    opponent: g.opponent ?? '',
   }))
 }
 
-/** 錦標賽主畫面：戰績、賽程樹、下一個對手（或奪冠／淘汰） */
+// ---- 錦標賽主畫面 ----
+
+/** 錦標賽主畫面：例行賽與季後賽的進度、秘寶與裝備、下一個對手 */
 function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, toTitle: () => void): void {
-  if (t.phase === 'champion' || t.phase === 'eliminated') return showTourEnd(root, t, toTitle)
   root.replaceChildren()
   const screen = el('div', 'hub-screen')
-  redrawOnLayoutChange(screen, () => showHub(root, t, go, toTitle))
-  const round = currentRound(t)
 
   const header = el('header', 'hub-header')
   const titles = el('div', 'team-titles')
   const eyebrow = el('span', 'eyebrow-light', t.setup.team.name)
-  eyebrow.append(el('span', `level-tag level-${tierOf(t)}`, T.levelNames[tierOf(t)]))
+  eyebrow.append(el('span', `level-tag level-${t.tier}`, T.levelNames[t.tier]))
+  eyebrow.append(el('span', 'funds-chip', T.funds(t.funds)))
   titles.append(eyebrow, el('h1', 'team-name', T.tournament))
   header.append(backButton(toTitle), titles)
-  screen.append(header)
-
-  // 戰績：每場一顆膠囊，可以左右捲
-  if (t.history.length) {
-    const record = el('section', 'hub-record')
-    record.setAttribute('aria-label', T.historyTitle)
-    record.append(el('span', 'hub-record-label', T.historyTitle))
-    for (const g of t.history) {
-      const chip = el('span', 'record-chip')
-      const opponentName = t.teamNames[t.opponents[ROUNDS.indexOf(g.round)]]
-      chip.append(
-        el('span', `record-mark ${g.won ? 'won' : 'lost'}`, g.won ? T.winMark : T.loseMark),
-        T.roundNames[g.round],
-        el('b', 'record-score', `${g.userRuns}:${g.opponentRuns}`),
-        opponentName,
-      )
-      record.append(chip)
-    }
-    screen.append(record)
-  }
-
-  screen.append(bracketPanel(t))
+  screen.append(header, seasonPanel(t), kitPanel(t, go))
 
   // 底部：下一個對手
   const bottom = el('section', 'hub-bottom')
-  {
-    bottom.setAttribute('aria-label', T.nextOpponent)
-    bottom.append(ribbon(`${round === 'final' ? gameSubtitle(t) : T.roundNames[round]}・${T.nextOpponent}`, 'yellow'))
-    const vs = el('div', 'hub-vs')
-    const side = (name: string, avg: number, team: 'user' | 'opponent') => {
-      const box = el('div', `hub-side ${team}`)
-      const words = el('span', 'hub-side-words')
-      words.append(el('span', 'hub-side-name', name), gradeBadge(avg, 'sm'))
-      if (team === 'user') words.append(sideTag(true))
-      box.append(teamTile(name, team), words)
-      return box
-    }
-    vs.append(
-      side(t.setup.team.name, teamAverage(t.setup.team.roster), 'user'),
-      el('span', 'hub-vs-mark', T.versus),
-      side(t.opponent.name, teamAverage(t.opponent.roster), 'opponent'),
-    )
-    const next = el('button', 'btn-yellow btn-big', T.nextGame)
-    next.append(kbd('ENTER'))
-    setKeys({ Enter: () => next.click() })
-    next.onclick = () =>
-      showRosterEditor(root, {
-        setup: t.setup,
-        opponent: () => t.opponent,
-        heading: gameSubtitle(t),
-        allowReroll: false,
-        // 贏球得到的球員骰子可以在這裡用
-        allowPlayerReroll: true,
-        startLabel: T.startGame,
-        onChange: (setup) => {
-          t = updateLineup(t, setup)
-          saveTournament(t)
-        },
-        onStart: (setup) => go(beginGame(updateLineup(t, setup))),
-        onBack: () => go(t),
-      })
-    const dice = el('span', `dice-chip ${t.setup.playerRerollsLeft > 0 ? '' : 'empty'}`, T.diceChip(t.setup.playerRerollsLeft))
-    dice.title = T.lineupDiceHint(t.setup.playerRerollsLeft)
-    bottom.append(vs, dice, next)
+  bottom.setAttribute('aria-label', T.nextOpponent)
+  bottom.append(ribbon(`${gameSubtitle(t).replace(`${T.tournament}・`, '')}・${T.nextOpponent}`, 'yellow'))
+  const vs = el('div', 'hub-vs')
+  const side = (name: string, avg: number, team: 'user' | 'opponent') => {
+    const box = el('div', `hub-side ${team}`)
+    const words = el('span', 'hub-side-words')
+    words.append(el('span', 'hub-side-name', name), gradeBadge(avg, 'sm'))
+    if (team === 'user') words.append(sideTag(true))
+    box.append(teamTile(name, team), words)
+    return box
   }
+  vs.append(
+    side(t.setup.team.name, teamAverage(t.setup.team.roster), 'user'),
+    el('span', 'hub-vs-mark', T.versus),
+    side(t.opponent.name, teamAverage(t.opponent.roster), 'opponent'),
+  )
+  const next = el('button', 'btn-yellow btn-big', T.nextGame)
+  next.append(kbd('ENTER'))
+  setKeys({ Enter: () => next.click() })
+  next.onclick = () =>
+    showRosterEditor(root, {
+      setup: t.setup,
+      opponent: () => t.opponent,
+      heading: gameSubtitle(t),
+      allowReroll: false,
+      allowPlayerReroll: false,
+      startLabel: T.startGame,
+      onChange: (setup) => {
+        t = updateLineup(t, setup)
+        saveTournament(t)
+      },
+      onStart: (setup) => go(beginGame(updateLineup(t, setup))),
+      onBack: () => go(t),
+    })
+  bottom.append(vs, next)
   screen.append(bottom)
   root.append(screen)
   void maybeTutorial('hub', TUTORIAL_STEPS.hub)
 }
 
-/** 賽程樹：四欄、每場一個小方框，用線連起來；自己的晉級路線用藍線 */
-function bracketPanel(t: Tournament): HTMLElement {
-  if (DESKTOP.matches) return deskBracket(t)
-  const panel = el('section', 'bracket-panel')
-  panel.setAttribute('aria-label', T.bracketTitle)
-  const heads = el('div', 'bracket-heads')
-  ROUNDS.forEach((r, i) => heads.append(el('span', i === t.roundIndex ? 'current' : '', T.roundNames[r])))
-  const scroll = el('div', 'bracket-scroll')
-  panel.append(heads, scroll)
+/** 例行賽 8 格（勝、敗、下一場、還沒打），下面是季後賽三輪 */
+function seasonPanel(t: Tournament): HTMLElement {
+  const panel = el('section', 'hub-panel season-panel')
+  panel.setAttribute('aria-label', T.scheduleTitle)
+  const { wins, losses } = seasonRecord(t)
+  const head = el('div', 'season-head')
+  head.append(el('h2', 'panel-title', T.roundNames.season), el('b', 'season-record', T.seasonRecord(wins, losses)))
+  panel.append(head)
+  if (t.round === 'season') panel.append(el('p', 'season-need', T.seasonNeed(Math.max(0, WINS_TO_ADVANCE - wins), MAX_SEASON_LOSSES - losses)))
 
-  const GAP = 6
-  const H = 38
-  const STEP = 53
-  const width = Math.min(window.innerWidth, 480) - 24 - 16 - 5
-  const W = Math.floor((width - GAP * 3) / 4)
-  const colX = [0, 1, 2, 3].map((i) => i * (W + GAP))
-  const centers: number[][] = [Array.from({ length: 8 }, (_, i) => i * STEP + 4 + H / 2)]
-  for (let c = 1; c < 4; c++) {
-    centers.push(centers[c - 1].filter((_, i) => i % 2 === 0).map((y, j) => (y + centers[c - 1][2 * j + 1]) / 2))
+  const season = t.history.filter((g) => g.round === 'season')
+  const slots = el('ol', 'season-slots')
+  for (let i = 0; i < SEASON_GAMES; i++) {
+    const g = season[i]
+    const state = g ? (g.won ? 'won' : 'lost') : i === season.length && t.round === 'season' ? 'next' : 'upcoming'
+    const slot = el('li', `season-slot ${state}`)
+    slot.append(el('span', 'season-mark', g ? (g.won ? T.winMark : T.loseMark) : String(i + 1)))
+    slot.append(el('span', 'season-opp', t.teamNames[t.schedule[i]]))
+    if (g) slot.append(el('span', 'season-score', `${g.userRuns}:${g.opponentRuns}`))
+    slots.append(slot)
   }
+  panel.append(slots)
 
-  const tree = el('div', 'bracket-tree')
-  tree.style.width = `${colX[3] + W}px`
-  tree.style.height = `${8 * STEP}px`
-
-  const rounds = sortedRounds(t)
-  let lines = ''
-  let myLine = ''
-  for (let r = 0; r < 4; r++) {
-    centers[r].forEach((cy, i) => tree.append(bracketBox(t, rounds, r, i, colX[r], cy, W, H)))
-    if (r < 3) {
-      const x = colX[r] + W
-      const mid = x + GAP / 2
-      for (let p = 0; p < centers[r].length / 2; p++) {
-        const y1 = centers[r][2 * p]
-        const y2 = centers[r][2 * p + 1]
-        lines += `M${x} ${y1} H${mid} V${y2} H${x} M${mid} ${(y1 + y2) / 2} H${colX[r + 1]} `
-      }
-      // 自己贏了這一輪，就把藍線畫到下一輪
-      const myMatch = rounds[r]?.findIndex((m) => m.a === 0 || m.b === 0) ?? -1
-      if (r <= t.roundIndex && myMatch >= 0 && rounds[r][myMatch].winner === 0) {
-        const y = centers[r][myMatch]
-        const ny = centers[r + 1][Math.floor(myMatch / 2)]
-        myLine += `M${x} ${y} H${mid} V${ny} H${colX[r + 1]} `
-      }
-    }
-  }
-  tree.insertAdjacentHTML(
-    'afterbegin',
-    `<svg class="bracket-lines" aria-hidden="true" width="${colX[3] + W}" height="${8 * STEP}"><path d="${lines}" class="all"/><path d="${myLine}" class="mine"/></svg>`,
-  )
-  scroll.append(tree)
+  const playoffHead = el('div', 'season-head')
+  playoffHead.append(el('h2', 'panel-title', T.playoffsTitle))
+  if (t.round !== 'season') playoffHead.append(el('span', 'seed-tag', T.playoffSeed(playoffSeed(t))))
+  else playoffHead.append(el('span', 'season-need', T.seedHint))
+  panel.append(playoffHead)
+  const ladder = el('ol', 'playoff-row')
+  const current = t.round === 'season' ? -1 : PLAYOFF_ROUNDS.indexOf(t.round as (typeof PLAYOFF_ROUNDS)[number])
+  PLAYOFF_ROUNDS.forEach((round, i) => {
+    const games = t.history.filter((g) => g.round === round)
+    const won = round === 'final' ? games.filter((g) => g.won).length >= FINAL_WINS_NEEDED : games.some((g) => g.won)
+    const state = i < current || won ? 'won' : i === current ? 'next' : 'upcoming'
+    const box = el('li', `playoff-box ${state}`)
+    box.append(el('span', 'playoff-name', T.roundNames[round]))
+    // 還沒打到的輪次不透露對手
+    box.append(el('span', 'playoff-opp', i <= current ? t.teamNames[t.playoff[i]] : T.versus))
+    if (round === 'final' && games.length) box.append(el('span', 'season-score', `${t.series.user}-${t.series.opponent}`))
+    ladder.append(box)
+  })
+  panel.append(ladder)
   return panel
 }
 
-/** 每一輪的對戰依賽程位置排好，連線才接得起來 */
-function sortedRounds(t: Tournament) {
-  return bracket(t).map((matches, r) =>
-    matches
-      .map((m) => (m.a < m.b ? m : { a: m.b, b: m.a, winner: m.winner }))
-      .sort((x, y) => Math.floor(x.a / 2 ** (r + 1)) - Math.floor(y.a / 2 ** (r + 1))),
-  )
-}
+/** 秘寶、身上的裝備、背包；點背包裡的裝備裝上，點身上的裝備卸下 */
+function kitPanel(t: Tournament, go: (t: Tournament) => void): HTMLElement {
+  const panel = el('section', 'hub-panel kit-panel')
+  panel.setAttribute('aria-label', `${T.relicsTitle}・${T.bagTitle}`)
 
-/** 賽程樹上的一個對戰方框 */
-function bracketBox(t: Tournament, rounds: ReturnType<typeof sortedRounds>, r: number, i: number, x: number, cy: number, W: number, H: number): HTMLElement {
-  const box = el('div', 'bracket-box')
-  box.style.left = `${x}px`
-  box.style.top = `${cy - H / 2}px`
-  box.style.width = `${W}px`
-  box.style.height = `${H}px`
-  // 還沒打到的輪次不劇透 AI 之間的結果
-  const m = r <= t.roundIndex ? rounds[r][i] : undefined
-  if (!m) {
-    box.classList.add('tbd')
-    box.append(el('div', 'bracket-row tbd', T.pending), el('div', 'bracket-row tbd', T.pending))
-    return box
-  }
-  const mine = m.a === 0 || m.b === 0
-  if (mine && r === t.roundIndex && m.winner === null && t.phase !== 'eliminated') box.classList.add('next')
-  const games = mine ? t.history.filter((g) => g.round === ROUNDS[r]) : []
-  let score: { user: number; opp: number } | null = null
-  if (games.length) {
-    score =
-      ROUNDS[r] === 'final'
-        ? { user: games.filter((g) => g.won).length, opp: games.filter((g) => !g.won).length }
-        : { user: games[0].userRuns, opp: games[0].opponentRuns }
-  }
-  for (const team of [m.a, m.b]) {
-    const state = team === 0 ? 'me' : m.winner === null ? '' : m.winner === team ? 'win' : 'lose'
-    const row = el('div', `bracket-row ${state} ${m.winner === team ? 'winner' : ''}`)
-    row.append(el('span', 'bracket-name', t.teamNames[team]))
-    if (score) row.append(el('span', 'bracket-score', String(team === 0 ? score.user : score.opp)))
-    box.append(row)
-  }
-  return box
-}
+  panel.append(el('h2', 'panel-title', T.relicsTitle))
+  const relics = el('div', 'kit-chips')
+  for (const id of relicsOf(t)) relics.append(kitChip(RELIC_NAMES[id], RELIC_DESC[id], RELICS[id].tier))
+  panel.append(relics)
 
-export const TROPHY = (size: number, label = '') =>
-  `<svg ${label ? `role="img" aria-label="${label}"` : 'aria-hidden="true"'} width="${size}" height="${size}" viewBox="0 0 24 24" fill="#FFD23F" stroke="#141633" stroke-width="1.2" stroke-linejoin="round"><path d="M7 3h10v4a5 5 0 0 1-10 0z"/><path d="M7 5H4a3 3 0 0 0 3 4M17 5h3a3 3 0 0 1-3 4" fill="none" stroke-width="1.4"/><path d="M10 12h4v4h-4z"/><path d="M8 20h8v-2H8z"/></svg>`
-
-/** 電腦版賽程樹：左右各半區，決賽在正中間，上面放獎盃 */
-function deskBracket(t: Tournament): HTMLElement {
-  const panel = el('section', 'bracket-panel desk')
-  panel.setAttribute('aria-label', T.bracketTitle)
-  const W = 150
-  const H = 56
-  const X = [0, 174, 348, 522, 696, 870, 1044]
-  const width = X[6] + W
-  const height = 446
-  // 每一輪在左、右半區的欄位，以及每個方框的中心高度
-  const COLS = [[0, 6], [1, 5], [2, 4], [3, 3]]
-  const CENTERS = [[56, 166, 276, 386], [111, 331], [221], [221]]
-  const rounds = sortedRounds(t)
-  const pos = (r: number, i: number) => {
-    const half = Math.max(1, rounds[r].length / 2)
-    const right = r < 3 && i >= half
-    return { x: X[COLS[r][right ? 1 : 0]], cy: CENTERS[r][r < 3 ? i % half : 0], right }
-  }
-
-  const scroll = el('div', 'bracket-scroll')
-  const inner = el('div', 'bracket-desk-inner')
-  inner.style.width = `${width}px`
-  // 視窗不夠寬就整棵縮小（扣掉畫面與面板的左右留白）
-  inner.style.zoom = String(Math.min(1, (window.innerWidth - 140) / width))
-  const heads = el('div', 'bracket-heads')
-  for (const r of [0, 1, 2, 3, 2, 1, 0]) heads.append(el('span', `${r === t.roundIndex ? 'current' : ''} ${r === 3 ? 'final' : ''}`, T.roundNames[ROUNDS[r]]))
-  const tree = el('div', 'bracket-tree')
-  tree.style.width = `${width}px`
-  tree.style.height = `${height}px`
-  inner.append(heads, tree)
-  scroll.append(inner)
-  panel.append(scroll)
-
-  for (let r = 0; r < 4; r++) {
-    rounds[r].forEach((_, i) => {
-      const p = pos(r, i)
-      tree.append(bracketBox(t, rounds, r, i, p.x, p.cy, W, H))
+  const roster = t.setup.team.roster
+  const wearers = allPlayers(roster).filter((p) => p.equipment?.length)
+  panel.append(el('h2', 'panel-title', T.equippedTitle))
+  const worn = el('div', 'kit-chips')
+  if (!wearers.length) worn.append(el('span', 'kit-empty', T.noEquipped))
+  for (const p of wearers) {
+    p.equipment!.forEach((id, i) => {
+      const chip = kitChip(`${p.name}・${EQUIPMENT_NAMES[id]}`, equipmentDesc(id), EQUIPMENT[id].tier, true)
+      chip.onclick = () => {
+        toast(T.unequipped(EQUIPMENT_NAMES[id], p.name))
+        go(unequip(t, p.id, i))
+      }
+      worn.append(chip)
     })
   }
-  // 兩場合成下一場的連接線；dir 是往中間的方向
-  let lines = ''
-  const join = (xFrom: number, ys: number[], xTo: number, dir: number) => {
-    const mid = xFrom + dir * 12
-    lines += `M${xFrom} ${ys[0]} H${mid} V${ys[1]} H${xFrom} M${mid} ${(ys[0] + ys[1]) / 2} H${xTo} `
-  }
-  for (const r of [0, 1]) {
-    const cs = CENTERS[r]
-    for (let k = 0; k < cs.length; k += 2) {
-      join(X[COLS[r][0]] + W, [cs[k], cs[k + 1]], X[COLS[r + 1][0]], 1)
-      join(X[COLS[r][1]], [cs[k], cs[k + 1]], X[COLS[r + 1][1]] + W, -1)
+  panel.append(worn)
+
+  panel.append(el('h2', 'panel-title', T.bagTitle))
+  const bag = el('div', 'kit-chips')
+  if (!t.bag.length) bag.append(el('span', 'kit-empty', T.bagEmpty))
+  t.bag.forEach((id, i) => {
+    const chip = kitChip(EQUIPMENT_NAMES[id], equipmentDesc(id), EQUIPMENT[id].tier, true)
+    chip.onclick = async () => {
+      const target = await chooseWearer(roster, id)
+      if (!target?.player) return
+      toast(T.equipped(EQUIPMENT_NAMES[id], target.player.name))
+      go(equipFromBag(t, i, target.player.id, target.replace))
     }
-  }
-  lines += `M${X[2] + W} 221 H${X[3]} M${X[4]} 221 H${X[3] + W}`
-  // 自己贏了的輪次，藍線畫到下一輪
-  let myLine = ''
-  for (let r = 0; r < 3; r++) {
-    const i = rounds[r]?.findIndex((m) => m.a === 0 || m.b === 0) ?? -1
-    if (r > t.roundIndex || i < 0 || rounds[r][i].winner !== 0) continue
-    const p = pos(r, i)
-    const n = pos(r + 1, Math.floor(i / 2))
-    const start = p.right ? p.x : p.x + W
-    const end = p.right ? n.x + W : n.x
-    const mid = r === 2 ? start : start + (p.right ? -12 : 12)
-    myLine += `M${start} ${p.cy} H${mid} V${n.cy} H${end} `
-  }
-  tree.insertAdjacentHTML(
-    'afterbegin',
-    `<svg class="bracket-lines" aria-hidden="true" width="${width}" height="${height}"><path d="${lines}" class="all"/><path d="${myLine}" class="mine"/></svg><div class="bracket-trophy" style="left:${X[3]}px;width:${W}px">${TROPHY(64)}</div>`,
-  )
+    bag.append(chip)
+  })
+  panel.append(bag)
+  if (wearers.length || t.bag.length) panel.append(el('p', 'kit-hint', T.equipHint))
   return panel
 }
+
+// ---- 起始秘寶 ----
+
+/** 開打後第一件事：三個秘寶選一個 */
+function showRelicPick(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, toTitle: () => void): void {
+  let chosen: number | null = null
+  let firstRender = true
+  function render(): void {
+    root.replaceChildren()
+    const screen = el('div', 'draft-screen')
+    screen.append(pickHeader(T.relicPickTitle, T.relicPickHint, toTitle))
+    const cards = el('section', 'draft-cards')
+    cards.setAttribute('aria-label', T.relicsTitle)
+    t.relicOptions.forEach((id, i) => {
+      const card = itemCard({ kind: 'relic', id }, chosen === i, firstRender, i)
+      card.onclick = () => {
+        chosen = chosen === i ? null : i
+        render()
+      }
+      cards.append(card)
+    })
+    screen.append(cards)
+    const side = el('div', 'draft-side')
+    const footer = el('footer', 'draft-footer')
+    const take = el('button', 'btn-yellow btn-wide', chosen === null ? T.pickFirstCard : T.relicTake(RELIC_NAMES[t.relicOptions[chosen]]))
+    take.disabled = chosen === null
+    take.append(kbd('ENTER'))
+    take.onclick = () => {
+      if (chosen === null) return
+      toast(T.relicGained(RELIC_NAMES[t.relicOptions[chosen]]))
+      go(chooseStartingRelic(t, chosen))
+    }
+    footer.append(take)
+    side.append(footer)
+    screen.append(side)
+    root.append(screen)
+    firstRender = false
+    setKeys({ ...cardKeys(t.relicOptions.length, () => chosen, (i) => ((chosen = i), render())), Enter: () => take.click() })
+  }
+  render()
+}
+// ---- 獎勵選擇 ----
+
+/** 獎勵選擇：卡片並排，選一張後在右邊決定給誰（球員卡選換掉誰、裝備選誰帶、特性選誰學） */
+function showReward(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, toTitle: () => void): void {
+  let chosen: number | null = null
+  let firstRender = true
+  const won = t.history[t.history.length - 1]?.won ?? true
+
+  function render(): void {
+    root.replaceChildren()
+    const screen = el('div', 'draft-screen')
+    const justAdvanced = t.round === 'qf' && t.history.filter((g) => g.round === 'qf').length === 0
+    screen.append(pickHeader(justAdvanced ? T.advanced : T.rewardTitle(won), T.rewardHint(won, t.rewards.length), toTitle))
+
+    const cards = el('section', 'draft-cards')
+    cards.setAttribute('aria-label', T.rewardCandidates)
+    t.rewards.forEach((card, i) => {
+      const node = card.kind === 'player' ? playerCard(card.player, chosen === i, firstRender, i) : itemCard(card, chosen === i, firstRender, i)
+      node.onclick = () => {
+        chosen = chosen === i ? null : i
+        render()
+      }
+      cards.append(node)
+    })
+    screen.append(cards)
+
+    const target = el('section', 'draft-release')
+    const card = chosen === null ? null : t.rewards[chosen]
+    const list = el('div', 'draft-release-list')
+    if (!card) target.append(el('div', 'draft-release-head', T.pickFirstCard))
+    else target.append(...rewardTargets(t, chosen!, card, list, go))
+    target.append(list)
+
+    const footer = el('footer', 'draft-footer')
+    const skip = el('button', 'btn-outline-light btn-wide', T.skipReward)
+    skip.append(kbd('ESC'))
+    skip.onclick = () => {
+      toast(T.rewardSkipped)
+      go(skipReward(t))
+    }
+    footer.append(skip)
+    const side = el('div', 'draft-side')
+    side.append(target, footer)
+    screen.append(side)
+    root.append(screen)
+    if (firstRender) void maybeTutorial('draft', TUTORIAL_STEPS.draft)
+    firstRender = false
+
+    // Enter 先跳到右邊的名單，在名單上再按 Enter 就選那一位
+    setKeys({
+      ...cardKeys(t.rewards.length, () => chosen, (i) => ((chosen = i), render())),
+      Escape: () => skip.click(),
+      Enter: () => {
+        const active = document.activeElement
+        if (active instanceof HTMLButtonElement && target.contains(active)) active.click()
+        else target.querySelector<HTMLButtonElement>('button')?.focus()
+      },
+    })
+  }
+  render()
+}
+
+/** 選了一張卡之後，右邊要列出的東西 */
+function rewardTargets(t: Tournament, index: number, card: RewardCard, list: HTMLElement, go: (t: Tournament) => void): HTMLElement[] {
+  const roster = t.setup.team.roster
+  const row = (p: Player, label: string, extra: HTMLElement[], note?: HTMLElement) => {
+    const r = el('div', 'release-row')
+    const who = el('span', 'release-who')
+    who.append(el('span', 'release-name', p.name), el('span', 'release-pos', label))
+    if (note) who.append(note)
+    const grades = el('span', 'release-grades')
+    for (const v of Object.values(p.ratings)) grades.append(gradeBadge(v, 'sm'))
+    const actions = el('span', 'release-actions')
+    actions.append(...extra)
+    r.append(avatar(p.id, 'user', 'ring'), who, grades, actions)
+    list.append(r)
+  }
+  const button = (label: string, onClick: () => void) => {
+    const b = el('button', 'btn-small', label)
+    b.onclick = onClick
+    return b
+  }
+
+  switch (card.kind) {
+    case 'player': {
+      const pick = card.player
+      for (const [slot, label] of rosterSlots(roster)) {
+        const p = getSlot(roster, slot)
+        if (p.role !== pick.role) continue
+        row(p, label, [
+          button(T.replace, () => {
+            toast(`${T.joined(pick.name, p.name)}・${T.fundsEarned(releaseValue(p))}`)
+            go(pickPlayer(t, index, slot))
+          }),
+        ])
+      }
+      return [el('div', 'draft-release-head', T.replaceWho(pick.name, pick.role === 'pitcher' ? T.pitcher : T.batter))]
+    }
+    case 'equipment': {
+      const name = EQUIPMENT_NAMES[card.id]
+      for (const [slot, label] of rosterSlots(roster)) {
+        const p = getSlot(roster, slot)
+        if (!canEquip(p, card.id)) continue
+        const current = p.equipment ?? []
+        const items = current.map((x) => EQUIPMENT_NAMES[x]).join('・')
+        const actions =
+          current.length < MAX_EQUIPMENT
+            ? [
+                button(T.equip, () => {
+                  toast(T.equipped(name, p.name))
+                  go(pickEquipment(t, index, p.id))
+                }),
+              ]
+            : current.map((x, i) =>
+                button(T.replaceItem(EQUIPMENT_NAMES[x]), () => {
+                  toast(T.equipped(name, p.name))
+                  go(pickEquipment(t, index, p.id, i))
+                }),
+              )
+        row(p, items ? `${label}・${items}` : label, actions)
+      }
+      const stash = el('button', 'btn-white panel-action', T.toBag)
+      stash.onclick = () => {
+        toast(T.stashed(name))
+        go(pickEquipment(t, index, null))
+      }
+      return [el('div', 'draft-release-head', T.equipWho(name)), stash]
+    }
+    case 'trait': {
+      const name = TRAIT_NAMES[card.id]
+      const id = card.id
+      // 列出同角色的每一位球員和他已經會的特性；不能學的也列出來，寫明原因
+      for (const [slot, label] of rosterSlots(roster)) {
+        const p = getSlot(roster, slot)
+        if (p.role !== TRAITS[id].role) continue
+        const traits = el('span', 'release-traits')
+        if (p.traits.length) traits.append(...p.traits.map(traitTag))
+        else traits.append(el('span', 'kit-empty', T.noTraits))
+        const pot = potentialTag(p)
+        if (pot) traits.append(pot)
+        if (canLearnTrait(p, id)) {
+          row(p, label, [
+            button(T.learn, () => {
+              toast(T.learned(p.name, name))
+              go(pickTrait(t, index, p.id))
+            }),
+          ], traits)
+        } else {
+          const blocked = el('button', 'btn-small', p.traits.includes(id) ? T.traitHas : T.traitFull)
+          blocked.disabled = true
+          row(p, label, [blocked], traits)
+        }
+      }
+      if (!list.querySelector('button:not(:disabled)')) list.prepend(el('p', 'kit-empty', T.noEligible))
+      return [el('div', 'draft-release-head', T.traitWho(name))]
+    }
+    case 'relic': {
+      const take = el('button', 'btn-yellow panel-action', T.relicTake(RELIC_NAMES[card.id]))
+      take.onclick = () => {
+        toast(T.relicGained(RELIC_NAMES[card.id]))
+        go(pickRelic(t, index))
+      }
+      return [el('div', 'draft-release-head', RELIC_DESC[card.id]), take]
+    }
+    case 'pitchTrait':
+    case 'newPitch': {
+      // 列出每位投手會的球種，不能學的寫明原因
+      const name =
+        card.kind === 'pitchTrait' ? T.pitchTraitName(PITCH_TRAIT_NAMES[card.id], T.pitchNames[card.pitch]) : T.pitchNames[card.pitch]
+      for (const [slot, label] of rosterSlots(roster)) {
+        const p = getSlot(roster, slot)
+        if (p.role !== 'pitcher') continue
+        const pitches = el('span', 'release-traits')
+        pitches.append(pitchChip(p, true))
+        const ok = card.kind === 'pitchTrait' ? canLearnPitchTrait(p, card.pitch) : canLearnPitch(p, card.pitch)
+        if (ok) {
+          row(p, label, [
+            button(T.learn, () => {
+              toast(T.pitchLearned(p.name, name))
+              go(card.kind === 'pitchTrait' ? pickPitchTrait(t, index, p.id) : pickNewPitch(t, index, p.id))
+            }),
+          ], pitches)
+        } else {
+          const reason =
+            card.kind === 'newPitch' ? T.pitchHas : repertoire(p).includes(card.pitch) ? T.pitchTraitTaken : T.pitchMissing
+          const blocked = el('button', 'btn-small', reason)
+          blocked.disabled = true
+          row(p, label, [blocked], pitches)
+        }
+      }
+      if (!list.querySelector('button:not(:disabled)')) list.prepend(el('p', 'kit-empty', T.noPitcherEligible))
+      return [el('div', 'draft-release-head', T.pitchWho(name))]
+    }
+  }
+}
+
+// ---- 結束 ----
+
 
 /** 彩色紙花，用固定的種子撒，每次一樣 */
 function confetti(width: number, height: number, count: number, seed: number): string {
@@ -420,7 +577,7 @@ function confetti(width: number, height: number, count: number, seed: number): s
 
 const BALL_ICON = `<svg role="img" aria-label="${T.ballLabel}" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="#D9DCF2" stroke="#141633" stroke-width="3"/><path d="M18 10c8 10 8 34 0 44M46 10c-8 10-8 34 0 44" fill="none" stroke="#8A8FD8" stroke-width="2.5" stroke-dasharray="4 4"/></svg>`
 
-/** 錦標賽結束：奪冠（獎盃、光芒、紙花）或止步某輪，列出這屆每一場 */
+/** 錦標賽結束：奪冠（獎盃、光芒、紙花）或止步某個階段，列出這一輪每一場 */
 function showTourEnd(root: HTMLElement, t: Tournament, toTitle: () => void): void {
   const champ = t.phase === 'champion'
   play(champ ? 'champion' : 'lose')
@@ -432,13 +589,13 @@ function showTourEnd(root: HTMLElement, t: Tournament, toTitle: () => void): voi
   const main = el('div', 'end-main')
   const icon = el('div', 'end-icon')
   icon.innerHTML = champ ? TROPHY(120, T.trophyLabel) : BALL_ICON
-  const title = el('h1', 'end-title', champ ? T.champion : T.eliminated(T.roundNames[currentRound(t)]))
+  const title = el('h1', 'end-title', champ ? T.champion : T.eliminated(T.roundNames[t.round]))
   const team = el('div', 'end-team')
   team.append(teamTile(t.setup.team.name, 'user'), el('span', 'end-team-name', t.setup.team.name))
   const words = el('p', 'end-words', T.tournamentOver)
-  const tier = tierOf(t)
-  team.append(el('span', `level-tag level-${tier}`, T.levelNames[tier]))
-  const rewards = champ ? championRewards(recordChampion(t)) : null
+  team.append(el('span', `level-tag level-${t.tier}`, T.levelNames[t.tier]))
+  const trophy = champ ? recordChampion(t) : null
+  const rewards = trophy ? championRewards(trophy) : null
   const home = el('button', 'btn-yellow btn-big end-home', T.backToTitle)
   home.append(kbd('ENTER'))
   home.onclick = toTitle
@@ -456,11 +613,48 @@ function showTourEnd(root: HTMLElement, t: Tournament, toTitle: () => void): voi
     )
     record.append(row)
   }
-  main.append(icon, title, team, ...(rewards ? [rewards] : []), words, home)
+  main.append(icon, title, team, ...(rewards ? [rewards] : []))
+  if (trophy) {
+    const recap = el('button', 'btn-white end-recap', T.recapOpen)
+    recap.onclick = () => showRecap(trophy)
+    main.append(legendPanel(t, trophy), recap)
+  }
+  main.append(words, home)
   inner.append(main, record)
   screen.append(inner)
   root.replaceChildren(screen)
   setKeys({ Enter: toTitle })
+}
+
+/** 奪冠後挑一位球員送進傳奇館；選過之後換成一句「某某 進入傳奇館」 */
+function legendPanel(t: Tournament, trophy: Trophy): HTMLElement {
+  const box = el('section', 'end-legend')
+  const players = allPlayers(t.setup.team.roster)
+  const render = (chosenId: string | undefined) => {
+    box.replaceChildren(el('h2', 'end-legend-title', T.legendInductTitle))
+    const chosen = players.find((p) => p.id === chosenId)
+    if (chosen) {
+      box.append(el('p', 'end-legend-done', T.inducted(chosen.name)))
+      return
+    }
+    box.append(el('p', 'end-legend-hint', T.legendInductHint))
+    const grid = el('div', 'end-legend-grid')
+    for (const p of players) {
+      const b = el('button', 'end-legend-pick')
+      b.type = 'button'
+      b.title = p.name
+      b.append(avatar(p.id, 'user', 'ring'), el('span', 'end-legend-name', p.name), overallBadge(p, 'sm'))
+      b.onclick = () => {
+        if (!induct(trophy.key, p)) return
+        toast(T.inducted(p.name))
+        render(p.id)
+      }
+      grid.append(b)
+    }
+    box.append(grid)
+  }
+  render(trophy.legendId)
+  return box
 }
 
 /** 奪冠的收穫：解鎖的裝扮、開放的下一級難度（第一次通過這個難度才有） */
@@ -475,145 +669,4 @@ function championRewards(trophy: Trophy): HTMLElement | null {
   if (next) lines.append(el('span', 'end-reward-line', T.unlockTier(T.levelNames[next])))
   box.append(face, lines)
   return box
-}
-
-/** 選秀：三張候選卡並排，選一張後列出可以替換的同角色球員 */
-function showDraft(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, toTitle: () => void): void {
-  let chosen: number | null = null
-  let firstRender = true
-
-  function render(): void {
-    root.replaceChildren()
-    const screen = el('div', 'draft-screen')
-    const header = el('header', 'draft-header')
-    const top = el('div', 'draft-header-row')
-    top.append(backButton(toTitle), el('h1', 'draft-title', T.draftTitle))
-    const keyHints = el('span', 'draft-keys desk-only')
-    keyHints.append(kbd('←'), kbd('→'), T.pickCard, kbd('ENTER'), T.confirmKey)
-    header.append(top, el('p', 'draft-hint', T.draftHint), keyHints)
-    screen.append(header)
-
-    const cards = el('section', 'draft-cards')
-    cards.setAttribute('aria-label', T.draftCandidates)
-    t.draftOptions.forEach((p, i) => {
-      const card = el('button', 'draft-pick')
-      card.type = 'button'
-      card.setAttribute('aria-pressed', String(chosen === i))
-      applyCardState(card, p, { selected: chosen === i, reveal: firstRender })
-      card.style.setProperty('--delay', `${i * 120}ms`)
-      const inner = el('span', 'draft-inner')
-      const topRow = el('span', 'draft-top')
-      topRow.append(el('span', 'tier-tag', T.tierNames[cardTier(p)]), overallBadge(p, 'md'))
-      inner.append(topRow, avatar(p.id, 'user', 'draft-avatar'), el('span', 'draft-name', p.name))
-      inner.append(el('span', 'draft-role', p.role === 'pitcher' ? T.pitcher : T.batter))
-      const chips = el('span', 'draft-chips')
-      chips.append(handChip(p))
-      if (p.role === 'batter') chips.append(tendencyChip(p.tendency, true))
-      else chips.append(pitchChip(p, true))
-      inner.append(chips)
-      const stats = el('span', 'draft-stats')
-      Object.entries(p.ratings).forEach(([k, v]) => {
-        const row = el('span', 'draft-stat')
-        const bar = el('span', 'draft-bar')
-        const g = gradeOf(v)
-        const fill = el('span', `bar-fill fill-${g}`)
-        fill.style.width = `${v * 10}%`
-        bar.append(fill)
-        // 手機版：短標籤、長條、字母；電腦版：完整標籤、等級徽章、長條
-        const key = k as keyof typeof RATING_FULL
-        row.append(
-          el('span', 'draft-stat-label mobile-only', RATING_LABELS[key]),
-          el('span', 'draft-stat-label desk-only', RATING_FULL[key]),
-          gradeBadge(v, 'sm'),
-          bar,
-          el('span', 'draft-stat-grade', g),
-        )
-        stats.append(row)
-      })
-      inner.append(stats)
-      if (p.traits.length) inner.append(traitTag(p.traits[0]), el('span', 'draft-trait-desc', TRAIT_DESC[p.traits[0]]))
-      card.append(inner)
-      if (chosen === i) {
-        const check = el('span', 'draft-check')
-        check.innerHTML = CHECK_ICON
-        card.append(check)
-      }
-      card.onclick = () => {
-        chosen = chosen === i ? null : i
-        render()
-      }
-      cards.append(card)
-    })
-    screen.append(cards)
-
-    // 替換名單：只列同角色的球員
-    const release = el('section', 'draft-release')
-    const pick = chosen === null ? null : t.draftOptions[chosen]
-    release.append(el('div', 'draft-release-head', pick ? T.replaceWho(pick.name, pick.role === 'pitcher' ? T.pitcher : T.batter) : T.pickFirst))
-    const list = el('div', 'draft-release-list')
-    if (pick) {
-      const r = t.setup.team.roster
-      const slots: [Slot, string][] =
-        pick.role === 'pitcher'
-          ? [
-              [{ kind: 'starter' }, T.starter],
-              ...r.relievers.map((_, i): [Slot, string] => [{ kind: 'reliever', index: i }, T.reliever]),
-            ]
-          : [
-              ...r.lineup.map((s, i): [Slot, string] => [{ kind: 'lineup', index: i }, `${POSITION_FULL[s.position]}・${T.orderNth(i + 1)}`]),
-              ...r.bench.map((_, i): [Slot, string] => [{ kind: 'bench', index: i }, T.bench]),
-            ]
-      for (const [slot, label] of slots) {
-        const p = getSlot(r, slot)
-        const row = el('div', 'release-row')
-        const who = el('span', 'release-who')
-        who.append(el('span', 'release-name', p.name), el('span', 'release-pos', label))
-        const grades = el('span', 'release-grades')
-        for (const v of Object.values(p.ratings)) grades.append(gradeBadge(v, 'sm'))
-        const swap = el('button', 'btn-small', T.replace)
-        swap.onclick = () => {
-          toast(T.drafted(pick.name, p.name))
-          go(draftPick(t, chosen!, slot))
-        }
-        row.append(avatar(p.id, 'user', 'ring'), who, grades, swap)
-        list.append(row)
-      }
-    }
-    release.append(list)
-
-    const footer = el('footer', 'draft-footer')
-    const skip = el('button', 'btn-outline-light btn-wide', T.skipDraft)
-    skip.append(kbd('ESC'))
-    skip.onclick = () => {
-      toast(T.draftSkipped)
-      go(skipDraft(t))
-    }
-    footer.append(skip)
-    const side = el('div', 'draft-side')
-    side.append(release, footer)
-    screen.append(side)
-    root.append(screen)
-    if (firstRender) void maybeTutorial('draft', TUTORIAL_STEPS.draft)
-    firstRender = false
-
-    // ← → 選卡；Enter 先跳到替換名單，在名單上再按 Enter 就換掉那一位
-    const n = t.draftOptions.length
-    const move = (d: number) => {
-      chosen = chosen === null ? (d > 0 ? 0 : n - 1) : (chosen + d + n) % n
-      render()
-    }
-    const keys: KeyMap = {
-      ArrowLeft: () => move(-1),
-      ArrowRight: () => move(1),
-      Escape: () => skip.click(),
-      Enter: () => {
-        const active = document.activeElement
-        if (active instanceof HTMLButtonElement && list.contains(active)) active.click()
-        else list.querySelector('button')?.focus()
-      },
-    }
-    setKeys(keys)
-  }
-
-  render()
 }

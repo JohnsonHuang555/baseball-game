@@ -5,9 +5,9 @@ import { TRAITS } from '../sim/traits'
 import type { Pitcher, Player, Tendency } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { gradeBadge, overallBadge } from './grades'
-import { el, traitTag } from './playerCard'
+import { el, potentialTag, traitTag } from './playerCard'
 import { play } from './sound'
-import { RATING_FULL, RATING_LABELS, T, TRAIT_DESC } from './strings'
+import { PITCH_TRAIT_DESC, PITCH_TRAIT_NAMES, RATING_FULL, RATING_LABELS, T, TRAIT_DESC } from './strings'
 
 /** 球場動畫用的隊伍顏色，和頭像帽子同色：我方藍、對手橘 */
 export const USER_COLOR = '#2D7CFF'
@@ -70,7 +70,14 @@ export function pitchChip(p: Pitcher, full = false): HTMLElement {
   const kinds = repertoire(p)
   const chip = el('span', `pitch-chip${full ? ' full' : ''}`)
   if (full) chip.append(el('span', 'pitch-chip-label', T.pitchesLabel))
-  kinds.forEach((k, i) => chip.append(el('span', `pitch-chip-item${i === 1 ? ' primary' : ''}`, full ? T.pitchNames[k] : T.pitchShort[k])))
+  kinds.forEach((k, i) => {
+    // 帶球種特性的球種加上特性名稱，例如「銳利滑球」
+    const trait = p.pitchTraits?.[k]
+    const name = full ? T.pitchNames[k] : T.pitchShort[k]
+    const item = el('span', `pitch-chip-item${i === 1 ? ' primary' : ''}${trait ? ' has-trait' : ''}`, trait && full ? T.pitchTraitName(PITCH_TRAIT_NAMES[trait], name) : name)
+    if (trait) item.title = PITCH_TRAIT_DESC[trait]
+    chip.append(item)
+  })
   chip.title = T.pitchesTitle(kinds.map((k) => T.pitchNames[k]).join('、'), T.pitchNames[kinds[1]])
   return chip
 }
@@ -126,6 +133,12 @@ export function traitList(p: Player): HTMLElement {
   for (const t of p.traits) {
     const row = el('div', 'trait-item')
     row.append(traitTag(t), el('span', 'trait-desc', TRAIT_DESC[t]))
+    list.append(row)
+  }
+  const pot = potentialTag(p)
+  if (pot && p.potential) {
+    const row = el('div', 'trait-item')
+    row.append(pot, el('span', 'trait-desc', T.potentialHint(T.potentialStats[p.potential.stat], p.potential.need)))
     list.append(row)
   }
   return list

@@ -14,19 +14,22 @@ import { TRAITS } from '../sim/traits'
 import type { Player, Position, Team } from '../sim/types'
 import { avatar } from './avatar'
 import { gradeBadge, overallBadge } from './grades'
-import { el, traitTag } from './playerCard'
+import { el, potentialTag, traitTag } from './playerCard'
 import { kbd, setKeys, type KeyMap } from './keys'
+import { infoModal } from './modal'
 import { TEAM_NAME_MAX, saveTeamName } from './prefs'
 import { play } from './sound'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
-import { POSITION_FULL, RATING_FULL, T } from './strings'
+import { POSITION_FULL, RATING_FULL, RATING_LABELS, T } from './strings'
 import { applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
 
 export interface RosterEditorOptions {
   setup: PregameSetup
   /** 每次重畫時取得；改隊名可能會讓對手換名字 */
-  opponent: () => Team
+  opponent?: () => Team
+  /** 標題下的說明；沒給就依能不能重骰顯示預設的說明 */
+  hint?: string
   /** 標題上方的小字，例如「我的球隊」或「錦標賽・八強」 */
   heading: string
   /** 開打前可以整隊重骰和改隊名；比賽之間只能調整陣容 */
@@ -97,6 +100,36 @@ function withIcon(className: string, icon: string, text: string): HTMLButtonElem
 
 function sameSlot(a: Slot | null, b: Slot): boolean {
   return !!a && JSON.stringify(a) === JSON.stringify(b)
+}
+
+/** 對手陣容：打序（守位、左右打、四項能力、特性），再來是投手與板凳 */
+function opponentRoster(team: Team): HTMLElement {
+  const r = team.roster
+  const box = el('div', 'opp-roster')
+  const row = (p: Player, label: string) => {
+    const line = el('div', 'opp-row')
+    const who = el('span', 'opp-who')
+    const hand = p.role === 'batter' ? T.bats[p.bats] : T.throws[p.throws]
+    who.append(el('span', 'opp-name', p.name), el('span', 'opp-pos', `${label}・${hand}`))
+    const grades = el('span', 'opp-grades')
+    for (const v of Object.values(p.ratings)) grades.append(gradeBadge(v, 'sm'))
+    const traits = el('span', 'opp-traits')
+    traits.append(...p.traits.map(traitTag))
+    line.append(avatar(p.id, 'opponent', 'ring'), who, grades, traits)
+    return line
+  }
+  // 每一段的標題列，右邊對齊能力字母放欄位名稱
+  const section = (title: string, sample: Player, rows: HTMLElement[]) => {
+    const head = el('div', 'opp-head')
+    const labels = el('span', 'opp-grades')
+    for (const k of Object.keys(sample.ratings)) labels.append(el('span', 'opp-label', RATING_LABELS[k as keyof typeof RATING_LABELS]))
+    head.append(el('h3', 'opp-title', title), labels)
+    box.append(head, ...rows)
+  }
+  section(T.battingOrder, r.lineup[0].player, r.lineup.map((s, i) => row(s.player, `${i + 1}・${POSITION_FULL[s.position]}`)))
+  section(T.pitcher, r.starter, [row(r.starter, T.starter), ...r.relievers.map((p) => row(p, T.reliever))])
+  if (r.bench.length) section(T.bench, r.bench[0], r.bench.map((p) => row(p, T.bench)))
+  return box
 }
 
 /** 組隊畫面：球場上的先發、板凳與後援、打序表；點球員看詳細資料、重骰或交換 */
@@ -203,12 +236,18 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
       }
       sub.append(random)
     } else {
-      sub.append(el('span', 'lineup-hint', allowPlayerReroll ? T.lineupDiceHint(setup.playerRerollsLeft) : T.lineupOnlyHint))
+      sub.append(el('span', 'lineup-hint', opts.hint ?? (allowPlayerReroll ? T.lineupDiceHint(setup.playerRerollsLeft) : T.lineupOnlyHint)))
     }
-    const opponent = opts.opponent()
-    const vs = el('div', 'vs-pill')
-    vs.append(el('span', 'vs-mark', T.versus), el('span', 'vs-name', opponent.name), gradeBadge(teamAverage(opponent.roster), 'sm'))
-    sub.append(vs)
+    // 對手：點一下看完整陣容，佈陣時可以對照（自由練習編輯球隊時沒有對手）
+    const opponent = opts.opponent?.()
+    if (opponent) {
+      const vs = el('button', 'vs-pill')
+      vs.type = 'button'
+      vs.title = T.opponentRoster
+      vs.append(el('span', 'vs-mark', T.versus), el('span', 'vs-name', opponent.name), gradeBadge(teamAverage(opponent.roster), 'sm'), el('span', 'vs-more', T.viewRoster))
+      vs.onclick = () => infoModal(T.opponentRosterOf(opponent.name), opponentRoster(opponent), true)
+      sub.append(vs)
+    }
     head.append(top, sub)
     return head
   }
@@ -293,6 +332,8 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
       for (const k of ['contact', 'power', 'speed', 'fielding'] as const) row.append(gradeBadge(p.ratings[k], 'md'))
       const traits = el('span', 'order-traits desk-only')
       traits.append(...p.traits.map(traitTag))
+      const pot = potentialTag(p)
+      if (pot) traits.append(pot)
       row.append(traits)
       row.setAttribute('aria-label', `第 ${i + 1} 棒 ${p.name}`)
       row.onclick = () => onTap(slot, 'list')

@@ -109,6 +109,98 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+button.vs-pill {
+  font-family: inherit;
+  cursor: pointer;
+}
+.vs-more {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--away);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* ---- 對手陣容視窗 ---- */
+.info-box.wide {
+  width: min(640px, 100%);
+  max-height: calc(100dvh - 32px);
+}
+.opp-roster {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.opp-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin: 8px 0 2px;
+  /* 跟下面每一列的右邊留白一樣，欄位名稱才會對齊字母 */
+  padding: 0 9.5px;
+}
+.opp-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.opp-label {
+  width: 20px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.opp-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1.5px solid var(--line);
+}
+.opp-row .avatar {
+  width: 34px;
+  height: 34px;
+  border-color: var(--away);
+}
+.opp-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.opp-name {
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.opp-pos {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.opp-grades {
+  display: flex;
+  gap: 3px;
+}
+.opp-traits {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.opp-traits:empty {
+  display: none;
+}
 
 /* ---- 球場圖 ---- */
 .pitch {

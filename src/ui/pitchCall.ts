@@ -1,6 +1,6 @@
 // 配球：選一個球種，再照著虛線畫出這個球種的手勢
 import type { Game, MeterGrade } from '../sim/game'
-import { repertoire, type PitchType } from '../sim/pitches'
+import { pitchTraitOf, repertoire, type PitchType } from '../sim/pitches'
 import {
   PLAIN,
   TEMPO,
@@ -18,7 +18,7 @@ import {
 import { kbd, setKeys, type KeyMap } from './keys'
 import { el } from './playerCard'
 import { play } from './sound'
-import { T } from './strings'
+import { PITCH_TRAIT_NAMES, T } from './strings'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
 
@@ -35,7 +35,8 @@ const GRADE_MS = 900
 /** 手勢板的邊長（SVG 座標） */
 const PAD = 200
 /** 選球種的按鍵 */
-const PITCH_KEYS = ['q', 'w', 'e', 'r']
+/** 最多五種球種（直球加四種變化球，錦標賽學會新球種之後） */
+const PITCH_KEYS = ['q', 'w', 'e', 'r', 't']
 const ARROWS: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }
 
 /** 球種的小圖示：把手勢樣板縮小畫出來，起點一個圓點、終點一個箭頭（直球往上、指叉往下；左投手左右相反） */
@@ -89,6 +90,8 @@ export function runPitchCall(host: HTMLElement, game: Game): Promise<PitchCall |
         icon.innerHTML = pitchIcon(pitch, iconVariant)
         b.append(icon, el('span', 'pc-pitch-name', T.pitchNames[pitch]))
         if (i === 1) b.append(el('span', 'pc-tag primary', T.primaryPitch))
+        const trait = pitchTraitOf(game.pitcher, pitch)
+        if (trait) b.append(el('span', 'pc-tag trait', PITCH_TRAIT_NAMES[trait]))
         if (pitch === last) b.append(el('span', 'pc-tag repeat', T.repeatedPitch))
         b.append(kbd(PITCH_KEYS[i].toUpperCase()))
         b.onclick = () => renderDraw(pitch)

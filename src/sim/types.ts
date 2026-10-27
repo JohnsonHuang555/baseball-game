@@ -1,3 +1,6 @@
+import type { EquipmentId, RelicId } from './items'
+import type { PitchTraitId, PitchType } from './pitches'
+import type { Potential } from './potential'
 import type { TraitId } from './traits'
 
 export type Position = 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'DH'
@@ -34,6 +37,10 @@ export interface Batter {
   traits: TraitId[]
   tendency: Tendency
   bats: Bats
+  /** 錦標賽中帶的裝備，最多 2 件 */
+  equipment?: EquipmentId[]
+  /** 錦標賽中還沒覺醒的潛能 */
+  potential?: Potential
 }
 
 export interface Pitcher {
@@ -43,6 +50,14 @@ export interface Pitcher {
   ratings: PitcherRatings
   traits: TraitId[]
   throws: Hand
+  /** 錦標賽中帶的裝備，最多 2 件 */
+  equipment?: EquipmentId[]
+  /** 錦標賽中還沒覺醒的潛能 */
+  potential?: Potential
+  /** 錦標賽中學會的新球種，接在原本的球種後面 */
+  extraPitches?: PitchType[]
+  /** 錦標賽中某些球種帶的球種特性，每個球種最多一個 */
+  pitchTraits?: Partial<Record<PitchType, PitchTraitId>>
 }
 
 export type Player = Batter | Pitcher
@@ -63,4 +78,6 @@ export interface Roster {
 export interface Team {
   name: string
   roster: Roster
+  /** 錦標賽中全隊共用的秘寶；AI 隊伍沒有 */
+  relics?: RelicId[]
 }

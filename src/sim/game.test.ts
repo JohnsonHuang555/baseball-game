@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { ALIGNMENT_SPOTS, Game, fenceDistance, fielderFor, homeRunStats, replay, type Alignment, type GameEvent, type GameSetup, type Tactic } from './game'
 import { generateBatter, generatePitcher, generateTeam } from './generate'
 import { applyGrowth, gameGrowth, performance } from './growth'
+import type { RelicId } from './items'
+import { repertoire, type PitchType } from './pitches'
 import { Rng } from './rng'
 import { TRAITS, conflicts, type TraitId } from './traits'
 import type { Pitcher, Team } from './types'
@@ -978,26 +980,112 @@ describe('特性', () => {
   })
 })
 
-describe('親自操作的關鍵時刻', () => {
-  it('第 6 局以後、比分差 2 分內、得點圈有人才算；比決策提示的門檻寬', () => {
-    let clutch = 0
-    let crunch = 0
+describe('關鍵打席', () => {
+  it('每個理由都符合自己的條件，滿壘只在我方守備時', () => {
     for (let seed = 1; seed <= 100; seed++) {
       const g = new Game(setup(seed))
       while (!g.over) {
-        if (g.isClutch()) {
-          clutch++
-          expect(g.inning).toBeGreaterThanOrEqual(6)
-          expect(Math.abs(g.score.home - g.score.away)).toBeLessThanOrEqual(2)
-          expect(g.bases[1] || g.bases[2]).toBeTruthy()
-        }
-        if (g.isCrunchTime()) {
-          crunch++
-          expect(g.isClutch()).toBe(true)
+        const reason = g.keyAtBat()
+        const behind = g.score[g.fieldingSide] - g.score[g.battingSide]
+        if (reason === 'hero') {
+          expect(g.inning).toBeGreaterThanOrEqual(8)
+          expect(behind).toBeGreaterThanOrEqual(0)
+          expect(!!g.bases[1] || !!g.bases[2]).toBe(true)
+          if (g.inning >= 10) expect(g.paIndex).toBe(g.halfStartPa)
+        } else if (reason === 'basesLoaded') {
+          expect(g.fieldingSide).toBe(g.userSide)
+          expect(g.bases.every(Boolean)).toBe(true)
+        } else if (reason === 'crunch') {
+          expect(g.inning).toBeGreaterThanOrEqual(7)
+          expect(Math.abs(behind)).toBeLessThanOrEqual(1)
+          expect(g.bases[1] && g.bases[2]).toBeTruthy()
         }
         g.step()
       }
     }
-    expect(clutch).toBeGreaterThan(crunch)
+  })
+
+  it('平均每場的關鍵打席不會多到變成每球都要出手', () => {
+    let keyPas = 0
+    const games = 200
+    for (let seed = 1; seed <= games; seed++) {
+      const g = new Game(setup(seed))
+      let lastPa = -1
+      while (!g.over) {
+        if (g.paIndex !== lastPa && g.keyAtBat()) {
+          lastPa = g.paIndex
+          keyPas++
+        }
+        g.step()
+      }
+    }
+    const perGame = keyPas / games
+    expect(perGame).toBeGreaterThan(1)
+    expect(perGame).toBeLessThan(6)
+  })
+})
+
+describe('球種特性與新球種', () => {
+  /** 主隊的投手全部帶上這些設定，1000 場客隊總得分（效果只有幾個百分點，場數少會被運氣蓋過） */
+  function awayRuns(change: (p: Pitcher) => Pitcher): number {
+    let runs = 0
+    for (let seed = 1; seed <= 1000; seed++) {
+      const s = setup(seed)
+      const r = s.home.roster
+      const home = { ...s.home, roster: { ...r, starter: change(r.starter), relievers: r.relievers.map(change) } }
+      runs += playOut(new Game({ ...s, home })).score.away
+    }
+    return runs
+  }
+  const ALL: PitchType[] = ['fastball', 'slider', 'curve', 'change', 'splitter']
+
+  it('自動投球時，球種特性和新球種讓對手得分變少', () => {
+    const base = awayRuns((p) => p)
+    expect(awayRuns((p) => ({ ...p, pitchTraits: Object.fromEntries(ALL.map((x) => [x, 'sharp'])) }))).toBeLessThan(base)
+    expect(awayRuns((p) => ({ ...p, pitchTraits: Object.fromEntries(ALL.map((x) => [x, 'heavy'])) }))).toBeLessThan(base)
+    expect(awayRuns((p) => ({ ...p, extraPitches: ALL.filter((x) => !repertoire(p).includes(x)) }))).toBeLessThan(base)
+  })
+})
+
+describe('差一步的關鍵打席', () => {
+  it('我方打者再一支全壘打就覺醒時，是關鍵打席', () => {
+    const s = setup(5)
+    const lineup = s.home.roster.lineup.map((spot) => ({
+      ...spot,
+      player: { ...spot.player, potential: { trait: 'slugger' as const, stat: 'hr' as const, need: 4, progress: 3 } },
+    }))
+    const g = new Game({ ...s, home: { ...s.home, roster: { ...s.home.roster, lineup } } })
+    while (g.battingSide !== 'home' && !g.over) g.step()
+    expect(g.keyAtBat()).toBe('milestone')
+    const plain = new Game(s)
+    while (plain.battingSide !== 'home') plain.step()
+    expect(plain.keyAtBat()).toBeNull()
+  })
+})
+
+describe('秘寶', () => {
+  /** 主隊帶著秘寶打 300 場的總得分 */
+  function homeRuns(relics: RelicId[]): number {
+    let runs = 0
+    for (let seed = 1; seed <= 300; seed++) {
+      const s = setup(seed)
+      const g = playOut(new Game({ ...s, home: { ...s.home, relics } }))
+      runs += g.score.home
+    }
+    return runs
+  }
+
+  it('進攻秘寶讓得分變多', () => {
+    const base = homeRuns([])
+    expect(homeRuns(['dynasty'])).toBeGreaterThan(base)
+    expect(homeRuns(['rispSoul', 'powerHouse'])).toBeGreaterThan(base)
+  })
+
+  it('沒有秘寶的隊伍跟以前一模一樣（舊存檔重播不受影響）', () => {
+    const s = setup(42)
+    const a = playOut(new Game(s))
+    const b = playOut(new Game({ ...s, home: { ...s.home, relics: [] }, away: { ...s.away, relics: [] } }))
+    expect(b.score).toEqual(a.score)
+    expect(b.stepIndex).toBe(a.stepIndex)
   })
 })
