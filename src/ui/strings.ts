@@ -8,6 +8,7 @@ import type {
 } from '../sim/game';
 import type { CardTier } from '../sim/generate';
 import { EQUIPMENT, type EquipmentId, type RelicId } from '../sim/items';
+import type { EventId } from '../sim/rest';
 import type { Round } from '../sim/tournament';
 import type { TraitId } from '../sim/traits';
 import type { Bats, Hand, Position, Tendency } from '../sim/types';
@@ -101,6 +102,41 @@ export const T = {
   rewardKinds: { player: '球員', equipment: '裝備', relic: '秘寶', trait: '特性' },
   rewardCandidates: '獎勵卡',
   pickFirstCard: '先選一張卡',
+  // ---- 休息站 ----
+  funds: (n: number) => `資金 ${n}`,
+  fundsEarned: (n: number) => `球團資金 +${n}`,
+  refund: (n: number) => `釋出換回 ${n} 資金`,
+  restTitle: '休息站',
+  restHint: '選一個地方，之後前往下一場',
+  restPlaces: {
+    shop: { name: '商店', desc: '用球團資金買球員、裝備、秘寶、特性，也可以付費強化' },
+    training: { name: '訓練', desc: '免費讓一位球員的一項能力 +1' },
+    event: { name: '事件', desc: '碰碰運氣：每個選擇都有代價' },
+  },
+  enter: '進入',
+  shopTitle: '商店',
+  shopHint: '用球團資金補強；買球員就是交易，要換掉一名同角色的球員',
+  buyFor: (price: number) => `買下・${price}`,
+  sold: '已售出',
+  notEnough: '資金不夠',
+  bought: (name: string) => `買下 ${name}`,
+  rerollShopFor: (cost: number) => `換一批商品・${cost}`,
+  upgradeFor: (cost: number) => `付費強化・${cost}`,
+  leaveShop: '離開商店，前往下一場',
+  upgradeWho: '要強化誰？',
+  trainWho: '要訓練誰？',
+  whichRating: (name: string) => `${name} 要提升哪一項？`,
+  ratingStep: (label: string, from: string, to: string) => `${label}：${from} → ${to}`,
+  ratingUp: (name: string, rating: string) => `${name} 的${rating} +1`,
+  trainingTitle: '訓練',
+  trainingHint: '免費讓一位球員的一項能力 +1，訓練完前往下一場',
+  train: '訓練',
+  eventTitle: '事件',
+  eventCost: (n: number) => `花 ${n} 資金`,
+  eventPickWho: '選一位球員',
+  eventDone: '事件結束，前往下一場',
+  eventGot: (what: string) => `得到 ${what}`,
+  eventGotTrait: (name: string, trait: string) => `${name} 染上了「${trait}」`,
   opponentRoster: '對手陣容',
   opponentRosterOf: (name: string) => `${name} 的陣容`,
   viewRoster: '陣容',
@@ -570,6 +606,50 @@ export function equipmentDesc(id: EquipmentId): string {
     .map(([k, v]) => `${RATING_FULL[k as keyof typeof RATING_FULL]} +${v}`)
     .join('・');
 }
+
+/** 休息站的事件：標題、情境、兩個選項 */
+export const EVENT_TEXT: Record<EventId, { title: string; body: string; options: [string, string] }> = {
+  fanMeet: {
+    title: '球迷見面會',
+    body: '球迷擠滿了球場外的廣場，大家都想跟球員合照。',
+    options: ['辦簽名會：資金 +40', '派一位打者上台分享：他的打擊 +1'],
+  },
+  undergroundTraining: {
+    title: '地下特訓',
+    body: '有位退休強打開了一間只練長打的祕密打擊場。',
+    options: ['送一位打者去練：力量 +2、守備 −1', '不去了'],
+  },
+  visitingCoach: {
+    title: '名投手教練來訪',
+    body: '一位傳奇投手教練路過，願意收費指導一位投手。',
+    options: ['付學費：一位投手學會隨機一個投手特性', '婉拒'],
+  },
+  lateNight: {
+    title: '加練到深夜',
+    body: '球員們自動留下來加練，教練要決定練什麼。',
+    options: ['全隊練跑壘：先發九人速度 +0.5', '一位投手練長投：體力 +1'],
+  },
+  sponsor: {
+    title: '贊助商上門',
+    body: '一家飲料公司開出不錯的條件，但代言行程很操。',
+    options: ['簽約：資金 +80，但隨機一位球員染上一個紅特', '婉拒'],
+  },
+  fleaMarket: {
+    title: '二手球具市集',
+    body: '市集裡堆滿了舊球具，說不定能挖到寶。',
+    options: ['花錢挖寶：隨機一件裝備放進背包', '只逛不買'],
+  },
+  mysteriousElder: {
+    title: '神祕老人',
+    body: '一位老人說他手上有一件被遺忘的寶物，只是要價不低。',
+    options: ['買下：隨機一個沒有的秘寶', '轉身離開'],
+  },
+  rehab: {
+    title: '復健中心',
+    body: '球團新蓋的復健中心開幕，可以安排一位球員全面調整。',
+    options: ['安排一位球員：每項能力 +0.5', '把時段租出去：資金 +30'],
+  },
+};
 
 export const RELIC_NAMES: Record<RelicId, string> = {
   leadoff: '開路先鋒',

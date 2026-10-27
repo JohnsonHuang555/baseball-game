@@ -1591,6 +1591,51 @@ button .kbd {
     border-radius: 22px;
     box-shadow: 0 6px 0 var(--ink);
   }
+  /* 休息站：選地點、訓練、事件只有一欄；商店是貨架加右邊的動作 */
+  .rest-screen {
+    align-content: start;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'head'
+      'cards';
+  }
+  .rest-screen .draft-cards {
+    max-width: 1000px;
+    width: 100%;
+    justify-self: center;
+  }
+  .place-pick {
+    min-height: 360px;
+  }
+  .draft-header-row .funds-chip {
+    margin-left: 20px;
+    align-self: center;
+    font-size: 16px;
+    padding: 4px 14px;
+  }
+  .rest-screen .event-box {
+    grid-area: cards;
+    justify-self: center;
+    width: min(640px, 100%);
+    margin: 0;
+    padding: 28px;
+    gap: 16px;
+  }
+  .event-option {
+    font-size: 17px;
+  }
+  .shop-grid {
+    grid-area: cards;
+    margin: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .shop-grid .draft-pick {
+    min-height: 380px;
+  }
+  .shop-actions button {
+    height: 54px;
+  }
   /* 道具卡內容少：置中、圖放大 */
   .item-pick .draft-inner {
     justify-content: center;

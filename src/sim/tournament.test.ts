@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { RULES_VERSION } from './game'
 import { teamAverage } from './generate'
 import { RELICS } from './items'
+import { STARTING_FUNDS, gameFunds, priceOf, releaseValue } from './prices'
+import { EVENTS, buy, canChoose, enterRest, eventTargets, leaveShop, rerollShop, resolveEvent, train, upgrade, type EventId } from './rest'
 import { rerollTeam, swapSlots } from './setup'
 import {
   SEASON_GAMES,
@@ -35,10 +37,15 @@ function started(seed: number, tier: 1 | 2 | 3 | 4 | 5 = 1): Tournament {
   return chooseStartingRelic(startTournament(createTournament(seed, tier)), 0)
 }
 
+/** 遇到休息站就訓練第一棒的打擊 */
+function passRest(t: Tournament): Tournament {
+  return t.phase === 'rest' ? train(enterRest(t, 'training'), t.setup.team.roster.lineup[0].player.id, 'contact') : t
+}
+
 /** 打一場，有獎勵就放棄 */
 function play(t: Tournament, score: { home: number; away: number }): Tournament {
   const next = finishGame(beginGame(t), score)
-  return next.phase === 'reward' ? skipReward(next) : next
+  return passRest(next.phase === 'reward' ? skipReward(next) : next)
 }
 
 function playMany(t: Tournament, results: { home: number; away: number }[]): Tournament {
@@ -47,7 +54,7 @@ function playMany(t: Tournament, results: { home: number; away: number }[]): Tou
 
 /** 換掉獎勵卡，方便測試各種卡 */
 function withCard(t: Tournament, card: RewardCard): Tournament {
-  return { ...finishGame(beginGame(t), WIN), rewards: [card] }
+  return { ...finishGame(beginGame(passRest(t)), WIN), rewards: [card] }
 }
 
 describe('錦標賽開打前', () => {
@@ -159,7 +166,7 @@ describe('獎勵卡', () => {
         t = finishGame(beginGame(t), WIN)
         for (const c of t.rewards) if (c.kind === 'relic') expect(relicsOf(t)).not.toContain(c.id)
         const relic = t.rewards.findIndex((c) => c.kind === 'relic')
-        t = relic >= 0 ? pickRelic(t, relic) : skipReward(t)
+        t = passRest(relic >= 0 ? pickRelic(t, relic) : skipReward(t))
       }
     }
   })
@@ -186,7 +193,7 @@ describe('獎勵卡', () => {
     t = pickEquipment(withCard(t, { kind: 'equipment', id: 'weightedBat' }), 0, id, 0)
     expect(t.setup.team.roster.lineup[2].player.equipment).toEqual(['weightedBat', 'masterBat'])
     expect(t.bag).toEqual(['spikes'])
-    t = pickEquipment(withCard(t, { kind: 'equipment', id: 'gripBag' }), 0, null)
+    t = passRest(pickEquipment(withCard(t, { kind: 'equipment', id: 'gripBag' }), 0, null))
     expect(t.bag).toEqual(['spikes', 'gripBag'])
     // 投手的裝備不能給打者
     expect(() => equipFromBag(t, 1, id)).toThrow()
@@ -201,6 +208,92 @@ describe('獎勵卡', () => {
     t = pickTrait(withCard(t, { kind: 'trait', id: 'goodGlove' }), 0, target.id)
     expect(t.setup.team.roster.lineup[0].player.traits).toEqual(['goodGlove'])
     expect(() => pickTrait(withCard(t, { kind: 'trait', id: 'closer' }), 0, target.id)).toThrow()
+  })
+})
+
+describe('休息站', () => {
+  /** 打兩場後到休息站 */
+  function atRest(seed: number): Tournament {
+    let t = started(seed)
+    t = skipReward(finishGame(beginGame(t), WIN))
+    expect(t.phase).toBe('ready')
+    t = skipReward(finishGame(beginGame(t), LOSS))
+    expect(t.phase).toBe('rest')
+    return t
+  }
+
+  it('例行賽每兩場一站，季後賽沒有', () => {
+    const t = playMany(started(20), Array(SEASON_GAMES).fill(WIN))
+    expect(t.round).toBe('qf')
+    expect(skipReward(finishGame(beginGame(t), WIN)).phase).toBe('ready')
+  })
+
+  it('資金：開局固定，每場依勝負與得分增加', () => {
+    const t = started(21)
+    expect(t.funds).toBe(STARTING_FUNDS)
+    expect(finishGame(beginGame(t), WIN).funds).toBe(STARTING_FUNDS + gameFunds(true, WIN.home))
+    expect(gameFunds(true, 3)).toBeGreaterThan(gameFunds(false, 3))
+  })
+
+  it('訓練：免費讓一項能力 +1，之後回到下一場', () => {
+    const t = enterRest(atRest(22), 'training')
+    const p = t.setup.team.roster.starter
+    const after = train(t, p.id, 'control')
+    expect(after.setup.team.roster.starter.ratings.control).toBe(Math.min(10, p.ratings.control + 1))
+    expect(after.phase).toBe('ready')
+    expect(after.funds).toBe(t.funds)
+  })
+
+  it('商店：6 格商品，買了扣錢、標成售出；錢不夠不能買', () => {
+    let t = enterRest(atRest(23), 'shop')
+    expect(t.shop).toHaveLength(6)
+    t = { ...t, funds: 1000 }
+    const relic = t.shop.findIndex((x) => x.card.kind === 'relic')
+    const bought = buy(t, relic)
+    expect(bought.funds).toBe(1000 - t.shop[relic].price)
+    expect(bought.shop[relic].sold).toBe(true)
+    expect(() => buy(bought, relic)).toThrow()
+    expect(() => buy({ ...t, funds: 0 }, relic)).toThrow()
+  })
+
+  it('交易：買球員要換掉同角色的人，被換下的人換回一些資金', () => {
+    let t = { ...enterRest(atRest(24), 'shop'), funds: 1000 }
+    const i = t.shop.findIndex((x) => x.card.kind === 'player')
+    const card = t.shop[i].card as Extract<RewardCard, { kind: 'player' }>
+    const slot = card.player.role === 'pitcher' ? ({ kind: 'starter' } as const) : ({ kind: 'lineup', index: 0 } as const)
+    const out = card.player.role === 'pitcher' ? t.setup.team.roster.starter : t.setup.team.roster.lineup[0].player
+    t = buy(t, i, { release: slot })
+    expect(t.funds).toBe(1000 - priceOf(card) + releaseValue(out))
+  })
+
+  it('付費強化越來越貴；重骰換一批商品', () => {
+    let t = { ...enterRest(atRest(25), 'shop'), funds: 1000 }
+    const id = t.setup.team.roster.lineup[0].player.id
+    const first = upgrade(t, id, 'power')
+    const second = upgrade(first, id, 'power')
+    expect(t.funds - first.funds).toBeLessThan(first.funds - second.funds)
+    const rerolled = rerollShop(t)
+    expect(rerolled.funds).toBeLessThan(t.funds)
+    expect(rerolled.shop).not.toEqual(t.shop)
+    expect(leaveShop(t).phase).toBe('ready')
+  })
+
+  it('每個事件的每個選項都能結算（需要對象就給第一位符合的）', () => {
+    for (const event of Object.keys(EVENTS) as EventId[]) {
+      for (const option of [0, 1]) {
+        const t: Tournament = { ...enterRest(atRest(26), 'event'), event, funds: 500 }
+        if (!canChoose(t, event, option)) continue
+        const who = eventTargets(t, event, option)?.[0]?.id
+        const { t: after } = resolveEvent(t, option, who)
+        expect(after.phase).toBe('ready')
+      }
+    }
+  })
+
+  it('錢不夠的事件選項不能選', () => {
+    const t: Tournament = { ...enterRest(atRest(27), 'event'), event: 'mysteriousElder', funds: 0 }
+    expect(canChoose(t, 'mysteriousElder', 0)).toBe(false)
+    expect(() => resolveEvent(t, 0)).toThrow()
   })
 })
 
