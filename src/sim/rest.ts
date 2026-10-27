@@ -9,6 +9,7 @@ import {
   canLearnTrait,
   equipFromBag,
   findPlayer,
+  logAwakenings,
   relicsOf,
   replacePlayer,
   rewardOf,
@@ -147,7 +148,8 @@ export function train(t: Tournament, playerId: string, rating: Rating): Tourname
     if (result.awakened) awakened.push({ playerId, trait: result.awakened })
     return result.player
   })
-  return toNextGame({ ...next, awakened, setup: { ...next.setup, team: { ...next.setup.team, roster } } })
+  const awakenLog = [...(next.awakenLog ?? []), ...logAwakenings(roster, awakened, t.history.length)]
+  return toNextGame({ ...next, awakened, awakenLog, setup: { ...next.setup, team: { ...next.setup.team, roster } } })
 }
 
 // ---- 事件 ----

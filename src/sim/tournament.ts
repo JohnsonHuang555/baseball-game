@@ -1,7 +1,7 @@
 // 錦標賽：roguelike 的一輪。例行賽 8 場（5 勝晉級），季後賽八強、四強各一場，決賽三戰兩勝（ADR-0005）
 import { RULES_VERSION, type Command, type GameSetup, type PlayerLine } from './game'
 import { applyGrowth, type Growth } from './growth'
-import { BASE_MEAN, allPlayers, cardTier, generateBatter, generatePitcher, generateRoster, teamName, type CardTier } from './generate'
+import { BASE_MEAN, allPlayers, cardTier, generateBatter, generatePitcher, generateRoster, overall, teamName, type CardTier } from './generate'
 import { EQUIPMENT, MAX_EQUIPMENT, RELICS, equippedTeam, mapRoster, type EquipmentId, type RelicId } from './items'
 import { PITCH_TRAIT_IDS, PITCH_TYPES, isBreaking, repertoire, type PitchTraitId, type PitchType } from './pitches'
 import { advancePotential, statOf, withPotential } from './potential'
@@ -58,6 +58,16 @@ export interface GameRecord {
   won: boolean
   /** 對手隊名；舊版的冠軍紀錄沒有 */
   opponent?: string
+  /** 這場我方的 MVP 名字（沒有人達標就沒有） */
+  mvp?: string
+}
+
+/** 一輪中覺醒過的球員，給奪冠回顧用 */
+export interface AwakenLog {
+  name: string
+  trait: TraitId
+  /** 第幾場之後覺醒（1 起算） */
+  game: number
 }
 
 /** 進行中的比賽：種子加指令紀錄就能重播回來（ADR-0001） */
@@ -116,6 +126,10 @@ export interface Tournament {
   currentGame: SavedGame | null
   /** 最近一場比賽（或訓練）覺醒的球員；之前的存檔沒有 */
   awakened?: Awakening[]
+  /** 每位球員開打時（或加入時）的總評，奪冠回顧畫成長用 */
+  startOverall?: Record<string, number>
+  /** 這一輪覺醒過的球員 */
+  awakenLog?: AwakenLog[]
 }
 
 /** 商店的一格商品 */
@@ -234,7 +248,16 @@ export function startTournament(t: Tournament): Tournament {
   // 起始秘寶不出彩虹，免得開局就定生死
   const pool = (Object.keys(RELICS) as RelicId[]).filter((id) => RELICS[id].tier !== 'rainbow')
   const relicOptions = rng.shuffle(pool).slice(0, STARTING_RELICS)
-  return { ...t, phase: 'relic', relicOptions, rngState: rng.state, setup: { ...t.setup, teamRerollsLeft: 0, playerRerollsLeft: 0 } }
+  const startOverall = Object.fromEntries(allPlayers(t.setup.team.roster).map((p) => [p.id, overall(p)]))
+  return {
+    ...t,
+    phase: 'relic',
+    relicOptions,
+    startOverall,
+    awakenLog: [],
+    rngState: rng.state,
+    setup: { ...t.setup, teamRerollsLeft: 0, playerRerollsLeft: 0 },
+  }
 }
 
 export function chooseStartingRelic(t: Tournament, index: number): Tournament {
@@ -282,7 +305,9 @@ export function finishGame(
 ): Tournament {
   expectPhase(t, 'playing')
   const won = score.home > score.away
-  const history = [...t.history, { round: t.round, userRuns: score.home, opponentRuns: score.away, won, opponent: t.opponent.name }]
+  const mvpId = growth.find((g) => g.mvp)?.playerId
+  const mvp = mvpId ? allPlayers(t.setup.team.roster).find((p) => p.id === mvpId)?.name : undefined
+  const history = [...t.history, { round: t.round, userRuns: score.home, opponentRuns: score.away, won, opponent: t.opponent.name, mvp }]
   // 成長之後累積潛能：這場的數字加進進度，達成就覺醒
   const awakened: Awakening[] = []
   const roster = mapRoster(applyGrowth(t.setup.team.roster, growth), <P extends Player>(p: P) => {
@@ -293,7 +318,8 @@ export function finishGame(
   })
   const team = { ...t.setup.team, roster }
   const funds = t.funds + gameFunds(won, score.home)
-  const base: Tournament = { ...t, setup: { ...t.setup, team }, history, funds, awakened, currentGame: null }
+  const awakenLog = [...(t.awakenLog ?? []), ...logAwakenings(roster, awakened, history.length)]
+  const base: Tournament = { ...t, setup: { ...t.setup, team }, history, funds, awakened, awakenLog, currentGame: null }
   let round: Round = t.round
   let series = t.series
   if (t.round === 'season') {
@@ -441,6 +467,12 @@ export function pickPlayer(t: Tournament, index: number, release: Slot): Tournam
   return afterReward(replacePlayer(t, player, release))
 }
 
+/** 把覺醒寫成回顧用的紀錄：誰、哪個特性、第幾場之後 */
+export function logAwakenings(roster: Roster, awakened: readonly Awakening[], game: number): AwakenLog[] {
+  const players = allPlayers(roster)
+  return awakened.map((a) => ({ name: players.find((p) => p.id === a.playerId)?.name ?? '', trait: a.trait, game }))
+}
+
 /** 新球員取代同角色的一格；被換下的人釋出：裝備回到背包，換回一些資金 */
 export function replacePlayer(t: Tournament, player: Player, release: Slot): Tournament {
   if ((player.role === 'pitcher') !== isPitcherSlot(release)) throw new Error('只能替換同角色的球員')
@@ -451,8 +483,34 @@ export function replacePlayer(t: Tournament, player: Player, release: Slot): Tou
     ...t,
     funds: t.funds + releaseValue(out),
     bag: [...t.bag, ...(out.equipment ?? [])],
+    // 中途加入的球員從加入時的總評開始算成長
+    startOverall: { ...t.startOverall, [player.id]: overall(player) },
     setup: { ...t.setup, team: { ...t.setup.team, roster: next } },
   }
+}
+
+// ---- 傳奇館 ----
+
+/** 傳奇館球員回到新的一輪：能力值每項 −1，特性保留；裝備、潛能、球種特性、新球種都不帶 */
+export function asLegend<P extends Player>(p: P): P {
+  const ratings = Object.fromEntries(Object.entries(p.ratings).map(([k, v]) => [k, Math.max(1, v - 1)]))
+  const { equipment: _e, potential: _p, ...rest } = p as Player
+  const clean = rest.role === 'pitcher' ? (({ pitchTraits: _t, extraPitches: _x, ...r }) => r)(rest as Pitcher) : rest
+  return { ...clean, ratings } as unknown as P
+}
+
+/** 開打前把一位傳奇館球員加進隊伍，取代同角色總評最低的一位 */
+export function addLegend(t: Tournament, legend: Player): Tournament {
+  expectPhase(t, 'pregame')
+  const player = asLegend(legend)
+  const roster = t.setup.team.roster
+  const slots: Slot[] =
+    player.role === 'pitcher'
+      ? [{ kind: 'starter' }, ...roster.relievers.map((_, i): Slot => ({ kind: 'reliever', index: i }))]
+      : [...roster.lineup.map((_, i): Slot => ({ kind: 'lineup', index: i })), ...roster.bench.map((_, i): Slot => ({ kind: 'bench', index: i }))]
+  const weakest = slots.reduce((a, b) => (overall(getSlot(roster, b)) < overall(getSlot(roster, a)) ? b : a))
+  const next = setSlot(roster, weakest, player)
+  return { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster: next } } }
 }
 
 /** 秘寶卡：直接加進全隊 */

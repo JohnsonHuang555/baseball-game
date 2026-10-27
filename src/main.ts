@@ -9,11 +9,11 @@ import { Game } from './sim/game'
 import { cardTier, generateBatter, generateTeam, teamName, type CardTier } from './sim/generate'
 import { Rng } from './sim/rng'
 import { createSetup } from './sim/setup'
-import { createTournament, updateSetup, type Tier } from './sim/tournament'
-import { OUTFITS, OUTFIT_UNLOCK, availableTiers, clearedTier, isUnlocked, outfitForTier, trophies, type Outfit } from './ui/progress'
-import { showTrophyCase } from './ui/trophyScreen'
+import { addLegend, createTournament, updateSetup, type Tier, type Tournament } from './sim/tournament'
+import { availableTiers, clearedTier, legends, outfitForTier, trophies } from './ui/progress'
+import { showClubHistory } from './ui/clubHistory'
 import type { Batter, Team } from './sim/types'
-import { avatar, avatarOutfit, avatarSpecies, avatarSvg, setAvatarOutfit, setAvatarSpecies } from './ui/avatar'
+import { avatar, avatarSpecies, avatarSvg, setAvatarSpecies } from './ui/avatar'
 import { showGame } from './ui/gameScreen'
 import { growthPanel } from './ui/growthPanel'
 import { gradeBadge, overallBadge } from './ui/grades'
@@ -93,24 +93,28 @@ async function chooseTier(): Promise<Tier | null> {
   })
 }
 
-/** 換裝扮：沒解鎖的也列出來，寫著要通過哪個難度 */
-async function chooseOutfit(): Promise<void> {
-  const current = avatarOutfit()
-  const picked = await choiceModal<Outfit>({
-    title: T.outfitTitle,
-    message: T.outfitMessage,
-    options: OUTFITS.map((o) => ({
-      value: o,
-      label: T.outfitNames[o],
-      icon: avatarSvg(avatarSpecies() === 'cat' ? 'p-cat-sample' : 'p-dog-sample', 'user', avatarSpecies(), o),
-      locked: isUnlocked(o) ? undefined : T.outfitLocked(T.levelNames[OUTFIT_UNLOCK[o]]),
-      current: o === current,
-    })),
+/** 開新錦標賽時，傳奇館有人就問要不要帶一位加入；取消整個開新流程回傳 null */
+async function withLegend(t: Tournament): Promise<Tournament | null> {
+  const list = legends()
+  if (!list.length) return t
+  const SKIP = -1
+  const picked = await choiceModal<number>({
+    title: T.legendPickTitle,
+    message: T.legendPickMessage,
+    options: [
+      { value: SKIP, label: T.legendSkip },
+      ...list.map((l, i) => ({
+        value: i,
+        label: `${l.player.name}（${l.player.role === 'pitcher' ? T.pitcher : T.batter}）`,
+        sub: T.legendFrom(l.teamName, T.levelNames[l.tier]),
+        icon: avatarSvg(l.player.id, 'user'),
+      })),
+    ],
   })
-  if (!picked || picked === current) return
-  setAvatarOutfit(picked)
-  toast(T.outfitPicked(T.outfitNames[picked]))
-  showTitle()
+  if (picked === null) return null
+  if (picked === SKIP) return t
+  toast(T.legendJoined(list[picked].player.name))
+  return addLegend(t, list[picked].player)
 }
 
 /** 首頁左上角：球員頭像要用貓咪還是小狗，換了就重畫首頁 */
@@ -132,14 +136,6 @@ function speciesPicker(): HTMLElement {
     }
     box.append(btn)
   }
-  // 裝扮：拿過冠軍才有東西可以換，但一開始就讓玩家看得到
-  const outfit = el('button', 'species-option outfit-option')
-  outfit.type = 'button'
-  const face = el('span', 'species-face')
-  face.innerHTML = avatarSvg(avatarSpecies() === 'cat' ? 'p-cat-sample' : 'p-dog-sample', 'user')
-  outfit.append(face, T.outfitLabel)
-  outfit.onclick = () => void chooseOutfit()
-  box.append(outfit)
   return box
 }
 
@@ -165,17 +161,19 @@ function showTitle(): void {
     if (saved && !(await confirmModal({ title: T.newTournament, message: T.confirmOverwrite, confirmLabel: T.overwriteConfirm, danger: true }))) return
     const tier = await chooseTier()
     if (!tier) return
-    const t = createTournament(randomSeed(), tier)
-    openTournament(root, updateSetup(t, withSavedName(t.setup)), showTitle)
+    const created = createTournament(randomSeed(), tier)
+    const t = await withLegend(updateSetup(created, withSavedName(created.setup)))
+    if (!t) return
+    openTournament(root, t, showTitle)
   }
   if (saved) {
     const resume = el('button', 'btn-yellow btn-big', T.continueTournament(T.roundNames[saved.round]))
     resume.onclick = () => openTournament(root, saved, showTitle)
     buttons.append(resume, quick, fresh)
   } else buttons.append(quick, fresh)
-  const cabinet = el('button', 'btn-outline-light trophy-btn', T.trophyCount(trophies().length))
+  const cabinet = el('button', 'btn-outline-light trophy-btn', T.clubHistoryCount(trophies().length))
   cabinet.type = 'button'
-  cabinet.onclick = () => showTrophyCase(root, showTitle)
+  cabinet.onclick = () => showClubHistory(root, showTitle)
   buttons.append(cabinet)
   const replay = el('button', 'home-link', T.tutorialReplay)
   replay.type = 'button'

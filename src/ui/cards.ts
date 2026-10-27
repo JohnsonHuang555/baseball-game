@@ -72,6 +72,10 @@ export const KIND_ICONS: Record<'relic' | 'trait' | 'pitchTrait' | 'newPitch', s
     '<svg aria-hidden="true" viewBox="0 0 64 64"><path d="M32 6 L39 24 L58 25 L43 37 L48 56 L32 45 L16 56 L21 37 L6 25 L25 24 Z" fill="#FFD23F" stroke="#141633" stroke-width="3" stroke-linejoin="round"/></svg>',
 }
 
+/** 冠軍獎盃；給了 label 就是有意義的圖 */
+export const TROPHY = (size: number, label = '') =>
+  `<svg ${label ? `role="img" aria-label="${label}"` : 'aria-hidden="true"'} width="${size}" height="${size}" viewBox="0 0 24 24" fill="#FFD23F" stroke="#141633" stroke-width="1.2" stroke-linejoin="round"><path d="M7 3h10v4a5 5 0 0 1-10 0z"/><path d="M7 5H4a3 3 0 0 0 3 4M17 5h3a3 3 0 0 1-3 4" fill="none" stroke-width="1.4"/><path d="M10 12h4v4h-4z"/><path d="M8 20h8v-2H8z"/></svg>`
+
 export function backButton(onClick: () => void): HTMLButtonElement {
   const b = el('button', 'icon-btn')
   b.type = 'button'

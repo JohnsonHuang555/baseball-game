@@ -1283,11 +1283,7 @@ button.kit-chip {
   margin-top: 4px;
 }
 
-/* ---- 首頁：裝扮按鈕、獎盃櫃 ---- */
-.outfit-option {
-  border-left: 1.5px solid rgba(255, 255, 255, 0.4);
-  border-radius: 0 10px 10px 0;
-}
+/* ---- 首頁：球團史 ---- */
 .trophy-btn {
   background: rgba(20, 22, 51, 0.35);
   border-color: #fff;
@@ -1405,6 +1401,284 @@ button.kit-chip {
   display: block;
   width: 100%;
   height: 100%;
+}
+button.trophy-card {
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.trophy-open {
+  align-self: flex-end;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: underline;
+}
+
+/* ---- 球團史：分頁 ---- */
+.history-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.history-tab {
+  height: 42px;
+  border-radius: 12px;
+  border: 2.5px solid #fff;
+  background: rgba(20, 22, 51, 0.35);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.history-tab[aria-selected='true'] {
+  background: var(--yellow);
+  border-color: var(--ink);
+  color: var(--ink);
+  box-shadow: 0 3px 0 var(--ink);
+}
+.legend-card .trophy-card-top .grade {
+  margin-left: auto;
+}
+.legend-face {
+  width: 52px;
+  height: 52px;
+  border: 3px solid var(--yellow-shadow);
+}
+.legend-ratings {
+  display: flex;
+  gap: 4px;
+}
+.run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.run-row {
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 2.5px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.run-row.champ {
+  background: linear-gradient(160deg, #fff8dc, #ffe58a);
+}
+.run-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.run-head .level-tag {
+  margin-left: 0;
+}
+.run-team {
+  font-size: 16px;
+}
+.run-outcome {
+  font-weight: 900;
+  color: var(--away);
+}
+.run-row.champ .run-outcome {
+  color: var(--ink);
+}
+.run-meta {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.wardrobe {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wardrobe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+.wardrobe-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border-radius: 16px;
+  border: 2.5px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--ink);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.wardrobe-item.current {
+  box-shadow:
+    0 0 0 4px var(--yellow),
+    0 3px 0 var(--ink);
+}
+.wardrobe-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.wardrobe-face {
+  width: 72px;
+  height: 72px;
+}
+.wardrobe-face svg {
+  width: 100%;
+  height: 100%;
+}
+.wardrobe-sub {
+  min-height: 1.2em;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* ---- 奪冠回顧 ---- */
+.recap {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.recap-none {
+  margin: 0;
+  font-weight: 700;
+}
+.recap-games,
+.recap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.recap-game,
+.recap-growth {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.recap-round {
+  width: 92px;
+  flex: none;
+}
+.recap-score {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+.recap-opp {
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recap-mvp {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--yellow);
+  font-size: 11px;
+  font-weight: 900;
+}
+.recap-line {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5b2a9e;
+}
+.recap-growth .avatar {
+  width: 28px;
+  height: 28px;
+}
+.recap-name {
+  flex: 1;
+  min-width: 0;
+}
+.recap-delta {
+  width: 40px;
+  text-align: right;
+  color: var(--ink-soft);
+}
+.recap-delta.up {
+  color: #1f9d55;
+  font-weight: 900;
+}
+
+/* ---- 奪冠畫面：送進傳奇館 ---- */
+.end-legend {
+  width: 100%;
+  max-width: 460px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 2.5px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.end-legend-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 900;
+}
+.end-legend-hint,
+.end-legend-done {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.end-legend-done {
+  font-size: 14px;
+  color: #5b2a9e;
+}
+.end-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px;
+}
+.end-legend-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  font-family: inherit;
+  cursor: pointer;
+}
+.end-legend-pick .avatar {
+  width: 36px;
+  height: 36px;
+}
+.end-legend-name {
+  max-width: 100%;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.end-recap {
+  width: 100%;
+  max-width: 460px;
+  height: 46px;
 }
 .trophy-unlock {
   align-self: flex-start;

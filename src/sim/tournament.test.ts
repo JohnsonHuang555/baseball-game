@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { RULES_VERSION } from './game'
-import { allPlayers, teamAverage } from './generate'
+import { allPlayers, overall, teamAverage } from './generate'
 import { PITCH_TYPES, repertoire } from './pitches'
 import { RELICS } from './items'
 import { STARTING_FUNDS, gameFunds, priceOf, releaseValue } from './prices'
@@ -8,6 +8,8 @@ import { EVENTS, buy, canChoose, enterRest, eventTargets, leaveShop, rerollShop,
 import { rerollTeam, swapSlots } from './setup'
 import {
   SEASON_GAMES,
+  addLegend,
+  asLegend,
   beginGame,
   canLearnPitch,
   canLearnPitchTrait,
@@ -371,6 +373,42 @@ describe('潛能與球種卡', () => {
     expect(canLearnPitchTrait(after.setup.team.roster.starter, 'fastball')).toBe(false)
     const missing = PITCH_TYPES.find((x) => !repertoire(pitcher).includes(x))!
     expect(canLearnPitchTrait(pitcher, missing)).toBe(false)
+  })
+})
+
+describe('傳奇館與奪冠回顧', () => {
+  it('傳奇球員能力每項 −1、保留特性，不帶裝備、潛能與球種', () => {
+    const t = started(40)
+    const base = t.setup.team.roster.starter
+    const star = { ...base, traits: ['closer' as const], equipment: ['gripBag' as const], pitchTraits: { fastball: 'sharp' as const }, extraPitches: ['curve' as const] }
+    const legend = asLegend(star)
+    expect(legend.ratings.stuff).toBe(Math.max(1, star.ratings.stuff - 1))
+    expect(legend.traits).toEqual(['closer'])
+    expect(legend.equipment).toBeUndefined()
+    expect(legend.pitchTraits).toBeUndefined()
+    expect(legend.extraPitches).toBeUndefined()
+  })
+
+  it('開打前加入傳奇，取代同角色總評最低的一位', () => {
+    const t = createTournament(41)
+    const legend = { ...t.setup.team.roster.lineup[0].player, id: 'legend', name: '傳奇' }
+    const before = allPlayers(t.setup.team.roster).filter((p) => p.role === 'batter')
+    const weakest = before.reduce((a, b) => (overall(b) < overall(a) ? b : a))
+    const after = allPlayers(addLegend(t, legend).setup.team.roster)
+    expect(after.some((p) => p.id === 'legend')).toBe(true)
+    expect(after.some((p) => p.id === weakest.id)).toBe(false)
+    expect(() => addLegend(started(41), legend)).toThrow()
+  })
+
+  it('記下每場 MVP、開打時的總評、覺醒紀錄，中途加入的球員從加入時算', () => {
+    let t = started(42)
+    const p = t.setup.team.roster.lineup[0].player
+    expect(t.startOverall?.[p.id]).toBe(overall(p))
+    t = finishGame(beginGame(t), WIN, [{ playerId: p.id, rating: 'contact', amount: 1, mvp: true }])
+    expect(t.history[0].mvp).toBe(p.name)
+    const rookie = { ...t.setup.team.roster.bench[0], id: 'rookie' }
+    t = pickPlayer({ ...t, rewards: [{ kind: 'player', player: rookie }] }, 0, { kind: 'bench', index: 0 })
+    expect(t.startOverall?.rookie).toBe(overall(rookie))
   })
 })
 

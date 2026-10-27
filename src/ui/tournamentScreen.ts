@@ -41,13 +41,14 @@ import {
 } from '../sim/tournament'
 import { TRAITS } from '../sim/traits'
 import type { Player } from '../sim/types'
-import { recordChampion, type Trophy } from './progress'
+import { induct, recordChampion, recordRun, type Trophy } from './progress'
+import { showRecap } from './clubHistory'
 import { avatar, avatarSvg } from './avatar'
-import { backButton, cardKeys, chooseWearer, itemCard, kitChip, pickHeader, playerCard, rosterSlots } from './cards'
+import { TROPHY, backButton, cardKeys, chooseWearer, itemCard, kitChip, pickHeader, playerCard, rosterSlots } from './cards'
 import { showGame } from './gameScreen'
 import { growthPanel } from './growthPanel'
 import { showEvent, showRest, showShop, showTraining } from './restScreen'
-import { gradeBadge } from './grades'
+import { gradeBadge, overallBadge } from './grades'
 import { kbd, setKeys } from './keys'
 import { el, potentialTag, traitTag } from './playerCard'
 import { pitchChip, sideTag, toast } from './visual'
@@ -65,6 +66,8 @@ export function openTournament(root: HTMLElement, t: Tournament, toTitle: () => 
   else saveTournament(t)
   // 奪冠：放進獎盃櫃（同一屆只記一次），第一次通過這個難度會解鎖裝扮
   if (t.phase === 'champion') recordChampion(t)
+  // 不論奪冠或淘汰，這一輪都記進球團史的歷程
+  if (t.phase === 'champion' || t.phase === 'eliminated') recordRun(t)
 
   switch (t.phase) {
     case 'pregame':
@@ -552,8 +555,6 @@ function rewardTargets(t: Tournament, index: number, card: RewardCard, list: HTM
 
 // ---- 結束 ----
 
-export const TROPHY = (size: number, label = '') =>
-  `<svg ${label ? `role="img" aria-label="${label}"` : 'aria-hidden="true"'} width="${size}" height="${size}" viewBox="0 0 24 24" fill="#FFD23F" stroke="#141633" stroke-width="1.2" stroke-linejoin="round"><path d="M7 3h10v4a5 5 0 0 1-10 0z"/><path d="M7 5H4a3 3 0 0 0 3 4M17 5h3a3 3 0 0 1-3 4" fill="none" stroke-width="1.4"/><path d="M10 12h4v4h-4z"/><path d="M8 20h8v-2H8z"/></svg>`
 
 /** 彩色紙花，用固定的種子撒，每次一樣 */
 function confetti(width: number, height: number, count: number, seed: number): string {
@@ -593,7 +594,8 @@ function showTourEnd(root: HTMLElement, t: Tournament, toTitle: () => void): voi
   team.append(teamTile(t.setup.team.name, 'user'), el('span', 'end-team-name', t.setup.team.name))
   const words = el('p', 'end-words', T.tournamentOver)
   team.append(el('span', `level-tag level-${t.tier}`, T.levelNames[t.tier]))
-  const rewards = champ ? championRewards(recordChampion(t)) : null
+  const trophy = champ ? recordChampion(t) : null
+  const rewards = trophy ? championRewards(trophy) : null
   const home = el('button', 'btn-yellow btn-big end-home', T.backToTitle)
   home.append(kbd('ENTER'))
   home.onclick = toTitle
@@ -611,11 +613,48 @@ function showTourEnd(root: HTMLElement, t: Tournament, toTitle: () => void): voi
     )
     record.append(row)
   }
-  main.append(icon, title, team, ...(rewards ? [rewards] : []), words, home)
+  main.append(icon, title, team, ...(rewards ? [rewards] : []))
+  if (trophy) {
+    const recap = el('button', 'btn-white end-recap', T.recapOpen)
+    recap.onclick = () => showRecap(trophy)
+    main.append(legendPanel(t, trophy), recap)
+  }
+  main.append(words, home)
   inner.append(main, record)
   screen.append(inner)
   root.replaceChildren(screen)
   setKeys({ Enter: toTitle })
+}
+
+/** 奪冠後挑一位球員送進傳奇館；選過之後換成一句「某某 進入傳奇館」 */
+function legendPanel(t: Tournament, trophy: Trophy): HTMLElement {
+  const box = el('section', 'end-legend')
+  const players = allPlayers(t.setup.team.roster)
+  const render = (chosenId: string | undefined) => {
+    box.replaceChildren(el('h2', 'end-legend-title', T.legendInductTitle))
+    const chosen = players.find((p) => p.id === chosenId)
+    if (chosen) {
+      box.append(el('p', 'end-legend-done', T.inducted(chosen.name)))
+      return
+    }
+    box.append(el('p', 'end-legend-hint', T.legendInductHint))
+    const grid = el('div', 'end-legend-grid')
+    for (const p of players) {
+      const b = el('button', 'end-legend-pick')
+      b.type = 'button'
+      b.title = p.name
+      b.append(avatar(p.id, 'user', 'ring'), el('span', 'end-legend-name', p.name), overallBadge(p, 'sm'))
+      b.onclick = () => {
+        if (!induct(trophy.key, p)) return
+        toast(T.inducted(p.name))
+        render(p.id)
+      }
+      grid.append(b)
+    }
+    box.append(grid)
+  }
+  render(trophy.legendId)
+  return box
 }
 
 /** 奪冠的收穫：解鎖的裝扮、開放的下一級難度（第一次通過這個難度才有） */
