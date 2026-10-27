@@ -1283,61 +1283,39 @@ button .kbd {
     height: 28px;
     font-size: 13px;
   }
-  .bracket-panel.desk {
-    grid-column: 1 / -1;
+  .hub-panel {
     margin: 0;
-    padding: 20px 24px 24px;
+    padding: 20px 24px 22px;
     border-width: 3px;
     border-radius: 22px;
     box-shadow: 0 5px 0 var(--ink);
   }
-  .bracket-panel.desk .bracket-scroll {
-    overflow-x: auto;
-    padding: 0;
+  .season-panel {
+    grid-column: 1 / 2;
+    min-width: 640px;
   }
-  .bracket-desk-inner {
-    margin: 0 auto;
+  .kit-panel {
+    grid-column: 2 / 3;
   }
-  .bracket-panel.desk .bracket-heads {
-    grid-template-columns: repeat(7, 150px);
-    gap: 0 24px;
-    padding: 0;
-    margin-bottom: 10px;
+  .season-slots {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .season-slot {
+    padding: 10px 6px;
     font-size: 13px;
   }
-  .bracket-heads .final {
-    color: var(--yellow-shadow);
-  }
-  .bracket-panel.desk .bracket-lines .all {
-    stroke-width: 2;
-  }
-  .bracket-panel.desk .bracket-lines .mine {
-    stroke-width: 4;
-  }
-  .bracket-panel.desk .bracket-box {
-    border: 2px solid var(--ink);
-    border-radius: 10px;
-  }
-  .bracket-panel.desk .bracket-box.next {
-    border-width: 3px;
-    box-shadow: 0 0 0 4px var(--yellow);
-  }
-  .bracket-panel.desk .bracket-box.tbd {
-    border: 2px dashed #b4b9cc;
-  }
-  .bracket-panel.desk .bracket-row {
-    gap: 6px;
-    padding: 0 10px;
+  .season-mark {
+    width: 32px;
+    height: 32px;
     font-size: 14px;
   }
-  .bracket-panel.desk .bracket-score {
-    font-size: 12px;
+  .playoff-box {
+    padding: 12px 14px;
+    font-size: 15px;
   }
-  .bracket-trophy {
-    position: absolute;
-    top: 120px;
-    display: flex;
-    justify-content: center;
+  .kit-chip {
+    font-size: 14px;
   }
   .hub-bottom {
     grid-column: 1 / -1;
@@ -1613,6 +1591,32 @@ button .kbd {
     border-radius: 22px;
     box-shadow: 0 6px 0 var(--ink);
   }
+  /* 道具卡內容少：置中、圖放大 */
+  .item-pick .draft-inner {
+    justify-content: center;
+    gap: 16px;
+  }
+  .item-pick .draft-top {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    right: 24px;
+    width: auto;
+  }
+  .item-pick .item-icon {
+    width: 120px;
+    height: 120px;
+  }
+  .item-pick .draft-name {
+    font-size: 26px;
+  }
+  .item-pick .item-desc,
+  .item-pick .draft-trait-desc {
+    font-size: 16px;
+  }
+  .item-pick .trait {
+    font-size: 18px;
+  }
   .draft-pick.selected {
     transform: translateY(-10px);
     box-shadow:
@@ -1716,10 +1720,10 @@ button .kbd {
     overflow: visible;
   }
   .release-row {
-    grid-template-columns: 40px minmax(0, 1fr) auto 80px;
+    grid-template-columns: 40px minmax(0, 1fr) auto minmax(80px, auto);
     gap: 12px;
-    height: 66px;
-    padding: 0 14px;
+    min-height: 66px;
+    padding: 8px 14px;
   }
   .release-row .avatar {
     width: 40px;

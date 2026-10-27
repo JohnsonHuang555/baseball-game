@@ -1,251 +1,232 @@
 import { describe, expect, it } from 'vitest'
 import { RULES_VERSION } from './game'
 import { teamAverage } from './generate'
-import { rerollPlayer, rerollTeam, swapSlots } from './setup'
+import { RELICS } from './items'
+import { rerollTeam, swapSlots } from './setup'
 import {
-  ROUNDS,
+  SEASON_GAMES,
   beginGame,
-  bracket,
+  chooseStartingRelic,
   createTournament,
-  draftPick,
+  equipFromBag,
   finishGame,
+  opponentMean,
+  pickEquipment,
+  pickPlayer,
+  pickRelic,
+  pickTrait,
+  playoffSeed,
+  relicsOf,
   saveProgress,
-  skipDraft,
+  skipReward,
   startTournament,
-  tierOf,
-  updateLineup,
+  unequip,
   updateRoster,
   updateSetup,
+  type RewardCard,
   type Tournament,
 } from './tournament'
 
 const WIN = { home: 5, away: 2 }
 const LOSS = { home: 1, away: 3 }
 
+/** 開打並選第一個起始秘寶 */
+function started(seed: number, tier: 1 | 2 | 3 | 4 | 5 = 1): Tournament {
+  return chooseStartingRelic(startTournament(createTournament(seed, tier)), 0)
+}
+
+/** 打一場，有獎勵就放棄 */
 function play(t: Tournament, score: { home: number; away: number }): Tournament {
-  return finishGame(beginGame(t), score)
+  const next = finishGame(beginGame(t), score)
+  return next.phase === 'reward' ? skipReward(next) : next
+}
+
+function playMany(t: Tournament, results: { home: number; away: number }[]): Tournament {
+  return results.reduce(play, t)
+}
+
+/** 換掉獎勵卡，方便測試各種卡 */
+function withCard(t: Tournament, card: RewardCard): Tournament {
+  return { ...finishGame(beginGame(t), WIN), rewards: [card] }
 }
 
 describe('錦標賽開打前', () => {
-  it('16 隊，隊名不重複，玩家是第 0 隊', () => {
+  it('12 隊，隊名不重複，玩家是第 0 隊；例行賽 8 場對手不重複', () => {
     const t = createTournament(1)
-    expect(t.teamNames).toHaveLength(16)
-    expect(new Set(t.teamNames).size).toBe(16)
+    expect(t.teamNames).toHaveLength(12)
+    expect(new Set(t.teamNames).size).toBe(12)
     expect(t.teamNames[0]).toBe(t.setup.team.name)
+    expect(new Set(t.schedule).size).toBe(SEASON_GAMES)
+    expect(t.schedule).not.toContain(0)
     expect(t.phase).toBe('pregame')
   })
 
-  it('開打前可以重骰，開打後就不行', () => {
+  it('整隊只能重骰一次，沒有單人重骰；開打後就不行', () => {
     let t = createTournament(2)
+    expect(t.setup.teamRerollsLeft).toBe(1)
+    expect(t.setup.playerRerollsLeft).toBe(0)
     t = updateSetup(t, rerollTeam(t.setup))
-    expect(t.setup.teamRerollsLeft).toBe(2)
+    expect(t.setup.teamRerollsLeft).toBe(0)
     t = startTournament(t)
     expect(() => updateSetup(t, rerollTeam(t.setup))).toThrow()
   })
 
-  it('自訂隊名撞到 AI 隊伍時，AI 隊伍改名，隊名仍不重複', () => {
+  it('自訂隊名撞到 AI 隊伍時，AI 隊伍改名', () => {
     const t = createTournament(1)
-    const taken = t.teamNames[t.opponents[0]]
+    const taken = t.opponent.name
     const next = updateSetup(t, { ...t.setup, team: { ...t.setup.team, name: taken } })
     expect(next.teamNames[0]).toBe(taken)
-    expect(new Set(next.teamNames).size).toBe(16)
-    expect(next.opponent.name).toBe(next.teamNames[next.opponents[0]])
+    expect(new Set(next.teamNames).size).toBe(12)
     expect(next.opponent.name).not.toBe(taken)
   })
 
-  it('開打後仍可以調整陣容', () => {
+  it('開打後先從 3 個非彩虹秘寶選 1 個', () => {
     const t = startTournament(createTournament(3))
+    expect(t.phase).toBe('relic')
+    expect(t.relicOptions).toHaveLength(3)
+    expect(t.relicOptions.every((id) => RELICS[id].tier !== 'rainbow')).toBe(true)
+    const picked = chooseStartingRelic(t, 1)
+    expect(picked.phase).toBe('ready')
+    expect(relicsOf(picked)).toEqual([t.relicOptions[1]])
+  })
+
+  it('開打後仍可以調整陣容', () => {
+    const t = started(3)
     const swapped = swapSlots(t.setup.team.roster, { kind: 'lineup', index: 0 }, { kind: 'lineup', index: 1 })!
     expect(updateRoster(t, swapped).setup.team.roster).toBe(swapped)
   })
+})
 
-  it('同一個種子產生同樣的賽程和對手', () => {
-    expect(createTournament(9)).toEqual(createTournament(9))
+describe('例行賽與季後賽', () => {
+  it('例行賽 5 勝 3 敗晉級，之後八強、四強各一場，決賽三戰兩勝奪冠', () => {
+    let t = playMany(started(4), [WIN, LOSS, WIN, LOSS, WIN, LOSS, WIN, WIN])
+    expect(t.round).toBe('qf')
+    expect(t.phase).toBe('ready')
+    t = play(t, WIN)
+    expect(t.round).toBe('sf')
+    t = play(t, WIN)
+    expect(t.round).toBe('final')
+    t = play(t, WIN)
+    expect(t.phase).toBe('ready')
+    t = finishGame(beginGame(t), WIN)
+    expect(t.phase).toBe('champion')
+    expect(t.history).toHaveLength(SEASON_GAMES + 4)
+  })
+
+  it('例行賽第 4 敗就淘汰', () => {
+    const t = playMany(started(5), [LOSS, LOSS, LOSS])
+    expect(t.phase).toBe('ready')
+    expect(play(t, LOSS).phase).toBe('eliminated')
+  })
+
+  it('季後賽輸一場就淘汰；決賽輸兩場淘汰', () => {
+    const playoffs = playMany(started(6), Array(SEASON_GAMES).fill(WIN))
+    expect(play(playoffs, LOSS).phase).toBe('eliminated')
+    const final = playMany(playoffs, [WIN, WIN, LOSS])
+    expect(final.phase).toBe('ready')
+    expect(play(final, LOSS).phase).toBe('eliminated')
+  })
+
+  it('每場（除了奪冠那場）之後都有獎勵選擇：贏 3 張、輸 2 張', () => {
+    const t = started(7)
+    expect(finishGame(beginGame(t), WIN).rewards).toHaveLength(3)
+    expect(finishGame(beginGame(t), LOSS).rewards).toHaveLength(2)
+  })
+
+  it('對手隨場次變強，難度越高越強；例行賽勝場越多，季後賽對手越弱', () => {
+    const t = started(8)
+    expect(opponentMean(playMany(t, [WIN, WIN, WIN]))).toBeGreaterThan(opponentMean(t))
+    expect(opponentMean(started(8, 5))).toBeGreaterThan(opponentMean(started(8, 1)))
+    const perfect = playMany(t, Array(8).fill(WIN))
+    const barely = playMany(t, [WIN, WIN, WIN, WIN, WIN, LOSS, LOSS, LOSS])
+    expect(playoffSeed(perfect)).toBe(1)
+    expect(playoffSeed(barely)).toBe(4)
+    expect(opponentMean(perfect)).toBeLessThan(opponentMean(barely))
+  })
+
+  it('對手的實際能力跟著曲線走', () => {
+    const early = started(9, 1)
+    const late = playMany(started(9, 5), Array(7).fill(WIN))
+    expect(teamAverage(late.opponent.roster)).toBeGreaterThan(teamAverage(early.opponent.roster))
   })
 })
 
-describe('晉級流程', () => {
-  it('十六強、八強、四強各贏一場後都有選秀，決賽三戰兩勝奪冠', () => {
-    let t = startTournament(createTournament(4))
-    for (const round of ['r16', 'qf', 'sf'] as const) {
-      expect(ROUNDS[t.roundIndex]).toBe(round)
-      t = play(t, WIN)
-      expect(t.phase).toBe('draft')
-      expect(t.draftOptions).toHaveLength(3)
-      t = skipDraft(t)
-    }
-    expect(ROUNDS[t.roundIndex]).toBe('final')
-    t = play(t, WIN)
-    expect(t.phase).toBe('ready')
-    expect(t.series).toEqual({ user: 1, opponent: 0 })
-    t = play(t, LOSS)
-    expect(t.phase).toBe('ready')
-    t = play(t, WIN)
-    expect(t.phase).toBe('champion')
-    expect(t.history).toHaveLength(6)
-  })
-
-  it('單場輸了就淘汰', () => {
-    const t = play(startTournament(createTournament(5)), LOSS)
-    expect(t.phase).toBe('eliminated')
-  })
-
-  it('決賽輸兩場就淘汰', () => {
-    let t = startTournament(createTournament(6))
-    for (let i = 0; i < 3; i++) t = skipDraft(play(t, WIN))
-    t = play(play(t, LOSS), LOSS)
-    expect(t.phase).toBe('eliminated')
-  })
-
-  it('決賽系列賽中沒有選秀', () => {
-    let t = startTournament(createTournament(7))
-    for (let i = 0; i < 3; i++) t = skipDraft(play(t, WIN))
-    t = play(t, WIN)
-    expect(t.draftOptions).toHaveLength(0)
-  })
-
-  it('對手越後面越強', () => {
-    const avg = [0, 0, 0, 0]
-    for (let seed = 1; seed <= 60; seed++) {
-      let t = startTournament(createTournament(seed))
-      for (let r = 0; r < 4; r++) {
-        avg[r] += teamAverage(t.opponent.roster) / 60
-        if (r < 3) t = skipDraft(play(t, WIN))
+describe('獎勵卡', () => {
+  it('不會出現已經擁有的秘寶', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      let t = started(seed)
+      for (let g = 0; g < 6; g++) {
+        t = finishGame(beginGame(t), WIN)
+        for (const c of t.rewards) if (c.kind === 'relic') expect(relicsOf(t)).not.toContain(c.id)
+        const relic = t.rewards.findIndex((c) => c.kind === 'relic')
+        t = relic >= 0 ? pickRelic(t, relic) : skipReward(t)
       }
     }
-    expect(avg[1]).toBeGreaterThan(avg[0])
-    expect(avg[2]).toBeGreaterThan(avg[1])
-    expect(avg[3]).toBeGreaterThan(avg[2])
   })
 
-  it('每一輪的對手都是賽程樹中另一側晉級上來的隊伍', () => {
-    let t = startTournament(createTournament(8))
-    for (let r = 0; r < 4; r++) {
-      expect(t.opponent.name).toBe(t.teamNames[t.opponents[r]])
-      expect(t.opponents[r]).toBeGreaterThanOrEqual(2 ** r)
-      expect(t.opponents[r]).toBeLessThan(2 ** (r + 1))
-      if (r < 3) t = skipDraft(play(t, WIN))
-    }
-  })
-})
-
-describe('選秀', () => {
-  function atDraft(seed: number): Tournament {
-    return play(startTournament(createTournament(seed)), WIN)
-  }
-
-  it('選到的球員取代同角色的位置，被替換的人釋出', () => {
-    for (let seed = 1; seed < 30; seed++) {
-      const t = atDraft(seed)
-      const index = t.draftOptions.findIndex((p) => p.role === 'batter')
-      if (index < 0) continue
-      const pick = t.draftOptions[index]
-      const released = t.setup.team.roster.lineup[4].player
-      const next = draftPick(t, index, { kind: 'lineup', index: 4 })
-      expect(next.setup.team.roster.lineup[4].player).toBe(pick)
-      expect(next.setup.team.roster.lineup[4].position).toBe(t.setup.team.roster.lineup[4].position)
-      expect(JSON.stringify(next.setup.team.roster)).not.toContain(released.id)
-      expect(next.phase).toBe('ready')
-      expect(next.roundIndex).toBe(1)
-      return
-    }
-    throw new Error('找不到打者選項')
+  it('球員卡取代同角色的一格，被換下的人的裝備回到背包', () => {
+    let t = started(10)
+    t = { ...t, bag: ['trainingBat'] }
+    const first = t.setup.team.roster.lineup[0].player
+    t = equipFromBag(t, 0, first.id)
+    const rookie = { ...t.setup.team.roster.bench[0], id: 'rookie' }
+    t = pickPlayer(withCard(t, { kind: 'player', player: rookie }), 0, { kind: 'lineup', index: 0 })
+    expect(t.setup.team.roster.lineup[0].player.id).toBe('rookie')
+    expect(t.bag).toEqual(['trainingBat'])
+    expect(() => pickPlayer(withCard(t, { kind: 'player', player: rookie }), 0, { kind: 'starter' })).toThrow()
   })
 
-  it('角色不符不能替換', () => {
-    for (let seed = 1; seed < 30; seed++) {
-      const t = atDraft(seed)
-      const index = t.draftOptions.findIndex((p) => p.role === 'pitcher')
-      if (index < 0) continue
-      expect(() => draftPick(t, index, { kind: 'lineup', index: 0 })).toThrow()
-      return
-    }
-    throw new Error('找不到投手選項')
+  it('裝備卡可以裝上或放進背包；裝滿要指定換下哪一件', () => {
+    let t = started(11)
+    const id = t.setup.team.roster.lineup[2].player.id
+    t = pickEquipment(withCard(t, { kind: 'equipment', id: 'spikes' }), 0, id)
+    t = pickEquipment(withCard(t, { kind: 'equipment', id: 'masterBat' }), 0, id)
+    expect(t.setup.team.roster.lineup[2].player.equipment).toEqual(['spikes', 'masterBat'])
+    expect(() => pickEquipment(withCard(t, { kind: 'equipment', id: 'weightedBat' }), 0, id)).toThrow()
+    t = pickEquipment(withCard(t, { kind: 'equipment', id: 'weightedBat' }), 0, id, 0)
+    expect(t.setup.team.roster.lineup[2].player.equipment).toEqual(['weightedBat', 'masterBat'])
+    expect(t.bag).toEqual(['spikes'])
+    t = pickEquipment(withCard(t, { kind: 'equipment', id: 'gripBag' }), 0, null)
+    expect(t.bag).toEqual(['spikes', 'gripBag'])
+    // 投手的裝備不能給打者
+    expect(() => equipFromBag(t, 1, id)).toThrow()
+    t = unequip(t, id, 1)
+    expect(t.bag).toEqual(['spikes', 'gripBag', 'masterBat'])
   })
 
-  it('放棄選秀，名單不變', () => {
-    const t = atDraft(11)
-    expect(skipDraft(t).setup.team.roster).toEqual(t.setup.team.roster)
+  it('特性卡取代互斥的舊特性，角色不符不能學', () => {
+    let t = started(12)
+    const target = t.setup.team.roster.lineup[0].player
+    t = { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster: { ...t.setup.team.roster, lineup: t.setup.team.roster.lineup.map((s, i) => (i === 0 ? { ...s, player: { ...s.player, traits: ['errorProne'] } } : s)) } } } }
+    t = pickTrait(withCard(t, { kind: 'trait', id: 'goodGlove' }), 0, target.id)
+    expect(t.setup.team.roster.lineup[0].player.traits).toEqual(['goodGlove'])
+    expect(() => pickTrait(withCard(t, { kind: 'trait', id: 'closer' }), 0, target.id)).toThrow()
   })
 })
 
-describe('存檔', () => {
-  it('狀態可以轉成 JSON 再還原，繼續往下打', () => {
-    let t = startTournament(createTournament(12))
-    t = skipDraft(play(t, WIN))
-    const restored: Tournament = JSON.parse(JSON.stringify(t))
-    expect(restored).toEqual(t)
-    expect(play(restored, WIN)).toEqual(play(t, WIN))
+describe('上場比賽', () => {
+  it('比賽用的隊伍含裝備加成與秘寶，錦標賽存的能力不變；新比賽記下規則版本', () => {
+    let t: Tournament = { ...started(13), bag: ['compressedBat'] }
+    const p = t.setup.team.roster.lineup[0].player
+    t = equipFromBag(t, 0, p.id)
+    const game = beginGame(t).currentGame!.setup
+    expect(game.home.roster.lineup[0].player.ratings.power).toBe(Math.min(10, p.ratings.power + 2))
+    expect(game.home.relics).toEqual(relicsOf(t))
+    expect(game.rules).toBe(RULES_VERSION)
+    expect(t.setup.team.roster.lineup[0].player.ratings.power).toBe(p.ratings.power)
   })
 
-  it('比賽進行中會記住種子和指令紀錄', () => {
-    let t = beginGame(startTournament(createTournament(13)))
-    expect(t.phase).toBe('playing')
-    expect(t.currentGame?.setup.home.name).toBe(t.setup.team.name)
-    t = saveProgress(t, [{ stepIndex: 3, tactic: { type: 'bunt' } }], 10)
-    expect(t.currentGame?.stepIndex).toBe(10)
-    expect(t.currentGame?.commands).toHaveLength(1)
-    expect(finishGame(t, WIN).currentGame).toBeNull()
-  })
-})
-
-describe('賽程樹', () => {
-  it('每一輪的場次數正確：8、4、2、1', () => {
-    let t = startTournament(createTournament(14))
-    for (let i = 0; i < 3; i++) t = skipDraft(play(t, WIN))
-    t = play(play(t, WIN), WIN)
-    const rounds = bracket(t)
-    expect(rounds.map((r) => r.length)).toEqual([8, 4, 2, 1])
-    expect(rounds[3][0].winner).toBe(0)
-  })
-})
-
-describe('錦標賽成長', () => {
-  it('比賽結束時把成長套用到自己的陣容，而且新開的比賽記下規則版本', () => {
-    const t = beginGame(startTournament(createTournament(5)))
-    expect(t.currentGame!.setup.rules).toBe(RULES_VERSION)
-    const batter = t.setup.team.roster.lineup[2].player
-    const after = finishGame(t, WIN, [{ playerId: batter.id, rating: 'power', amount: 1, mvp: true }])
-    expect(after.setup.team.roster.lineup[2].player.ratings.power).toBe(Math.min(10, batter.ratings.power + 1))
-  })
-})
-
-describe('錦標賽中的球員骰子', () => {
-  it('開打時沒用完的重骰作廢；每贏一場多一顆，輸球不會多', () => {
-    let t = startTournament(createTournament(8))
-    expect(t.setup.playerRerollsLeft).toBe(0)
-    t = play(t, WIN)
-    expect(t.setup.playerRerollsLeft).toBe(1)
-    t = skipDraft(t)
-    t = play(t, WIN)
-    expect(t.setup.playerRerollsLeft).toBe(2)
+  it('比賽結束時把成長套用到陣容', () => {
+    const t = started(14)
+    const p = t.setup.team.roster.lineup[0].player
+    const grown = finishGame(beginGame(t), WIN, [{ playerId: p.id, rating: 'contact', amount: 1, mvp: true }])
+    expect(grown.setup.team.roster.lineup[0].player.ratings.contact).toBe(Math.min(10, p.ratings.contact + 1))
   })
 
-  it('沒用完會累積；在兩場之間用掉會換人並扣一顆', () => {
-    let t = skipDraft(play(startTournament(createTournament(9)), WIN))
-    const before = t.setup.team.roster.lineup[0].player
-    const rerolled = rerollPlayer(t.setup, { kind: 'lineup', index: 0 })
-    t = updateLineup(t, rerolled)
-    expect(t.setup.playerRerollsLeft).toBe(0)
-    expect(t.setup.team.roster.lineup[0].player.id).not.toBe(before.id)
-    // 沒骰子就不能再骰；也不能憑空變出骰子
-    expect(rerollPlayer(t.setup, { kind: 'lineup', index: 1 }).playerRerollsLeft).toBe(0)
-    expect(() => updateLineup(t, { ...t.setup, playerRerollsLeft: 5 })).toThrow()
-  })
-})
-
-describe('難度等級', () => {
-  it('等級越高，同一輪的對手越強；舊存檔沒有等級當作 1', () => {
-    const avg = (tier: 1 | 3 | 5) => {
-      let sum = 0
-      for (let seed = 1; seed <= 60; seed++) sum += teamAverage(createTournament(seed, tier).opponent.roster)
-      return sum / 60
-    }
-    expect(avg(3)).toBeGreaterThan(avg(1) + 0.3)
-    expect(avg(5)).toBeGreaterThan(avg(3) + 0.3)
-    const old = createTournament(7)
-    delete old.tier
-    expect(tierOf(old)).toBe(1)
-    expect(createTournament(7, 4).tier).toBe(4)
+  it('狀態可以轉成 JSON 再還原，比賽進行中記住指令紀錄', () => {
+    const t = saveProgress(beginGame(started(15)), [{ stepIndex: 3, tactic: { type: 'intentionalWalk' } }], 5)
+    const restored = JSON.parse(JSON.stringify(t)) as Tournament
+    expect(restored.currentGame!.commands).toHaveLength(1)
+    expect(finishGame(restored, WIN).phase).toBe('reward')
   })
 })

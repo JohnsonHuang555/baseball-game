@@ -123,3 +123,30 @@ export function choiceModal<V>(opts: { title: string; message?: string; options:
     ;(list.querySelector('button:not(:disabled)') as HTMLButtonElement | null)?.focus()
   })
 }
+
+/** 只用來看的視窗（例如對手陣容）：關閉鈕、Esc、點外面都能關 */
+export function infoModal(title: string, body: HTMLElement, wide = false): void {
+  const overlay = el('div', 'modal-overlay')
+  const box = el('section', `modal-box info-box${wide ? ' wide' : ''}`)
+  box.setAttribute('role', 'dialog')
+  box.setAttribute('aria-modal', 'true')
+  box.setAttribute('aria-labelledby', 'modal-title')
+  const heading = el('h2', 'modal-title', title)
+  heading.id = 'modal-title'
+  const close = el('button', 'btn-white choice-cancel', T.close)
+  close.type = 'button'
+  close.append(kbd('ESC'))
+  box.append(heading, body, close)
+  overlay.append(box)
+  document.body.append(overlay)
+  const previousKeys = setKeys({ Escape: () => done() })
+  function done(): void {
+    overlay.remove()
+    setKeys(previousKeys)
+  }
+  close.onclick = done
+  overlay.onclick = (e) => {
+    if (e.target === overlay) done()
+  }
+  close.focus()
+}

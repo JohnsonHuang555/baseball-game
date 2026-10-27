@@ -9,7 +9,7 @@ import { Game } from './sim/game'
 import { cardTier, generateBatter, generateTeam, teamName, type CardTier } from './sim/generate'
 import { Rng } from './sim/rng'
 import { createSetup } from './sim/setup'
-import { createTournament, currentRound, updateSetup, type Tier } from './sim/tournament'
+import { createTournament, updateSetup, type Tier } from './sim/tournament'
 import { OUTFITS, OUTFIT_UNLOCK, availableTiers, clearedTier, isUnlocked, outfitForTier, trophies, type Outfit } from './ui/progress'
 import { showTrophyCase } from './ui/trophyScreen'
 import type { Batter, Team } from './sim/types'
@@ -25,7 +25,7 @@ import { TUTORIAL_STEPS } from './ui/tutorialSteps'
 import { toast } from './ui/visual'
 import { el } from './ui/playerCard'
 import { withSavedName } from './ui/prefs'
-import { loadTournament } from './ui/save'
+import { discardOldTournament, loadTournament } from './ui/save'
 import { randomSeed, rays, showRosterEditor } from './ui/setupScreen'
 import { T } from './ui/strings'
 import { openTournament } from './ui/tournamentScreen'
@@ -169,7 +169,7 @@ function showTitle(): void {
     openTournament(root, updateSetup(t, withSavedName(t.setup)), showTitle)
   }
   if (saved) {
-    const resume = el('button', 'btn-yellow btn-big', T.continueTournament(T.roundNames[currentRound(saved)]))
+    const resume = el('button', 'btn-yellow btn-big', T.continueTournament(T.roundNames[saved.round]))
     resume.onclick = () => openTournament(root, saved, showTitle)
     buttons.append(resume, quick, fresh)
   } else buttons.append(quick, fresh)
@@ -210,6 +210,7 @@ function startQuickMatch(): void {
       showGame(root, {
         game: new Game({ home: final.team, away: opponent, seed: randomSeed(), userSide: 'home' }),
         resultLabel: T.quickMatch,
+        manualToggle: true,
         resultExtra: (g) => growthPanel(g, g.userSide, null),
         resultActions: () => [
           { label: T.playAgain, primary: true, onClick: startQuickMatch },
@@ -221,3 +222,4 @@ function startQuickMatch(): void {
 }
 
 showTitle()
+if (discardOldTournament()) toast(T.oldSaveDiscarded)

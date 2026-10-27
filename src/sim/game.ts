@@ -1,5 +1,6 @@
 import { PITCH_WHIFF, aiPitch, coldZone, hotZone, isBreaking, isCorner, repertoire, spotZones, stance, type PitchGuess, type PitchType } from './pitches'
 import { Rng, clamp } from './rng'
+import type { RelicId } from './items'
 import { hasTrait } from './traits'
 import type { Batter, LineupSpot, Pitcher, Player, Team, Tendency } from './types'
 
@@ -83,6 +84,9 @@ export type MeterGrade = 'perfect' | 'good' | 'early' | 'late' | 'miss'
 
 /** 親自出手的方式：出棒、決勝球（舊規則）、配球 */
 export type TakeOverKind = 'swing' | 'aimPitch' | 'throw'
+
+/** 關鍵打席的理由，依優先順序：英雄時刻、我方守備滿壘、後段一分差二三壘有人 */
+export type KeyAtBatReason = 'hero' | 'basesLoaded' | 'crunch'
 
 /** 計量條上的目標區：center 是中心位置，good、perfect 是往兩側的半寬 */
 export interface MeterZone {
@@ -243,6 +247,10 @@ export interface TeamState {
   battingIndex: number
   /** 目前這位投手是從第幾個打席開始投的 */
   pitcherSincePa: number
+  /** 先發投手，用來分辨後援 */
+  starterId: string
+  /** 錦標賽的秘寶；AI 隊伍和舊存檔沒有 */
+  relics: readonly RelicId[]
 }
 
 type Bases = [Batter | null, Batter | null, Batter | null]
@@ -272,6 +280,8 @@ export class Game {
   stepIndex = 0
   /** 第幾個打席，從 0 開始 */
   paIndex = 0
+  /** 這個半局第一個打席的 paIndex */
+  halfStartPa = 0
   queued: Tactic | null = null
   /** 目前的守備佈陣：教練守備時可以改，打席結束恢復標準 */
   alignment: Alignment = 'normal'
@@ -381,6 +391,8 @@ export class Game {
       pitchCount: 0,
       battingIndex: 0,
       pitcherSincePa: 0,
+      starterId: roster.starter.id,
+      relics: team.relics ?? [],
     }
   }
 
@@ -418,17 +430,19 @@ export class Game {
     return this.fielding.pitcher
   }
 
-  fatigueLimit(p: Pitcher): number {
-    return 50 + p.ratings.stamina * 8 + (hasTrait(p, 'ironArm') ? 40 : 0) - (hasTrait(p, 'lowStamina') ? 15 : 0)
+  /** 投手的疲勞門檻（球數）；給了所屬的隊伍才算秘寶「耐力訓練」 */
+  fatigueLimit(p: Pitcher, team?: TeamState): number {
+    const relic = team && hasRelic(team, 'stamina') ? 15 : 0
+    return 50 + p.ratings.stamina * 8 + (hasTrait(p, 'ironArm') ? 40 : 0) - (hasTrait(p, 'lowStamina') ? 15 : 0) + relic
   }
 
   isFatigued(team: TeamState): boolean {
-    return team.pitchCount >= this.fatigueLimit(team.pitcher)
+    return team.pitchCount >= this.fatigueLimit(team.pitcher, team)
   }
 
   /** 剩餘體力比例：1 是滿的，0 代表已經到疲勞門檻 */
   staminaLeft(team: TeamState): number {
-    return clamp(1 - team.pitchCount / this.fatigueLimit(team.pitcher), 0, 1)
+    return clamp(1 - team.pitchCount / this.fatigueLimit(team.pitcher, team), 0, 1)
   }
 
   /** 得點圈（二、三壘）有沒有跑者 */
@@ -444,13 +458,15 @@ export class Game {
   /** 某個守位的守備值；投手沒有守備能力，當作聯盟平均 */
   fieldingAt(team: TeamState, fielder: Fielder): number {
     if (fielder === 'P') return AVERAGE_FIELDING
-    return team.lineup.find((s) => s.position === fielder)?.player.ratings.fielding ?? AVERAGE_FIELDING
+    const wall = hasRelic(team, 'ironWall') ? 1 : 0
+    return (team.lineup.find((s) => s.position === fielder)?.player.ratings.fielding ?? AVERAGE_FIELDING) + wall
   }
 
   /** 整隊的守備範圍：指定打擊不算 */
   teamDefense(team: TeamState): number {
     const fielders = team.lineup.filter((s) => s.position !== 'DH')
-    return fielders.reduce((sum, s) => sum + s.player.ratings.fielding, 0) / fielders.length
+    const wall = hasRelic(team, 'ironWall') ? 1 : 0
+    return fielders.reduce((sum, s) => sum + s.player.ratings.fielding, 0) / fielders.length + wall
   }
 
   /** 盜壘成功率：跑者速度對上捕手守備。penalty 用於打帶跑揮空時 */
@@ -461,7 +477,8 @@ export class Game {
     return clamp(
       0.55 +
         (runner.ratings.speed - 5) * 0.06 +
-        (hasTrait(runner, 'stealer') ? 0.15 : 0) -
+        (hasTrait(runner, 'stealer') ? 0.15 : 0) +
+        (hasRelic(this.batting, 'speedster') ? 0.1 : 0) -
         (catcher - AVERAGE_FIELDING) * 0.03 -
         penalty,
       0.1,
@@ -478,11 +495,21 @@ export class Game {
   }
 
   /**
-   * 「親自操作：關鍵」交給教練出手的時刻：第 6 局以後、比分差 2 分以內、得點圈有人。
-   * 比決策提示的門檻寬一點，大約四場有三場會遇到
+   * 這個打席是不是交給教練親自出手的關鍵打席（ADR-0002），不是就回傳 null。
+   * 英雄時刻：第 8 局以後，打者這邊落後或平手，得點圈的跑者數夠這一支安打追平或超前（攻守兩邊都算）；
+   * 延長賽每個半局都從二壘有人開始，所以英雄時刻只算半局的第一個打席，不然平手時每個打席都是；
+   * 滿壘：我方守備時任何一局；後段：第 7 局以後、比分差 1 分內、二三壘都有人（攻守兩邊都算）
    */
-  isClutch(): boolean {
-    return this.inning >= 6 && Math.abs(this.score.home - this.score.away) <= 2 && !!(this.bases[1] || this.bases[2])
+  keyAtBat(): KeyAtBatReason | null {
+    if (this.over) return null
+    const [, second, third] = this.bases
+    const risp = (second ? 1 : 0) + (third ? 1 : 0)
+    const behind = this.score[this.fieldingSide] - this.score[this.battingSide]
+    const heroAllowed = this.inning < 10 || this.paIndex === this.halfStartPa
+    if (this.inning >= 8 && heroAllowed && behind >= 0 && risp >= Math.max(1, behind)) return 'hero'
+    if (this.fieldingSide === this.userSide && this.bases.every(Boolean)) return 'basesLoaded'
+    if (this.inning >= 7 && Math.abs(behind) <= 1 && second && third) return 'crunch'
+    return null
   }
 
   /** 第 7 局以後、比分差 1 分以內、得點圈有人：真正能左右勝負的時刻 */
@@ -816,7 +843,7 @@ export class Game {
     const inZone = mod.inZone ?? rng.chance(zoneP)
     const swingP = inZone
       ? 0.65 + (twoStrikes ? 0.15 : 0)
-      : 0.32 + (twoStrikes ? 0.12 : 0) - (hasTrait(batter, 'eye') ? 0.12 : 0) - (this.balls === 3 ? 0.05 : 0)
+      : 0.32 + (twoStrikes ? 0.12 : 0) - (hasTrait(batter, 'eye') ? 0.12 : 0) - (this.balls === 3 ? 0.05 : 0) - (hasRelic(this.batting, 'patience') ? 0.06 : 0)
     const swing = mod.swing ?? (hitAndRun || rng.chance(swingP))
 
     let result: PitchResult
@@ -865,11 +892,16 @@ export class Game {
   private effectivePitcher(): { stuff: number; control: number } {
     const team = this.fielding
     const p = team.pitcher
-    const over = Math.max(0, team.pitchCount - this.fatigueLimit(p))
+    const over = Math.max(0, team.pitchCount - this.fatigueLimit(p, team))
     const penalty = (over / 15) * (hasTrait(p, 'ironArm') ? 0.5 : 1)
     // 終結者：第 8 局起球威、控球都提升
     const closing = hasTrait(p, 'closer') && this.inning >= 8 ? 1.5 : 0
-    return { stuff: p.ratings.stuff - penalty + closing, control: p.ratings.control - penalty + closing }
+    // 秘寶：後援陣容（後援球威）、守護神（第 9 局起球威）、好球帶（控球）、王朝（都加）
+    const dynasty = hasRelic(team, 'dynasty') ? 0.5 : 0
+    const stuff =
+      (hasRelic(team, 'deepRelief') && p.id !== team.starterId ? 1 : 0) + (hasRelic(team, 'guardian') && this.inning >= 9 ? 1.5 : 0) + dynasty
+    const control = (hasRelic(team, 'strikeZone') ? 1 : 0) + dynasty
+    return { stuff: p.ratings.stuff - penalty + closing + stuff, control: p.ratings.control - penalty + closing + control }
   }
 
   /** 打者對投手是同側還是對側；兩打永遠站對側 */
@@ -888,6 +920,12 @@ export class Game {
       if (hasTrait(b, 'clutch')) k += 2
       if (hasTrait(b, 'clutchBad')) k -= 2
     }
+    // 秘寶：開路先鋒（每半局第一棒）、得點圈之魂、逆轉魂（第 7 局起落後）、王朝
+    const team = this.batting
+    if (hasRelic(team, 'leadoff') && this.paIndex === this.halfStartPa) k += 2
+    if (hasRelic(team, 'rispSoul') && this.scoringPosition()) k += 1
+    if (hasRelic(team, 'comeback') && this.inning >= 7 && this.score[this.battingSide] < this.score[this.fieldingSide]) k += 1.5
+    if (hasRelic(team, 'dynasty')) k += 0.5
     return k
   }
 
@@ -897,7 +935,7 @@ export class Game {
     const { stuff } = this.effectivePitcher()
     const contact = this.effectiveContact(batter)
     const { speed } = batter.ratings
-    const power = batter.ratings.power + (mod.power ?? 0)
+    const power = batter.ratings.power + (mod.power ?? 0) + (hasRelic(this.batting, 'dynasty') ? 0.5 : 0)
     // 守備範圍好的隊伍，能把一部分安打變成出局
     const range = this.teamDefense(this.fielding) - AVERAGE_FIELDING
     const hitP = clamp(
@@ -914,7 +952,8 @@ export class Game {
       const deep = this.alignment === 'outfieldBack' ? 0.4 : 1
       // 平飛打者多二、三壘安打；滾地球投手少被全壘打，被全壘打的投手反之
       const gaps = hasTrait(batter, 'lineDrive') ? 1.4 : 1
-      const homers = hasTrait(pitcher, 'homerProne') ? 1.5 : hasTrait(pitcher, 'groundballer') ? 0.7 : 1
+      const homers =
+        (hasTrait(pitcher, 'homerProne') ? 1.5 : hasTrait(pitcher, 'groundballer') ? 0.7 : 1) * (hasRelic(this.batting, 'powerHouse') ? 1.25 : 1)
       const kind = rng.weighted<PlayKind>([
         ['homeRun', Math.max(0.02, 0.1 + (power - 5) * 0.035 + (hasTrait(batter, 'slugger') ? 0.08 : 0)) * homers],
         ['triple', Math.max(0.005, 0.025 + (speed - 5) * 0.006) * deep * gaps],
@@ -1008,7 +1047,7 @@ export class Game {
       if (to !== 4) taken.add(to)
     }
     // 跑壘○：多推進一個壘包的判斷比速度看起來更好
-    const spd = (b: Batter) => b.ratings.speed - 5 + (hasTrait(b, 'baserunner') ? 2 : 0)
+    const spd = (b: Batter) => b.ratings.speed - 5 + (hasTrait(b, 'baserunner') ? 2 : 0) + (hasRelic(this.batting, 'speedster') ? 1 : 0)
     let ball: BattedBall
     switch (kind) {
       case 'homeRun': {
@@ -1255,6 +1294,7 @@ export class Game {
     this.strikes = 0
     this.bases = [null, null, null]
     this.queued = null
+    this.halfStartPa = this.paIndex
     if (this.half === 'top') {
       if (this.inning >= 9 && this.score.home > this.score.away) return [...events, this.endGame('home')]
       this.half = 'bottom'
@@ -1283,6 +1323,10 @@ export class Game {
 }
 
 const HIT_KINDS: readonly PlayKind[] = ['single', 'double', 'triple', 'homeRun']
+
+function hasRelic(team: TeamState, id: RelicId): boolean {
+  return team.relics.includes(id)
+}
 
 /** 猜球對計量條黃色區的影響：猜中變寬、猜錯變窄 */
 export const GUESS_ZONE = { right: 1.5, wrong: 0.65 }

@@ -1,39 +1,47 @@
+// 錦標賽：roguelike 的一輪。例行賽 8 場（5 勝晉級），季後賽八強、四強各一場，決賽三戰兩勝（ADR-0005）
 import { RULES_VERSION, type Command, type GameSetup } from './game'
 import { applyGrowth, type Growth } from './growth'
-import { BASE_MEAN, generateBatter, generatePitcher, generateRoster, teamName } from './generate'
+import { BASE_MEAN, cardTier, generateBatter, generatePitcher, generateRoster, teamName, type CardTier } from './generate'
+import { EQUIPMENT, MAX_EQUIPMENT, RELICS, equippedTeam, mapRoster, type EquipmentId, type RelicId } from './items'
 import { Rng } from './rng'
-import { createSetup, isPitcherSlot, setSlot, type PregameSetup, type Slot } from './setup'
+import { createSetup, getSlot, isPitcherSlot, setSlot, type PregameSetup, type Slot } from './setup'
+import { TRAITS, conflicts, type TraitId } from './traits'
 import type { Player, Roster, Team } from './types'
 
-export const ROUNDS = ['r16', 'qf', 'sf', 'final'] as const
-export type Round = (typeof ROUNDS)[number]
+/** 錦標賽的階段；r16 只出現在舊版的冠軍紀錄 */
+export type Round = 'season' | 'r16' | 'qf' | 'sf' | 'final'
+export const PLAYOFF_ROUNDS = ['qf', 'sf', 'final'] as const
+export type PlayoffRound = (typeof PLAYOFF_ROUNDS)[number]
 
-/** 每一輪 AI 對手的能力值中心比玩家高多少 */
-export const ROUND_DIFFICULTY: Record<Round, number> = { r16: 0, qf: 0.25, sf: 0.5, final: 0.75 }
+export const SEASON_GAMES = 8
+export const WINS_TO_ADVANCE = 5
+/** 例行賽最多能輸幾場；再輸就不可能拿到晉級的勝場 */
+export const MAX_SEASON_LOSSES = SEASON_GAMES - WINS_TO_ADVANCE
 export const FINAL_WINS_NEEDED = 2
+/** 聯盟隊數：玩家加 11 支 AI 隊伍 */
+const LEAGUE_SIZE = 12
 
-/** 難度等級 1～5：奪冠後開放下一級，對手的能力值中心依等級再往上加 */
+/** 難度等級 1～5：奪冠後開放下一級 */
 export const TIERS = [1, 2, 3, 4, 5] as const
 export type Tier = (typeof TIERS)[number]
-export const TIER_DIFFICULTY: Record<Tier, number> = { 1: 0, 2: 0.3, 3: 0.6, 4: 0.9, 5: 1.2 }
-export const DRAFT_SIZE = 3
-const TEAM_COUNT = 16
+/** 對手能力值中心的曲線：第一場的起點，以及每打一場往上加多少 */
+export const TIER_START: Record<Tier, number> = { 1: -0.5, 2: -0.2, 3: 0.2, 4: 0.5, 5: 0.8 }
+export const TIER_SLOPE: Record<Tier, number> = { 1: 0.08, 2: 0.09, 3: 0.1, 4: 0.11, 5: 0.12 }
+/** 例行賽每多一勝（超過晉級門檻），季後賽對手就弱這麼多 */
+const SEED_BONUS = 0.08
+/** 一位球員最多幾個特性 */
+const MAX_TRAITS = 3
+const STARTING_RELICS = 3
 
-export type TournamentPhase = 'pregame' | 'ready' | 'playing' | 'draft' | 'champion' | 'eliminated'
+export type TournamentPhase = 'pregame' | 'relic' | 'ready' | 'playing' | 'reward' | 'champion' | 'eliminated'
 
 export interface GameRecord {
   round: Round
   userRuns: number
   opponentRuns: number
   won: boolean
-}
-
-/** AI 之間的比賽結果，開賽時就決定好 */
-export interface AiMatch {
-  round: number
-  a: number
-  b: number
-  winner: number
+  /** 對手隊名；舊版的冠軍紀錄沒有 */
+  opponent?: string
 }
 
 /** 進行中的比賽：種子加指令紀錄就能重播回來（ADR-0001） */
@@ -43,88 +51,104 @@ export interface SavedGame {
   stepIndex: number
 }
 
+/** 獎勵選擇裡的一張卡 */
+export type RewardCard =
+  | { kind: 'player'; player: Player }
+  | { kind: 'equipment'; id: EquipmentId }
+  | { kind: 'relic'; id: RelicId }
+  | { kind: 'trait'; id: TraitId }
+
 /** 整個錦標賽的狀態，只含純資料，可以直接存成 JSON */
 export interface Tournament {
+  version: 2
   phase: TournamentPhase
   rngState: number
-  /** 玩家的隊伍與剩餘重骰次數；開打後重骰次數不再使用 */
+  tier: Tier
+  /** 玩家的隊伍（含秘寶）；球員身上的能力不含裝備加成 */
   setup: PregameSetup
-  /** 賽程樹上的 16 隊，第 0 隊是玩家 */
+  /** 聯盟各隊，第 0 隊是玩家 */
   teamNames: string[]
-  /** opponents[r]：第 r 輪的對手在 teamNames 的索引 */
-  opponents: number[]
-  aiMatches: AiMatch[]
-  roundIndex: number
+  /** 例行賽 8 場的對手，teamNames 的索引 */
+  schedule: number[]
+  /** 季後賽八強、四強、決賽的對手 */
+  playoff: number[]
+  /** 下一場（或正在打的這場）屬於哪個階段 */
+  round: Round
   opponent: Team
   series: { user: number; opponent: number }
   history: GameRecord[]
-  draftOptions: Player[]
+  relicOptions: RelicId[]
+  rewards: RewardCard[]
+  /** 背包：沒有裝在任何人身上的裝備 */
+  bag: EquipmentId[]
   currentGame: SavedGame | null
-  /** 難度等級；舊存檔沒有這個欄位，當作 1 */
-  tier?: Tier
-}
-
-export function tierOf(t: Tournament): Tier {
-  return t.tier ?? 1
 }
 
 export function createTournament(seed: number, tier: Tier = 1): Tournament {
   const rng = new Rng(seed)
-  const setup = createSetup(rng.int(0, 2 ** 32 - 1))
+  const setup: PregameSetup = { ...createSetup(rng.int(0, 2 ** 32 - 1)), teamRerollsLeft: 1, playerRerollsLeft: 0 }
   const teamNames = [setup.team.name]
-  while (teamNames.length < TEAM_COUNT) {
+  while (teamNames.length < LEAGUE_SIZE) {
     const name = teamName(rng)
     if (!teamNames.includes(name)) teamNames.push(name)
   }
-
-  // 玩家以外的半區，勝負事先決定。第 r 輪的對手來自 [2^r, 2^(r+1)) 這個半區
-  const aiMatches: AiMatch[] = []
-  const blockWinner = (lo: number, hi: number, round: number): number => {
-    if (hi - lo === 1) return lo
-    const mid = (lo + hi) / 2
-    const a = blockWinner(lo, mid, round - 1)
-    const b = blockWinner(mid, hi, round - 1)
-    const winner = rng.chance(0.5) ? a : b
-    aiMatches.push({ round, a, b, winner })
-    return winner
-  }
-  const opponents = ROUNDS.map((_, r) => blockWinner(2 ** r, 2 ** (r + 1), r - 1))
-
+  const others = rng.shuffle(Array.from({ length: LEAGUE_SIZE - 1 }, (_, i) => i + 1))
   const t: Tournament = {
+    version: 2,
     phase: 'pregame',
     rngState: rng.state,
+    tier,
     setup,
     teamNames,
-    opponents,
-    aiMatches,
-    roundIndex: 0,
+    schedule: others.slice(0, SEASON_GAMES),
+    playoff: rng.shuffle(others).slice(0, PLAYOFF_ROUNDS.length),
+    round: 'season',
     opponent: { name: '', roster: setup.team.roster },
     series: { user: 0, opponent: 0 },
     history: [],
-    draftOptions: [],
+    relicOptions: [],
+    rewards: [],
+    bag: [],
     currentGame: null,
-    tier,
   }
   return withOpponent(t)
 }
 
-export function currentRound(t: Tournament): Round {
-  return ROUNDS[t.roundIndex]
+export function seasonRecord(t: Tournament): { wins: number; losses: number } {
+  const games = t.history.filter((g) => g.round === 'season')
+  const wins = games.filter((g) => g.won).length
+  return { wins, losses: games.length - wins }
+}
+
+/** 季後賽種子：8 勝是第 1 種子，5 勝是第 4 種子 */
+export function playoffSeed(t: Tournament): number {
+  return Math.min(4, Math.max(1, SEASON_GAMES + 1 - seasonRecord(t).wins))
+}
+
+/** 下一場對手的隊伍索引 */
+export function opponentIndex(t: Tournament): number {
+  if (t.round === 'season') return t.schedule[seasonRecord(t).wins + seasonRecord(t).losses]
+  return t.playoff[PLAYOFF_ROUNDS.indexOf(t.round as PlayoffRound)]
+}
+
+/** 對手的能力值中心：隨場次提高，難度決定起點與斜率；季後賽依例行賽勝場給種子優勢 */
+export function opponentMean(t: Tournament): number {
+  const base = BASE_MEAN + TIER_START[t.tier] + TIER_SLOPE[t.tier] * t.history.length
+  if (t.round === 'season') return base
+  return base - (seasonRecord(t).wins - WINS_TO_ADVANCE) * SEED_BONUS
 }
 
 function withOpponent(t: Tournament): Tournament {
   const rng = new Rng(t.rngState)
-  const round = ROUNDS[t.roundIndex]
-  const roster = generateRoster(rng, BASE_MEAN + ROUND_DIFFICULTY[round] + TIER_DIFFICULTY[tierOf(t)])
-  const opponent = { name: t.teamNames[t.opponents[t.roundIndex]], roster }
-  return { ...t, opponent, rngState: rng.state }
+  const roster = generateRoster(rng, opponentMean(t))
+  return { ...t, opponent: { name: t.teamNames[opponentIndex(t)], roster }, rngState: rng.state }
 }
 
 function expectPhase(t: Tournament, ...phases: TournamentPhase[]): void {
   if (!phases.includes(t.phase)) throw new Error(`錦標賽目前是 ${t.phase}，不能這樣做`)
 }
 
-/** 開打前的重骰；開打後就不能再重骰 */
+/** 開打前的重骰與改隊名；開打後就不能再重骰 */
 export function updateSetup(t: Tournament, setup: PregameSetup): Tournament {
   expectPhase(t, 'pregame')
   const name = setup.team.name
@@ -135,7 +159,7 @@ export function updateSetup(t: Tournament, setup: PregameSetup): Tournament {
   for (let i = 1; i < teamNames.length; i++) {
     while (teamNames.indexOf(teamNames[i]) !== i) teamNames[i] = teamName(rng)
   }
-  const opponent = { ...t.opponent, name: teamNames[t.opponents[t.roundIndex]] }
+  const opponent = { ...t.opponent, name: teamNames[opponentIndex(t)] }
   return { ...t, setup, teamNames, opponent, rngState: rng.state }
 }
 
@@ -145,33 +169,44 @@ export function updateRoster(t: Tournament, roster: Roster): Tournament {
   return { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster } } }
 }
 
-/**
- * 錦標賽中兩場之間：調整陣容，也可以用贏球得到的球員骰子重骰。
- * 隊名與整隊重骰不能改，只接受陣容、剩下的球員骰子數與亂數狀態
- */
+/** 兩場之間的陣容調整：隊名、秘寶、重骰都不能改，只接受陣容 */
 export function updateLineup(t: Tournament, setup: PregameSetup): Tournament {
   expectPhase(t, 'ready')
-  if (setup.playerRerollsLeft > t.setup.playerRerollsLeft) throw new Error('球員骰子不會變多')
-  return {
-    ...t,
-    setup: { ...t.setup, team: { ...t.setup.team, roster: setup.team.roster }, playerRerollsLeft: setup.playerRerollsLeft, rngState: setup.rngState },
-  }
+  return { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster: setup.team.roster } } }
 }
 
-/** 每贏一場得到的球員骰子 */
-export const DICE_PER_WIN = 1
-
-/** 開打：開打前沒用完的重骰作廢，之後的球員骰子只能靠贏球得到 */
+/** 開打：沒用完的重骰作廢，接著選起始秘寶 */
 export function startTournament(t: Tournament): Tournament {
   expectPhase(t, 'pregame')
-  return { ...t, phase: 'ready', setup: { ...t.setup, teamRerollsLeft: 0, playerRerollsLeft: 0 } }
+  const rng = new Rng(t.rngState)
+  // 起始秘寶不出彩虹，免得開局就定生死
+  const pool = (Object.keys(RELICS) as RelicId[]).filter((id) => RELICS[id].tier !== 'rainbow')
+  const relicOptions = rng.shuffle(pool).slice(0, STARTING_RELICS)
+  return { ...t, phase: 'relic', relicOptions, rngState: rng.state, setup: { ...t.setup, teamRerollsLeft: 0, playerRerollsLeft: 0 } }
+}
+
+export function chooseStartingRelic(t: Tournament, index: number): Tournament {
+  expectPhase(t, 'relic')
+  const id = t.relicOptions[index]
+  if (!id) throw new Error('沒有這個秘寶')
+  return { ...withRelic(t, id), phase: 'ready', relicOptions: [] }
+}
+
+export function relicsOf(t: Tournament): readonly RelicId[] {
+  return t.setup.team.relics ?? []
+}
+
+function withRelic(t: Tournament, id: RelicId): Tournament {
+  const team = { ...t.setup.team, relics: [...relicsOf(t), id] }
+  return { ...t, setup: { ...t.setup, team } }
 }
 
 export function beginGame(t: Tournament): Tournament {
   expectPhase(t, 'ready')
   const rng = new Rng(t.rngState)
   const setup: GameSetup = {
-    home: t.setup.team,
+    // 上場的隊伍把裝備加成算進能力值，比賽本身不用知道裝備
+    home: equippedTeam(t.setup.team),
     away: t.opponent,
     seed: rng.int(0, 2 ** 32 - 1),
     userSide: 'home',
@@ -186,79 +221,192 @@ export function saveProgress(t: Tournament, commands: readonly Command[], stepIn
   return { ...t, currentGame: { ...t.currentGame!, commands: [...commands], stepIndex } }
 }
 
-/** 比賽結束：記戰績、套用這場的成長，再決定下一步（選秀、下一戰、奪冠或淘汰） */
+/** 比賽結束：記戰績、套用成長，決定下一個階段；沒結束就進入獎勵選擇 */
 export function finishGame(t: Tournament, score: { home: number; away: number }, growth: readonly Growth[] = []): Tournament {
   expectPhase(t, 'playing')
-  const round = currentRound(t)
   const won = score.home > score.away
-  const history = [...t.history, { round, userRuns: score.home, opponentRuns: score.away, won }]
+  const history = [...t.history, { round: t.round, userRuns: score.home, opponentRuns: score.away, won, opponent: t.opponent.name }]
   const team = { ...t.setup.team, roster: applyGrowth(t.setup.team.roster, growth) }
-  // 贏球多一顆球員骰子，沒用完會累積到之後的比賽
-  const playerRerollsLeft = t.setup.playerRerollsLeft + (won ? DICE_PER_WIN : 0)
-  const base = { ...t, setup: { ...t.setup, team, playerRerollsLeft }, history, currentGame: null }
-  if (round === 'final') {
-    const series = { user: t.series.user + (won ? 1 : 0), opponent: t.series.opponent + (won ? 0 : 1) }
+  const base: Tournament = { ...t, setup: { ...t.setup, team }, history, currentGame: null }
+  let round: Round = t.round
+  let series = t.series
+  if (t.round === 'season') {
+    const { wins, losses } = seasonRecord(base)
+    if (losses > MAX_SEASON_LOSSES) return { ...base, phase: 'eliminated' }
+    if (wins + losses >= SEASON_GAMES) round = 'qf'
+  } else if (t.round === 'final') {
+    series = { user: t.series.user + (won ? 1 : 0), opponent: t.series.opponent + (won ? 0 : 1) }
     if (series.user >= FINAL_WINS_NEEDED) return { ...base, series, phase: 'champion' }
     if (series.opponent >= FINAL_WINS_NEEDED) return { ...base, series, phase: 'eliminated' }
-    return { ...base, series, phase: 'ready' }
+  } else {
+    if (!won) return { ...base, phase: 'eliminated' }
+    round = t.round === 'qf' ? 'sf' : 'final'
   }
-  if (!won) return { ...base, phase: 'eliminated' }
-  return withDraftOptions({ ...base, phase: 'draft' })
+  return withRewards({ ...base, round, series, phase: 'reward' }, won)
 }
 
-function withDraftOptions(t: Tournament): Tournament {
+// ---- 獎勵選擇 ----
+
+/** 獎勵卡的卡色：球員看總評，道具看定義，金特是金卡、藍特是銀卡 */
+export function rewardTier(card: RewardCard): CardTier {
+  switch (card.kind) {
+    case 'player':
+      return cardTier(card.player)
+    case 'equipment':
+      return EQUIPMENT[card.id].tier
+    case 'relic':
+      return RELICS[card.id].tier
+    case 'trait':
+      return TRAITS[card.id].tier === 'gold' ? 'gold' : 'silver'
+  }
+}
+
+/** 贏球的卡色機率；輸球只有比較差的分布 */
+const WIN_TIERS: [CardTier, number][] = [['bronze', 45], ['silver', 35], ['gold', 16], ['rainbow', 4]]
+const LOSS_TIERS: [CardTier, number][] = [['bronze', 70], ['silver', 27], ['gold', 3]]
+/** 球員卡依卡色調整能力值中心 */
+const PLAYER_MEAN: Record<CardTier, number> = { bronze: 0, silver: 0.8, gold: 1.6, rainbow: 2.4 }
+const TIER_ORDER: readonly CardTier[] = ['bronze', 'silver', 'gold', 'rainbow']
+
+function withRewards(t: Tournament, won: boolean): Tournament {
   const rng = new Rng(t.rngState)
-  const nextRound = ROUNDS[t.roundIndex + 1]
-  // 選秀球員略強於基準，讓補強有意義，但不追上當輪對手
-  const mean = BASE_MEAN + ROUND_DIFFICULTY[nextRound] * 0.5
-  const draftOptions = Array.from({ length: DRAFT_SIZE }, () =>
-    rng.chance(0.3) ? generatePitcher(rng, mean) : generateBatter(rng, mean),
-  )
-  return { ...t, draftOptions, rngState: rng.state }
+  const owned = new Set(relicsOf(t))
+  const cards: RewardCard[] = []
+  const taken = new Set<string>()
+  const key = (c: RewardCard) => (c.kind === 'player' ? c.player.id : `${c.kind}:${c.id}`)
+  for (let guard = 0; cards.length < (won ? 3 : 2) && guard < 50; guard++) {
+    const tier = rng.weighted(won ? WIN_TIERS : LOSS_TIERS)
+    const kind = rng.weighted<RewardCard['kind']>([['player', 30], ['equipment', 35], ['trait', 20], ['relic', 15]])
+    const card = rewardOf(rng, kind, tier, owned, t.history.length)
+    if (!card || taken.has(key(card))) continue
+    taken.add(key(card))
+    cards.push(card)
+  }
+  return { ...t, rewards: cards, rngState: rng.state }
 }
 
-/** 選秀：選中的球員取代同角色的一格，原本的球員釋出 */
-export function draftPick(t: Tournament, optionIndex: number, release: Slot): Tournament {
-  expectPhase(t, 'draft')
-  const pick = t.draftOptions[optionIndex]
-  if (!pick) throw new Error('沒有這個選秀選項')
-  if ((pick.role === 'pitcher') !== isPitcherSlot(release)) throw new Error('只能替換同角色的球員')
-  const roster = setSlot(t.setup.team.roster, release, pick)
-  return advanceRound({ ...t, setup: { ...t.setup, team: { ...t.setup.team, roster } } })
-}
-
-export function skipDraft(t: Tournament): Tournament {
-  expectPhase(t, 'draft')
-  return advanceRound(t)
-}
-
-function advanceRound(t: Tournament): Tournament {
-  return withOpponent({ ...t, phase: 'ready', draftOptions: [], roundIndex: t.roundIndex + 1 })
-}
-
-export interface BracketMatch {
-  a: number
-  b: number
-  /** 還沒打完是 null */
-  winner: number | null
-}
-
-/** 每一輪的對戰組合，給畫面顯示賽程樹用 */
-export function bracket(t: Tournament): BracketMatch[][] {
-  return ROUNDS.map((round, r) => {
-    const userMatch: BracketMatch = { a: 0, b: t.opponents[r], winner: null }
-    const reached = r <= t.roundIndex
-    const games = t.history.filter((h) => h.round === round)
-    if (round === 'final') {
-      const wins = games.filter((g) => g.won).length
-      const losses = games.length - wins
-      if (wins >= FINAL_WINS_NEEDED) userMatch.winner = 0
-      else if (losses >= FINAL_WINS_NEEDED) userMatch.winner = t.opponents[r]
-    } else if (games.length > 0) {
-      userMatch.winner = games[0].won ? 0 : t.opponents[r]
+/** 指定種類與卡色的一張卡；沒有符合的道具時往低一級找 */
+function rewardOf(rng: Rng, kind: RewardCard['kind'], tier: CardTier, owned: ReadonlySet<RelicId>, gamesPlayed: number): RewardCard | null {
+  if (kind === 'player') {
+    // 球員卡跟著賽程慢慢變強，才追得上對手
+    const mean = BASE_MEAN + PLAYER_MEAN[tier] + gamesPlayed * 0.05
+    return { kind, player: rng.chance(0.3) ? generatePitcher(rng, mean) : generateBatter(rng, mean) }
+  }
+  for (let i = TIER_ORDER.indexOf(tier); i >= 0; i--) {
+    const want = TIER_ORDER[i]
+    if (kind === 'equipment') {
+      const pool = (Object.keys(EQUIPMENT) as EquipmentId[]).filter((id) => EQUIPMENT[id].tier === want)
+      if (pool.length) return { kind, id: rng.pick(pool) }
+    } else if (kind === 'relic') {
+      const pool = (Object.keys(RELICS) as RelicId[]).filter((id) => RELICS[id].tier === want && !owned.has(id))
+      if (pool.length) return { kind, id: rng.pick(pool) }
+    } else {
+      const traitTier = want === 'gold' || want === 'rainbow' ? 'gold' : 'blue'
+      const pool = (Object.keys(TRAITS) as TraitId[]).filter((id) => TRAITS[id].tier === traitTier)
+      if (pool.length) return { kind, id: rng.pick(pool) }
     }
-    // 玩家出局後，對手繼續晉級；更後面的輪次就不再顯示玩家
-    const ai = t.aiMatches.filter((m) => m.round === r).map(({ a, b, winner }) => ({ a, b, winner }))
-    return reached ? [userMatch, ...ai] : ai
-  })
+  }
+  return null
+}
+
+/** 選完獎勵（或放棄）：換下一個對手 */
+function afterReward(t: Tournament): Tournament {
+  return withOpponent({ ...t, phase: 'ready', rewards: [] })
+}
+
+function rewardAt<K extends RewardCard['kind']>(t: Tournament, index: number, kind: K): Extract<RewardCard, { kind: K }> {
+  expectPhase(t, 'reward')
+  const card = t.rewards[index]
+  if (!card || card.kind !== kind) throw new Error('沒有這張獎勵卡')
+  return card as Extract<RewardCard, { kind: K }>
+}
+
+/** 球員卡：取代同角色的一格，被換下的人釋出，他的裝備回到背包 */
+export function pickPlayer(t: Tournament, index: number, release: Slot): Tournament {
+  const { player } = rewardAt(t, index, 'player')
+  if ((player.role === 'pitcher') !== isPitcherSlot(release)) throw new Error('只能替換同角色的球員')
+  const roster = t.setup.team.roster
+  const out = getSlot(roster, release)
+  const next = setSlot(roster, release, player)
+  return afterReward({ ...t, bag: [...t.bag, ...(out.equipment ?? [])], setup: { ...t.setup, team: { ...t.setup.team, roster: next } } })
+}
+
+/** 秘寶卡：直接加進全隊 */
+export function pickRelic(t: Tournament, index: number): Tournament {
+  const { id } = rewardAt(t, index, 'relic')
+  return afterReward(withRelic(t, id))
+}
+
+/** 裝備卡：裝在某位球員身上；playerId 是 null 就先放進背包。裝滿時 replace 指定換下哪一件（回到背包） */
+export function pickEquipment(t: Tournament, index: number, playerId: string | null, replace?: number): Tournament {
+  const { id } = rewardAt(t, index, 'equipment')
+  const withItem = { ...t, bag: [...t.bag, id] }
+  return afterReward(playerId ? equipFromBag(withItem, withItem.bag.length - 1, playerId, replace) : withItem)
+}
+
+/** 特性卡：加在一位同角色的球員身上，跟它互斥的舊特性會被取代 */
+export function pickTrait(t: Tournament, index: number, playerId: string): Tournament {
+  const { id } = rewardAt(t, index, 'trait')
+  const target = findPlayer(t.setup.team.roster, playerId)
+  if (!canLearnTrait(target, id)) throw new Error('這位球員不能學這個特性')
+  const roster = updatePlayer(t.setup.team.roster, playerId, (p) => ({ ...p, traits: [...p.traits.filter((x) => !conflicts(x, id)), id] }))
+  return afterReward({ ...t, setup: { ...t.setup, team: { ...t.setup.team, roster } } })
+}
+
+export function skipReward(t: Tournament): Tournament {
+  expectPhase(t, 'reward')
+  return afterReward(t)
+}
+
+/** 能不能學這個特性：角色要對、還沒有，而且扣掉會被取代的互斥特性後不超過上限 */
+export function canLearnTrait(p: Player, id: TraitId): boolean {
+  if (TRAITS[id].role !== p.role || p.traits.includes(id)) return false
+  return p.traits.filter((x) => !conflicts(x, id)).length < MAX_TRAITS
+}
+
+// ---- 裝備與背包 ----
+
+export function canEquip(p: Player, id: EquipmentId): boolean {
+  return EQUIPMENT[id].role === p.role
+}
+
+/** 把背包裡的一件裝備裝到球員身上；已經裝滿時要指定換下哪一件 */
+export function equipFromBag(t: Tournament, bagIndex: number, playerId: string, replace?: number): Tournament {
+  expectPhase(t, 'ready', 'reward')
+  const id = t.bag[bagIndex]
+  if (!id) throw new Error('背包裡沒有這件裝備')
+  const target = findPlayer(t.setup.team.roster, playerId)
+  if (!canEquip(target, id)) throw new Error('角色不符，不能裝這件裝備')
+  const current = target.equipment ?? []
+  const bag = t.bag.filter((_, i) => i !== bagIndex)
+  let equipment: EquipmentId[]
+  if (current.length < MAX_EQUIPMENT) equipment = [...current, id]
+  else {
+    if (replace === undefined || !current[replace]) throw new Error('裝備已滿，要指定換下哪一件')
+    bag.push(current[replace])
+    equipment = current.map((x, i) => (i === replace ? id : x))
+  }
+  const roster = updatePlayer(t.setup.team.roster, playerId, (p) => ({ ...p, equipment }))
+  return { ...t, bag, setup: { ...t.setup, team: { ...t.setup.team, roster } } }
+}
+
+/** 把球員身上的一件裝備卸下，放回背包 */
+export function unequip(t: Tournament, playerId: string, itemIndex: number): Tournament {
+  expectPhase(t, 'ready', 'reward')
+  const target = findPlayer(t.setup.team.roster, playerId)
+  const id = target.equipment?.[itemIndex]
+  if (!id) throw new Error('這位球員沒有這件裝備')
+  const roster = updatePlayer(t.setup.team.roster, playerId, (p) => ({ ...p, equipment: (p.equipment ?? []).filter((_, i) => i !== itemIndex) }))
+  return { ...t, bag: [...t.bag, id], setup: { ...t.setup, team: { ...t.setup.team, roster } } }
+}
+
+function findPlayer(roster: Roster, id: string): Player {
+  const all = [...roster.lineup.map((s) => s.player), ...roster.bench, roster.starter, ...roster.relievers]
+  const p = all.find((x) => x.id === id)
+  if (!p) throw new Error('名單上沒有這位球員')
+  return p
+}
+
+function updatePlayer(roster: Roster, id: string, f: (p: Player) => Player): Roster {
+  return mapRoster(roster, <P extends Player>(p: P) => (p.id === id ? (f(p) as P) : p))
 }

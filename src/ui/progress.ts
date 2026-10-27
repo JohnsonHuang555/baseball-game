@@ -1,6 +1,6 @@
 // 錦標賽的累積進度：冠軍紀錄（獎盃櫃）、通過的最高難度、解鎖的裝扮。
 // 跟錦標賽存檔分開放：錦標賽結束就清掉，這些要一直留著
-import { TIERS, tierOf, type GameRecord, type Tier, type Tournament } from '../sim/tournament'
+import { TIERS, type GameRecord, type Tier, type Tournament } from '../sim/tournament'
 import type { Roster } from '../sim/types'
 
 const KEY = 'dice-baseball.progress'
@@ -83,7 +83,7 @@ export function recordChampion(t: Tournament): Trophy {
   const key = `${t.setup.team.name}:${t.rngState}`
   const existing = p.trophies.find((x) => x.key === key)
   if (existing) return existing
-  const tier = tierOf(t)
+  const tier = t.tier
   const firstClear = tier > p.cleared
   const trophy: Trophy = {
     key,

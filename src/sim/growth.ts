@@ -1,5 +1,6 @@
 // 錦標賽中的成長：每場比賽後，表現好的球員能力小幅提升
 import type { Game, PlayerLine, Side } from './game'
+import { allPlayers } from './generate'
 import type { BatterRatings, Player, PitcherRatings, Roster } from './types'
 
 export interface Growth {
@@ -32,8 +33,12 @@ function ratingFor(player: Player, line: PlayerLine): Growth['rating'] {
   return line.outs >= 21 ? 'stamina' : 'control'
 }
 
-/** 某一隊這場比賽的成長名單：MVP 一位 +1，其他達標的 +0.5 */
-export function gameGrowth(game: Game, side: Side): Growth[] {
+/**
+ * 某一隊這場比賽的成長名單：MVP 一位 +1，其他達標的 +0.5。
+ * 比賽裡的能力含裝備加成，給了 base（沒加成的名單）就照原始能力算離上限還有多少
+ */
+export function gameGrowth(game: Game, side: Side, base?: Roster): Growth[] {
+  const baseRatings = new Map((base ? allPlayers(base) : []).map((p) => [p.id, p.ratings as unknown as Record<string, number>]))
   // 開賽時名單上的全部球員，換下場的人成績也算
   const players = [...game.rosterIds(side)].map((id) => game.player(id)!)
   const scored = players
@@ -45,7 +50,7 @@ export function gameGrowth(game: Game, side: Side): Growth[] {
     const mvp = i === 0 && score >= MVP_MIN
     if (!mvp && score < GROWTH_MIN) return
     const rating = ratingFor(p, line)
-    const current = (p.ratings as unknown as Record<string, number>)[rating]
+    const current = (baseRatings.get(p.id) ?? (p.ratings as unknown as Record<string, number>))[rating]
     const amount = Math.min(mvp ? 1 : 0.5, MAX_RATING - current)
     if (amount > 0) growth.push({ playerId: p.id, rating, amount, mvp })
   })

@@ -1,7 +1,9 @@
 import { batsFor, throwsFor } from '../sim/generate'
 import type { Tournament } from '../sim/tournament'
 
-const KEY = 'dice-baseball.tournament.v1'
+const KEY = 'dice-baseball.tournament.v2'
+/** 改版前（16 隊單淘汰）的存檔，結構完全不同，不能繼續（ADR-0005） */
+const OLD_KEY = 'dice-baseball.tournament.v1'
 
 // 瀏覽器儲存可能被停用（無痕模式、封鎖網站資料），讀寫失敗時就當作沒有存檔
 
@@ -10,11 +12,23 @@ export function loadTournament(): Tournament | null {
     const raw = localStorage.getItem(KEY)
     if (!raw) return null
     const t = addMissingFielding(JSON.parse(raw)) as Tournament
+    if (t.version !== 2) return null
     // 打到一半的比賽是舊規則存的，就照舊規則重播，結果才會一樣
     if (t.currentGame && t.currentGame.setup.rules === undefined) t.currentGame.setup.rules = 1
     return t
   } catch {
     return null
+  }
+}
+
+/** 有舊版的錦標賽存檔就清掉，回傳有沒有清（首頁提示一次） */
+export function discardOldTournament(): boolean {
+  try {
+    if (localStorage.getItem(OLD_KEY) === null) return false
+    localStorage.removeItem(OLD_KEY)
+    return true
+  } catch {
+    return false
   }
 }
 

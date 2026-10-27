@@ -1,3 +1,4 @@
+import type { EquipmentId, RelicId } from './items'
 import type { TraitId } from './traits'
 
 export type Position = 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'DH'
@@ -34,6 +35,8 @@ export interface Batter {
   traits: TraitId[]
   tendency: Tendency
   bats: Bats
+  /** 錦標賽中帶的裝備，最多 2 件 */
+  equipment?: EquipmentId[]
 }
 
 export interface Pitcher {
@@ -43,6 +46,8 @@ export interface Pitcher {
   ratings: PitcherRatings
   traits: TraitId[]
   throws: Hand
+  /** 錦標賽中帶的裝備，最多 2 件 */
+  equipment?: EquipmentId[]
 }
 
 export type Player = Batter | Pitcher
@@ -63,4 +68,6 @@ export interface Roster {
 export interface Team {
   name: string
   roster: Roster
+  /** 錦標賽中全隊共用的秘寶；AI 隊伍沒有 */
+  relics?: RelicId[]
 }

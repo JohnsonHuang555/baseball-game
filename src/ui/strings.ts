@@ -7,6 +7,7 @@ import type {
   PlayKind,
 } from '../sim/game';
 import type { CardTier } from '../sim/generate';
+import { EQUIPMENT, type EquipmentId, type RelicId } from '../sim/items';
 import type { Round } from '../sim/tournament';
 import type { TraitId } from '../sim/traits';
 import type { Bats, Hand, Position, Tendency } from '../sim/types';
@@ -57,14 +58,10 @@ export const T = {
     `盜${from === 1 ? '二' : '三'}壘 ${name}`,
   tacticBunt: '犧牲觸擊',
   tacticHitAndRun: '打帶跑',
-  lineupOnlyHint: '錦標賽開打後不能重骰，只能調整打序、投手與板凳',
-  lineupDiceHint: (n: number) =>
-    n > 0
-      ? `有 ${n} 顆球員骰子：點球員就能重骰，沒用完會留到下一場`
-      : '沒有球員骰子了；每贏一場會多一顆',
-  diceEarned: '贏球獎勵：球員骰子 +1（沒用完會累積）',
-  diceChip: (n: number) => `球員骰子 ×${n}`,
+  lineupOnlyHint: '錦標賽開打後不能重骰，補強靠每場比賽後的獎勵',
+  lineupDiceHint: (n: number) => (n > 0 ? `剩 ${n} 次球員重骰` : '沒有球員重骰了'),
   roundNames: {
+    season: '例行賽',
     r16: '十六強',
     qf: '八強',
     sf: '四強',
@@ -80,14 +77,59 @@ export const T = {
   nextOpponent: '下一個對手',
   finalGame: (n: number, user: number, opp: number) =>
     `決賽 第 ${n} 戰（系列 ${user}-${opp}）`,
-  bracketTitle: '賽程',
   historyTitle: '戰績',
-  pending: '待定',
   continue: '繼續',
-  draftTitle: '選秀',
-  draftHint: '贏球了！從 3 名球員中挑 1 名加入隊伍，或放棄這次選秀',
-  draftReleaseHint: (name: string) => `選擇要釋出的球員，由 ${name} 接替`,
-  skipDraft: '放棄選秀',
+  // ---- 一輪：例行賽、季後賽、秘寶、裝備、獎勵 ----
+  seasonGame: (n: number) => `例行賽 第 ${n} 場`,
+  seasonRecord: (w: number, l: number) => `${w} 勝 ${l} 敗`,
+  seasonNeed: (need: number, lossesLeft: number) =>
+    need > 0 ? `還差 ${need} 勝晉級季後賽・還能輸 ${lossesLeft} 場` : '已確定晉級季後賽',
+  playoffsTitle: '季後賽',
+  playoffSeed: (n: number) => `第 ${n} 種子`,
+  seedHint: '例行賽勝場越多，季後賽對手越弱',
+  scheduleTitle: '賽程',
+  relicsTitle: '秘寶',
+  bagTitle: '背包',
+  bagEmpty: '背包是空的',
+  equippedTitle: '身上的裝備',
+  noEquipped: '還沒有人帶裝備',
+  equipHint: '點背包裡的裝備裝到球員身上，點身上的裝備卸下',
+  relicPickTitle: '選擇起始秘寶',
+  relicPickHint: '秘寶整輪都有效，決定這支隊伍的打法',
+  rewardTitle: (won: boolean) => (won ? '贏球獎勵' : '輸球獎勵'),
+  rewardHint: (won: boolean, n: number) => (won ? `從 ${n} 張卡中挑 1 張，或放棄` : `輸球也有收穫：從 ${n} 張卡中挑 1 張`),
+  rewardKinds: { player: '球員', equipment: '裝備', relic: '秘寶', trait: '特性' },
+  rewardCandidates: '獎勵卡',
+  pickFirstCard: '先選一張卡',
+  opponentRoster: '對手陣容',
+  opponentRosterOf: (name: string) => `${name} 的陣容`,
+  viewRoster: '陣容',
+  traitFull: '特性已滿',
+  traitHas: '已經會了',
+  traitWrongRole: '角色不符',
+  noTraits: '還沒有特性',
+  skipReward: '放棄這次獎勵',
+  rewardSkipped: '放棄這次獎勵',
+  equipWho: (item: string) => `要把 ${item} 裝在誰身上？`,
+  traitWho: (trait: string) => `要讓誰學會 ${trait}？`,
+  relicTake: (relic: string) => `收下秘寶 ${relic}`,
+  take: '收下',
+  toBag: '先放進背包',
+  equip: '裝上',
+  learn: '學會',
+  replaceItem: (item: string) => `換下 ${item}`,
+  noEligible: '沒有能學這個特性的球員',
+  equipped: (item: string, name: string) => `${name} 裝上 ${item}`,
+  stashed: (item: string) => `${item} 放進背包`,
+  unequipped: (item: string, name: string) => `${name} 卸下 ${item}，放回背包`,
+  learned: (name: string, trait: string) => `${name} 學會 ${trait}`,
+  relicGained: (relic: string) => `獲得秘寶：${relic}`,
+  joined: (pick: string, released: string) => `${pick} 加入，${released} 釋出`,
+  pickEquipTarget: '裝到誰身上',
+  pickReplace: (name: string) => `${name} 的裝備已滿，換下哪一件？`,
+  equipmentCount: (n: number, max: number) => `裝備 ${n}/${max}`,
+  advanced: '晉級季後賽！',
+  oldSaveDiscarded: '錦標賽改版了，舊的錦標賽進度無法繼續；冠軍紀錄與裝扮都還在',
   champion: '奪冠！',
   overallLabel: '總評',
   // ---- 決策面板 ----
@@ -274,10 +316,14 @@ export const T = {
   manualStates: { off: '關', clutch: '關鍵', all: '每球' },
   manualToast: {
     off: '親自操作：關，全部交給球員',
-    clutch: '親自操作：關鍵，後段比分接近、得點圈有人時由你出手',
+    clutch: '親自操作：關鍵，關鍵打席由你出手',
     all: '親自操作：每球，每一球都由你出手',
   },
-  clutchToast: '關鍵時刻！這個打席由你出手',
+  keyAtBatToast: {
+    hero: '英雄時刻！一支安打就能改寫比分，這個打席由你出手',
+    basesLoaded: '滿壘危機！這個打席由你配球',
+    crunch: '一分差、二三壘有人！這個打席由你出手',
+  },
   meterGrades: {
     perfect: '完美！',
     good: '不錯！',
@@ -338,7 +384,6 @@ export const T = {
   // ---- 錦標賽與選秀 ----
   winMark: '勝',
   loseMark: '敗',
-  draftCandidates: '候選球員',
   replaceWho: (name: string, role: string) => `${name} 要替換哪一名${role}？`,
   pickFirst: '先從上面選一名球員',
   orderNth: (n: number) => `第 ${n} 棒`,
@@ -370,8 +415,6 @@ export const T = {
   rerolledTeam: (left: number) => `整隊重骰完成，剩 ${left} 次`,
   renamed: (name: string) => `隊名改為 ${name}`,
   walkedIntentionally: (name: string) => `故意四壞：${name}`,
-  drafted: (pick: string, released: string) => `${pick} 加入，${released} 釋出`,
-  draftSkipped: '放棄這次選秀',
   swapHintLineup: '點球場上的人交換守位，點打序列表交換棒次',
   designatedHitter: '指定打擊',
   battingOrder: '打序',
@@ -501,6 +544,61 @@ export const TRAIT_NAMES: Record<TraitId, string> = {
   wild: '四死球',
   homerProne: '被全壘打',
   lowStamina: '體力差',
+};
+
+export const EQUIPMENT_NAMES: Record<EquipmentId, string> = {
+  trainingBat: '練習球棒',
+  masterBat: '名匠球棒',
+  weightedBat: '加重球棒',
+  compressedBat: '壓縮木棒',
+  legendBat: '傳說球棒',
+  spikes: '釘鞋',
+  carbonSpikes: '碳纖釘鞋',
+  leatherGlove: '皮革手套',
+  goldGlove: '金手套',
+  gripBag: '止滑粉袋',
+  precisionSleeve: '精準臂套',
+  elbowGuard: '加壓護肘',
+  fireballGlove: '火球手套',
+  enduranceBand: '耐力護腕',
+  goldenSleeve: '黃金臂套',
+};
+
+/** 裝備的效果，例如「打擊 +1・力量 +2」 */
+export function equipmentDesc(id: EquipmentId): string {
+  return Object.entries(EQUIPMENT[id].bonus)
+    .map(([k, v]) => `${RATING_FULL[k as keyof typeof RATING_FULL]} +${v}`)
+    .join('・');
+}
+
+export const RELIC_NAMES: Record<RelicId, string> = {
+  leadoff: '開路先鋒',
+  speedster: '飛毛腿',
+  deepRelief: '後援陣容',
+  stamina: '耐力訓練',
+  rispSoul: '得點圈之魂',
+  ironWall: '鐵壁',
+  comeback: '逆轉魂',
+  strikeZone: '好球帶',
+  patience: '選球眼',
+  powerHouse: '重砲軍團',
+  guardian: '守護神',
+  dynasty: '王朝',
+};
+
+export const RELIC_DESC: Record<RelicId, string> = {
+  leadoff: '每個半局的第一位打者打擊 +2',
+  speedster: '全隊盜壘成功率提升，跑壘更積極',
+  deepRelief: '後援投手球威 +1',
+  stamina: '投手多投 15 球才會疲勞',
+  rispSoul: '得點圈有人時全隊打擊 +1',
+  ironWall: '全隊守備 +1',
+  comeback: '第 7 局起落後時全隊打擊 +1.5',
+  strikeZone: '全隊投手控球 +1',
+  patience: '全隊比較不會追打壞球',
+  powerHouse: '全隊擊出全壘打的機率提高 25%',
+  guardian: '第 9 局起我方投手球威 +1.5',
+  dynasty: '全隊打擊、力量、球威、控球都 +0.5',
 };
 
 export const PITCH_TEXT: Record<PitchResult, string> = {

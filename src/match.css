@@ -705,10 +705,8 @@
   font-size: 16px;
   font-weight: 900;
 }
-/* 站著被三振：K 左右反轉 */
+/* 站著被三振：K 換成藍色，下面的小字寫「站著被三振」 */
 .callout.k.looking .callout-label {
-  display: inline-block;
-  transform: scaleX(-1);
   color: #6e9bff;
 }
 

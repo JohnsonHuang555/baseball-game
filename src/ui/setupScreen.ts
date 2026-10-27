@@ -16,11 +16,12 @@ import { avatar } from './avatar'
 import { gradeBadge, overallBadge } from './grades'
 import { el, traitTag } from './playerCard'
 import { kbd, setKeys, type KeyMap } from './keys'
+import { infoModal } from './modal'
 import { TEAM_NAME_MAX, saveTeamName } from './prefs'
 import { play } from './sound'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
-import { POSITION_FULL, RATING_FULL, T } from './strings'
+import { POSITION_FULL, RATING_FULL, RATING_LABELS, T } from './strings'
 import { applyCardState, miniCard, playerHeader, ratingBars, toast, traitList } from './visual'
 
 export interface RosterEditorOptions {
@@ -97,6 +98,36 @@ function withIcon(className: string, icon: string, text: string): HTMLButtonElem
 
 function sameSlot(a: Slot | null, b: Slot): boolean {
   return !!a && JSON.stringify(a) === JSON.stringify(b)
+}
+
+/** 對手陣容：打序（守位、左右打、四項能力、特性），再來是投手與板凳 */
+function opponentRoster(team: Team): HTMLElement {
+  const r = team.roster
+  const box = el('div', 'opp-roster')
+  const row = (p: Player, label: string) => {
+    const line = el('div', 'opp-row')
+    const who = el('span', 'opp-who')
+    const hand = p.role === 'batter' ? T.bats[p.bats] : T.throws[p.throws]
+    who.append(el('span', 'opp-name', p.name), el('span', 'opp-pos', `${label}・${hand}`))
+    const grades = el('span', 'opp-grades')
+    for (const v of Object.values(p.ratings)) grades.append(gradeBadge(v, 'sm'))
+    const traits = el('span', 'opp-traits')
+    traits.append(...p.traits.map(traitTag))
+    line.append(avatar(p.id, 'opponent', 'ring'), who, grades, traits)
+    return line
+  }
+  // 每一段的標題列，右邊對齊能力字母放欄位名稱
+  const section = (title: string, sample: Player, rows: HTMLElement[]) => {
+    const head = el('div', 'opp-head')
+    const labels = el('span', 'opp-grades')
+    for (const k of Object.keys(sample.ratings)) labels.append(el('span', 'opp-label', RATING_LABELS[k as keyof typeof RATING_LABELS]))
+    head.append(el('h3', 'opp-title', title), labels)
+    box.append(head, ...rows)
+  }
+  section(T.battingOrder, r.lineup[0].player, r.lineup.map((s, i) => row(s.player, `${i + 1}・${POSITION_FULL[s.position]}`)))
+  section(T.pitcher, r.starter, [row(r.starter, T.starter), ...r.relievers.map((p) => row(p, T.reliever))])
+  if (r.bench.length) section(T.bench, r.bench[0], r.bench.map((p) => row(p, T.bench)))
+  return box
 }
 
 /** 組隊畫面：球場上的先發、板凳與後援、打序表；點球員看詳細資料、重骰或交換 */
@@ -205,9 +236,13 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     } else {
       sub.append(el('span', 'lineup-hint', allowPlayerReroll ? T.lineupDiceHint(setup.playerRerollsLeft) : T.lineupOnlyHint))
     }
+    // 對手：點一下看完整陣容，佈陣時可以對照
     const opponent = opts.opponent()
-    const vs = el('div', 'vs-pill')
-    vs.append(el('span', 'vs-mark', T.versus), el('span', 'vs-name', opponent.name), gradeBadge(teamAverage(opponent.roster), 'sm'))
+    const vs = el('button', 'vs-pill')
+    vs.type = 'button'
+    vs.title = T.opponentRoster
+    vs.append(el('span', 'vs-mark', T.versus), el('span', 'vs-name', opponent.name), gradeBadge(teamAverage(opponent.roster), 'sm'), el('span', 'vs-more', T.viewRoster))
+    vs.onclick = () => infoModal(T.opponentRosterOf(opponent.name), opponentRoster(opponent), true)
     sub.append(vs)
     head.append(top, sub)
     return head

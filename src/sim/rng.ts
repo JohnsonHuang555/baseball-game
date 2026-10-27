@@ -30,6 +30,16 @@ export class Rng {
     return items[Math.floor(this.next() * items.length)]
   }
 
+  /** 洗牌，回傳新的陣列 */
+  shuffle<T>(items: readonly T[]): T[] {
+    const out = [...items]
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(this.next() * (i + 1))
+      ;[out[i], out[j]] = [out[j], out[i]]
+    }
+    return out
+  }
+
   normal(mean: number, sd: number): number {
     const u = 1 - this.next()
     const v = this.next()
