@@ -168,6 +168,8 @@ export const T = {
   take: '收下',
   toBag: '先放進背包',
   equip: '裝上',
+  unequip: '卸下',
+  bagNoneUsable: '背包裡沒有他能帶的裝備',
   learn: '學會',
   replaceItem: (item: string) => `換下 ${item}`,
   noEligible: '沒有能學這個特性的球員',
