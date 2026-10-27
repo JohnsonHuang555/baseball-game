@@ -3,6 +3,8 @@ import { allPlayers, teamAverage } from '../sim/generate'
 import { gameGrowth } from '../sim/growth'
 import { EQUIPMENT, MAX_EQUIPMENT, RELICS } from '../sim/items'
 import { gameFunds, releaseValue } from '../sim/prices'
+import { repertoire } from '../sim/pitches'
+import { statOf } from '../sim/potential'
 import { getSlot } from '../sim/setup'
 import {
   FINAL_WINS_NEEDED,
@@ -13,11 +15,15 @@ import {
   WINS_TO_ADVANCE,
   beginGame,
   canEquip,
+  canLearnPitch,
+  canLearnPitchTrait,
   canLearnTrait,
   chooseStartingRelic,
   equipFromBag,
   finishGame,
   pickEquipment,
+  pickNewPitch,
+  pickPitchTrait,
   pickPlayer,
   pickRelic,
   pickTrait,
@@ -43,14 +49,14 @@ import { growthPanel } from './growthPanel'
 import { showEvent, showRest, showShop, showTraining } from './restScreen'
 import { gradeBadge } from './grades'
 import { kbd, setKeys } from './keys'
-import { el, traitTag } from './playerCard'
-import { sideTag, toast } from './visual'
+import { el, potentialTag, traitTag } from './playerCard'
+import { pitchChip, sideTag, toast } from './visual'
 import { clearTournament, saveTournament } from './save'
 import { play } from './sound'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
 import { rays, showRosterEditor } from './setupScreen'
-import { EQUIPMENT_NAMES, RELIC_DESC, RELIC_NAMES, T, TRAIT_NAMES, equipmentDesc } from './strings'
+import { EQUIPMENT_NAMES, PITCH_TRAIT_NAMES, RELIC_DESC, RELIC_NAMES, T, TRAIT_NAMES, equipmentDesc } from './strings'
 
 /** 依錦標賽目前的階段，打開對應的畫面。每次狀態改變都會存檔 */
 export function openTournament(root: HTMLElement, t: Tournament, toTitle: () => void): void {
@@ -121,14 +127,17 @@ function playCurrentGame(root: HTMLElement, t: Tournament, go: (t: Tournament) =
       t = saveProgress(t, g.commands, g.stepIndex)
       saveTournament(t)
     },
-    // 成長名單：結果畫面顯示，按繼續時套用到陣容
-    // 結果畫面：成長名單，加上這場賺到的球團資金
+    // 結果畫面：成長名單、這場覺醒的球員、賺到的球團資金；按繼續時才套用到陣容
     resultExtra: (g) => {
       const box = growthPanel(g, 'home', growth())
+      for (const p of allPlayers(t.setup.team.roster)) {
+        const pot = p.potential
+        if (pot && pot.progress + statOf(g.box[p.id], pot.stat) >= pot.need) box.append(el('p', 'growth-awaken', T.awakened(p.name, TRAIT_NAMES[pot.trait])))
+      }
       box.append(el('p', 'growth-funds', T.fundsEarned(gameFunds(g.winner === 'home', g.score.home))))
       return box
     },
-    resultActions: (g) => [{ label: T.continue, primary: true, onClick: () => go(finishGame(t, g.score, growth())) }],
+    resultActions: (g) => [{ label: T.continue, primary: true, onClick: () => go(finishGame(t, g.score, growth(), g.box)) }],
   })
 }
 
@@ -483,6 +492,8 @@ function rewardTargets(t: Tournament, index: number, card: RewardCard, list: HTM
         const traits = el('span', 'release-traits')
         if (p.traits.length) traits.append(...p.traits.map(traitTag))
         else traits.append(el('span', 'kit-empty', T.noTraits))
+        const pot = potentialTag(p)
+        if (pot) traits.append(pot)
         if (canLearnTrait(p, id)) {
           row(p, label, [
             button(T.learn, () => {
@@ -506,6 +517,35 @@ function rewardTargets(t: Tournament, index: number, card: RewardCard, list: HTM
         go(pickRelic(t, index))
       }
       return [el('div', 'draft-release-head', RELIC_DESC[card.id]), take]
+    }
+    case 'pitchTrait':
+    case 'newPitch': {
+      // 列出每位投手會的球種，不能學的寫明原因
+      const name =
+        card.kind === 'pitchTrait' ? T.pitchTraitName(PITCH_TRAIT_NAMES[card.id], T.pitchNames[card.pitch]) : T.pitchNames[card.pitch]
+      for (const [slot, label] of rosterSlots(roster)) {
+        const p = getSlot(roster, slot)
+        if (p.role !== 'pitcher') continue
+        const pitches = el('span', 'release-traits')
+        pitches.append(pitchChip(p, true))
+        const ok = card.kind === 'pitchTrait' ? canLearnPitchTrait(p, card.pitch) : canLearnPitch(p, card.pitch)
+        if (ok) {
+          row(p, label, [
+            button(T.learn, () => {
+              toast(T.pitchLearned(p.name, name))
+              go(card.kind === 'pitchTrait' ? pickPitchTrait(t, index, p.id) : pickNewPitch(t, index, p.id))
+            }),
+          ], pitches)
+        } else {
+          const reason =
+            card.kind === 'newPitch' ? T.pitchHas : repertoire(p).includes(card.pitch) ? T.pitchTraitTaken : T.pitchMissing
+          const blocked = el('button', 'btn-small', reason)
+          blocked.disabled = true
+          row(p, label, [blocked], pitches)
+        }
+      }
+      if (!list.querySelector('button:not(:disabled)')) list.prepend(el('p', 'kit-empty', T.noPitcherEligible))
+      return [el('div', 'draft-release-head', T.pitchWho(name))]
     }
   }
 }

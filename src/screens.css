@@ -535,6 +535,15 @@ button.kit-chip {
   font-size: 11px;
   letter-spacing: 0;
 }
+.growth-awaken {
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  background: #f1e6ff;
+  color: #5b2a9e;
+  font-size: 13px;
+  font-weight: 900;
+}
 .growth-funds {
   margin: 0;
   padding: 8px 12px;

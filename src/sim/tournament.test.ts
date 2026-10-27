@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { RULES_VERSION } from './game'
-import { teamAverage } from './generate'
+import { allPlayers, teamAverage } from './generate'
+import { PITCH_TYPES, repertoire } from './pitches'
 import { RELICS } from './items'
 import { STARTING_FUNDS, gameFunds, priceOf, releaseValue } from './prices'
 import { EVENTS, buy, canChoose, enterRest, eventTargets, leaveShop, rerollShop, resolveEvent, train, upgrade, type EventId } from './rest'
@@ -8,12 +9,16 @@ import { rerollTeam, swapSlots } from './setup'
 import {
   SEASON_GAMES,
   beginGame,
+  canLearnPitch,
+  canLearnPitchTrait,
   chooseStartingRelic,
   createTournament,
   equipFromBag,
   finishGame,
   opponentMean,
   pickEquipment,
+  pickNewPitch,
+  pickPitchTrait,
   pickPlayer,
   pickRelic,
   pickTrait,
@@ -294,6 +299,78 @@ describe('休息站', () => {
     const t: Tournament = { ...enterRest(atRest(27), 'event'), event: 'mysteriousElder', funds: 0 }
     expect(canChoose(t, 'mysteriousElder', 0)).toBe(false)
     expect(() => resolveEvent(t, 0)).toThrow()
+  })
+})
+
+describe('潛能與球種卡', () => {
+  it('獎勵的球種卡一定有投手用得上', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      let t = started(seed)
+      for (let g = 0; g < 4; g++) {
+        t = finishGame(beginGame(t), WIN)
+        const pitchers = allPlayers(t.setup.team.roster)
+        for (const c of t.rewards) {
+          if (c.kind === 'pitchTrait') expect(pitchers.some((p) => canLearnPitchTrait(p, c.pitch))).toBe(true)
+          if (c.kind === 'newPitch') expect(pitchers.some((p) => canLearnPitch(p, c.pitch))).toBe(true)
+        }
+        t = passRest(skipReward(t))
+      }
+    }
+  })
+
+  it('開局有 3 位球員帶潛能，整隊重骰後重新分配', () => {
+    const t = createTournament(30)
+    expect(allPlayers(t.setup.team.roster).filter((p) => p.potential)).toHaveLength(3)
+    const rerolled = updateSetup(t, rerollTeam(t.setup))
+    expect(allPlayers(rerolled.setup.team.roster).filter((p) => p.potential)).toHaveLength(3)
+  })
+
+  it('比賽紀錄累積進度，達成就覺醒成特性', () => {
+    const t = started(31)
+    const p = allPlayers(t.setup.team.roster).find((x) => x.potential)!
+    const pot = p.potential!
+    const line = { pa: 0, hits: 0, hr: 0, rbi: 0, so: 0, outs: 0, runs: 0, k: 0, [pot.stat]: pot.need - 1 }
+    const almost = finishGame(beginGame(t), WIN, [], { [p.id]: line })
+    const mid = allPlayers(almost.setup.team.roster).find((x) => x.id === p.id)!
+    expect(mid.potential!.progress).toBe(pot.need - 1)
+    expect(almost.awakened).toEqual([])
+    const done = finishGame(beginGame(skipReward(almost)), WIN, [], { [p.id]: { ...line, [pot.stat]: 1 } })
+    const after = allPlayers(done.setup.team.roster).find((x) => x.id === p.id)!
+    expect(after.potential).toBeUndefined()
+    expect(after.traits).toContain(pot.trait)
+    expect(done.awakened).toEqual([{ playerId: p.id, trait: pot.trait }])
+  })
+
+  it('訓練推進潛能', () => {
+    let t = started(32)
+    t = passRest(skipReward(finishGame(beginGame(t), WIN)))
+    t = skipReward(finishGame(beginGame(t), WIN))
+    const p = allPlayers(t.setup.team.roster).find((x) => x.potential && x.role === 'batter') ?? allPlayers(t.setup.team.roster).find((x) => x.potential)!
+    const rating = p.role === 'batter' ? 'contact' : 'control'
+    const after = train(enterRest(t, 'training'), p.id, rating)
+    const q = allPlayers(after.setup.team.roster).find((x) => x.id === p.id)!
+    expect(q.potential?.progress ?? Infinity).toBeGreaterThan(p.potential!.progress)
+  })
+
+  it('新球種卡讓投手多一個球種；已經會的不能學', () => {
+    const t = started(33)
+    const pitcher = t.setup.team.roster.starter
+    const missing = PITCH_TYPES.find((x) => !repertoire(pitcher).includes(x))!
+    const has = repertoire(pitcher)[1]
+    const after = pickNewPitch(withCard(t, { kind: 'newPitch', pitch: missing }), 0, pitcher.id)
+    expect(repertoire(after.setup.team.roster.starter)).toContain(missing)
+    expect(() => pickNewPitch(withCard(t, { kind: 'newPitch', pitch: has }), 0, pitcher.id)).toThrow()
+    expect(canLearnPitch(t.setup.team.roster.lineup[0].player, missing)).toBe(false)
+  })
+
+  it('球種特性卡加在會的球種上，每個球種最多一個', () => {
+    const t = started(34)
+    const pitcher = t.setup.team.roster.starter
+    const after = pickPitchTrait(withCard(t, { kind: 'pitchTrait', pitch: 'fastball', id: 'sharp' }), 0, pitcher.id)
+    expect(after.setup.team.roster.starter.pitchTraits).toEqual({ fastball: 'sharp' })
+    expect(canLearnPitchTrait(after.setup.team.roster.starter, 'fastball')).toBe(false)
+    const missing = PITCH_TYPES.find((x) => !repertoire(pitcher).includes(x))!
+    expect(canLearnPitchTrait(pitcher, missing)).toBe(false)
   })
 })
 

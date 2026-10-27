@@ -1,6 +1,6 @@
 import { TRAITS, type TraitId } from '../sim/traits'
 import type { Player } from '../sim/types'
-import { TRAIT_NAMES } from './strings'
+import { T, TRAIT_NAMES } from './strings'
 
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -25,6 +25,15 @@ export function traitTag(t: TraitId): HTMLElement {
   const tag = el('span', `trait trait-${tier}`)
   tag.innerHTML = TRAIT_ICONS[tier]
   tag.append(TRAIT_NAMES[t])
+  return tag
+}
+
+/** 潛能的「？」標籤：覺醒條件與進度，不透露會得到什麼特性 */
+export function potentialTag(p: Player): HTMLElement | null {
+  const pot = p.potential
+  if (!pot) return null
+  const tag = el('span', 'trait trait-potential', T.potentialTag(T.potentialStatShort[pot.stat], pot.progress, pot.need))
+  tag.title = T.potentialHint(T.potentialStats[pot.stat], pot.need)
   return tag
 }
 

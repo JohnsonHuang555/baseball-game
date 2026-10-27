@@ -1,14 +1,16 @@
 // 錦標賽：roguelike 的一輪。例行賽 8 場（5 勝晉級），季後賽八強、四強各一場，決賽三戰兩勝（ADR-0005）
-import { RULES_VERSION, type Command, type GameSetup } from './game'
+import { RULES_VERSION, type Command, type GameSetup, type PlayerLine } from './game'
 import { applyGrowth, type Growth } from './growth'
-import { BASE_MEAN, cardTier, generateBatter, generatePitcher, generateRoster, teamName, type CardTier } from './generate'
+import { BASE_MEAN, allPlayers, cardTier, generateBatter, generatePitcher, generateRoster, teamName, type CardTier } from './generate'
 import { EQUIPMENT, MAX_EQUIPMENT, RELICS, equippedTeam, mapRoster, type EquipmentId, type RelicId } from './items'
+import { PITCH_TRAIT_IDS, PITCH_TYPES, isBreaking, repertoire, type PitchTraitId, type PitchType } from './pitches'
+import { advancePotential, statOf, withPotential } from './potential'
 import { STARTING_FUNDS, gameFunds, releaseValue } from './prices'
 import type { EventId } from './rest'
 import { Rng } from './rng'
 import { createSetup, getSlot, isPitcherSlot, setSlot, type PregameSetup, type Slot } from './setup'
 import { TRAITS, conflicts, type TraitId } from './traits'
-import type { Player, Roster, Team } from './types'
+import type { Pitcher, Player, Roster, Team } from './types'
 
 /** 錦標賽的階段；r16 只出現在舊版的冠軍紀錄 */
 export type Round = 'season' | 'r16' | 'qf' | 'sf' | 'final'
@@ -71,6 +73,14 @@ export type RewardCard =
   | { kind: 'equipment'; id: EquipmentId }
   | { kind: 'relic'; id: RelicId }
   | { kind: 'trait'; id: TraitId }
+  | { kind: 'pitchTrait'; pitch: PitchType; id: PitchTraitId }
+  | { kind: 'newPitch'; pitch: PitchType }
+
+/** 上一場（或上一次訓練）覺醒的球員，畫面用來提示 */
+export interface Awakening {
+  playerId: string
+  trait: TraitId
+}
 
 /** 整個錦標賽的狀態，只含純資料，可以直接存成 JSON */
 export interface Tournament {
@@ -104,6 +114,8 @@ export interface Tournament {
   /** 這次休息站遇到的事件 */
   event: EventId | null
   currentGame: SavedGame | null
+  /** 最近一場比賽（或訓練）覺醒的球員；之前的存檔沒有 */
+  awakened?: Awakening[]
 }
 
 /** 商店的一格商品 */
@@ -116,6 +128,8 @@ export interface ShopItem {
 export function createTournament(seed: number, tier: Tier = 1): Tournament {
   const rng = new Rng(seed)
   const setup: PregameSetup = { ...createSetup(rng.int(0, 2 ** 32 - 1)), teamRerollsLeft: 1, playerRerollsLeft: 0 }
+  // 開局就有幾位球員帶著潛能，讓玩家一開始就有養成目標；整隊重骰時重新分配
+  setup.team = { ...setup.team, roster: seedPotentials(rng, setup.team.roster) }
   const teamNames = [setup.team.name]
   while (teamNames.length < LEAGUE_SIZE) {
     const name = teamName(rng)
@@ -184,6 +198,11 @@ function expectPhase(t: Tournament, ...phases: TournamentPhase[]): void {
 /** 開打前的重骰與改隊名；開打後就不能再重骰 */
 export function updateSetup(t: Tournament, setup: PregameSetup): Tournament {
   expectPhase(t, 'pregame')
+  // 整隊重骰後的新球員沒有潛能，重新分配
+  if (!allPlayers(setup.team.roster).some((p) => p.potential)) {
+    const rng = new Rng(setup.rngState)
+    setup = { ...setup, team: { ...setup.team, roster: seedPotentials(rng, setup.team.roster) }, rngState: rng.state }
+  }
   const name = setup.team.name
   if (name === t.teamNames[0]) return { ...t, setup }
   // 玩家自訂的隊名撞到 AI 隊伍時，AI 隊伍換名字
@@ -255,13 +274,26 @@ export function saveProgress(t: Tournament, commands: readonly Command[], stepIn
 }
 
 /** 比賽結束：記戰績、套用成長，決定下一個階段；沒結束就進入獎勵選擇 */
-export function finishGame(t: Tournament, score: { home: number; away: number }, growth: readonly Growth[] = []): Tournament {
+export function finishGame(
+  t: Tournament,
+  score: { home: number; away: number },
+  growth: readonly Growth[] = [],
+  lines: Readonly<Record<string, PlayerLine>> = {},
+): Tournament {
   expectPhase(t, 'playing')
   const won = score.home > score.away
   const history = [...t.history, { round: t.round, userRuns: score.home, opponentRuns: score.away, won, opponent: t.opponent.name }]
-  const team = { ...t.setup.team, roster: applyGrowth(t.setup.team.roster, growth) }
+  // 成長之後累積潛能：這場的數字加進進度，達成就覺醒
+  const awakened: Awakening[] = []
+  const roster = mapRoster(applyGrowth(t.setup.team.roster, growth), <P extends Player>(p: P) => {
+    if (!p.potential) return p
+    const { player, awakened: trait } = advancePotential(p, statOf(lines[p.id], p.potential.stat))
+    if (trait) awakened.push({ playerId: p.id, trait })
+    return player
+  })
+  const team = { ...t.setup.team, roster }
   const funds = t.funds + gameFunds(won, score.home)
-  const base: Tournament = { ...t, setup: { ...t.setup, team }, history, funds, currentGame: null }
+  const base: Tournament = { ...t, setup: { ...t.setup, team }, history, funds, awakened, currentGame: null }
   let round: Round = t.round
   let series = t.series
   if (t.round === 'season') {
@@ -292,7 +324,22 @@ export function rewardTier(card: RewardCard): CardTier {
       return RELICS[card.id].tier
     case 'trait':
       return TRAITS[card.id].tier === 'gold' ? 'gold' : 'silver'
+    case 'pitchTrait':
+      return 'silver'
+    case 'newPitch':
+      return 'gold'
   }
+}
+
+/** 開局有潛能的球員數 */
+const STARTING_POTENTIALS = 3
+/** 獎勵、商店的球員卡帶潛能的機率 */
+const CARD_POTENTIAL_CHANCE = 0.3
+
+/** 隨機挑幾位球員給潛能 */
+export function seedPotentials(rng: Rng, roster: Roster): Roster {
+  const ids = new Set(rng.shuffle(allPlayers(roster).map((p) => p.id)).slice(0, STARTING_POTENTIALS))
+  return mapRoster(roster, <P extends Player>(p: P) => (ids.has(p.id) ? withPotential(rng, p) : p))
 }
 
 /** 贏球的卡色機率；輸球只有比較差的分布 */
@@ -304,14 +351,20 @@ const TIER_ORDER: readonly CardTier[] = ['bronze', 'silver', 'gold', 'rainbow']
 
 function withRewards(t: Tournament, won: boolean): Tournament {
   const rng = new Rng(t.rngState)
-  const owned = new Set(relicsOf(t))
   const cards: RewardCard[] = []
   const taken = new Set<string>()
-  const key = (c: RewardCard) => (c.kind === 'player' ? c.player.id : `${c.kind}:${c.id}`)
+  const key = (c: RewardCard) => (c.kind === 'player' ? c.player.id : JSON.stringify(c))
   for (let guard = 0; cards.length < (won ? 3 : 2) && guard < 50; guard++) {
     const tier = rng.weighted(won ? WIN_TIERS : LOSS_TIERS)
-    const kind = rng.weighted<RewardCard['kind']>([['player', 30], ['equipment', 35], ['trait', 20], ['relic', 15]])
-    const card = rewardOf(rng, kind, tier, owned, t.history.length)
+    const kind = rng.weighted<RewardCard['kind']>([
+      ['player', 28],
+      ['equipment', 30],
+      ['trait', 16],
+      ['relic', 12],
+      ['pitchTrait', 8],
+      ['newPitch', 6],
+    ])
+    const card = rewardOf(rng, kind, tier, t)
     if (!card || taken.has(key(card))) continue
     taken.add(key(card))
     cards.push(card)
@@ -319,12 +372,27 @@ function withRewards(t: Tournament, won: boolean): Tournament {
   return { ...t, rewards: cards, rngState: rng.state }
 }
 
-/** 指定種類與卡色的一張卡；沒有符合的道具時往低一級找 */
-export function rewardOf(rng: Rng, kind: RewardCard['kind'], tier: CardTier, owned: ReadonlySet<RelicId>, gamesPlayed: number): RewardCard | null {
+/**
+ * 指定種類與卡色的一張卡；沒有符合的道具時往低一級找。
+ * 球種卡只出隊上有投手用得到的：球種特性挑某位投手會、還沒有特性的球種，新球種挑某位投手還不會的
+ */
+export function rewardOf(rng: Rng, kind: RewardCard['kind'], tier: CardTier, t: Tournament): RewardCard | null {
+  const owned = new Set(relicsOf(t))
   if (kind === 'player') {
     // 球員卡跟著賽程慢慢變強，才追得上對手
-    const mean = BASE_MEAN + PLAYER_MEAN[tier] + gamesPlayed * 0.05
-    return { kind, player: rng.chance(0.3) ? generatePitcher(rng, mean) : generateBatter(rng, mean) }
+    const mean = BASE_MEAN + PLAYER_MEAN[tier] + t.history.length * 0.05
+    const player = rng.chance(0.3) ? generatePitcher(rng, mean) : generateBatter(rng, mean)
+    return { kind, player: rng.chance(CARD_POTENTIAL_CHANCE) ? withPotential(rng, player) : player }
+  }
+  // 球種卡不分卡色：球種特性固定銀卡，新球種固定金卡
+  const pitchers = allPlayers(t.setup.team.roster).filter((p) => p.role === 'pitcher')
+  if (kind === 'pitchTrait') {
+    const pitches = PITCH_TYPES.filter((x) => pitchers.some((p) => canLearnPitchTrait(p, x)))
+    return pitches.length ? { kind, pitch: rng.pick(pitches), id: rng.pick(PITCH_TRAIT_IDS) } : null
+  }
+  if (kind === 'newPitch') {
+    const pitches = PITCH_TYPES.filter((x) => isBreaking(x) && pitchers.some((p) => canLearnPitch(p, x)))
+    return pitches.length ? { kind, pitch: rng.pick(pitches) } : null
   }
   for (let i = TIER_ORDER.indexOf(tier); i >= 0; i--) {
     const want = TIER_ORDER[i]
@@ -404,6 +472,40 @@ export function pickEquipment(t: Tournament, index: number, playerId: string | n
 export function pickTrait(t: Tournament, index: number, playerId: string): Tournament {
   const { id } = rewardAt(t, index, 'trait')
   return afterReward(teachTrait(t, playerId, id))
+}
+
+/** 球種特性卡：加在一位投手的這個球種上 */
+export function pickPitchTrait(t: Tournament, index: number, playerId: string): Tournament {
+  const card = rewardAt(t, index, 'pitchTrait')
+  return afterReward(teachPitchTrait(t, playerId, card.pitch, card.id))
+}
+
+/** 新球種卡：一位投手學會這個球種 */
+export function pickNewPitch(t: Tournament, index: number, playerId: string): Tournament {
+  const card = rewardAt(t, index, 'newPitch')
+  return afterReward(teachPitch(t, playerId, card.pitch))
+}
+
+/** 能不能把球種特性加在這個球種上：要是投手、會這個球種，而且這個球種還沒有特性 */
+export function canLearnPitchTrait(p: Player, pitch: PitchType): p is Pitcher {
+  return p.role === 'pitcher' && repertoire(p).includes(pitch) && !p.pitchTraits?.[pitch]
+}
+
+/** 能不能學這個新球種：要是投手，而且還不會 */
+export function canLearnPitch(p: Player, pitch: PitchType): p is Pitcher {
+  return p.role === 'pitcher' && !repertoire(p).includes(pitch)
+}
+
+export function teachPitchTrait(t: Tournament, playerId: string, pitch: PitchType, id: PitchTraitId): Tournament {
+  if (!canLearnPitchTrait(findPlayer(t.setup.team.roster, playerId), pitch)) throw new Error('這位投手不能加這個球種特性')
+  const roster = updatePlayer(t.setup.team.roster, playerId, (p) => ({ ...p, pitchTraits: { ...(p as Pitcher).pitchTraits, [pitch]: id } }) as Pitcher)
+  return { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster } } }
+}
+
+export function teachPitch(t: Tournament, playerId: string, pitch: PitchType): Tournament {
+  if (!canLearnPitch(findPlayer(t.setup.team.roster, playerId), pitch)) throw new Error('這位投手不能學這個球種')
+  const roster = updatePlayer(t.setup.team.roster, playerId, (p) => ({ ...p, extraPitches: [...((p as Pitcher).extraPitches ?? []), pitch] }) as Pitcher)
+  return { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster } } }
 }
 
 /** 讓一位球員學會特性，跟它互斥的舊特性會被取代 */

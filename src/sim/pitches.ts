@@ -25,13 +25,26 @@ function unit(text: string): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296
 }
 
-/** 投手的球種：一定有直球，再加 1～3 種變化球；第二個是他的看家球種 */
+/** 投手的球種：一定有直球，再加 1～3 種變化球；第二個是他的看家球種。錦標賽學會的新球種接在最後面 */
 export function repertoire(p: Pitcher): PitchType[] {
   const pool: PitchType[] = ['slider', 'curve', 'change', 'splitter']
   const count = 1 + Math.floor(unit(p.id + '#pitches') * 3)
   const picked: PitchType[] = ['fastball']
   for (let i = 0; i < count; i++) picked.push(pool.splice(Math.floor(unit(`${p.id}#pitch${i}`) * pool.length), 1)[0])
+  for (const extra of p.extraPitches ?? []) if (!picked.includes(extra)) picked.push(extra)
   return picked
+}
+
+/** 球種特性：銳利（揮空變多）、尾勁（被打中也比較難形成安打）、精準（比較容易進好球帶） */
+export type PitchTraitId = 'sharp' | 'heavy' | 'command'
+export const PITCH_TRAIT_IDS: readonly PitchTraitId[] = ['sharp', 'heavy', 'command']
+/** 球種特性的效果大小 */
+export const PITCH_TRAIT_EFFECT = { sharpWhiff: 0.07, heavyHit: 0.025, commandZone: 0.04 }
+/** 自動投球時，每多學一種新球種，打者的擊球率就降低這麼多 */
+export const EXTRA_PITCH_CONTACT = 0.02
+
+export function pitchTraitOf(p: Pitcher, pitch: PitchType | undefined): PitchTraitId | undefined {
+  return pitch ? p.pitchTraits?.[pitch] : undefined
 }
 
 export function isBreaking(pitch: PitchType): boolean {

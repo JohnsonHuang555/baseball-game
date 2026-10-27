@@ -1,6 +1,7 @@
 // 休息站：例行賽每兩場一站，教練從商店、訓練、事件中選一個
 import { allPlayers, type CardTier } from './generate'
 import { EQUIPMENT, RELICS, type EquipmentId, type RelicId } from './items'
+import { advancePotential, trainingBoost } from './potential'
 import { SHOP_REROLL_COST, priceOf, upgradeCost } from './prices'
 import { Rng } from './rng'
 import type { Slot } from './setup'
@@ -11,10 +12,13 @@ import {
   relicsOf,
   replacePlayer,
   rewardOf,
+  teachPitch,
+  teachPitchTrait,
   teachTrait,
   toNextGame,
   updatePlayer,
   withRelic,
+  type Awakening,
   type RewardCard,
   type ShopItem,
   type Tournament,
@@ -65,12 +69,13 @@ const SHOP_SHELF: RewardCard['kind'][] = ['player', 'player', 'equipment', 'equi
 
 function stockShop(t: Tournament): Tournament {
   const rng = new Rng(t.rngState)
-  const owned = new Set(relicsOf(t))
   const shop: ShopItem[] = []
-  for (const kind of SHOP_SHELF) {
-    const card = rewardOf(rng, kind, rng.weighted(SHOP_TIERS), owned, t.history.length)
-    // 秘寶全部擁有了就改賣裝備
-    const item = card ?? rewardOf(rng, 'equipment', 'silver', owned, t.history.length)!
+  for (const shelf of SHOP_SHELF) {
+    // 特性那一格有時改賣球種特性或新球種
+    const kind = shelf === 'trait' ? rng.weighted<RewardCard['kind']>([['trait', 3], ['pitchTrait', 2], ['newPitch', 1]]) : shelf
+    const card = rewardOf(rng, kind, rng.weighted(SHOP_TIERS), t)
+    // 秘寶全部擁有了（或沒有投手用得到球種卡）就改賣裝備
+    const item = card ?? rewardOf(rng, 'equipment', 'silver', t)!
     shop.push({ card: item, price: priceOf(item), sold: false })
   }
   return { ...t, shop, rngState: rng.state }
@@ -107,6 +112,12 @@ export function buy(t: Tournament, index: number, target: { release?: Slot; play
     case 'equipment':
       next = { ...next, bag: [...next.bag, card.id] }
       return target.playerId ? equipFromBag(next, next.bag.length - 1, target.playerId, target.replace) : next
+    case 'pitchTrait':
+      if (!target.playerId) throw new Error('要指定哪一位投手')
+      return teachPitchTrait(next, target.playerId, card.pitch, card.id)
+    case 'newPitch':
+      if (!target.playerId) throw new Error('要指定哪一位投手')
+      return teachPitch(next, target.playerId, card.pitch)
   }
 }
 
@@ -125,10 +136,18 @@ export function leaveShop(t: Tournament): Tournament {
 
 // ---- 訓練 ----
 
-/** 免費讓一位球員的一項能力 +1 */
+/** 免費讓一位球員的一項能力 +1；有潛能的話順便推進四分之一，可能因此覺醒 */
 export function train(t: Tournament, playerId: string, rating: Rating): Tournament {
   expectPhase(t, 'training')
-  return toNextGame(bump(t, playerId, { [rating]: 1 }))
+  const next = bump(t, playerId, { [rating]: 1 })
+  const awakened: Awakening[] = []
+  const roster = updatePlayer(next.setup.team.roster, playerId, (p) => {
+    if (!p.potential) return p
+    const result = advancePotential(p, trainingBoost(p.potential))
+    if (result.awakened) awakened.push({ playerId, trait: result.awakened })
+    return result.player
+  })
+  return toNextGame({ ...next, awakened, setup: { ...next.setup, team: { ...next.setup.team, roster } } })
 }
 
 // ---- 事件 ----

@@ -9,6 +9,7 @@ import type {
 import type { CardTier } from '../sim/generate';
 import { EQUIPMENT, type EquipmentId, type RelicId } from '../sim/items';
 import type { EventId } from '../sim/rest';
+import type { PitchTraitId } from '../sim/pitches';
 import type { Round } from '../sim/tournament';
 import type { TraitId } from '../sim/traits';
 import type { Bats, Hand, Position, Tendency } from '../sim/types';
@@ -99,7 +100,22 @@ export const T = {
   relicPickHint: '秘寶整輪都有效，決定這支隊伍的打法',
   rewardTitle: (won: boolean) => (won ? '贏球獎勵' : '輸球獎勵'),
   rewardHint: (won: boolean, n: number) => (won ? `從 ${n} 張卡中挑 1 張，或放棄` : `輸球也有收穫：從 ${n} 張卡中挑 1 張`),
-  rewardKinds: { player: '球員', equipment: '裝備', relic: '秘寶', trait: '特性' },
+  rewardKinds: { player: '球員', equipment: '裝備', relic: '秘寶', trait: '特性', pitchTrait: '球種特性', newPitch: '新球種' },
+  pitchTraitName: (trait: string, pitch: string) => `${trait}${pitch}`,
+  newPitchDesc: '親自配球多一種選擇；自動投球時打者更難跟上',
+  pitchWho: (name: string) => `要讓哪位投手學會 ${name}？`,
+  pitchLearned: (name: string, pitch: string) => `${name} 學會 ${pitch}`,
+  pitchHas: '已經會了',
+  noPitcherEligible: '沒有投手能學',
+  pitchTraitTaken: '這個球種已有特性',
+  pitchMissing: '不會這個球種',
+  // ---- 潛能與覺醒 ----
+  potentialLabel: '潛能',
+  potentialTag: (stat: string, progress: number, need: number) => `？ ${stat} ${progress}/${need}`,
+  potentialHint: (stat: string, need: number) => `這一輪累積 ${need} ${stat}就會覺醒，覺醒前不知道會得到什麼特性；訓練也能推進`,
+  potentialStats: { hits: '支安打', hr: '支全壘打', rbi: '分打點', k: '次三振', outs: '個出局數' },
+  potentialStatShort: { hits: '安打', hr: '全壘打', rbi: '打點', k: '三振', outs: '出局' },
+  awakened: (name: string, trait: string) => `覺醒！${name} 獲得「${trait}」`,
   rewardCandidates: '獎勵卡',
   pickFirstCard: '先選一張卡',
   // ---- 休息站 ----
@@ -358,6 +374,7 @@ export const T = {
   keyAtBatToast: {
     hero: '英雄時刻！一支安打就能改寫比分，這個打席由你出手',
     basesLoaded: '滿壘危機！這個打席由你配球',
+    milestone: '差一步！這個打席有機會讓球員覺醒，由你出手',
     crunch: '一分差、二三壘有人！這個打席由你出手',
   },
   meterGrades: {
@@ -606,6 +623,18 @@ export function equipmentDesc(id: EquipmentId): string {
     .map(([k, v]) => `${RATING_FULL[k as keyof typeof RATING_FULL]} +${v}`)
     .join('・');
 }
+
+export const PITCH_TRAIT_NAMES: Record<PitchTraitId, string> = {
+  sharp: '銳利',
+  heavy: '尾勁',
+  command: '精準',
+};
+
+export const PITCH_TRAIT_DESC: Record<PitchTraitId, string> = {
+  sharp: '這個球種更容易讓打者揮空',
+  heavy: '這個球種被打中也比較難形成安打',
+  command: '這個球種更容易投進好球帶，親自配球時也更到位',
+};
 
 /** 休息站的事件：標題、情境、兩個選項 */
 export const EVENT_TEXT: Record<EventId, { title: string; body: string; options: [string, string] }> = {

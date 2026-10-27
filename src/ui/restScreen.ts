@@ -3,9 +3,10 @@ import { allPlayers } from '../sim/generate'
 import { SHOP_REROLL_COST, releaseValue, upgradeCost } from '../sim/prices'
 import { EVENTS, buy, canChoose, enterRest, eventTargets, leaveShop, rerollShop, resolveEvent, train, upgrade, type RestChoice } from '../sim/rest'
 import { getSlot } from '../sim/setup'
-import { canLearnTrait, type RewardCard, type Tournament } from '../sim/tournament'
+import { repertoire } from '../sim/pitches'
+import { canLearnPitch, canLearnPitchTrait, canLearnTrait, type RewardCard, type Tournament } from '../sim/tournament'
 import { TRAITS } from '../sim/traits'
-import type { BatterRatings, Player, PitcherRatings, Roster } from '../sim/types'
+import type { BatterRatings, Pitcher, Player, PitcherRatings, Roster } from '../sim/types'
 import { avatarSvg } from './avatar'
 import { chooseWearer, itemCard, pickHeader, playerCard, rosterSlots } from './cards'
 import { gradeOf } from './grades'
@@ -13,7 +14,7 @@ import { kbd, setKeys } from './keys'
 import { choiceModal } from './modal'
 import { el } from './playerCard'
 import { toast } from './visual'
-import { EQUIPMENT_NAMES, EVENT_TEXT, RATING_FULL, RELIC_NAMES, T, TRAIT_NAMES } from './strings'
+import { EQUIPMENT_NAMES, EVENT_TEXT, PITCH_TRAIT_NAMES, RATING_FULL, RELIC_NAMES, T, TRAIT_NAMES } from './strings'
 
 type Go = (t: Tournament) => void
 type Rating = keyof BatterRatings | keyof PitcherRatings
@@ -191,6 +192,17 @@ async function buyItem(t: Tournament, index: number, card: RewardCard, go: Go): 
     case 'relic':
       toast(T.relicGained(RELIC_NAMES[card.id]))
       return go(buy(t, index))
+    case 'pitchTrait':
+    case 'newPitch': {
+      const name = card.kind === 'pitchTrait' ? T.pitchTraitName(PITCH_TRAIT_NAMES[card.id], T.pitchNames[card.pitch]) : T.pitchNames[card.pitch]
+      const ok = (p: Player) => (card.kind === 'pitchTrait' ? canLearnPitchTrait(p, card.pitch) : canLearnPitch(p, card.pitch))
+      const who = await choosePlayer(roster, T.pitchWho(name), allPlayers(roster).filter(ok), (p) =>
+        repertoire(p as Pitcher).map((x) => T.pitchNames[x]).join('・'),
+      )
+      if (!who) return
+      toast(T.pitchLearned(who.name, name))
+      return go(buy(t, index, { playerId: who.id }))
+    }
   }
 }
 
@@ -206,8 +218,11 @@ export function showTraining(root: HTMLElement, t: Tournament, go: Go, toTitle: 
   start.onclick = async () => {
     const pick = await choosePlayerRating(t, T.trainWho)
     if (!pick) return
-    toast(T.ratingUp(pick.player.name, RATING_FULL[pick.rating]))
-    go(train(t, pick.player.id, pick.rating))
+    const next = train(t, pick.player.id, pick.rating)
+    // 訓練推進潛能，剛好覺醒的話一起提示
+    const woke = next.awakened?.[0]
+    toast(woke ? T.awakened(pick.player.name, TRAIT_NAMES[woke.trait]) : T.ratingUp(pick.player.name, RATING_FULL[pick.rating]))
+    go(next)
   }
   const icon = el('span', 'item-icon event-icon')
   icon.innerHTML = PLACE_ICONS.training

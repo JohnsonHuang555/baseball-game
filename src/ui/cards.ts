@@ -9,9 +9,21 @@ import { avatar, avatarSvg } from './avatar'
 import { gradeBadge, gradeOf, overallBadge } from './grades'
 import { kbd, type KeyMap } from './keys'
 import { choiceModal } from './modal'
-import { el, traitTag } from './playerCard'
+import { el, potentialTag, traitTag } from './playerCard'
 import { applyCardState, handChip, pitchChip, tendencyChip } from './visual'
-import { EQUIPMENT_NAMES, POSITION_FULL, RATING_FULL, RATING_LABELS, RELIC_DESC, RELIC_NAMES, T, TRAIT_DESC, equipmentDesc } from './strings'
+import {
+  EQUIPMENT_NAMES,
+  PITCH_TRAIT_DESC,
+  PITCH_TRAIT_NAMES,
+  POSITION_FULL,
+  RATING_FULL,
+  RATING_LABELS,
+  RELIC_DESC,
+  RELIC_NAMES,
+  T,
+  TRAIT_DESC,
+  equipmentDesc,
+} from './strings'
 
 const BACK_ICON =
   '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
@@ -49,8 +61,11 @@ const GEAR_OF: Record<EquipmentId, keyof typeof GEAR_ICONS> = {
   goldenSleeve: 'sleeve',
 }
 
-/** 秘寶是寶石、特性是星星 */
-export const KIND_ICONS: Record<'relic' | 'trait', string> = {
+/** 秘寶是寶石、特性是星星、球種卡是帶縫線的棒球（球種特性加速度線、新球種加一個加號） */
+const BALL = `<circle cx="34" cy="34" r="20" fill="#FFFFFF" ${SVG_LINE}/><path d="M24 18 Q30 34 24 50 M44 18 Q38 34 44 50" fill="none" stroke="#E5383B" stroke-width="2.5" stroke-dasharray="4 3"/>`
+export const KIND_ICONS: Record<'relic' | 'trait' | 'pitchTrait' | 'newPitch', string> = {
+  pitchTrait: `<svg aria-hidden="true" viewBox="0 0 64 64"><path d="M4 22 H14 M2 32 H12 M4 42 H14" stroke="#B57BFF" stroke-width="4" stroke-linecap="round"/>${BALL}</svg>`,
+  newPitch: `<svg aria-hidden="true" viewBox="0 0 64 64">${BALL}<circle cx="50" cy="14" r="11" fill="#5FE3A1" ${SVG_LINE}/><path d="M50 8 V20 M44 14 H56" stroke="#141633" stroke-width="3.5" stroke-linecap="round"/></svg>`,
   relic:
     '<svg aria-hidden="true" viewBox="0 0 64 64"><path d="M20 10 H44 L56 26 L32 56 L8 26 Z" fill="#B57BFF" stroke="#141633" stroke-width="3" stroke-linejoin="round"/><path d="M8 26 H56 M20 10 L26 26 L32 56 L38 26 L44 10" fill="none" stroke="#141633" stroke-width="2"/></svg>',
   trait:
@@ -172,6 +187,8 @@ export function playerCard(p: Player, selected: boolean, reveal: boolean, i: num
   })
   inner.append(stats)
   if (p.traits.length) inner.append(traitTag(p.traits[0]), el('span', 'draft-trait-desc', TRAIT_DESC[p.traits[0]]))
+  const pot = potentialTag(p)
+  if (pot) inner.append(pot)
   card.append(inner)
   if (selected) card.append(checkMark())
   return card
@@ -197,6 +214,11 @@ export function itemCard(card: Exclude<RewardCard, { kind: 'player' }>, selected
     inner.append(el('span', 'draft-name', EQUIPMENT_NAMES[card.id]), el('span', 'draft-role', role), el('span', 'item-desc', equipmentDesc(card.id)))
   } else if (card.kind === 'relic') {
     inner.append(el('span', 'draft-name', RELIC_NAMES[card.id]), el('span', 'draft-role', T.relicsTitle), el('span', 'item-desc', RELIC_DESC[card.id as RelicId]))
+  } else if (card.kind === 'pitchTrait') {
+    const name = T.pitchTraitName(PITCH_TRAIT_NAMES[card.id], T.pitchNames[card.pitch])
+    inner.append(el('span', 'draft-name', name), el('span', 'draft-role', T.pitcher), el('span', 'item-desc', PITCH_TRAIT_DESC[card.id]))
+  } else if (card.kind === 'newPitch') {
+    inner.append(el('span', 'draft-name', T.pitchNames[card.pitch]), el('span', 'draft-role', T.pitcher), el('span', 'item-desc', T.newPitchDesc))
   } else {
     const role = TRAITS[card.id].role === 'pitcher' ? T.pitcher : T.batter
     inner.append(traitTag(card.id), el('span', 'draft-role', role), el('span', 'item-desc', TRAIT_DESC[card.id]))

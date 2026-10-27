@@ -26,6 +26,10 @@ export function priceOf(card: RewardCard): number {
       return RELIC_PRICE[RELICS[card.id].tier]
     case 'trait':
       return TRAITS[card.id].tier === 'gold' ? 90 : 45
+    case 'pitchTrait':
+      return 60
+    case 'newPitch':
+      return 100
   }
 }
 

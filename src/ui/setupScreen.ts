@@ -14,7 +14,7 @@ import { TRAITS } from '../sim/traits'
 import type { Player, Position, Team } from '../sim/types'
 import { avatar } from './avatar'
 import { gradeBadge, overallBadge } from './grades'
-import { el, traitTag } from './playerCard'
+import { el, potentialTag, traitTag } from './playerCard'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { infoModal } from './modal'
 import { TEAM_NAME_MAX, saveTeamName } from './prefs'
@@ -328,6 +328,8 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
       for (const k of ['contact', 'power', 'speed', 'fielding'] as const) row.append(gradeBadge(p.ratings[k], 'md'))
       const traits = el('span', 'order-traits desk-only')
       traits.append(...p.traits.map(traitTag))
+      const pot = potentialTag(p)
+      if (pot) traits.append(pot)
       row.append(traits)
       row.setAttribute('aria-label', `第 ${i + 1} 棒 ${p.name}`)
       row.onclick = () => onTap(slot, 'list')

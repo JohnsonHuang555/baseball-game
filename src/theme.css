@@ -243,6 +243,13 @@
   background: #d9283c;
   color: #fff;
 }
+/* 潛能：還沒覺醒的「？」，虛線框表示未定 */
+.trait-potential {
+  background: #f1e6ff;
+  color: #5b2a9e;
+  border-style: dashed;
+  border-color: #7c3fd1;
+}
 
 /* ---- 頭像 ---- */
 .avatar {
@@ -939,6 +946,10 @@
 .pitch-chip-item.primary {
   background: var(--ink);
   color: var(--yellow);
+}
+.pitch-chip-item.has-trait {
+  background: #b57bff;
+  color: #fff;
 }
 .pitch-chip.full {
   gap: 3px;

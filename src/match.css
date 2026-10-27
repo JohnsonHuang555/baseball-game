@@ -843,6 +843,10 @@
   background: #ff8a9a;
   color: var(--ink);
 }
+.pc-tag.trait {
+  background: #b57bff;
+  color: #fff;
+}
 .pc-warning {
   margin: 0;
   font-size: 11.5px;

@@ -1,4 +1,19 @@
-import { PITCH_WHIFF, aiPitch, coldZone, hotZone, isBreaking, isCorner, repertoire, spotZones, stance, type PitchGuess, type PitchType } from './pitches'
+import {
+  EXTRA_PITCH_CONTACT,
+  PITCH_TRAIT_EFFECT,
+  PITCH_WHIFF,
+  aiPitch,
+  coldZone,
+  hotZone,
+  isBreaking,
+  isCorner,
+  pitchTraitOf,
+  repertoire,
+  spotZones,
+  stance,
+  type PitchGuess,
+  type PitchType,
+} from './pitches'
 import { Rng, clamp } from './rng'
 import type { RelicId } from './items'
 import { hasTrait } from './traits'
@@ -85,8 +100,8 @@ export type MeterGrade = 'perfect' | 'good' | 'early' | 'late' | 'miss'
 /** 親自出手的方式：出棒、決勝球（舊規則）、配球 */
 export type TakeOverKind = 'swing' | 'aimPitch' | 'throw'
 
-/** 關鍵打席的理由，依優先順序：英雄時刻、我方守備滿壘、後段一分差二三壘有人 */
-export type KeyAtBatReason = 'hero' | 'basesLoaded' | 'crunch'
+/** 關鍵打席的理由，依優先順序：英雄時刻、我方守備滿壘、差一步就覺醒、後段一分差二三壘有人 */
+export type KeyAtBatReason = 'hero' | 'basesLoaded' | 'milestone' | 'crunch'
 
 /** 計量條上的目標區：center 是中心位置，good、perfect 是往兩側的半寬 */
 export interface MeterZone {
@@ -508,8 +523,25 @@ export class Game {
     const heroAllowed = this.inning < 10 || this.paIndex === this.halfStartPa
     if (this.inning >= 8 && heroAllowed && behind >= 0 && risp >= Math.max(1, behind)) return 'hero'
     if (this.fieldingSide === this.userSide && this.bases.every(Boolean)) return 'basesLoaded'
+    if (this.nearAwakening()) return 'milestone'
     if (this.inning >= 7 && Math.abs(behind) <= 1 && second && third) return 'crunch'
     return null
+  }
+
+  /**
+   * 差一步：我方這位打者（或投手）這個打席有機會讓潛能覺醒。
+   * 安打、全壘打差一支；打點差的數字壘上跑者加打者自己就夠；投手三振差一次。出局數一個打席湊不到，不算
+   */
+  private nearAwakening(): boolean {
+    const batting = this.battingSide === this.userSide
+    const p: Player = batting ? this.batter : this.pitcher
+    const pot = p.potential
+    if (!pot) return false
+    const left = pot.need - pot.progress - (this.box[p.id]?.[pot.stat] ?? 0)
+    if (left <= 0) return false
+    if (!batting) return pot.stat === 'k' && left === 1
+    if (pot.stat === 'hits' || pot.stat === 'hr') return left === 1
+    return pot.stat === 'rbi' && left <= this.bases.filter(Boolean).length + 1
   }
 
   /** 第 7 局以後、比分差 1 分以內、得點圈有人：真正能左右勝負的時刻 */
@@ -802,7 +834,8 @@ export class Game {
       const ballP = t.spot === undefined ? 0.5 : t.spot === 4 ? 0.2 : isCorner(t.spot) ? 0.65 : 0.5
       return r < ballP ? { ...base, inZone: false, swing: false, result: 'ball' } : { ...base, result: 'inPlay', hit: 0.15, power: 2 }
     }
-    const whiff = clamp(0.12 + edge * 0.45 + PITCH_WHIFF[t.pitch], 0.04, 0.6)
+    const sharp = pitchTraitOf(this.pitcher, t.pitch) === 'sharp' ? PITCH_TRAIT_EFFECT.sharpWhiff : 0
+    const whiff = clamp(0.12 + edge * 0.45 + PITCH_WHIFF[t.pitch] + sharp, 0.04, 0.6)
     if (r < whiff) return { ...base, result: 'swingingStrike' }
     if (r < whiff + 0.18) return { ...base, result: 'foul' }
     return { ...base, result: 'inPlay', hit: -edge * 0.35, power: Math.round(-edge * 4) }
@@ -820,6 +853,8 @@ export class Game {
     }
     if (this.lastThrow === pitch) edge -= 0.2
     if (repertoire(this.pitcher)[1] === pitch) edge += 0.05
+    // 精準：親自配球時這一球比較到位
+    if (pitchTraitOf(this.pitcher, pitch) === 'command') edge += 0.1
     return edge
   }
 
@@ -838,8 +873,11 @@ export class Game {
     // 這一球的球種只給畫面用（投球動畫），不影響結果、不抽亂數；舊規則的比賽沒有球種
     const pitchType = mod.pitch ?? (this.pitchMix ? this.nextPitch() : undefined)
     this.fielding.pitchCount++
+    // 錦標賽的球種特性與新球種：舊存檔的投手沒有這些欄位，結果不變
+    const pitchTrait = pitchTraitOf(pitcher, pitchType)
+    const command = pitchTrait === 'command' ? PITCH_TRAIT_EFFECT.commandZone : 0
 
-    const zoneP = clamp(0.5 + (control - 5) * 0.035 - (hasTrait(pitcher, 'wild') ? 0.08 : 0), 0.3, 0.72)
+    const zoneP = clamp(0.5 + (control - 5) * 0.035 - (hasTrait(pitcher, 'wild') ? 0.08 : 0) + command, 0.3, 0.72 + command)
     const inZone = mod.inZone ?? rng.chance(zoneP)
     const swingP = inZone
       ? 0.65 + (twoStrikes ? 0.15 : 0)
@@ -857,7 +895,9 @@ export class Game {
           (contact - stuff) * 0.03 -
           (hasTrait(batter, 'freeSwinger') ? 0.08 : 0) -
           (hasTrait(pitcher, 'strikeoutArtist') ? 0.06 : 0) -
-          (hasTrait(pitcher, 'escapeArtist') && this.scoringPosition() ? 0.05 : 0) +
+          (hasTrait(pitcher, 'escapeArtist') && this.scoringPosition() ? 0.05 : 0) -
+          (pitchTrait === 'sharp' ? PITCH_TRAIT_EFFECT.sharpWhiff : 0) -
+          (pitcher.extraPitches?.length ?? 0) * EXTRA_PITCH_CONTACT +
           (mod.contact ?? 0),
         0.2,
         0.95,
@@ -869,7 +909,9 @@ export class Game {
 
     if (result === 'inPlay') {
       this.aimAngle = mod.aim ?? null
-      const play = this.ballInPlay(hitAndRun, mod)
+      // 尾勁：被打中也比較難形成安打
+      const heavy = pitchTrait === 'heavy' ? { ...mod, hit: (mod.hit ?? 0) - PITCH_TRAIT_EFFECT.heavyHit } : mod
+      const play = this.ballInPlay(hitAndRun, heavy)
       this.aimAngle = null
       return [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter, pitch: pitchType }, ...play]
     }

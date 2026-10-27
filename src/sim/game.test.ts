@@ -3,6 +3,7 @@ import { ALIGNMENT_SPOTS, Game, fenceDistance, fielderFor, homeRunStats, replay,
 import { generateBatter, generatePitcher, generateTeam } from './generate'
 import { applyGrowth, gameGrowth, performance } from './growth'
 import type { RelicId } from './items'
+import { repertoire, type PitchType } from './pitches'
 import { Rng } from './rng'
 import { TRAITS, conflicts, type TraitId } from './traits'
 import type { Pitcher, Team } from './types'
@@ -1021,6 +1022,44 @@ describe('關鍵打席', () => {
     const perGame = keyPas / games
     expect(perGame).toBeGreaterThan(1)
     expect(perGame).toBeLessThan(6)
+  })
+})
+
+describe('球種特性與新球種', () => {
+  /** 主隊的投手全部帶上這些設定，1000 場客隊總得分（效果只有幾個百分點，場數少會被運氣蓋過） */
+  function awayRuns(change: (p: Pitcher) => Pitcher): number {
+    let runs = 0
+    for (let seed = 1; seed <= 1000; seed++) {
+      const s = setup(seed)
+      const r = s.home.roster
+      const home = { ...s.home, roster: { ...r, starter: change(r.starter), relievers: r.relievers.map(change) } }
+      runs += playOut(new Game({ ...s, home })).score.away
+    }
+    return runs
+  }
+  const ALL: PitchType[] = ['fastball', 'slider', 'curve', 'change', 'splitter']
+
+  it('自動投球時，球種特性和新球種讓對手得分變少', () => {
+    const base = awayRuns((p) => p)
+    expect(awayRuns((p) => ({ ...p, pitchTraits: Object.fromEntries(ALL.map((x) => [x, 'sharp'])) }))).toBeLessThan(base)
+    expect(awayRuns((p) => ({ ...p, pitchTraits: Object.fromEntries(ALL.map((x) => [x, 'heavy'])) }))).toBeLessThan(base)
+    expect(awayRuns((p) => ({ ...p, extraPitches: ALL.filter((x) => !repertoire(p).includes(x)) }))).toBeLessThan(base)
+  })
+})
+
+describe('差一步的關鍵打席', () => {
+  it('我方打者再一支全壘打就覺醒時，是關鍵打席', () => {
+    const s = setup(5)
+    const lineup = s.home.roster.lineup.map((spot) => ({
+      ...spot,
+      player: { ...spot.player, potential: { trait: 'slugger' as const, stat: 'hr' as const, need: 4, progress: 3 } },
+    }))
+    const g = new Game({ ...s, home: { ...s.home, roster: { ...s.home.roster, lineup } } })
+    while (g.battingSide !== 'home' && !g.over) g.step()
+    expect(g.keyAtBat()).toBe('milestone')
+    const plain = new Game(s)
+    while (plain.battingSide !== 'home') plain.step()
+    expect(plain.keyAtBat()).toBeNull()
   })
 })
 
