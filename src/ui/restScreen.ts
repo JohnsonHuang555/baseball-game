@@ -4,14 +4,16 @@ import { SHOP_REROLL_COST, releaseValue, upgradeCost } from '../sim/prices'
 import { EVENTS, buy, canChoose, enterRest, eventTargets, leaveShop, rerollShop, resolveEvent, train, upgrade, type RestChoice } from '../sim/rest'
 import { getSlot } from '../sim/setup'
 import { repertoire } from '../sim/pitches'
-import { canLearnPitch, canLearnPitchTrait, canLearnTrait, type RewardCard, type Tournament } from '../sim/tournament'
+import { canLearnPitch, canLearnPitchTrait, canLearnTrait, relicsOf, type RewardCard, type Tournament } from '../sim/tournament'
 import { TRAITS } from '../sim/traits'
 import type { BatterRatings, Pitcher, Player, PitcherRatings, Roster } from '../sim/types'
 import { avatarSvg } from './avatar'
 import { chooseWearer, itemCard, pickHeader, playerCard, rosterSlots } from './cards'
 import { gradeOf } from './grades'
 import { kbd, setKeys } from './keys'
-import { choiceModal } from './modal'
+import { choiceModal, infoModal } from './modal'
+import { addGainLine, replaceList } from './replaceList'
+import { relicPreview } from './synergyUi'
 import { el } from './playerCard'
 import { toast } from './visual'
 import { EQUIPMENT_NAMES, EVENT_TEXT, PITCH_TRAIT_NAMES, RATING_FULL, RELIC_NAMES, T, TRAIT_NAMES } from './strings'
@@ -118,6 +120,11 @@ export function showShop(root: HTMLElement, t: Tournament, go: Go, toTitle: () =
   t.shop.forEach((item, i) => {
     const cell = el('div', `shop-cell ${item.sold ? 'sold' : ''}`)
     const card = item.card.kind === 'player' ? playerCard(item.card.player, false, false, i) : itemCard(item.card, false, false, i)
+    if (item.card.kind === 'player') addGainLine(card, t.setup.team.roster, item.card.player, relicsOf(t))
+    if (item.card.kind === 'relic') {
+      const preview = relicPreview(item.card.id, t.setup.team.roster, relicsOf(t))
+      if (preview) card.querySelector('.draft-inner')?.append(preview)
+    }
     card.tabIndex = -1
     const price = el('button', 'btn-yellow shop-price', item.sold ? T.sold : T.buyFor(item.price))
     price.disabled = item.sold || t.funds < item.price
@@ -159,19 +166,17 @@ async function buyItem(t: Tournament, index: number, card: RewardCard, go: Go): 
   const roster = t.setup.team.roster
   switch (card.kind) {
     case 'player': {
+      // 買下球員就是交易：跟獎勵一樣的「要換掉誰」列表
       const pick = card.player
-      const slots = rosterSlots(roster).filter(([slot]) => getSlot(roster, slot).role === pick.role)
-      const slot = await choiceModal({
-        title: T.replaceWho(pick.name, pick.role === 'pitcher' ? T.pitcher : T.batter),
-        options: slots.map(([s, label]) => {
-          const p = getSlot(roster, s)
-          return { value: s, label: `${p.name}（${label}）`, sub: `${gradeSummary(p)}・${T.refund(releaseValue(p))}`, icon: avatarSvg(p.id, 'user') }
+      const close = infoModal(
+        T.trade,
+        replaceList(roster, pick, relicsOf(t), rosterSlots(roster), (slot, out) => {
+          close()
+          toast(`${T.joined(pick.name, out.name)}・${T.fundsEarned(releaseValue(out))}`)
+          go(buy(t, index, { release: slot }))
         }),
-      })
-      if (!slot) return
-      const out = getSlot(roster, slot)
-      toast(`${T.joined(pick.name, out.name)}・${T.fundsEarned(releaseValue(out))}`)
-      return go(buy(t, index, { release: slot }))
+      )
+      return
     }
     case 'equipment': {
       const target = await chooseWearer(roster, card.id, true)

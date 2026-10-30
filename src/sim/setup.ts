@@ -2,13 +2,11 @@ import { generateBatter, generatePitcher, generateTeam } from './generate'
 import { Rng } from './rng'
 import type { Player, Roster, Team } from './types'
 
-export const TEAM_REROLLS = 3
 export const PLAYER_REROLLS = 5
 
 /** 比賽開打前的組隊階段 */
 export interface PregameSetup {
   team: Team
-  teamRerollsLeft: number
   playerRerollsLeft: number
   rngState: number
 }
@@ -22,15 +20,14 @@ export type Slot =
 export function createSetup(seed: number): PregameSetup {
   const rng = new Rng(seed)
   const team = generateTeam(rng)
-  return { team, teamRerollsLeft: TEAM_REROLLS, playerRerollsLeft: PLAYER_REROLLS, rngState: rng.state }
+  return { team, playerRerollsLeft: PLAYER_REROLLS, rngState: rng.state }
 }
 
-/** 整隊重骰：隊名保留，球員全部換新 */
+/** 整隊重骰：隊名保留，球員全部換新。不限次數（重新整理頁面一樣能換隊，限制次數沒有意義） */
 export function rerollTeam(s: PregameSetup): PregameSetup {
-  if (s.teamRerollsLeft <= 0) return s
   const rng = new Rng(s.rngState)
   const { roster } = generateTeam(rng)
-  return { ...s, team: { ...s.team, roster }, teamRerollsLeft: s.teamRerollsLeft - 1, rngState: rng.state }
+  return { ...s, team: { ...s.team, roster }, rngState: rng.state }
 }
 
 export function rerollPlayer(s: PregameSetup, slot: Slot): PregameSetup {
@@ -60,9 +57,13 @@ export function getSlot(roster: Roster, slot: Slot): Player {
 
 export function setSlot(roster: Roster, slot: Slot, player: Player): Roster {
   switch (slot.kind) {
-    case 'lineup':
+    case 'lineup': {
       if (player.role !== 'batter') throw new Error('打序只能放打者')
-      return { ...roster, lineup: roster.lineup.map((s, i) => (i === slot.index ? { ...s, player } : s)) }
+      // 隊長離開先發（被換掉或換到板凳）就沒有隊長，等教練重新指定
+      const leaving = roster.lineup[slot.index].player.id
+      const captain = roster.captain === leaving && player.id !== leaving ? undefined : roster.captain
+      return { ...roster, captain, lineup: roster.lineup.map((s, i) => (i === slot.index ? { ...s, player } : s)) }
+    }
     case 'bench':
       if (player.role !== 'batter') throw new Error('板凳只能放打者')
       return { ...roster, bench: roster.bench.map((b, i) => (i === slot.index ? player : b)) }
@@ -73,6 +74,12 @@ export function setSlot(roster: Roster, slot: Slot, player: Player): Roster {
       if (player.role !== 'pitcher') throw new Error('後援只能放投手')
       return { ...roster, relievers: roster.relievers.map((p, i) => (i === slot.index ? player : p)) }
   }
+}
+
+/** 指定隊長：只能是先發打者 */
+export function setCaptain(roster: Roster, playerId: string): Roster {
+  if (!roster.lineup.some((s) => s.player.id === playerId)) throw new Error('隊長只能是先發打者')
+  return { ...roster, captain: playerId }
 }
 
 /** 交換兩名先發的守位，打序不變（例如把守備好的人換到游擊） */

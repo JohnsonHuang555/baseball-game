@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardTier, generateRoster, generateTeam, overall } from './generate'
+import { cardTier, generateBatter, generateRoster, generateTeam, overall } from './generate'
 import { Rng } from './rng'
 import { TRAITS, conflicts } from './traits'
 import type { Player } from './types'
@@ -23,6 +23,12 @@ describe('generateRoster', () => {
     expect(r.starter.role).toBe('pitcher')
   })
 
+  it('開局的八個守位都由本職擔任', () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      for (const s of generateRoster(new Rng(seed)).lineup) if (s.position !== 'DH') expect(s.player.primary).toBe(s.position)
+    }
+  })
+
   it('同一個種子產生同一支隊伍', () => {
     expect(generateTeam(new Rng(7))).toEqual(generateTeam(new Rng(7)))
   })
@@ -30,6 +36,20 @@ describe('generateRoster', () => {
   it('球員 id 在大量產生時不重複', () => {
     const ids = allPlayers(200).map((p) => p.id)
     expect(new Set(ids).size).toBe(ids.length)
+  })
+})
+
+describe('本職守位', () => {
+  it('隨機球員的本職涵蓋八個守位，本職捕手比較少見', () => {
+    const rng = new Rng(3)
+    const counts: Record<string, number> = {}
+    for (let i = 0; i < 4000; i++) {
+      const p = generateBatter(rng).primary
+      counts[p] = (counts[p] ?? 0) + 1
+    }
+    expect(Object.keys(counts)).toHaveLength(8)
+    expect(counts.C / 4000).toBeLessThan(0.1)
+    expect(counts.SS / 4000).toBeGreaterThan(0.1)
   })
 })
 

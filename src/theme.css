@@ -138,6 +138,18 @@
   font-weight: 400;
   line-height: 1;
 }
+/* 列表裡的無色字母；守非本職時改成紅字底線，不加外框 */
+.grade-lite {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+}
+.grade-lite.off-outline {
+  outline: none;
+  color: #b01e30;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .grade-sm {
   width: 20px;
   height: 20px;
@@ -1222,4 +1234,567 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* ---- 本職守位：本職標籤、非本職警示 ---- */
+.primary-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 6px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.detail-info .primary-chip,
+.draft-inner .primary-chip {
+  font-size: 11px;
+  line-height: 18px;
+}
+.offpos-icon {
+  flex: none;
+  display: inline-flex;
+}
+.offpos-icon svg {
+  display: block;
+}
+.grade.off-outline {
+  outline: 2px solid #d9283c;
+  outline-offset: 1px;
+}
+.offpos-note {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 2.5px solid #d9283c;
+  background: #fff0f2;
+}
+.offpos-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b3a44;
+}
+.offpos-text strong {
+  font-size: 15px;
+  font-weight: 900;
+  color: #b01e30;
+}
+
+/* ---- 羈絆：流派徽章、隊長、追蹤欄、說明 ---- */
+.arch-icon,
+.captain-icon,
+.syn-icon {
+  flex: none;
+  display: inline-flex;
+}
+.syn-icon.off {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+.arch-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px 0 2px;
+  border-radius: 11px;
+  border: 2px solid var(--arch);
+  background: #fff;
+  color: var(--arch);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.detail-info .arch-chip,
+.draft-inner .arch-chip {
+  height: 26px;
+  border-radius: 13px;
+  font-size: 12px;
+}
+.captain-tag {
+  flex: none;
+  padding: 0 7px;
+  border-radius: 7px;
+  border: 1.5px solid #ffc21a;
+  background: var(--ink);
+  color: #ffe58a;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.detail-buttons.triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.detail-buttons.double {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+}
+.captain-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.captain-btn:disabled {
+  border-style: dashed;
+  border-color: #8a8fae;
+  background: #eceef8;
+  box-shadow: none;
+  color: #6b7099;
+}
+.captain-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.syn-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.syn-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.syn-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.syn-name {
+  font-size: 15px;
+  font-weight: 900;
+}
+.syn-status {
+  padding: 0 7px;
+  border-radius: 7px;
+  background: #eceef8;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 20px;
+}
+.syn-status.on {
+  background: var(--ink);
+  color: #fff;
+}
+.syn-status.max {
+  background: linear-gradient(135deg, #ffe58a, #ffc21a);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+.syn-progress,
+.syn-pips {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.syn-pip {
+  display: block;
+  width: 14px;
+  height: 10px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+}
+.syn-pip.gate {
+  width: 18px;
+  outline: 1.5px solid var(--ink);
+  outline-offset: 1px;
+}
+.syn-pip.gate.top {
+  outline-color: #c99400;
+}
+.syn-pips.off .syn-pip.filled {
+  background: #8a8fae;
+}
+.syn-pips.on .syn-pip.filled {
+  background: var(--ink);
+}
+.syn-pips.max .syn-pip.filled {
+  background: #ffc21a;
+}
+.syn-count {
+  margin-left: 6px;
+  font-family: var(--font-display);
+  font-size: 12px;
+}
+.syn-hint {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7099;
+}
+.syn-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.syn-tiers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.syn-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1.5px dashed #c9cce6;
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+.syn-tier.current {
+  border: 2px solid var(--ink);
+  background: #fff8db;
+  color: var(--ink);
+}
+.syn-tier-label {
+  align-self: flex-start;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #d9dcf2;
+  color: #33385e;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 18px;
+}
+.syn-tier.current .syn-tier-label {
+  background: var(--ink);
+  color: #fff;
+}
+.syn-tier-text {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.syn-members-title {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.syn-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.syn-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 8px 0 4px;
+  border-radius: 15px;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  font-size: 12px;
+  font-weight: 900;
+}
+.syn-member .avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--home);
+  overflow: hidden;
+}
+.syn-member-pos {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.syn-note {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7099;
+}
+.syn-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+/* 球員詳細資料：他在哪些羈絆裡 */
+.player-syn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.player-syn-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 900;
+}
+.player-syn-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  border: 1.5px solid #c9cce6;
+  background: #fff;
+}
+.player-syn-row.off {
+  border-style: dashed;
+  background: #fafbff;
+}
+.player-syn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 精簡標籤：錦標賽主畫面、比賽中 */
+.syn-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.syn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 7px 0 3px;
+  border-radius: 8px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.syn-badge.max {
+  background: linear-gradient(135deg, #ffe58a, #ffc21a);
+}
+/* 最接近啟動的一個：灰虛線框 */
+.syn-badge.near {
+  border: 2px dashed #b4b9cc;
+  background: #fafbff;
+  color: var(--ink-soft);
+}
+.syn-badge-tier {
+  font-family: var(--font-display);
+  font-size: 10px;
+}
+.syn-badge.near .syn-badge-tier {
+  font-family: inherit;
+  font-size: 11px;
+}
+.syn-badge-hint {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lilac);
+}
+
+/* 羈絆秘技卡：連動的羈絆，以及拿了以後你的隊伍會怎樣 */
+.relic-preview {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.relic-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #33385e;
+}
+.relic-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding-top: 8px;
+  border-top: 2px dashed #d4d7ee;
+}
+.relic-team-label {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.relic-team-text {
+  padding: 2px 8px;
+  border-radius: 7px;
+  border: 1.5px solid #c9cce6;
+  background: #fff;
+  color: #33385e;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+.relic-team-text.act {
+  border-color: #1e7a3c;
+  background: #e3f7e9;
+  color: #1e7a3c;
+}
+.relic-team-text.up {
+  border-color: var(--ink);
+  background: linear-gradient(135deg, #ffe58a, #ffc21a);
+  color: var(--ink);
+}
+
+/* ---- 守位羈絆未成立：淡紅提示 ---- */
+.syn-status.fail {
+  background: #ffe3e6;
+  color: #b01e30;
+}
+.syn-hint.fail {
+  color: #b01e30;
+}
+.syn-member-pos.off {
+  color: #b01e30;
+}
+.player-syn-row.fail {
+  border-style: dashed;
+  background: #fafbff;
+}
+.syn-icon.fail {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+
+/* ---- 羈絆變化標籤：綠＝啟動或成立、金＝升級、灰虛線＝失效、白＝人數變了、紅＝警告 ---- */
+.diff-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px 0 4px;
+  border-radius: 7px;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.diff-tag.act {
+  background: #e3f7e9;
+  color: #1e7a3c;
+  border: 1.5px solid #1e7a3c;
+}
+.diff-tag.up {
+  background: linear-gradient(135deg, #ffe58a, #ffc21a);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+}
+.diff-tag.lose,
+.diff-tag.down {
+  background: #eceef8;
+  color: var(--ink-soft);
+  border: 1.5px dashed #6b7099;
+}
+.diff-tag.count {
+  background: #fff;
+  color: var(--ink-soft);
+  border: 1.5px solid #d4d7ee;
+}
+.diff-tag.warn {
+  background: #d9283c;
+  color: #fff;
+  border: 1.5px solid var(--ink);
+}
+
+/* ---- 最多羈絆排法 ---- */
+.auto-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+.auto-sub,
+.auto-note {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.auto-compare {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.auto-compare-label {
+  flex: none;
+  width: 40px;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.auto-compare.after .auto-compare-label {
+  color: #1e7a3c;
+}
+.auto-title {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 900;
+}
+.auto-move {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1.5px solid #c9cce6;
+  background: #fff;
+}
+.auto-move-text {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.5;
+}
+.auto-move-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.auto-move-tags:empty {
+  display: none;
+}
+.auto-off {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: #e3f7e9;
+  border: 1.5px solid #1e7a3c;
+  color: #1e7a3c;
+  font-size: 12px;
+  font-weight: 900;
+}
+.auto-off.warn {
+  background: #fff0f2;
+  border-color: #d9283c;
+  color: #b01e30;
+}
+.auto-apply {
+  min-height: 54px;
 }

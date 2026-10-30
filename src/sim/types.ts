@@ -7,6 +7,11 @@ export type Position = 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'D
 
 export const POSITIONS: readonly Position[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
 
+/** 有守備的守位：指定打擊以外的八個 */
+export type FieldPosition = Exclude<Position, 'DH'>
+
+export const FIELD_POSITIONS: readonly FieldPosition[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF']
+
 export interface BatterRatings {
   contact: number
   power: number
@@ -20,6 +25,11 @@ export interface PitcherRatings {
   control: number
   stamina: number
 }
+
+/** 流派：每名打者固定帶有的打法類型 */
+export type Archetype = 'power' | 'speed' | 'skill' | 'defense'
+
+export const ARCHETYPES: readonly Archetype[] = ['power', 'speed', 'skill', 'defense']
 
 /** 擊球方向傾向：偏左外野、平均、偏右外野 */
 export type Tendency = 'left' | 'even' | 'right'
@@ -37,6 +47,10 @@ export interface Batter {
   traits: TraitId[]
   tendency: Tendency
   bats: Bats
+  /** 本職守位：守別的位置時守備打折 */
+  primary: FieldPosition
+  /** 流派：產生時決定，之後不會因為成長或裝備改變 */
+  archetype: Archetype
   /** 錦標賽中帶的裝備，最多 2 件 */
   equipment?: EquipmentId[]
   /** 錦標賽中還沒覺醒的潛能 */
@@ -73,11 +87,13 @@ export interface Roster {
   bench: Batter[]
   starter: Pitcher
   relievers: Pitcher[]
+  /** 隊長的球員編號：先發打者中的一人，在自己流派的人數中算兩人；離開先發就清空 */
+  captain?: string
 }
 
 export interface Team {
   name: string
   roster: Roster
-  /** 錦標賽中全隊共用的秘寶；AI 隊伍沒有 */
+  /** 錦標賽中全隊共用的秘技；AI 隊伍沒有 */
   relics?: RelicId[]
 }

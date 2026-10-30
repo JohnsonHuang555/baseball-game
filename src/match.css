@@ -1039,3 +1039,178 @@
   text-shadow: 0 1px 0 var(--ink);
   white-space: nowrap;
 }
+
+/* ---- 比賽中的羈絆列：雙方目前啟動的羈絆 ---- */
+.match-syn {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+.match-syn[hidden] {
+  display: none;
+}
+.match-syn-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.match-syn-side .syn-badges {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+/* 手機版空間小，比賽中的羈絆只留圖示和人數（名稱寫在滑過的提示裡） */
+.match-syn .syn-badge-name {
+  display: none;
+}
+
+/* ---- 羈絆促成：比賽紀錄結尾的〔羈絆名〕用羈絆的顏色，對手的用橘色 ---- */
+.log-assist {
+  margin-left: 4px;
+  font-weight: 900;
+}
+.log-assist.key-power {
+  color: #d6267f;
+}
+.log-assist.key-speed {
+  color: #0b7f98;
+}
+.log-assist.key-skill {
+  color: #3f7a0c;
+}
+.log-assist.key-defense {
+  color: #4a5363;
+}
+.log-assist.key-middle,
+.log-assist.key-battery {
+  color: #1a4fb8;
+}
+.log-assist.opponent {
+  color: #c2560a;
+}
+/* 大字旁邊的羈絆標籤：晚 0.3 秒彈出 */
+.callout-assist {
+  position: relative;
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px 0 4px;
+  border-radius: 8px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 3px 0 var(--ink);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+  transform: rotate(6deg);
+  opacity: 0;
+  animation: assist-pop 0.25s 0.3s ease-out forwards;
+}
+@keyframes assist-pop {
+  from {
+    opacity: 0;
+    transform: rotate(6deg) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(6deg) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .callout-assist {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ---- 換人造成的羈絆變化提示（疊在球場上方） ---- */
+.syn-notices {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  z-index: 3;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.syn-notices.show {
+  opacity: 1;
+}
+.syn-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 16px;
+  background: var(--ink);
+  color: #fff;
+  border: 2.5px solid #5fe3a1;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.syn-notice.up {
+  border-color: #ffc21a;
+}
+.syn-notice.lose {
+  border: 2.5px dashed #8a8fae;
+}
+.syn-notice.opponent {
+  border-color: var(--away);
+}
+.syn-notice.captain {
+  background: #fff;
+  border: 2.5px solid #d9283c;
+  color: #b01e30;
+  font-size: 13px;
+  font-weight: 900;
+}
+.syn-notice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lilac);
+}
+.syn-notice.captain .syn-notice-text {
+  color: #b01e30;
+  font-size: 13px;
+  font-weight: 900;
+}
+.syn-notice-text strong {
+  font-size: 16px;
+  font-weight: 900;
+  color: #fff;
+}
+.match-syn-side {
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.match-syn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.match-syn-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}

@@ -17,11 +17,16 @@ export function gradeOf(value: number): Grade {
   return 'G'
 }
 
-export function gradeBadge(value: number, size: 'sm' | 'md' | 'lg' | 'xl' = 'md'): HTMLElement {
+/**
+ * 等級徽章。lite 用在列表與比賽中的打者列：字母不上等級色，只有 S、A 保留顏色當強項提示；
+ * 等級色只留給球員本身是主角的地方（球員詳細資料、新球員的總評）
+ */
+export function gradeBadge(value: number, size: 'sm' | 'md' | 'lg' | 'xl' = 'md', lite = false): HTMLElement {
   const g = gradeOf(value)
-  return el('span', `grade grade-${g} grade-${size}`, g)
+  const plain = lite && g !== 'S' && g !== 'A'
+  return el('span', `grade grade-${size} ${plain ? 'grade-lite' : `grade-${g}`}`, g)
 }
 
-export function overallBadge(p: Player, size: 'sm' | 'md' | 'lg' | 'xl' = 'md'): HTMLElement {
-  return gradeBadge(overall(p), size)
+export function overallBadge(p: Player, size: 'sm' | 'md' | 'lg' | 'xl' = 'md', lite = false): HTMLElement {
+  return gradeBadge(overall(p), size, lite)
 }

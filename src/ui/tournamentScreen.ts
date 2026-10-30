@@ -40,7 +40,7 @@ import {
   type Tournament,
 } from '../sim/tournament'
 import { TRAITS } from '../sim/traits'
-import type { Player } from '../sim/types'
+import type { Player, Team } from '../sim/types'
 import { induct, recordChampion, recordRun, type Trophy } from './progress'
 import { showRecap } from './clubHistory'
 import { avatar, avatarSvg } from './avatar'
@@ -56,8 +56,12 @@ import { clearTournament, saveTournament } from './save'
 import { play } from './sound'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
-import { rays, showRosterEditor } from './setupScreen'
-import { EQUIPMENT_NAMES, PITCH_TRAIT_NAMES, RELIC_DESC, RELIC_NAMES, T, TRAIT_NAMES, equipmentDesc } from './strings'
+import { rays, showOpponentRoster, showRosterEditor } from './setupScreen'
+import { CAPTAIN_TITLES, EQUIPMENT_NAMES, PITCH_TRAIT_NAMES, RELIC_DESC, RELIC_NAMES, T, TRAIT_NAMES, equipmentDesc } from './strings'
+import { captainIcon, relicPreview, synergyBadges, synergyCountText, synergyScouting } from './synergyUi'
+import { synergyRelicSvg } from './synergyIcons'
+import { addGainLine, replaceList } from './replaceList'
+import { captainIn } from '../sim/synergy'
 
 /** 依錦標賽目前的階段，打開對應的畫面。每次狀態改變都會存檔 */
 export function openTournament(root: HTMLElement, t: Tournament, toTitle: () => void): void {
@@ -171,7 +175,7 @@ function recordRows(t: Tournament): { round: string; won: boolean; score: string
 
 // ---- 錦標賽主畫面 ----
 
-/** 錦標賽主畫面：例行賽與季後賽的進度、秘寶與裝備、下一個對手 */
+/** 錦標賽主畫面：例行賽與季後賽的進度、秘技與裝備、下一個對手 */
 function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, toTitle: () => void): void {
   root.replaceChildren()
   const screen = el('div', 'hub-screen')
@@ -235,10 +239,32 @@ function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, 
       onStart: (setup) => go(beginGame(updateLineup(t, setup))),
       onBack: () => go(t),
     })
-  bottom.append(vs, next)
+  bottom.append(vs, opponentScout(t.opponent), next)
   screen.append(bottom)
   root.append(screen)
   void maybeTutorial('hub', TUTORIAL_STEPS.hub)
+}
+
+/** 下一個對手的羈絆與隊長、一句話描述他們的打法，加上「看對手陣容」（AI 沒有秘技） */
+function opponentScout(opponent: Team): HTMLElement {
+  const { lineup, captain } = opponent.roster
+  const box = el('div', 'hub-scout')
+  const line = el('div', 'hub-scout-line')
+  line.append(el('span', 'hub-scout-label', T.opponentSynergies), synergyBadges(lineup, captain, [], { full: true }))
+  const cap = lineup.find((s) => s.player.id === captainIn(lineup, captain))?.player
+  if (cap) {
+    const tag = el('span', 'hub-scout-captain')
+    tag.append(captainIcon(16), `${CAPTAIN_TITLES[cap.archetype]} ${cap.name}`)
+    line.append(tag)
+  }
+  box.append(line)
+  const scouting = synergyScouting(lineup, captain, [])
+  if (scouting) box.append(el('p', 'hub-scout-text', scouting))
+  const view = el('button', 'btn-white hub-scout-btn', T.viewOpponent)
+  view.type = 'button'
+  view.onclick = () => showOpponentRoster(opponent)
+  box.append(view)
+  return box
 }
 
 /** 例行賽 8 格（勝、敗、下一場、還沒打），下面是季後賽三輪 */
@@ -286,17 +312,31 @@ function seasonPanel(t: Tournament): HTMLElement {
   return panel
 }
 
-/** 秘寶、身上的裝備、背包；點背包裡的裝備裝上，點身上的裝備卸下 */
+/** 秘技、身上的裝備、背包；點背包裡的裝備裝上，點身上的裝備卸下 */
 function kitPanel(t: Tournament, go: (t: Tournament) => void): HTMLElement {
   const panel = el('section', 'hub-panel kit-panel')
   panel.setAttribute('aria-label', `${T.relicsTitle}・${T.bagTitle}`)
 
-  panel.append(el('h2', 'panel-title', T.relicsTitle))
+  const relicHead = el('div', 'panel-head')
+  relicHead.append(el('h2', 'panel-title', T.relicsTitle), el('span', 'panel-count', T.relicCount(relicsOf(t).length)))
+  panel.append(relicHead)
   const relics = el('div', 'kit-chips')
-  for (const id of relicsOf(t)) relics.append(kitChip(RELIC_NAMES[id], RELIC_DESC[id], RELICS[id].tier))
+  for (const id of relicsOf(t)) {
+    const chip = kitChip(RELIC_NAMES[id], RELIC_DESC[id], RELICS[id].tier)
+    // 羈絆秘技在名稱前面加旗子圖示
+    const gem = synergyRelicSvg(id, 18)
+    if (gem) chip.querySelector('.kit-chip-name')?.insertAdjacentHTML('afterbegin', gem)
+    relics.append(chip)
+  }
   panel.append(relics)
 
+  // 我方羈絆：已啟動的加上最接近啟動的一個
   const roster = t.setup.team.roster
+  const synergies = el('div', 'hub-synergies')
+  const synHead = el('div', 'panel-head')
+  synHead.append(el('h2', 'panel-title', T.mySynergies), el('span', 'panel-count', synergyCountText(roster.lineup, roster.captain, relicsOf(t))))
+  synergies.append(synHead, synergyBadges(roster.lineup, roster.captain, relicsOf(t), { full: true, near: true }))
+  panel.append(synergies)
   const wearers = allPlayers(roster).filter((p) => p.equipment?.length)
   panel.append(el('h2', 'panel-title', T.equippedTitle))
   const worn = el('div', 'kit-chips')
@@ -331,9 +371,9 @@ function kitPanel(t: Tournament, go: (t: Tournament) => void): HTMLElement {
   return panel
 }
 
-// ---- 起始秘寶 ----
+// ---- 起始秘技 ----
 
-/** 開打後第一件事：三個秘寶選一個 */
+/** 開打後第一件事：三個秘技選一個 */
 function showRelicPick(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, toTitle: () => void): void {
   let chosen: number | null = null
   let firstRender = true
@@ -345,6 +385,9 @@ function showRelicPick(root: HTMLElement, t: Tournament, go: (t: Tournament) => 
     cards.setAttribute('aria-label', T.relicsTitle)
     t.relicOptions.forEach((id, i) => {
       const card = itemCard({ kind: 'relic', id }, chosen === i, firstRender, i)
+      // 羈絆秘技：卡片底下寫拿了以後你的隊伍會怎樣
+      const preview = relicPreview(id, t.setup.team.roster, relicsOf(t))
+      if (preview) card.querySelector('.draft-inner')?.append(preview)
       card.onclick = () => {
         chosen = chosen === i ? null : i
         render()
@@ -389,6 +432,12 @@ function showReward(root: HTMLElement, t: Tournament, go: (t: Tournament) => voi
     cards.setAttribute('aria-label', T.rewardCandidates)
     t.rewards.forEach((card, i) => {
       const node = card.kind === 'player' ? playerCard(card.player, chosen === i, firstRender, i) : itemCard(card, chosen === i, firstRender, i)
+      // 球員卡：換掉最適合的人時最好的羈絆結果；羈絆秘技：拿了以後你的隊伍會怎樣
+      if (card.kind === 'player') addGainLine(node, t.setup.team.roster, card.player, relicsOf(t))
+      if (card.kind === 'relic') {
+        const preview = relicPreview(card.id, t.setup.team.roster, relicsOf(t))
+        if (preview) node.querySelector('.draft-inner')?.append(preview)
+      }
       node.onclick = () => {
         chosen = chosen === i ? null : i
         render()
@@ -456,18 +505,15 @@ function rewardTargets(t: Tournament, index: number, card: RewardCard, list: HTM
 
   switch (card.kind) {
     case 'player': {
+      // 簡化版「要換掉誰」：推薦 3 人、能力淨變化、羈絆變化，其他人收起來
       const pick = card.player
-      for (const [slot, label] of rosterSlots(roster)) {
-        const p = getSlot(roster, slot)
-        if (p.role !== pick.role) continue
-        row(p, label, [
-          button(T.replace, () => {
-            toast(`${T.joined(pick.name, p.name)}・${T.fundsEarned(releaseValue(p))}`)
-            go(pickPlayer(t, index, slot))
-          }),
-        ])
-      }
-      return [el('div', 'draft-release-head', T.replaceWho(pick.name, pick.role === 'pitcher' ? T.pitcher : T.batter))]
+      list.append(
+        replaceList(roster, pick, relicsOf(t), rosterSlots(roster), (slot, out) => {
+          toast(`${T.joined(pick.name, out.name)}・${T.fundsEarned(releaseValue(out))}`)
+          go(pickPlayer(t, index, slot))
+        }),
+      )
+      return []
     }
     case 'equipment': {
       const name = EQUIPMENT_NAMES[card.id]

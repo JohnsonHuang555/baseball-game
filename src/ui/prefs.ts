@@ -47,6 +47,25 @@ export function savePromptLevel(level: PromptLevel): void {
   }
 }
 
+const SYNERGY_EXPANDED_KEY = 'dice-baseball.synergyExpanded'
+
+/** 手機版佈陣畫面的羈絆晶片有沒有展開全部 */
+export function loadSynergyExpanded(): boolean {
+  try {
+    return localStorage.getItem(SYNERGY_EXPANDED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function saveSynergyExpanded(expanded: boolean): void {
+  try {
+    localStorage.setItem(SYNERGY_EXPANDED_KEY, expanded ? '1' : '0')
+  } catch {
+    // 記不住就每次收合
+  }
+}
+
 const SPECIES_KEY = 'dice-baseball.avatarSpecies'
 
 /** 球員頭像要畫成貓咪還是小狗 */

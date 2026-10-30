@@ -39,7 +39,7 @@ import {
 const WIN = { home: 5, away: 2 }
 const LOSS = { home: 1, away: 3 }
 
-/** 開打並選第一個起始秘寶 */
+/** 開打並選第一個起始秘技 */
 function started(seed: number, tier: 1 | 2 | 3 | 4 | 5 = 1): Tournament {
   return chooseStartingRelic(startTournament(createTournament(seed, tier)), 0)
 }
@@ -75,12 +75,11 @@ describe('錦標賽開打前', () => {
     expect(t.phase).toBe('pregame')
   })
 
-  it('整隊只能重骰一次，沒有單人重骰；開打後就不行', () => {
+  it('開打前整隊重骰不限次數，沒有單人重骰；開打後就不行', () => {
     let t = createTournament(2)
-    expect(t.setup.teamRerollsLeft).toBe(1)
     expect(t.setup.playerRerollsLeft).toBe(0)
     t = updateSetup(t, rerollTeam(t.setup))
-    expect(t.setup.teamRerollsLeft).toBe(0)
+    t = updateSetup(t, rerollTeam(t.setup))
     t = startTournament(t)
     expect(() => updateSetup(t, rerollTeam(t.setup))).toThrow()
   })
@@ -94,7 +93,7 @@ describe('錦標賽開打前', () => {
     expect(next.opponent.name).not.toBe(taken)
   })
 
-  it('開打後先從 3 個非彩虹秘寶選 1 個', () => {
+  it('開打後先從 3 個非彩虹秘技選 1 個', () => {
     const t = startTournament(createTournament(3))
     expect(t.phase).toBe('relic')
     expect(t.relicOptions).toHaveLength(3)
@@ -166,7 +165,7 @@ describe('例行賽與季後賽', () => {
 })
 
 describe('獎勵卡', () => {
-  it('不會出現已經擁有的秘寶', () => {
+  it('不會出現已經擁有的秘技', () => {
     for (let seed = 1; seed <= 30; seed++) {
       let t = started(seed)
       for (let g = 0; g < 6; g++) {
@@ -413,7 +412,7 @@ describe('傳奇館與奪冠回顧', () => {
 })
 
 describe('上場比賽', () => {
-  it('比賽用的隊伍含裝備加成與秘寶，錦標賽存的能力不變；新比賽記下規則版本', () => {
+  it('比賽用的隊伍含裝備加成與秘技，錦標賽存的能力不變；新比賽記下規則版本', () => {
     let t: Tournament = { ...started(13), bag: ['compressedBat'] }
     const p = t.setup.team.roster.lineup[0].player
     t = equipFromBag(t, 0, p.id)

@@ -10,7 +10,9 @@ import { gradeBadge, gradeOf, overallBadge } from './grades'
 import { kbd, type KeyMap } from './keys'
 import { choiceModal } from './modal'
 import { el, potentialTag, traitTag } from './playerCard'
-import { applyCardState, handChip, pitchChip, tendencyChip } from './visual'
+import { applyCardState, handChip, pitchChip, primaryChip, tendencyChip } from './visual'
+import { synergyRelicSvg } from './synergyIcons'
+import { archetypeChip } from './synergyUi'
 import {
   EQUIPMENT_NAMES,
   PITCH_TRAIT_DESC,
@@ -61,13 +63,13 @@ const GEAR_OF: Record<EquipmentId, keyof typeof GEAR_ICONS> = {
   goldenSleeve: 'sleeve',
 }
 
-/** 秘寶是寶石、特性是星星、球種卡是帶縫線的棒球（球種特性加速度線、新球種加一個加號） */
+/** 秘技是旗子、特性是星星、球種卡是帶縫線的棒球（球種特性加速度線、新球種加一個加號） */
 const BALL = `<circle cx="34" cy="34" r="20" fill="#FFFFFF" ${SVG_LINE}/><path d="M24 18 Q30 34 24 50 M44 18 Q38 34 44 50" fill="none" stroke="#E5383B" stroke-width="2.5" stroke-dasharray="4 3"/>`
 export const KIND_ICONS: Record<'relic' | 'trait' | 'pitchTrait' | 'newPitch', string> = {
   pitchTrait: `<svg aria-hidden="true" viewBox="0 0 64 64"><path d="M4 22 H14 M2 32 H12 M4 42 H14" stroke="#B57BFF" stroke-width="4" stroke-linecap="round"/>${BALL}</svg>`,
   newPitch: `<svg aria-hidden="true" viewBox="0 0 64 64">${BALL}<circle cx="50" cy="14" r="11" fill="#5FE3A1" ${SVG_LINE}/><path d="M50 8 V20 M44 14 H56" stroke="#141633" stroke-width="3.5" stroke-linecap="round"/></svg>`,
   relic:
-    '<svg aria-hidden="true" viewBox="0 0 64 64"><path d="M20 10 H44 L56 26 L32 56 L8 26 Z" fill="#B57BFF" stroke="#141633" stroke-width="3" stroke-linejoin="round"/><path d="M8 26 H56 M20 10 L26 26 L32 56 L38 26 L44 10" fill="none" stroke="#141633" stroke-width="2"/></svg>',
+    '<svg aria-hidden="true" viewBox="0 0 64 64"><path d="M16 8 V58" stroke="#141633" stroke-width="4" stroke-linecap="round"/><path d="M18 10 H52 L44 23 L52 36 H18 Z" fill="#B57BFF" stroke="#141633" stroke-width="3" stroke-linejoin="round"/><path d="M22 15 H42" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="2.5" stroke-linecap="round"/><ellipse cx="16" cy="58" rx="8" ry="3" fill="#141633"/></svg>',
   trait:
     '<svg aria-hidden="true" viewBox="0 0 64 64"><path d="M32 6 L39 24 L58 25 L43 37 L48 56 L32 45 L16 56 L21 37 L6 25 L25 24 Z" fill="#FFD23F" stroke="#141633" stroke-width="3" stroke-linejoin="round"/></svg>',
 }
@@ -96,7 +98,7 @@ export function rosterSlots(roster: Roster): [Slot, string][] {
   ]
 }
 
-/** 秘寶或裝備的小標籤，卡色當底色 */
+/** 秘技或裝備的小標籤，卡色當底色 */
 export function kitChip(label: string, desc: string, tier: CardTier, button = false): HTMLElement {
   const chip = el(button ? 'button' : 'span', `kit-chip tier-${tier}`)
   if (chip instanceof HTMLButtonElement) chip.type = 'button'
@@ -167,7 +169,7 @@ export function playerCard(p: Player, selected: boolean, reveal: boolean, i: num
   inner.append(el('span', 'draft-role', `${T.rewardKinds.player}・${p.role === 'pitcher' ? T.pitcher : T.batter}`))
   const chips = el('span', 'draft-chips')
   chips.append(handChip(p))
-  if (p.role === 'batter') chips.append(tendencyChip(p.tendency, true))
+  if (p.role === 'batter') chips.append(archetypeChip(p), primaryChip(p), tendencyChip(p.tendency, true))
   else chips.append(pitchChip(p, true))
   inner.append(chips)
   const stats = el('span', 'draft-stats')
@@ -198,7 +200,7 @@ export function playerCard(p: Player, selected: boolean, reveal: boolean, i: num
   return card
 }
 
-/** 裝備、秘寶、特性卡：卡色、種類、圖、名稱、效果 */
+/** 裝備、秘技、特性卡：卡色、種類、圖、名稱、效果 */
 export function itemCard(card: Exclude<RewardCard, { kind: 'player' }>, selected: boolean, reveal: boolean, i: number): HTMLButtonElement {
   const tier = rewardTier(card)
   const node = el('button', `draft-pick item-pick tier-${tier}`)
@@ -211,7 +213,9 @@ export function itemCard(card: Exclude<RewardCard, { kind: 'player' }>, selected
   const topRow = el('span', 'draft-top')
   topRow.append(el('span', 'tier-tag', T.tierNames[tier]), el('span', 'item-kind', T.rewardKinds[card.kind]))
   const icon = el('span', 'item-icon')
-  icon.innerHTML = card.kind === 'equipment' ? GEAR_ICONS[GEAR_OF[card.id]] : KIND_ICONS[card.kind]
+  // 羈絆秘技用旗子加流派記號
+  const synergyRelic = card.kind === 'relic' ? synergyRelicSvg(card.id, 64) : null
+  icon.innerHTML = card.kind === 'equipment' ? GEAR_ICONS[GEAR_OF[card.id]] : (synergyRelic ?? KIND_ICONS[card.kind])
   inner.append(topRow, icon)
   if (card.kind === 'equipment') {
     const role = EQUIPMENT[card.id].role === 'pitcher' ? T.pitcher : T.batter

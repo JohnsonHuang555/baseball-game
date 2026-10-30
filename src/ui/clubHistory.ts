@@ -103,7 +103,7 @@ function trophyCard(t: Trophy): HTMLElement {
   return card
 }
 
-/** 奪冠回顧：秘寶、每一場、覺醒、每位球員的總評變化 */
+/** 奪冠回顧：秘技、每一場、覺醒、每位球員的總評變化 */
 export function showRecap(t: Trophy): void {
   const box = el('div', 'recap')
   if (!t.recap) {

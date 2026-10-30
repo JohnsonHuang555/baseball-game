@@ -1,4 +1,4 @@
-import { LEVERAGE_THRESHOLD, homeRunStats, type BattedBall, type Game, type GameEvent, type Side, type Tactic, type TakeOverKind } from '../sim/game'
+import { LEVERAGE_THRESHOLD, homeRunStats, type Assist, type BattedBall, type Game, type GameEvent, type Side, type Tactic, type TakeOverKind, type TeamState } from '../sim/game'
 import type { Pitcher, Player } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { FieldRenderer } from './field'
@@ -13,7 +13,11 @@ import { TUTORIAL_STEPS } from './tutorialSteps'
 import { play, soundToggle } from './sound'
 import { el } from './playerCard'
 import { MANUAL_MODES, PROMPT_LEVELS, loadManual, loadPromptLevel, saveManual, savePromptLevel, type ManualMode } from './prefs'
-import { PITCH_TEXT, PROMPT_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
+import { PITCH_TEXT, PROMPT_NAMES, SYNERGY_DESC, SYNERGY_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
+import { archetypeIcon, captainIcon, synergyBadge, synergyBadges, synergyIcon, synergyRows } from './synergyUi'
+import { SYNERGY_KEYS, type SynergyKey } from '../sim/synergy'
+import { infoModal } from './modal'
+import { synergyResult } from './synergyResult'
 import { rays } from './setupScreen'
 import { CPU_COLOR, USER_COLOR, handChip, pitchChip, sideTag, tendencyChip, toast } from './visual'
 
@@ -189,7 +193,13 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
   const bar = el('div', 'match-bar')
   bar.append(lastPlay, controls)
   const center = el('div', 'match-center')
-  center.append(canvasWrap, matchup, bar)
+  // 換人造成的羈絆變化提示，疊在球場上方
+  const notices = el('div', 'syn-notices')
+  let noticeTimer = 0
+  canvasWrap.append(notices)
+  const synergyStrip = el('section', 'match-syn')
+  synergyStrip.setAttribute('aria-label', T.synergyTitle)
+  center.append(synergyStrip, canvasWrap, matchup, bar)
   const top = el('div', 'match-top')
   top.append(lines, board)
   screen.append(top, aside, center, sheet)
@@ -288,10 +298,14 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       const box = el('div', 'duel-card')
       const info = el('div', 'duel-info')
       const top = el('div', 'duel-top')
-      top.append(el('span', 'duel-card-name', player.name), sideTag(s === userSide))
+      // 打者的流派徽章在名字前面，隊長標記在名字後面
+      if (player.role === 'batter') top.append(archetypeIcon(player.archetype, 16))
+      top.append(el('span', 'duel-card-name', player.name))
+      if (player.role === 'batter' && player.id === game.teams[s].captainId) top.append(captainIcon(16))
+      top.append(sideTag(s === userSide))
       if (isPitcher && tired) top.append(el('span', 'tired-tag', T.tiredTag))
       const grades = el('div', 'duel-grades')
-      for (const v of Object.values(player.ratings)) grades.append(gradeBadge(v, 'sm'))
+      for (const v of Object.values(player.ratings)) grades.append(gradeBadge(v, 'sm', true))
       if (player.role === 'batter') grades.append(tendencyChip(player.tendency))
       // 打者標出對這位投手是同側（不利）還是對側
       grades.append(handChip(player, !isPitcher && game.platoonOn ? game.matchup() : undefined))
@@ -312,6 +326,78 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
       return box
     }
     matchup.append(card(game.batter, game.battingSide, false), card(game.pitcher, game.fieldingSide, true))
+    renderSynergies()
+  }
+
+  /** 球場上方的羈絆列：雙方目前啟動的羈絆，比賽中換人會跟著變；點一下看說明。舊規則的比賽沒有 */
+  function renderSynergies(): void {
+    synergyStrip.replaceChildren()
+    synergyStrip.hidden = !game.synergyOn
+    if (!game.synergyOn) return
+    for (const s of [userSide, userSide === 'home' ? 'away' : 'home'] as Side[]) {
+      const team = game.teams[s]
+      const box = el('button', `match-syn-side ${s === userSide ? 'user' : 'opponent'}`)
+      box.type = 'button'
+      box.setAttribute('aria-label', T.synergiesOf(team.name))
+      box.append(sideTag(s === userSide), synergyBadges(team.lineup, team.captainId, team.relics))
+      box.onclick = () => infoModal(T.synergiesOf(team.name), synergyList(team))
+      synergyStrip.append(box)
+    }
+  }
+
+  /** 一隊目前啟動的羈絆與效果（點羈絆列時看） */
+  function synergyList(team: TeamState): HTMLElement {
+    const box = el('div', 'match-syn-list')
+    const rows = synergyRows(team.lineup, team.captainId, team.relics).filter((r) => game.synergyLevel(team, r.key) > 0)
+    if (!rows.length) box.append(el('p', 'syn-note', T.noSynergy))
+    for (const row of rows) {
+      const line = el('div', 'match-syn-item')
+      line.append(synergyBadge(row, true), el('span', 'syn-tier-text', SYNERGY_DESC[row.key][Math.max(0, row.tier - 1)] ?? ''))
+      box.append(line)
+    }
+    return box
+  }
+
+  /** 上一次看到的羈絆階級與隊長，換人後比較 */
+  const seen = { levels: { home: levelsOf('home'), away: levelsOf('away') }, captain: { home: game.teams.home.captainId, away: game.teams.away.captainId } }
+
+  function levelsOf(side: Side): Record<SynergyKey, number> {
+    return Object.fromEntries(SYNERGY_KEYS.map((k) => [k, game.synergyLevel(game.teams[side], k)])) as Record<SynergyKey, number>
+  }
+
+  /** 換人之後：羈絆啟動、升級、失效，以及隊長離場，在球場上方跳提示；有提示就回傳 true */
+  function synergyNotices(side: Side, outName: string): boolean {
+    if (!game.synergyOn) return false
+    const now = levelsOf(side)
+    const before = seen.levels[side]
+    const changes = SYNERGY_KEYS.filter((k) => now[k] !== before[k])
+    const lostCaptain = seen.captain[side] !== null && game.teams[side].captainId === null
+    seen.levels[side] = now
+    seen.captain[side] = game.teams[side].captainId
+    if (!changes.length && !lostCaptain) return false
+    const mine = side === userSide
+    notices.replaceChildren()
+    for (const k of changes) {
+      const lose = now[k] < before[k]
+      const box = el('div', `syn-notice ${lose ? 'lose' : now[k] === 2 ? 'up' : 'act'}${mine ? '' : ' opponent'}`)
+      box.setAttribute('role', 'status')
+      const text = el('span', 'syn-notice-text')
+      const title = lose ? (now[k] === 0 ? T.diffLose(SYNERGY_NAMES[k]) : T.diffDown(SYNERGY_NAMES[k])) : now[k] === 2 ? T.diffUp(SYNERGY_NAMES[k]) : T.diffActivate(SYNERGY_NAMES[k])
+      text.append(el('strong', '', (mine ? '' : T.opponentPrefix) + title), el('span', '', T.noticeBecause(outName)))
+      box.append(synergyIcon(k, 28, `syn-icon ${lose ? 'off' : ''}`), text)
+      notices.append(box)
+    }
+    if (lostCaptain && mine) {
+      const box = el('div', 'syn-notice captain')
+      box.setAttribute('role', 'status')
+      box.append(captainIcon(22), el('span', 'syn-notice-text', T.captainLeft))
+      notices.append(box)
+    }
+    notices.classList.add('show')
+    window.clearTimeout(noticeTimer)
+    noticeTimer = window.setTimeout(() => notices.classList.remove('show'), 2600)
+    play('pop')
+    return true
   }
 
   /** 電腦版左欄：進攻方打線，標出誰在壘上、誰在打擊 */
@@ -361,19 +447,27 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     }
   }
 
-  function addLog(text: string, cls = ''): void {
+  function addLog(text: string, cls = '', assist?: Assist): void {
     log.querySelector('.latest')?.classList.remove('latest')
     const li = el('li', `${cls} ${cls === 'divider' ? '' : 'latest'}`, text)
+    // 羈絆促成的結果在結尾加〔羈絆名〕，用羈絆的顏色；對手的用橘色並寫「對手・」
+    if (assist) li.append(el('span', `log-assist ${assist.side === userSide ? `key-${assist.key}` : 'opponent'}`, T.assistLog(assist.side === userSide ? SYNERGY_NAMES[assist.key] : T.opponentAssist(SYNERGY_NAMES[assist.key]))))
     log.prepend(li)
     while (log.children.length > 40) log.lastChild?.remove()
   }
 
   /** 球場上的爆炸框大字：label 是主要文字，top 是上方的小一行（例如 6-4-3） */
-  function flash(label: string, tone: 'hr' | 'score' | 'dp' | 'error' | 'k' | 'k looking', top = ''): void {
+  function flash(label: string, tone: 'hr' | 'score' | 'dp' | 'error' | 'k' | 'k looking', top = '', assist?: Assist): void {
     callout.replaceChildren()
     callout.insertAdjacentHTML('afterbegin', BURST_SVG)
     if (top) callout.append(el('span', 'callout-top', top))
     callout.append(el('span', 'callout-label', label))
+    // 羈絆促成：大字旁邊彈出羈絆的小標籤
+    if (assist) {
+      const tag = el('span', 'callout-assist')
+      tag.append(synergyIcon(assist.key, 20), T.assistCallout(SYNERGY_NAMES[assist.key]))
+      callout.append(tag)
+    }
     callout.className = `callout show ${tone}`
     window.setTimeout(() => (callout.className = 'callout'), 1600 / speed)
   }
@@ -458,7 +552,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         else if (e.runs > 0 || HIT_KINDS.has(e.kind) || e.kind === 'doublePlay') play('cheer')
         const cls = e.kind === 'homeRun' ? 'hr' : e.runs > 0 ? 'score' : e.kind === 'error' ? 'error' : ''
         if (e.kind === 'homeRun') {
-          flash(`${homeRunName(e.runs)}！`, 'hr')
+          flash(`${homeRunName(e.runs)}！`, 'hr', '', e.assist)
           if (e.ball) showHomeRunStats(e.ball)
         } else if (e.kind === 'strikeout') {
           // 三振：大大的 K；站著不動被三振（第三個好球沒揮棒）換個顏色、小字註明
@@ -466,17 +560,17 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
           const looking = prev?.type === 'pitch' && prev.result === 'calledStrike'
           flash('K', looking ? 'k looking' : 'k', looking ? T.calledStrikeout : T.callStrikeout)
         } else if (e.runs > 0) flash(T.scored(e.runs).replace('，', ''), 'score')
-        else if (e.kind === 'doublePlay') flash(T.callDoublePlay, 'dp', e.notation ?? '')
+        else if (e.kind === 'doublePlay') flash(T.callDoublePlay, 'dp', e.notation ?? '', e.assist)
         else if (e.kind === 'error') flash(T.callError, 'error')
         lastPlay.textContent = text
-        addLog(text!, cls)
+        addLog(text!, cls, e.assist)
         renderBoard()
         // 全壘打多停一下，讓人看清楚擊球數據
         await wait((PACE.afterPlay + (e.kind === 'homeRun' ? PACE.homeRunStats : e.kind === 'strikeout' ? PACE.strikeout : 0)) * k)
       } else if (e.type === 'steal') {
         await field.run(e.moves, PACE.steal * k)
         lastPlay.textContent = text
-        addLog(text!)
+        addLog(text!, '', e.assist)
         renderBoard()
         await wait(PACE.afterPlay * k)
       } else if (text) {
@@ -486,6 +580,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
           toast(text)
           await wait(PACE.afterPlay * k)
         }
+        // 換人讓羈絆啟動或失效、隊長離場：球場上方跳提示
+        if (e.type === 'substitution' && synergyNotices(e.side, name(e.outId))) await wait(PACE.afterPlay * k)
         if (e.type === 'halfInningEnd') await wait(PACE.afterHalfInning * k)
       }
     }
@@ -659,6 +755,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
     }
     const inner = el('div', 'result-inner')
     inner.append(head, scoreline, linescoreTable())
+    const synergies = synergyResult(game)
+    if (synergies) inner.append(synergies)
     const extra = opts.resultExtra?.(game)
     if (extra) inner.append(extra)
     inner.append(buttons)

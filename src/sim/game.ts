@@ -16,8 +16,10 @@ import {
 } from './pitches'
 import { Rng, clamp } from './rng'
 import type { RelicId } from './items'
+import { fieldingAtPosition } from './positions'
+import { SYNERGY_KEYS, archetypeCounts, captainIn, positionSynergies, tierOf, type SynergyKey, type SynergyTier } from './synergy'
 import { hasTrait } from './traits'
-import type { Batter, LineupSpot, Pitcher, Player, Team, Tendency } from './types'
+import type { Archetype, Batter, LineupSpot, Pitcher, Player, Team, Tendency } from './types'
 
 export type Side = 'home' | 'away'
 export type Half = 'top' | 'bottom'
@@ -197,8 +199,10 @@ export type GameEvent =
       runs: number
       /** 雙殺的守備記號，例如 6-4-3 */
       notation: string | null
+      /** 這個結果是羈絆促成的（沒有羈絆加成就不會發生） */
+      assist?: Assist
     }
-  | { type: 'steal'; runnerId: string; from: 1 | 2; success: boolean; moves: RunnerMove[] }
+  | { type: 'steal'; runnerId: string; from: 1 | 2; success: boolean; moves: RunnerMove[]; assist?: Assist }
   | {
       type: 'substitution'
       side: Side
@@ -211,6 +215,53 @@ export type GameEvent =
 
 export type DecisionReason = 'leverage' | 'fatigue'
 
+/** 羈絆促成的結果種類 */
+export type AssistKind =
+  | 'homeRun'
+  | 'extraBase'
+  | 'hit'
+  | 'steal'
+  | 'advance'
+  | 'avoidK'
+  | 'walk'
+  | 'errorSaved'
+  | 'hitSaved'
+  | 'doublePlay'
+  | 'caughtStealing'
+
+/** 一次羈絆促成：哪一隊的哪個羈絆、促成了什麼 */
+export interface Assist {
+  side: Side
+  key: SynergyKey
+  kind: AssistKind
+}
+
+/** 一場比賽裡某隊某個羈絆的紀錄，賽後顯示 */
+export interface SynergyRecord {
+  key: SynergyKey
+  /** 這場最高到幾階（守位羈絆成立就是 1） */
+  peak: SynergyTier
+  /** 中途失效的局數；最後還有效就是 null */
+  lostInning: number | null
+  assists: Partial<Record<AssistKind, number>>
+}
+
+/** 賽後羈絆區塊用的相關數據（各隊） */
+export interface SynergyStats {
+  /** 力量型打者的全壘打、三振 */
+  powerHR: number
+  powerK: number
+  /** 速度型球員的盜壘成功 */
+  speedSB: number
+  /** 技巧型打者的三振、保送 */
+  skillK: number
+  skillBB: number
+  /** 守備方完成的雙殺、投出的保送、阻殺盜壘 */
+  doublePlays: number
+  walksAllowed: number
+  caughtStealing: number
+}
+
 export interface GameSetup {
   home: Team
   away: Team
@@ -222,9 +273,37 @@ export interface GameSetup {
 
 /**
  * 目前的規則版本。2：AI 守備時會佈陣；3：左右投打相剋；4：AI 依左右相剋換投、派代打；
- * 5：配球對決（出棒決定擊球方向、猜球，投球改成選球種、位置並畫手勢）
+ * 5：配球對決（出棒決定擊球方向、猜球，投球改成選球種、位置並畫手勢）；6：守本職以外的守位時守備打折；
+ * 7：流派羈絆與隊長；8：守位羈絆（黃金二遊、投捕搭檔）；
+ * 9：守位羈絆還要守備 B 以上、防守型當指定打擊不算鐵壁球隊
  */
-export const RULES_VERSION = 5
+export const RULES_VERSION = 9
+
+/**
+ * 流派羈絆的效果，依階級（0 未啟動、1 是 3 人階、2 是 5 人階）取值；只作用在該流派的球員身上，鐵壁球隊作用在整個守備。
+ * 重砲：全壘打、長打變多，揮空也變多；快腿：盜壘、跑壘推進、內野安打；
+ * 精準：揮空變少、比較不追打壞球、兩好球後安打率提高；鐵壁：失誤變少、守備範圍變大。
+ * 3 人階只有三個人吃得到，所以每人的效果接近 5 人階的八成（校準目標：3 人階約等於一張銀卡秘技，5 人階約等於金卡）
+ */
+export const SYNERGY_EFFECT = {
+  slugPower: [0, 1.5, 2],
+  homer: [1, 1.3, 1.45],
+  extraBase: [1, 1.15, 1.25],
+  powerWhiff: [0, 0.01, 0.015],
+  steal: [0, 0.18, 0.22],
+  running: [0, 3, 3.5],
+  infieldHit: [0, 0.02, 0.03],
+  skillContact: [0, 0.05, 0.06],
+  skillChase: [0, 0.07, 0.08],
+  twoStrikeHit: [0, 0.025, 0.035],
+  ironError: [1, 0.75, 0.6],
+  /** 黃金二遊：雙殺成功率、二游的失誤；投捕搭檔：投手控球、對方盜壘成功率 */
+  middleDoublePlay: 0.15,
+  middleError: 0.8,
+  batteryControl: 0.5,
+  batterySteal: 0.05,
+  ironRange: [0, 0.006, 0.015],
+} as const
 
 /** AI 換上的投手至少要面對幾位打者，才會再被 AI 換掉（避免一直換） */
 const MIN_BATTERS_FACED = 3
@@ -264,8 +343,10 @@ export interface TeamState {
   pitcherSincePa: number
   /** 先發投手，用來分辨後援 */
   starterId: string
-  /** 錦標賽的秘寶；AI 隊伍和舊存檔沒有 */
+  /** 錦標賽的秘技；AI 隊伍和舊存檔沒有 */
   relics: readonly RelicId[]
+  /** 隊長；比賽中被換下場就變成 null，這場不會遞補 */
+  captainId: string | null
 }
 
 type Bases = [Batter | null, Batter | null, Batter | null]
@@ -310,6 +391,19 @@ export class Game {
   readonly platoonOn: boolean
   /** 有沒有配球對決（規則版本 5 起） */
   readonly pitchMix: boolean
+  /** 守本職以外的守位時守備會不會打折（規則版本 6 起） */
+  readonly positionsOn: boolean
+  /** 有沒有流派羈絆與隊長（規則版本 7 起） */
+  readonly synergyOn: boolean
+  /** 有沒有守位羈絆（規則版本 8 起） */
+  readonly positionSynergyOn: boolean
+  /** 規則版本 9 起：守位羈絆還要守備 B 以上，防守型當指定打擊不算鐵壁球隊 */
+  private readonly strictSynergy: boolean
+  /** 這場比賽各隊羈絆的紀錄：最高階、中途失效、促成了什麼 */
+  readonly synergyLog: Record<Side, Partial<Record<SynergyKey, SynergyRecord>>> = { home: {}, away: {} }
+  readonly synergyStats: Record<Side, SynergyStats> = { home: emptySynergyStats(), away: emptySynergyStats() }
+  /** 這一球目前為止的羈絆促成，結算時掛到事件上 */
+  private pendingAssist: Assist | null = null
   private readonly seed: number
   /** 這個打席上一球親自投的球種：連投同一種會被打者看穿 */
   private lastThrow: PitchType | null = null
@@ -331,7 +425,12 @@ export class Game {
     this.platoonOn = (setup.rules ?? RULES_VERSION) >= 3
     this.aiPlatoon = (setup.rules ?? RULES_VERSION) >= 4
     this.pitchMix = (setup.rules ?? RULES_VERSION) >= 5
+    this.positionsOn = (setup.rules ?? RULES_VERSION) >= 6
+    this.synergyOn = (setup.rules ?? RULES_VERSION) >= 7
+    this.positionSynergyOn = (setup.rules ?? RULES_VERSION) >= 8
+    this.strictSynergy = (setup.rules ?? RULES_VERSION) >= 9
     this.seed = setup.seed
+    this.trackSynergies()
     this.prepareAtBat()
   }
 
@@ -371,8 +470,7 @@ export class Game {
       .filter(({ p }) => this.matchup(p) === 'opposite' && batterValue(p) >= batterValue(spot.player) - 0.5)
       .sort((a, b) => batterValue(b.p) - batterValue(a.p))[0]
     if (!pick) return []
-    const out = spot.player
-    spot.player = team.bench.splice(pick.i, 1)[0]
+    const out = this.benchIn(team, spot, pick.i)
     return [{ type: 'substitution', side: this.battingSide, kind: 'pinchHit', inId: spot.player.id, outId: out.id }]
   }
 
@@ -408,7 +506,64 @@ export class Game {
       pitcherSincePa: 0,
       starterId: roster.starter.id,
       relics: team.relics ?? [],
+      captainId: captainIn(roster.lineup, roster.captain),
     }
+  }
+
+  /** 板凳換上先發的某一格，回傳被換下的人；換下的是隊長，這場就沒有隊長 */
+  private benchIn(team: TeamState, spot: LineupSpot, benchIndex: number): Batter {
+    const out = spot.player
+    spot.player = team.bench.splice(benchIndex, 1)[0]
+    if (team.captainId === out.id) team.captainId = null
+    this.trackSynergies()
+    return out
+  }
+
+  /** 這一隊某個流派羈絆目前的階級；舊規則的比賽沒有羈絆 */
+  synergyTier(team: TeamState, archetype: Archetype): SynergyTier {
+    if (!this.synergyOn) return 0
+    return tierOf(archetypeCounts(team.lineup, team.captainId, team.relics, this.strictSynergy)[archetype], archetype, team.relics)
+  }
+
+  /** 守位羈絆成立沒有（規則版本 8 起） */
+  positionSynergy(team: TeamState, key: 'middle' | 'battery'): boolean {
+    return this.positionSynergyOn && positionSynergies(team.lineup, this.strictSynergy)[key]
+  }
+
+  /** 任一個羈絆目前的階級：流派羈絆 0～2，守位羈絆成立就是 1 */
+  synergyLevel(team: TeamState, key: SynergyKey): SynergyTier {
+    return key === 'middle' || key === 'battery' ? (this.positionSynergy(team, key) ? 1 : 0) : this.synergyTier(team, key)
+  }
+
+  /** 換人之後重新檢查羈絆：記下這場啟動過的最高階，失效的記下局數 */
+  private trackSynergies(): void {
+    if (!this.synergyOn) return
+    for (const side of ['home', 'away'] as const) {
+      const log = this.synergyLog[side]
+      for (const key of SYNERGY_KEYS) {
+        const level = this.synergyLevel(this.teams[side], key)
+        const entry = log[key]
+        if (level > 0) {
+          if (!entry) log[key] = { key, peak: level, lostInning: null, assists: {} }
+          else {
+            entry.peak = Math.max(entry.peak, level) as SynergyTier
+            entry.lostInning = null
+          }
+        } else if (entry && entry.lostInning === null) entry.lostInning = this.inning
+      }
+    }
+  }
+
+  /** 記一次羈絆促成：算進賽後統計，並讓這一球的事件帶上標記（同一球只標第一個） */
+  private credit(side: Side, key: SynergyKey, kind: AssistKind): void {
+    const entry = (this.synergyLog[side][key] ??= { key, peak: 1, lostInning: null, assists: {} })
+    entry.assists[kind] = (entry.assists[kind] ?? 0) + 1
+    this.pendingAssist ??= { side, key, kind }
+  }
+
+  /** 這名球員吃得到的流派羈絆階級：不是這個流派就是 0 */
+  private boost(team: TeamState, b: Batter, archetype: Archetype): SynergyTier {
+    return b.archetype === archetype ? this.synergyTier(team, archetype) : 0
   }
 
   // ---- 查詢 ----
@@ -445,7 +600,7 @@ export class Game {
     return this.fielding.pitcher
   }
 
-  /** 投手的疲勞門檻（球數）；給了所屬的隊伍才算秘寶「耐力訓練」 */
+  /** 投手的疲勞門檻（球數）；給了所屬的隊伍才算秘技「耐力訓練」 */
   fatigueLimit(p: Pitcher, team?: TeamState): number {
     const relic = team && hasRelic(team, 'stamina') ? 15 : 0
     return 50 + p.ratings.stamina * 8 + (hasTrait(p, 'ironArm') ? 40 : 0) - (hasTrait(p, 'lowStamina') ? 15 : 0) + relic
@@ -470,30 +625,41 @@ export class Game {
     return team.lineup.find((s) => s.position === fielder)?.player
   }
 
+  /** 先發陣容裡某一格實際的守備值：守本職以外的守位會打折（規則版本 6 起） */
+  spotFielding(spot: LineupSpot): number {
+    return this.positionsOn ? fieldingAtPosition(spot.player, spot.position) : spot.player.ratings.fielding
+  }
+
   /** 某個守位的守備值；投手沒有守備能力，當作聯盟平均 */
   fieldingAt(team: TeamState, fielder: Fielder): number {
     if (fielder === 'P') return AVERAGE_FIELDING
     const wall = hasRelic(team, 'ironWall') ? 1 : 0
-    return (team.lineup.find((s) => s.position === fielder)?.player.ratings.fielding ?? AVERAGE_FIELDING) + wall
+    const spot = team.lineup.find((s) => s.position === fielder)
+    return (spot ? this.spotFielding(spot) : AVERAGE_FIELDING) + wall
   }
 
   /** 整隊的守備範圍：指定打擊不算 */
   teamDefense(team: TeamState): number {
     const fielders = team.lineup.filter((s) => s.position !== 'DH')
     const wall = hasRelic(team, 'ironWall') ? 1 : 0
-    return fielders.reduce((sum, s) => sum + s.player.ratings.fielding, 0) / fielders.length + wall
+    return fielders.reduce((sum, s) => sum + this.spotFielding(s), 0) / fielders.length + wall
   }
 
   /** 盜壘成功率：跑者速度對上捕手守備。penalty 用於打帶跑揮空時 */
-  stealChance(from: 1 | 2, penalty = 0): number {
+  /** synergy 是 false 時算的是沒有羈絆加成的成功率（判斷羈絆促成用） */
+  stealChance(from: 1 | 2, penalty = 0, synergy = true): number {
     const runner = this.bases[from - 1]
     if (!runner) return 0
     const catcher = this.fieldingAt(this.fielding, 'C')
+    const bonus = synergy
+      ? SYNERGY_EFFECT.steal[this.boost(this.batting, runner, 'speed')] - (this.positionSynergy(this.fielding, 'battery') ? SYNERGY_EFFECT.batterySteal : 0)
+      : 0
     return clamp(
       0.55 +
         (runner.ratings.speed - 5) * 0.06 +
         (hasTrait(runner, 'stealer') ? 0.15 : 0) +
-        (hasRelic(this.batting, 'speedster') ? 0.1 : 0) -
+        (hasRelic(this.batting, 'speedster') ? 0.1 : 0) +
+        bonus -
         (catcher - AVERAGE_FIELDING) * 0.03 -
         penalty,
       0.1,
@@ -718,8 +884,7 @@ export class Game {
       case 'pinchHit': {
         const team = this.batting
         const spot = team.lineup[team.battingIndex]
-        const out = spot.player
-        spot.player = team.bench.splice(tactic.benchIndex, 1)[0]
+        const out = this.benchIn(team, spot, tactic.benchIndex)
         // 換了打者，AI 重新判斷佈陣，也可能換投回應
         const sub: GameEvent = { type: 'substitution', side: this.battingSide, kind: 'pinchHit', inId: spot.player.id, outId: out.id }
         return [sub, ...this.prepareAtBat()]
@@ -728,7 +893,7 @@ export class Game {
         const team = this.batting
         const runner = this.bases[tactic.base - 1]!
         const spot = team.lineup.find((s) => s.player.id === runner.id)!
-        spot.player = team.bench.splice(tactic.benchIndex, 1)[0]
+        this.benchIn(team, spot, tactic.benchIndex)
         this.bases[tactic.base - 1] = spot.player
         return [{ type: 'substitution', side: this.battingSide, kind: 'pinchRun', inId: spot.player.id, outId: runner.id }]
       }
@@ -740,8 +905,7 @@ export class Game {
       case 'defensiveSub': {
         const team = this.fielding
         const spot = team.lineup[tactic.lineupIndex]
-        const out = spot.player
-        spot.player = team.bench.splice(tactic.benchIndex, 1)[0]
+        const out = this.benchIn(team, spot, tactic.benchIndex)
         return [{ type: 'substitution', side: this.fieldingSide, kind: 'defense', inId: spot.player.id, outId: out.id }]
       }
     }
@@ -873,16 +1037,27 @@ export class Game {
     // 這一球的球種只給畫面用（投球動畫），不影響結果、不抽亂數；舊規則的比賽沒有球種
     const pitchType = mod.pitch ?? (this.pitchMix ? this.nextPitch() : undefined)
     this.fielding.pitchCount++
+    this.pendingAssist = null
     // 錦標賽的球種特性與新球種：舊存檔的投手沒有這些欄位，結果不變
     const pitchTrait = pitchTraitOf(pitcher, pitchType)
     const command = pitchTrait === 'command' ? PITCH_TRAIT_EFFECT.commandZone : 0
 
     const zoneP = clamp(0.5 + (control - 5) * 0.035 - (hasTrait(pitcher, 'wild') ? 0.08 : 0) + command, 0.3, 0.72 + command)
     const inZone = mod.inZone ?? rng.chance(zoneP)
+    const chase = inZone ? 0 : SYNERGY_EFFECT.skillChase[this.boost(this.batting, batter, 'skill')]
     const swingP = inZone
       ? 0.65 + (twoStrikes ? 0.15 : 0)
-      : 0.32 + (twoStrikes ? 0.12 : 0) - (hasTrait(batter, 'eye') ? 0.12 : 0) - (this.balls === 3 ? 0.05 : 0) - (hasRelic(this.batting, 'patience') ? 0.06 : 0)
-    const swing = mod.swing ?? (hitAndRun || rng.chance(swingP))
+      : 0.32 + (twoStrikes ? 0.12 : 0) - (hasTrait(batter, 'eye') ? 0.12 : 0) - (this.balls === 3 ? 0.05 : 0) - (hasRelic(this.batting, 'patience') ? 0.06 : 0) - chase
+    // 精準打線讓打者沒追打這顆壞球：剛好是第四壞球就算羈絆促成的保送
+    let heldOff = false
+    let swing: boolean
+    if (mod.swing !== undefined) swing = mod.swing
+    else if (hitAndRun) swing = true
+    else {
+      const u = rng.next()
+      swing = u < swingP
+      heldOff = !swing && u < swingP + chase
+    }
 
     let result: PitchResult
     if (mod.result) {
@@ -890,19 +1065,26 @@ export class Game {
     } else if (!swing) {
       result = inZone ? 'calledStrike' : 'ball'
     } else {
-      const contactP = clamp(
-        (inZone ? 0.8 : 0.55) +
-          (contact - stuff) * 0.03 -
-          (hasTrait(batter, 'freeSwinger') ? 0.08 : 0) -
-          (hasTrait(pitcher, 'strikeoutArtist') ? 0.06 : 0) -
-          (hasTrait(pitcher, 'escapeArtist') && this.scoringPosition() ? 0.05 : 0) -
-          (pitchTrait === 'sharp' ? PITCH_TRAIT_EFFECT.sharpWhiff : 0) -
-          (pitcher.extraPitches?.length ?? 0) * EXTRA_PITCH_CONTACT +
-          (mod.contact ?? 0),
-        0.2,
-        0.95,
-      )
-      if (!rng.chance(contactP)) result = 'swingingStrike'
+      const contactWith = (synergy: number) =>
+        clamp(
+          (inZone ? 0.8 : 0.55) +
+            (contact - stuff) * 0.03 -
+            (hasTrait(batter, 'freeSwinger') ? 0.08 : 0) -
+            (hasTrait(pitcher, 'strikeoutArtist') ? 0.06 : 0) -
+            (hasTrait(pitcher, 'escapeArtist') && this.scoringPosition() ? 0.05 : 0) -
+            (pitchTrait === 'sharp' ? PITCH_TRAIT_EFFECT.sharpWhiff : 0) -
+            (pitcher.extraPitches?.length ?? 0) * EXTRA_PITCH_CONTACT +
+            synergy +
+            (mod.contact ?? 0),
+          0.2,
+          0.95,
+        )
+      const skill = SYNERGY_EFFECT.skillContact[this.boost(this.batting, batter, 'skill')]
+      const contactP = contactWith(skill - SYNERGY_EFFECT.powerWhiff[this.boost(this.batting, batter, 'power')])
+      const u = rng.next()
+      // 兩好球時因為精準打線才碰到球：算羈絆促成的「避開三振」
+      if (u < contactP && u >= contactWith(0) && skill > 0 && twoStrikes) this.credit(this.battingSide, 'skill', 'avoidK')
+      if (u >= contactP) result = 'swingingStrike'
       else if (rng.chance(0.42)) result = 'foul'
       else result = 'inPlay'
     }
@@ -920,7 +1102,10 @@ export class Game {
     else this.strikes++
     const events: GameEvent[] = [{ type: 'pitch', result, balls: this.balls, strikes: this.strikes, meter: mod.meter, pitch: pitchType }]
 
-    if (this.balls === 4) return [...events, ...this.walk('walk')]
+    if (this.balls === 4) {
+      if (heldOff) this.credit(this.battingSide, 'skill', 'walk')
+      return [...events, ...this.walk('walk')]
+    }
     if (this.strikes === 3) {
       events.push(...this.finishPlay('strikeout', null, [{ runnerId: batter.id, from: 0, to: 'out' }]))
     }
@@ -938,11 +1123,11 @@ export class Game {
     const penalty = (over / 15) * (hasTrait(p, 'ironArm') ? 0.5 : 1)
     // 終結者：第 8 局起球威、控球都提升
     const closing = hasTrait(p, 'closer') && this.inning >= 8 ? 1.5 : 0
-    // 秘寶：後援陣容（後援球威）、守護神（第 9 局起球威）、好球帶（控球）、王朝（都加）
+    // 秘技：後援陣容（後援球威）、守護神（第 9 局起球威）、好球帶（控球）、王朝（都加）
     const dynasty = hasRelic(team, 'dynasty') ? 0.5 : 0
     const stuff =
       (hasRelic(team, 'deepRelief') && p.id !== team.starterId ? 1 : 0) + (hasRelic(team, 'guardian') && this.inning >= 9 ? 1.5 : 0) + dynasty
-    const control = (hasRelic(team, 'strikeZone') ? 1 : 0) + dynasty
+    const control = (hasRelic(team, 'strikeZone') ? 1 : 0) + dynasty + (this.positionSynergy(team, 'battery') ? SYNERGY_EFFECT.batteryControl : 0)
     return { stuff: p.ratings.stuff - penalty + closing + stuff, control: p.ratings.control - penalty + closing + control }
   }
 
@@ -962,7 +1147,7 @@ export class Game {
       if (hasTrait(b, 'clutch')) k += 2
       if (hasTrait(b, 'clutchBad')) k -= 2
     }
-    // 秘寶：開路先鋒（每半局第一棒）、得點圈之魂、逆轉魂（第 7 局起落後）、王朝
+    // 秘技：開路先鋒（每半局第一棒）、得點圈之魂、逆轉魂（第 7 局起落後）、王朝
     const team = this.batting
     if (hasRelic(team, 'leadoff') && this.paIndex === this.halfStartPa) k += 2
     if (hasRelic(team, 'rispSoul') && this.scoringPosition()) k += 1
@@ -977,31 +1162,54 @@ export class Game {
     const { stuff } = this.effectivePitcher()
     const contact = this.effectiveContact(batter)
     const { speed } = batter.ratings
-    const power = batter.ratings.power + (mod.power ?? 0) + (hasRelic(this.batting, 'dynasty') ? 0.5 : 0)
+    // 重砲打線：擊球時力量提升（全壘打、長打、高飛球都跟著變多）
+    const power =
+      batter.ratings.power + (mod.power ?? 0) + (hasRelic(this.batting, 'dynasty') ? 0.5 : 0) + SYNERGY_EFFECT.slugPower[this.boost(this.batting, batter, 'power')]
     // 守備範圍好的隊伍，能把一部分安打變成出局
     const range = this.teamDefense(this.fielding) - AVERAGE_FIELDING
-    const hitP = clamp(
-      0.33 + (contact - 5) * 0.018 - (stuff - 5) * 0.012 + (speed - 5) * 0.005 - range * 0.015,
-      0.15,
-      0.5,
-    )
+    // 羈絆：快腿 5 人階多內野安打、精準 5 人階兩好球後安打率提高、對方鐵壁 5 人階守備範圍變大
+    const synergyHit =
+      SYNERGY_EFFECT.infieldHit[this.boost(this.batting, batter, 'speed')] +
+      (this.strikes === 2 ? SYNERGY_EFFECT.twoStrikeHit[this.boost(this.batting, batter, 'skill')] : 0) -
+      SYNERGY_EFFECT.ironRange[this.synergyTier(this.fielding, 'defense')]
+    const hitBase = 0.33 + (contact - 5) * 0.018 - (stuff - 5) * 0.012 + (speed - 5) * 0.005 - range * 0.015
 
     const pitcher = this.pitcher
     // 危機處理：得點圈有人時比較不容易被打安打
     const escape = hasTrait(pitcher, 'escapeArtist') && this.scoringPosition() ? 0.03 : 0
-    if (rng.chance(clamp(hitP + (mod.hit ?? 0) + this.alignmentEffect() - escape, 0.05, 0.85))) {
+    const hitU = rng.next()
+    const hitWith = (synergy: number) => clamp(clamp(hitBase + synergy, 0.15, 0.5) + (mod.hit ?? 0) + this.alignmentEffect() - escape, 0.05, 0.85)
+    const isHit = hitU < hitWith(synergyHit)
+    const plainHit = hitU < hitWith(0)
+    if (isHit && !plainHit) {
+      const fast = SYNERGY_EFFECT.infieldHit[this.boost(this.batting, batter, 'speed')] > 0
+      this.credit(this.battingSide, fast ? 'speed' : 'skill', 'hit')
+    }
+    if (!isHit && plainHit) this.credit(this.fieldingSide, 'defense', 'hitSaved')
+    if (isHit) {
       // 外野後退：長打大多被攔下來變成一壘安打
       const deep = this.alignment === 'outfieldBack' ? 0.4 : 1
       // 平飛打者多二、三壘安打；滾地球投手少被全壘打，被全壘打的投手反之
       const gaps = hasTrait(batter, 'lineDrive') ? 1.4 : 1
+      const slug = this.boost(this.batting, batter, 'power')
       const homers =
         (hasTrait(pitcher, 'homerProne') ? 1.5 : hasTrait(pitcher, 'groundballer') ? 0.7 : 1) * (hasRelic(this.batting, 'powerHouse') ? 1.25 : 1)
-      const kind = rng.weighted<PlayKind>([
-        ['homeRun', Math.max(0.02, 0.1 + (power - 5) * 0.035 + (hasTrait(batter, 'slugger') ? 0.08 : 0)) * homers],
-        ['triple', Math.max(0.005, 0.025 + (speed - 5) * 0.006) * deep * gaps],
-        ['double', Math.max(0.08, 0.2 + (power - 5) * 0.02) * deep * gaps],
-        ['single', 0.65],
-      ])
+      // 同一次亂數算有、沒有重砲打線時的安打種類，只差在羈絆就記功勞
+      const kinds = (tier: SynergyTier): [PlayKind, number][] => {
+        const pow = power - SYNERGY_EFFECT.slugPower[slug] + SYNERGY_EFFECT.slugPower[tier]
+        const extra = SYNERGY_EFFECT.extraBase[tier]
+        return [
+          ['homeRun', Math.max(0.02, 0.1 + (pow - 5) * 0.035 + (hasTrait(batter, 'slugger') ? 0.08 : 0)) * homers * SYNERGY_EFFECT.homer[tier]],
+          ['triple', Math.max(0.005, 0.025 + (speed - 5) * 0.006) * deep * gaps * extra],
+          ['double', Math.max(0.08, 0.2 + (pow - 5) * 0.02) * deep * gaps * extra],
+          ['single', 0.65],
+        ]
+      }
+      const u = rng.next()
+      const kind = weightedAt(kinds(slug), u)
+      const plainKind = weightedAt(kinds(0), u)
+      if (kind === 'homeRun' && plainKind !== 'homeRun') this.credit(this.battingSide, 'power', 'homeRun')
+      else if ((kind === 'double' || kind === 'triple') && plainKind === 'single') this.credit(this.battingSide, 'power', 'extraBase')
       return this.hit(kind, hitAndRun)
     }
     // 滾地球投手讓打者多打成滾地球（也就多雙殺）
@@ -1016,8 +1224,13 @@ export class Game {
     // 好手套失誤減半、守備不穩失誤變多
     const handler = this.fielderPlayer(this.fielding, ball.fielder)
     const hands = handler && hasTrait(handler, 'goodGlove') ? 0.5 : handler && hasTrait(handler, 'errorProne') ? 1.8 : 1
-    const errorFactor = clamp(1 + (AVERAGE_FIELDING - glove) * 0.18, 0.25, 2.2) * hands
-    if (rng.chance(ERROR_RATE[type] * errorFactor)) return this.reachOnError(ball)
+    // 鐵壁球隊、黃金二遊（二游處理的球）讓失誤變少
+    const iron = SYNERGY_EFFECT.ironError[this.synergyTier(this.fielding, 'defense')]
+    const middle = (ball.fielder === '2B' || ball.fielder === 'SS') && this.positionSynergy(this.fielding, 'middle') ? SYNERGY_EFFECT.middleError : 1
+    const errorBase = ERROR_RATE[type] * clamp(1 + (AVERAGE_FIELDING - glove) * 0.18, 0.25, 2.2) * hands
+    const errorU = rng.next()
+    if (errorU < errorBase * iron * middle) return this.reachOnError(ball)
+    if (errorU < errorBase) this.credit(this.fieldingSide, iron < 1 ? 'defense' : 'middle', 'errorSaved')
     if (type === 'ground') return this.groundOut(ball, hitAndRun)
     if (type === 'fly') return this.flyOut(ball)
     return this.lineOut(ball, hitAndRun)
@@ -1089,7 +1302,19 @@ export class Game {
       if (to !== 4) taken.add(to)
     }
     // 跑壘○：多推進一個壘包的判斷比速度看起來更好
-    const spd = (b: Batter) => b.ratings.speed - 5 + (hasTrait(b, 'baserunner') ? 2 : 0) + (hasRelic(this.batting, 'speedster') ? 1 : 0)
+    const spd = (b: Batter, synergy = true) =>
+      b.ratings.speed -
+      5 +
+      (hasTrait(b, 'baserunner') ? 2 : 0) +
+      (hasRelic(this.batting, 'speedster') ? 1 : 0) +
+      (synergy ? SYNERGY_EFFECT.running[this.boost(this.batting, b, 'speed')] : 0)
+    // 多推進一個壘：同一次亂數算有、沒有快腿球隊時的結果
+    const advance = (runner: Batter, chance: (s: number) => number) => {
+      const u = rng.next()
+      const made = u < chance(spd(runner))
+      if (made && u >= chance(spd(runner, false))) this.credit(this.battingSide, 'speed', 'advance')
+      return made
+    }
     let ball: BattedBall
     switch (kind) {
       case 'homeRun': {
@@ -1110,15 +1335,15 @@ export class Game {
       case 'double':
         if (b3) move(b3, 3, 4)
         if (b2) move(b2, 2, 4)
-        if (b1) move(b1, 1, rng.chance(0.35 + spd(b1) * 0.05 + (hitAndRun ? 0.3 : 0)) ? 4 : 3)
+        if (b1) move(b1, 1, advance(b1, (s) => 0.35 + s * 0.05 + (hitAndRun ? 0.3 : 0)) ? 4 : 3)
         move(batter, 0, 2)
         ball = this.makeBall('line', toGap(this.gapSide() * rng.range(12, 40), this.gaps('outfield')), rng.range(260, 360))
         break
       default: {
         if (b3) move(b3, 3, 4)
-        if (b2) move(b2, 2, rng.chance(0.55 + spd(b2) * 0.06) ? 4 : 3)
+        if (b2) move(b2, 2, advance(b2, (s) => 0.55 + s * 0.06) ? 4 : 3)
         if (b1) {
-          const extra = !taken.has(3) && (hitAndRun || rng.chance(0.25 + spd(b1) * 0.04))
+          const extra = !taken.has(3) && (hitAndRun || advance(b1, (s) => 0.25 + s * 0.04))
           move(b1, 1, extra ? 3 : 2)
         }
         move(batter, 0, 1)
@@ -1138,7 +1363,14 @@ export class Game {
     const [b1, b2, b3] = this.bases
     const glove = this.fieldingAt(this.fielding, ball.fielder) - AVERAGE_FIELDING
     const dpP = 0.45 - (batter.ratings.speed - 5) * 0.04 + glove * 0.03
-    if (b1 && this.outs < 2 && !hitAndRun && rng.chance(dpP)) {
+    const middle = this.positionSynergy(this.fielding, 'middle') ? SYNERGY_EFFECT.middleDoublePlay : 0
+    let doublePlay = false
+    if (b1 && this.outs < 2 && !hitAndRun) {
+      const u = rng.next()
+      doublePlay = u < dpP + middle
+      if (doublePlay && u >= dpP) this.credit(this.fieldingSide, 'middle', 'doublePlay')
+    }
+    if (doublePlay && b1) {
       const moves: RunnerMove[] = [
         { runnerId: b1.id, from: 1, to: 'out' },
         { runnerId: batter.id, from: 0, to: 'out' },
@@ -1252,10 +1484,20 @@ export class Game {
   private steal(from: 1 | 2, penalty: number): GameEvent[] {
     const runner = this.bases[from - 1]
     if (!runner || this.bases[from]) return []
-    const success = this.rng.chance(this.stealChance(from, penalty))
+    // 一次亂數同時判斷有、沒有羈絆時的結果，只差在羈絆就記功勞
+    const u = this.rng.next()
+    const success = u < this.stealChance(from, penalty)
+    const plain = u < this.stealChance(from, penalty, false)
+    this.pendingAssist = null
+    if (success && !plain) this.credit(this.battingSide, 'speed', 'steal')
+    if (!success && plain) this.credit(this.fieldingSide, 'battery', 'caughtStealing')
+    if (success && runner.archetype === 'speed') this.synergyStats[this.battingSide].speedSB++
+    if (!success) this.synergyStats[this.fieldingSide].caughtStealing++
     const moves: RunnerMove[] = [{ runnerId: runner.id, from, to: success ? ((from + 1) as BaseNumber) : 'out' }]
     this.applyMoves(moves)
-    const events: GameEvent[] = [{ type: 'steal', runnerId: runner.id, from, success, moves }]
+    const assist = this.pendingAssist ?? undefined
+    this.pendingAssist = null
+    const events: GameEvent[] = [{ type: 'steal', runnerId: runner.id, from, success, moves, ...(assist ? { assist } : {}) }]
     if (this.outs >= 3) events.push(...this.endHalfInning())
     events.push(...this.prepareAtBat())
     return events
@@ -1295,7 +1537,10 @@ export class Game {
     const outsBefore = this.outs
     const runs = this.applyMoves(moves)
     this.record(batterId, pitcherId, kind, runs, Math.min(3, this.outs) - outsBefore)
-    const events: GameEvent[] = [{ type: 'play', kind, batterId, ball, moves, runs, notation }]
+    this.recordSynergyStats(kind)
+    const assist = this.pendingAssist ?? undefined
+    this.pendingAssist = null
+    const events: GameEvent[] = [{ type: 'play', kind, batterId, ball, moves, runs, notation, ...(assist ? { assist } : {}) }]
     const team = this.batting
     team.battingIndex = (team.battingIndex + 1) % 9
     this.balls = 0
@@ -1309,6 +1554,23 @@ export class Game {
     if (this.outs >= 3) events.push(...this.endHalfInning())
     events.push(...this.prepareAtBat())
     return events
+  }
+
+  /** 賽後羈絆區塊的相關數據：依打者流派與守備方記下全壘打、三振、保送、雙殺 */
+  private recordSynergyStats(kind: PlayKind): void {
+    const bat = this.synergyStats[this.battingSide]
+    const field = this.synergyStats[this.fieldingSide]
+    const { archetype } = this.batter
+    if (kind === 'homeRun' && archetype === 'power') bat.powerHR++
+    if (kind === 'strikeout') {
+      if (archetype === 'power') bat.powerK++
+      if (archetype === 'skill') bat.skillK++
+    }
+    if (kind === 'walk' || kind === 'intentionalWalk') {
+      if (archetype === 'skill') bat.skillBB++
+      field.walksAllowed++
+    }
+    if (kind === 'doublePlay') field.doublePlays++
   }
 
   private line(id: string): PlayerLine {
@@ -1365,6 +1627,21 @@ export class Game {
 }
 
 const HIT_KINDS: readonly PlayKind[] = ['single', 'double', 'triple', 'homeRun']
+
+function emptySynergyStats(): SynergyStats {
+  return { powerHR: 0, powerK: 0, speedSB: 0, skillK: 0, skillBB: 0, doublePlays: 0, walksAllowed: 0, caughtStealing: 0 }
+}
+
+/** 跟 Rng.weighted 一樣的挑法，但用給定的亂數 u，才能拿同一個亂數比較兩組權重 */
+function weightedAt<T>(entries: readonly (readonly [T, number])[], u: number): T {
+  const total = entries.reduce((sum, [, w]) => sum + Math.max(0, w), 0)
+  let roll = u * total
+  for (const [value, w] of entries) {
+    roll -= Math.max(0, w)
+    if (roll < 0) return value
+  }
+  return entries[entries.length - 1][0]
+}
 
 function hasRelic(team: TeamState, id: RelicId): boolean {
   return team.relics.includes(id)

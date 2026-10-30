@@ -1,5 +1,6 @@
 // 自由練習的自製球隊：存在這台裝置上，可以存好幾隊；比賽結果完全不記錄
 import type { Team } from '../sim/types'
+import { addMissingFields } from './save'
 
 const KEY = 'dice-baseball.customTeams'
 
@@ -13,7 +14,7 @@ export interface CustomTeam {
 function load(): CustomTeam[] {
   try {
     const raw = localStorage.getItem(KEY)
-    const list = raw ? (JSON.parse(raw) as unknown) : []
+    const list = raw ? addMissingFields(JSON.parse(raw)) : []
     return Array.isArray(list) ? (list as CustomTeam[]) : []
   } catch {
     return []

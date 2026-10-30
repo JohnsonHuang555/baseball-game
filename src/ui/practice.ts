@@ -1,4 +1,4 @@
-// 自由練習：只打一場、不記錄結果的沙盒。雙方可以是自製球隊或隨機球隊，自製球隊可以改名字、能力、特性、裝備、球種與秘寶
+// 自由練習：只打一場、不記錄結果的沙盒。雙方可以是自製球隊或隨機球隊，自製球隊可以改名字、能力、特性、裝備、球種與秘技
 import { Game } from '../sim/game'
 import { BASE_MEAN, allPlayers, generateRoster, teamName } from '../sim/generate'
 import { EQUIPMENT, MAX_EQUIPMENT, RELICS, equippedTeam, type EquipmentId, type RelicId } from '../sim/items'
@@ -7,7 +7,7 @@ import { Rng } from '../sim/rng'
 import { createSetup, getSlot, setSlot, type PregameSetup } from '../sim/setup'
 import { TIERS, TIER_SLOPE, TIER_START, type Tier } from '../sim/tournament'
 import { TRAITS, conflicts, type TraitId } from '../sim/traits'
-import type { Bats, Batter, Hand, Pitcher, Player, Team, Tendency } from '../sim/types'
+import { ARCHETYPES, FIELD_POSITIONS, type Archetype, type Bats, type Batter, type FieldPosition, type Hand, type Pitcher, type Player, type Team, type Tendency } from '../sim/types'
 import { avatar, avatarSvg } from './avatar'
 import { kitChip, rosterSlots } from './cards'
 import { customTeams, deleteCustomTeam, saveCustomTeam, type CustomTeam } from './customTeams'
@@ -20,8 +20,9 @@ import { el, traitTag } from './playerCard'
 import { withSavedName } from './prefs'
 import { legends, trophies } from './progress'
 import { randomSeed, showRosterEditor } from './setupScreen'
-import { EQUIPMENT_NAMES, PITCH_TRAIT_NAMES, RATING_FULL, RELIC_DESC, RELIC_NAMES, T } from './strings'
+import { ARCHETYPE_NAMES, EQUIPMENT_NAMES, PITCH_TRAIT_NAMES, POSITION_NAMES, POSITION_SPOT, RATING_FULL, RELIC_DESC, RELIC_NAMES, T } from './strings'
 import { toast } from './visual'
+import { archetypeIcon } from './synergyUi'
 
 const BACK_ICON =
   '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
@@ -78,7 +79,7 @@ export function showPractice(root: HTMLElement, toTitle: () => void): void {
     box.append(el('h2', 'opp-title', title), random)
     for (const ct of teams) {
       const picked = side.kind === 'custom' && side.id === ct.id
-      box.append(option(ct.team.name, `${allPlayers(ct.team.roster).length} 人・${(ct.team.relics ?? []).length} 個秘寶`, picked, () => {
+      box.append(option(ct.team.name, `${allPlayers(ct.team.roster).length} 人・${(ct.team.relics ?? []).length} 個秘技`, picked, () => {
         set({ kind: 'custom', id: ct.id })
         redraw()
       }))
@@ -181,7 +182,7 @@ function startPractice(root: HTMLElement, toTitle: () => void): void {
   const find = (s: Side) => (s.kind === 'custom' ? teams.find((x) => x.id === s.id)?.team : undefined)
   const myCustom = find(mine)
   let setup: PregameSetup = myCustom
-    ? { team: myCustom, teamRerollsLeft: 0, playerRerollsLeft: 0, rngState: randomSeed() }
+    ? { team: myCustom, playerRerollsLeft: 0, rngState: randomSeed() }
     : withSavedName(createSetup(randomSeed()))
   let opponent: Team = find(theirs) ?? { name: teamName(new Rng(randomSeed())), roster: generateRoster(new Rng(randomSeed()), opponentMean(level)) }
   const again = () => startPractice(root, toTitle)
@@ -240,12 +241,13 @@ function showTeamEditor(root: HTMLElement, entry: CustomTeam, back: () => void):
     }
     screen.append(name)
 
-    // 秘寶：每一個都列出來，點一下裝上或拿掉
+    // 秘技：每一個都列出來，點一下裝上或拿掉
     const relics = el('section', 'editor-section')
     relics.append(el('h2', 'opp-title', `${T.relicsTitle}・${T.relicsHint}`))
     const chips = el('div', 'kit-chips')
     const owned = new Set(team.relics ?? [])
-    for (const id of Object.keys(RELICS) as RelicId[]) {
+    // 不再出現的舊秘技只在已經裝上時列出，可以拿掉
+    for (const id of (Object.keys(RELICS) as RelicId[]).filter((x) => !RELICS[x].retired || owned.has(x))) {
       const chip = kitChip(RELIC_NAMES[id], RELIC_DESC[id], RELICS[id].tier, true)
       chip.classList.toggle('off', !owned.has(id))
       chip.setAttribute('aria-pressed', String(owned.has(id)))
@@ -283,7 +285,7 @@ function showTeamEditor(root: HTMLElement, entry: CustomTeam, back: () => void):
     const arrange = el('button', 'btn-white', T.arrangeLineup)
     arrange.onclick = () =>
       showRosterEditor(root, {
-        setup: { team, teamRerollsLeft: 0, playerRerollsLeft: 0, rngState: 0 },
+        setup: { team, playerRerollsLeft: 0, rngState: 0 },
         heading: T.editorTitle,
         allowReroll: false,
         hint: T.autosaveHint,
@@ -351,6 +353,25 @@ function editPlayer(original: Player, apply: (p: Player) => void): void {
     return box
   }
 
+  /** 四欄的單選格子，每格可以放圖示和兩行字 */
+  const tiles = <V extends string>(options: [V, (HTMLElement | string)[]][], current: V, set: (v: V) => void) => {
+    const box = el('div', 'pe-tiles')
+    box.setAttribute('role', 'radiogroup')
+    for (const [value, content] of options) {
+      const b = el('button', 'pe-tile')
+      b.type = 'button'
+      b.setAttribute('role', 'radio')
+      b.setAttribute('aria-checked', String(value === current))
+      b.append(...content)
+      b.onclick = () => {
+        set(value)
+        box.querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x === b)))
+      }
+      box.append(b)
+    }
+    return box
+  }
+
   const name = el('input', 'rename-input')
   name.value = draft.name
   name.maxLength = 10
@@ -364,6 +385,13 @@ function editPlayer(original: Player, apply: (p: Player) => void): void {
     field(
       T.tendencyLabel,
       segmented<Tendency>([['left', T.tendencyShort.left], ['even', T.tendencyShort.even], ['right', T.tendencyShort.right]], b.tendency, (v) => (b.tendency = v)),
+    )
+    // 流派四選一、本職八選一：四欄的大格子，下面一句說明
+    field(T.archetypeLabel, tiles<Archetype>(ARCHETYPES.map((a) => [a, [archetypeIcon(a, 26), ARCHETYPE_NAMES[a]]]), b.archetype, (v) => (b.archetype = v)), el('span', 'pe-hint', T.archetypeEditHint))
+    field(
+      T.primaryLabel,
+      tiles<FieldPosition>(FIELD_POSITIONS.map((pos) => [pos, [el('span', 'pe-tile-big', POSITION_NAMES[pos]), el('span', 'pe-tile-small', POSITION_SPOT[pos])]]), b.primary, (v) => (b.primary = v)),
+      el('span', 'pe-hint', T.primaryEditHint),
     )
   } else {
     const p = draft as Pitcher

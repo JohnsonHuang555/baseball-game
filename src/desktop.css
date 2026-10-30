@@ -266,11 +266,11 @@ button .kbd {
     min-height: 100dvh;
     overflow: visible;
     display: grid;
-    grid-template-columns: minmax(0, 600px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 460px) minmax(0, 1fr) 300px;
     grid-template-areas:
-      'head foot'
-      'pitch side'
-      'res side';
+      'head foot foot'
+      'pitch side syn'
+      'res side syn';
     grid-template-rows: auto auto 1fr;
     gap: 16px 24px;
     padding: 24px 40px 36px;
@@ -342,11 +342,14 @@ button .kbd {
   .pitch {
     grid-area: pitch;
     margin: 0;
+    aspect-ratio: 366 / 286;
     border-width: 3px;
     border-radius: 22px;
     box-shadow: 0 5px 0 var(--ink);
   }
   .field-node {
+    left: var(--dx);
+    top: var(--dy);
     width: 104px;
     transform: translate(-50%, -26px);
     gap: 4px;
@@ -375,10 +378,91 @@ button .kbd {
     grid-area: res;
     margin: 0;
   }
+  .syn-tracker {
+    grid-area: syn;
+    align-self: start;
+  }
+  .syn-card {
+    background: #fff;
+    border: 1.5px solid var(--ink);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .syn-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 2.5px solid var(--ink);
+    background: #eef0ff;
+  }
+  .syn-card-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 900;
+  }
+  .syn-card-sub {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
+  }
+  .syn-card-count {
+    margin-left: auto;
+    padding: 0 8px;
+    border-radius: 8px;
+    background: var(--ink);
+    color: var(--yellow);
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 22px;
+  }
+  .syn-rows {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding: 10px;
+    align-items: start;
+  }
+  .syn-row {
+    border-radius: 14px;
+    border: 2.5px solid var(--ink);
+    background: #fff;
+    box-shadow: 0 3px 0 var(--ink);
+  }
+  .syn-row.off,
+  .syn-row.fail {
+    border: 2px dashed #c9cce6;
+    background: #fafbff;
+    box-shadow: none;
+  }
+  .syn-row.max {
+    background: #fff8db;
+  }
+  .syn-row .syn-detail {
+    padding: 0 10px 10px;
+  }
+  .syn-row-btn {
+    width: 100%;
+    min-height: 48px;
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+  }
+  .syn-no-captain {
+    margin: 10px 0 0;
+    border-color: #c99400;
+    background: #fff8db;
+    color: #6b4e00;
+  }
   .reserve-labels {
     display: none;
   }
   .reserve-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
   .reserve-grid .mini-card {
@@ -407,8 +491,21 @@ button .kbd {
   .reserve-grid .mini-top .grade {
     grid-area: ovr;
   }
+  .reserve-grid .mini-top .arch-icon {
+    grid-area: label;
+    justify-self: end;
+  }
+  .reserve-grid .mini-name-row {
+    grid-area: name;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  /* 卡片是按鈕，文字預設置中；名字一律靠左（打者的名字外面還包了一層本職列） */
   .reserve-grid .mini-name {
     grid-area: name;
+    justify-self: start;
+    text-align: left;
     font-size: 14px;
     font-weight: 900;
   }
@@ -464,16 +561,16 @@ button .kbd {
     flex: none;
     min-height: 0;
     margin: 0;
-    border: 3px solid var(--ink);
+    border: 1.5px solid var(--ink);
     border-radius: 18px;
-    box-shadow: 0 5px 0 var(--ink);
+    box-shadow: none;
   }
   .order-head,
   .order-row,
   .order-pitcher {
     display: grid;
-    grid-template-columns: 40px 40px minmax(0, 1fr) repeat(4, 52px) minmax(120px, 0.8fr);
-    gap: 12px;
+    grid-template-columns: 22px 30px minmax(0, 1fr) 78px 118px repeat(4, 26px);
+    gap: 8px;
     align-items: center;
     padding: 0 16px;
   }
@@ -492,16 +589,22 @@ button .kbd {
   }
   .order-row .avatar,
   .order-pitcher .avatar {
-    width: 40px;
-    height: 40px;
+    width: 30px;
+    height: 30px;
   }
   .order-row .grade {
     justify-self: center;
   }
   .order-who {
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    gap: 2px 12px;
+  }
+  /* 守位欄放到名字下一行，守非本職時的「（本職左外野）」才不會擠掉名字 */
+  .order-who .order-pos {
+    order: 3;
+    flex-basis: 100%;
   }
   .order-name {
     min-width: 0;
@@ -538,6 +641,18 @@ button .kbd {
   }
   .order-pitcher .order-who {
     grid-column: span 1;
+  }
+  .order-pitcher .pitcher-stat.first {
+    grid-column: 6;
+  }
+  .order-arch {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 900;
+    color: #33385e;
+    white-space: nowrap;
   }
   .order-num-label {
     font-size: 12px;
@@ -903,6 +1018,18 @@ button .kbd {
     padding: 7px 14px;
     border-bottom: 0;
     border-top: 1px solid #eef0f8;
+  }
+  /* 對手陣容：寬視窗，打序在左、投手與板凳在右 */
+  .info-box.opp-box {
+    width: min(1120px, calc(100vw - 80px));
+  }
+  .opp-box .opp-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 24px;
+  }
+  .match-syn .syn-badge-name {
+    display: inline;
   }
   .match-center {
     grid-area: center;
@@ -1286,9 +1413,9 @@ button .kbd {
   .hub-panel {
     margin: 0;
     padding: 20px 24px 22px;
-    border-width: 3px;
+    border-width: 1.5px;
     border-radius: 22px;
-    box-shadow: 0 5px 0 var(--ink);
+    box-shadow: none;
   }
   .season-panel {
     grid-column: 1 / 2;
@@ -1333,6 +1460,17 @@ button .kbd {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 12px 28px;
+  }
+  /* 對手的羈絆整排放在下面，開賽按鈕留在對戰列旁邊 */
+  .hub-bottom {
+    grid-auto-flow: row dense;
+  }
+  .hub-scout {
+    grid-column: 1 / -1;
+  }
+  .hub-scout-btn {
+    align-self: flex-start;
+    padding: 0 28px;
   }
   /* 緞帶跨在面板上緣，文字再長也不會擠到對戰列 */
   .hub-ribbon-wrap {
@@ -1802,7 +1940,16 @@ button .kbd {
   /* 組隊：兩欄對半，打序表拿掉特性與卡色，按鈕縮一點 */
   .team-screen {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'head foot'
+      'pitch side'
+      'res side'
+      'syn side';
+    grid-template-rows: auto auto auto 1fr;
     padding: 20px 24px 28px;
+  }
+  .syn-rows {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .team-name {
     font-size: 30px;
@@ -1810,14 +1957,9 @@ button .kbd {
   .order-head,
   .order-row,
   .order-pitcher {
-    grid-template-columns: 28px 36px minmax(0, 1fr) repeat(4, 40px);
+    grid-template-columns: 28px 36px minmax(0, 1fr) 70px 96px repeat(4, 30px);
     gap: 8px;
     padding: 0 12px;
-  }
-  .order-head > :last-child,
-  .order-traits,
-  .order-who .tier-tag {
-    display: none !important;
   }
   .footer-buttons > * {
     white-space: nowrap;
