@@ -12,7 +12,7 @@ function records(game: Game, side: Side): SynergyRecord[] {
   return SYNERGY_KEYS.flatMap((k) => game.synergyLog[side][k] ?? [])
 }
 
-/** 階級標籤：3 人、5 人（有門檻秘寶時照實際門檻），守位羈絆寫成立 */
+/** 階級標籤：3 人、5 人（有門檻秘技時照實際門檻），守位羈絆寫成立 */
 function tierLabel(game: Game, side: Side, r: SynergyRecord): string {
   if (isPositionKey(r.key)) return T.positionOn
   const [low, high] = thresholds(r.key, game.teams[side].relics)

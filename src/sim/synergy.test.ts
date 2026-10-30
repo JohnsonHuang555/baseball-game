@@ -31,6 +31,17 @@ describe('流派', () => {
   })
 })
 
+describe('開局隊伍', () => {
+  it('先發每種流派最多 3 人，所以開局不會有 5 人階；流派那一項還是最突出的', () => {
+    for (let seed = 1; seed <= 500; seed++) {
+      const r = generateRoster(new Rng(seed))
+      for (const a of ['power', 'speed', 'skill', 'defense'] as const) expect(r.lineup.filter((x) => x.player.archetype === a).length).toBeLessThanOrEqual(3)
+      expect(Object.values(synergyTiers(r.lineup, r.captain, []))).not.toContain(2)
+      for (const { player } of r.lineup) expect(player.ratings[ARCHETYPE_STAT[player.archetype]]).toBe(Math.max(...Object.values(player.ratings)))
+    }
+  })
+})
+
 describe('流派羈絆', () => {
   const base = generateRoster(new Rng(1)).lineup
 
@@ -43,11 +54,17 @@ describe('流派羈絆', () => {
     expect(synergyTiers(withArchetypes(base, 'power', 2), null, []).power).toBe(0)
   })
 
-  it('門檻秘寶讓 2 人啟動、4 人升級；隊長臂章讓隊長算三人', () => {
+  it('門檻秘技讓 2 人啟動、4 人升級；隊長臂章讓隊長算三人', () => {
     expect(thresholds('speed', ['runSchool'])).toEqual([2, 4])
     expect(thresholds('power', ['runSchool'])).toEqual([3, 5])
     const lineup = withArchetypes(base, 'speed', 3)
     expect(archetypeCounts(lineup, lineup[0].player.id, ['captainBand']).speed).toBe(5)
+  })
+
+  it('防守型當指定打擊不算鐵壁球隊；舊規則照算', () => {
+    const lineup = withArchetypes(base, 'defense', 3).map((x, i) => (i === 0 ? { ...x, position: 'DH' as const } : i === 8 ? { ...x, position: base[0].position } : x))
+    expect(archetypeCounts(lineup, null, []).defense).toBe(2)
+    expect(archetypeCounts(lineup, null, [], false).defense).toBe(3)
   })
 
   it('板凳和不在先發的隊長都不算', () => {
@@ -140,12 +157,28 @@ describe('羈絆在比賽中的效果', () => {
   })
 })
 
+/** 二壘、游擊、捕手的守備設成某個值 */
+function keyFielding(lineup: LineupSpot[], fielding: number): LineupSpot[] {
+  return lineup.map((s) => (['C', '2B', 'SS'].includes(s.position) ? { ...s, player: { ...s.player, ratings: { ...s.player.ratings, fielding } } } : s))
+}
+const goodKeys = (t: Team): Team => ({ ...t, roster: { ...t.roster, lineup: keyFielding(t.roster.lineup, 7) } })
+
 describe('守位羈絆', () => {
-  it('二壘、游擊都守本職才有黃金二遊；捕手守本職就有投捕搭檔', () => {
-    const lineup = generateRoster(new Rng(4)).lineup
+  it('二游都守本職而且守備 B 以上才有黃金二遊；捕手守本職而且守備 B 以上才有投捕搭檔', () => {
+    const lineup = keyFielding(generateRoster(new Rng(4)).lineup, 7)
     expect(positionSynergies(lineup)).toEqual({ middle: true, battery: true })
     const swapped = lineup.map((s) => (s.position === '2B' ? { ...s, position: 'SS' as const } : s.position === 'SS' ? { ...s, position: '2B' as const } : s))
     expect(positionSynergies(swapped).middle).toBe(false)
+    // 守本職但守備 C：不成立；舊規則（strict = false）只看本職
+    const weak = keyFielding(lineup, 6)
+    expect(positionSynergies(weak)).toEqual({ middle: false, battery: false })
+    expect(positionSynergies(weak, false)).toEqual({ middle: true, battery: true })
+  })
+
+  it('裝備的守備加成也算：守備 C 的捕手戴上皮手套就成立', () => {
+    const weak = keyFielding(generateRoster(new Rng(4)).lineup, 6)
+    const gloved = weak.map((s) => (s.position === 'C' ? { ...s, player: { ...s.player, equipment: ['leatherGlove' as const] } } : s))
+    expect(positionSynergies(gloved).battery).toBe(true)
   })
 
   function setupWith(seed: number, f: (t: Team) => Team, rules?: number) {
@@ -173,8 +206,15 @@ describe('守位羈絆', () => {
       }
       return dp / chances
     }
-    expect(rate((t) => t)).toBeGreaterThan(rate(breakMiddle) + 0.08)
-    expect(new Game(setupWith(1, (t) => t, 7)).synergyLevel(new Game(setupWith(1, (t) => t, 7)).teams.home, 'middle')).toBe(0)
+    expect(rate(goodKeys)).toBeGreaterThan(rate((t) => breakMiddle(goodKeys(t))) + 0.08)
+    const old = new Game(setupWith(1, goodKeys, 7))
+    expect(old.synergyLevel(old.teams.home, 'middle')).toBe(0)
+    // 規則版本 8 的舊比賽只看本職，守備不到 B 也成立
+    const weak = (t: Team): Team => ({ ...t, roster: { ...t.roster, lineup: keyFielding(t.roster.lineup, 5) } })
+    const v8 = new Game(setupWith(1, weak, 8))
+    expect(v8.synergyLevel(v8.teams.home, 'middle')).toBe(1)
+    const v9 = new Game(setupWith(1, weak))
+    expect(v9.synergyLevel(v9.teams.home, 'middle')).toBe(0)
   })
 })
 

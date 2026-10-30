@@ -7,7 +7,9 @@ import type { Roster } from './types'
 
 describe('最多羈絆排法', () => {
   it('二游互換造成的非本職會被排回來，黃金二遊重新成立', () => {
-    const r = generateRoster(new Rng(4))
+    const base = generateRoster(new Rng(4))
+    // 二游的守備都夠（B），黃金二遊只差在守位
+    const r: Roster = { ...base, lineup: base.lineup.map((s) => (s.position === '2B' || s.position === 'SS' ? { ...s, player: { ...s.player, ratings: { ...s.player.ratings, fielding: 7 } } } : s)) }
     const idx = (p: string) => r.lineup.findIndex((s) => s.position === p)
     const broken: Roster = swapPositions(r, idx('2B'), idx('SS'))
     expect(synergyLevels(broken.lineup, broken.captain, []).middle).toBe(0)

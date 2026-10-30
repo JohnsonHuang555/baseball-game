@@ -33,7 +33,7 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
     {
       target: '.footer-buttons',
       title: '準備好就開賽',
-      text: '不滿意整隊可以重骰（次數有限）。按「開始比賽」進入比賽。',
+      text: '不滿意整隊可以重骰，次數不限。按「開始比賽」進入比賽。',
     },
   ],
   match: [
@@ -123,8 +123,8 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
     },
     {
       target: '.kit-panel',
-      title: '秘寶與裝備',
-      text: '秘寶整輪對全隊有效；裝備掛在球員身上，每人最多 2 件。點背包裡的裝備裝上，點身上的裝備卸下。',
+      title: '秘技與裝備',
+      text: '秘技整輪對全隊有效；裝備掛在球員身上，每人最多 2 件。點背包裡的裝備裝上，點身上的裝備卸下。',
     },
     {
       target: '.hub-bottom',
@@ -136,7 +136,7 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
     {
       target: '.draft-cards',
       title: '獎勵選擇',
-      text: '每場比賽後都有獎勵：贏球 3 選 1，輸球 2 選 1。卡片有球員、裝備、秘寶、特性。先點一張卡。',
+      text: '每場比賽後都有獎勵：贏球 3 選 1，輸球 2 選 1。卡片有球員、裝備、秘技、特性。先點一張卡。',
     },
     {
       target: '.draft-release',
@@ -160,7 +160,7 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
     {
       target: ['.syn-strip', '.syn-card'],
       title: '羈絆與隊長',
-      text: '先發 9 人中同流派湊到 3 人就啟動羈絆，5 人升級；二壘、游擊、捕手守本職也有羈絆。再從先發打者指定一位隊長，他在自己流派算兩人。',
+      text: '先發 9 人中同流派湊到 3 人就啟動羈絆，5 人升級；二壘、游擊、捕手守本職而且守備 B 以上，也有羈絆。再從先發打者指定一位隊長，他在自己流派算兩人。',
     },
   ],
 }

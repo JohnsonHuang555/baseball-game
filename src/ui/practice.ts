@@ -1,4 +1,4 @@
-// 自由練習：只打一場、不記錄結果的沙盒。雙方可以是自製球隊或隨機球隊，自製球隊可以改名字、能力、特性、裝備、球種與秘寶
+// 自由練習：只打一場、不記錄結果的沙盒。雙方可以是自製球隊或隨機球隊，自製球隊可以改名字、能力、特性、裝備、球種與秘技
 import { Game } from '../sim/game'
 import { BASE_MEAN, allPlayers, generateRoster, teamName } from '../sim/generate'
 import { EQUIPMENT, MAX_EQUIPMENT, RELICS, equippedTeam, type EquipmentId, type RelicId } from '../sim/items'
@@ -79,7 +79,7 @@ export function showPractice(root: HTMLElement, toTitle: () => void): void {
     box.append(el('h2', 'opp-title', title), random)
     for (const ct of teams) {
       const picked = side.kind === 'custom' && side.id === ct.id
-      box.append(option(ct.team.name, `${allPlayers(ct.team.roster).length} 人・${(ct.team.relics ?? []).length} 個秘寶`, picked, () => {
+      box.append(option(ct.team.name, `${allPlayers(ct.team.roster).length} 人・${(ct.team.relics ?? []).length} 個秘技`, picked, () => {
         set({ kind: 'custom', id: ct.id })
         redraw()
       }))
@@ -182,7 +182,7 @@ function startPractice(root: HTMLElement, toTitle: () => void): void {
   const find = (s: Side) => (s.kind === 'custom' ? teams.find((x) => x.id === s.id)?.team : undefined)
   const myCustom = find(mine)
   let setup: PregameSetup = myCustom
-    ? { team: myCustom, teamRerollsLeft: 0, playerRerollsLeft: 0, rngState: randomSeed() }
+    ? { team: myCustom, playerRerollsLeft: 0, rngState: randomSeed() }
     : withSavedName(createSetup(randomSeed()))
   let opponent: Team = find(theirs) ?? { name: teamName(new Rng(randomSeed())), roster: generateRoster(new Rng(randomSeed()), opponentMean(level)) }
   const again = () => startPractice(root, toTitle)
@@ -241,12 +241,12 @@ function showTeamEditor(root: HTMLElement, entry: CustomTeam, back: () => void):
     }
     screen.append(name)
 
-    // 秘寶：每一個都列出來，點一下裝上或拿掉
+    // 秘技：每一個都列出來，點一下裝上或拿掉
     const relics = el('section', 'editor-section')
     relics.append(el('h2', 'opp-title', `${T.relicsTitle}・${T.relicsHint}`))
     const chips = el('div', 'kit-chips')
     const owned = new Set(team.relics ?? [])
-    // 不再出現的舊秘寶只在已經裝上時列出，可以拿掉
+    // 不再出現的舊秘技只在已經裝上時列出，可以拿掉
     for (const id of (Object.keys(RELICS) as RelicId[]).filter((x) => !RELICS[x].retired || owned.has(x))) {
       const chip = kitChip(RELIC_NAMES[id], RELIC_DESC[id], RELICS[id].tier, true)
       chip.classList.toggle('off', !owned.has(id))
@@ -285,7 +285,7 @@ function showTeamEditor(root: HTMLElement, entry: CustomTeam, back: () => void):
     const arrange = el('button', 'btn-white', T.arrangeLineup)
     arrange.onclick = () =>
       showRosterEditor(root, {
-        setup: { team, teamRerollsLeft: 0, playerRerollsLeft: 0, rngState: 0 },
+        setup: { team, playerRerollsLeft: 0, rngState: 0 },
         heading: T.editorTitle,
         allowReroll: false,
         hint: T.autosaveHint,

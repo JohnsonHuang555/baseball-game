@@ -94,6 +94,6 @@ export interface Roster {
 export interface Team {
   name: string
   roster: Roster
-  /** 錦標賽中全隊共用的秘寶；AI 隊伍沒有 */
+  /** 錦標賽中全隊共用的秘技；AI 隊伍沒有 */
   relics?: RelicId[]
 }

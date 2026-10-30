@@ -27,7 +27,7 @@ export interface Trophy {
   legendId?: string
 }
 
-/** 奪冠回顧：這一輪的秘寶、覺醒、每位球員從開打（或加入）到奪冠的總評變化 */
+/** 奪冠回顧：這一輪的秘技、覺醒、每位球員從開打（或加入）到奪冠的總評變化 */
 export interface Recap {
   relics: RelicId[]
   awakenings: AwakenLog[]

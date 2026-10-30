@@ -99,7 +99,7 @@ export interface Tournament {
   phase: TournamentPhase
   rngState: number
   tier: Tier
-  /** 玩家的隊伍（含秘寶）；球員身上的能力不含裝備加成 */
+  /** 玩家的隊伍（含秘技）；球員身上的能力不含裝備加成 */
   setup: PregameSetup
   /** 聯盟各隊，第 0 隊是玩家 */
   teamNames: string[]
@@ -142,7 +142,7 @@ export interface ShopItem {
 
 export function createTournament(seed: number, tier: Tier = 1): Tournament {
   const rng = new Rng(seed)
-  const setup: PregameSetup = { ...createSetup(rng.int(0, 2 ** 32 - 1)), teamRerollsLeft: 1, playerRerollsLeft: 0 }
+  const setup: PregameSetup = { ...createSetup(rng.int(0, 2 ** 32 - 1)), playerRerollsLeft: 0 }
   // 開局就有幾位球員帶著潛能，讓玩家一開始就有養成目標；整隊重骰時重新分配
   setup.team = { ...setup.team, roster: seedPotentials(rng, setup.team.roster) }
   const teamNames = [setup.team.name]
@@ -236,17 +236,17 @@ export function updateRoster(t: Tournament, roster: Roster): Tournament {
   return { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster } } }
 }
 
-/** 兩場之間的陣容調整：隊名、秘寶、重骰都不能改，只接受陣容 */
+/** 兩場之間的陣容調整：隊名、秘技、重骰都不能改，只接受陣容 */
 export function updateLineup(t: Tournament, setup: PregameSetup): Tournament {
   expectPhase(t, 'ready')
   return { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster: setup.team.roster } } }
 }
 
-/** 開打：沒用完的重骰作廢，接著選起始秘寶 */
+/** 開打：沒用完的重骰作廢，接著選起始秘技 */
 export function startTournament(t: Tournament): Tournament {
   expectPhase(t, 'pregame')
   const rng = new Rng(t.rngState)
-  // 起始秘寶不出彩虹，免得開局就定生死
+  // 起始秘技不出彩虹，免得開局就定生死
   const pool = OFFERED_RELICS.filter((id) => RELICS[id].tier !== 'rainbow')
   const relicOptions = rng.shuffle(pool).slice(0, STARTING_RELICS)
   const startOverall = Object.fromEntries(allPlayers(t.setup.team.roster).map((p) => [p.id, overall(p)]))
@@ -257,14 +257,14 @@ export function startTournament(t: Tournament): Tournament {
     startOverall,
     awakenLog: [],
     rngState: rng.state,
-    setup: { ...t.setup, teamRerollsLeft: 0, playerRerollsLeft: 0 },
+    setup: { ...t.setup, playerRerollsLeft: 0 },
   }
 }
 
 export function chooseStartingRelic(t: Tournament, index: number): Tournament {
   expectPhase(t, 'relic')
   const id = t.relicOptions[index]
-  if (!id) throw new Error('沒有這個秘寶')
+  if (!id) throw new Error('沒有這個秘技')
   return { ...withRelic(t, id), phase: 'ready', relicOptions: [] }
 }
 
@@ -516,7 +516,7 @@ export function addLegend(t: Tournament, legend: Player): Tournament {
   return { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster: next } } }
 }
 
-/** 秘寶卡：直接加進全隊 */
+/** 秘技卡：直接加進全隊 */
 export function pickRelic(t: Tournament, index: number): Tournament {
   const { id } = rewardAt(t, index, 'relic')
   return afterReward(withRelic(t, id))

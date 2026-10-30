@@ -175,7 +175,7 @@ function recordRows(t: Tournament): { round: string; won: boolean; score: string
 
 // ---- 錦標賽主畫面 ----
 
-/** 錦標賽主畫面：例行賽與季後賽的進度、秘寶與裝備、下一個對手 */
+/** 錦標賽主畫面：例行賽與季後賽的進度、秘技與裝備、下一個對手 */
 function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, toTitle: () => void): void {
   root.replaceChildren()
   const screen = el('div', 'hub-screen')
@@ -245,7 +245,7 @@ function showHub(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, 
   void maybeTutorial('hub', TUTORIAL_STEPS.hub)
 }
 
-/** 下一個對手的羈絆與隊長、一句話描述他們的打法，加上「看對手陣容」（AI 沒有秘寶） */
+/** 下一個對手的羈絆與隊長、一句話描述他們的打法，加上「看對手陣容」（AI 沒有秘技） */
 function opponentScout(opponent: Team): HTMLElement {
   const { lineup, captain } = opponent.roster
   const box = el('div', 'hub-scout')
@@ -312,7 +312,7 @@ function seasonPanel(t: Tournament): HTMLElement {
   return panel
 }
 
-/** 秘寶、身上的裝備、背包；點背包裡的裝備裝上，點身上的裝備卸下 */
+/** 秘技、身上的裝備、背包；點背包裡的裝備裝上，點身上的裝備卸下 */
 function kitPanel(t: Tournament, go: (t: Tournament) => void): HTMLElement {
   const panel = el('section', 'hub-panel kit-panel')
   panel.setAttribute('aria-label', `${T.relicsTitle}・${T.bagTitle}`)
@@ -323,7 +323,7 @@ function kitPanel(t: Tournament, go: (t: Tournament) => void): HTMLElement {
   const relics = el('div', 'kit-chips')
   for (const id of relicsOf(t)) {
     const chip = kitChip(RELIC_NAMES[id], RELIC_DESC[id], RELICS[id].tier)
-    // 羈絆秘寶在名稱前面加寶石圖示
+    // 羈絆秘技在名稱前面加旗子圖示
     const gem = synergyRelicSvg(id, 18)
     if (gem) chip.querySelector('.kit-chip-name')?.insertAdjacentHTML('afterbegin', gem)
     relics.append(chip)
@@ -371,9 +371,9 @@ function kitPanel(t: Tournament, go: (t: Tournament) => void): HTMLElement {
   return panel
 }
 
-// ---- 起始秘寶 ----
+// ---- 起始秘技 ----
 
-/** 開打後第一件事：三個秘寶選一個 */
+/** 開打後第一件事：三個秘技選一個 */
 function showRelicPick(root: HTMLElement, t: Tournament, go: (t: Tournament) => void, toTitle: () => void): void {
   let chosen: number | null = null
   let firstRender = true
@@ -385,7 +385,7 @@ function showRelicPick(root: HTMLElement, t: Tournament, go: (t: Tournament) => 
     cards.setAttribute('aria-label', T.relicsTitle)
     t.relicOptions.forEach((id, i) => {
       const card = itemCard({ kind: 'relic', id }, chosen === i, firstRender, i)
-      // 羈絆秘寶：卡片底下寫拿了以後你的隊伍會怎樣
+      // 羈絆秘技：卡片底下寫拿了以後你的隊伍會怎樣
       const preview = relicPreview(id, t.setup.team.roster, relicsOf(t))
       if (preview) card.querySelector('.draft-inner')?.append(preview)
       card.onclick = () => {
@@ -432,7 +432,7 @@ function showReward(root: HTMLElement, t: Tournament, go: (t: Tournament) => voi
     cards.setAttribute('aria-label', T.rewardCandidates)
     t.rewards.forEach((card, i) => {
       const node = card.kind === 'player' ? playerCard(card.player, chosen === i, firstRender, i) : itemCard(card, chosen === i, firstRender, i)
-      // 球員卡：換掉最適合的人時最好的羈絆結果；羈絆秘寶：拿了以後你的隊伍會怎樣
+      // 球員卡：換掉最適合的人時最好的羈絆結果；羈絆秘技：拿了以後你的隊伍會怎樣
       if (card.kind === 'player') addGainLine(node, t.setup.team.roster, card.player, relicsOf(t))
       if (card.kind === 'relic') {
         const preview = relicPreview(card.id, t.setup.team.roster, relicsOf(t))

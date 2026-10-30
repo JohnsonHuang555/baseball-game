@@ -1610,7 +1610,7 @@
   color: var(--lilac);
 }
 
-/* 羈絆秘寶卡：連動的羈絆，以及拿了以後你的隊伍會怎樣 */
+/* 羈絆秘技卡：連動的羈絆，以及拿了以後你的隊伍會怎樣 */
 .relic-preview {
   margin-top: auto;
   display: flex;

@@ -2,13 +2,11 @@ import { generateBatter, generatePitcher, generateTeam } from './generate'
 import { Rng } from './rng'
 import type { Player, Roster, Team } from './types'
 
-export const TEAM_REROLLS = 3
 export const PLAYER_REROLLS = 5
 
 /** 比賽開打前的組隊階段 */
 export interface PregameSetup {
   team: Team
-  teamRerollsLeft: number
   playerRerollsLeft: number
   rngState: number
 }
@@ -22,15 +20,14 @@ export type Slot =
 export function createSetup(seed: number): PregameSetup {
   const rng = new Rng(seed)
   const team = generateTeam(rng)
-  return { team, teamRerollsLeft: TEAM_REROLLS, playerRerollsLeft: PLAYER_REROLLS, rngState: rng.state }
+  return { team, playerRerollsLeft: PLAYER_REROLLS, rngState: rng.state }
 }
 
-/** 整隊重骰：隊名保留，球員全部換新 */
+/** 整隊重骰：隊名保留，球員全部換新。不限次數（重新整理頁面一樣能換隊，限制次數沒有意義） */
 export function rerollTeam(s: PregameSetup): PregameSetup {
-  if (s.teamRerollsLeft <= 0) return s
   const rng = new Rng(s.rngState)
   const { roster } = generateTeam(rng)
-  return { ...s, team: { ...s.team, roster }, teamRerollsLeft: s.teamRerollsLeft - 1, rngState: rng.state }
+  return { ...s, team: { ...s.team, roster }, rngState: rng.state }
 }
 
 export function rerollPlayer(s: PregameSetup, slot: Slot): PregameSetup {

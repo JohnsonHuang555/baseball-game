@@ -501,8 +501,11 @@ button .kbd {
     align-items: flex-start;
     gap: 0;
   }
+  /* 卡片是按鈕，文字預設置中；名字一律靠左（打者的名字外面還包了一層本職列） */
   .reserve-grid .mini-name {
     grid-area: name;
+    justify-self: start;
+    text-align: left;
     font-size: 14px;
     font-weight: 900;
   }

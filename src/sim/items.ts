@@ -1,4 +1,4 @@
-// 錦標賽一輪內的道具：裝備（掛在單一球員身上）與秘寶（全隊共用）
+// 錦標賽一輪內的道具：裝備（掛在單一球員身上）與秘技（全隊共用）
 import type { CardTier } from './generate'
 import type { BatterRatings, Player, PitcherRatings, Roster, Team } from './types'
 
@@ -72,7 +72,7 @@ export type RelicId =
 export interface RelicDef {
   id: RelicId
   tier: CardTier
-  /** 有了羈絆之後不再出現的舊秘寶；已經拿到的照舊有效 */
+  /** 有了羈絆之後不再出現的舊秘技；已經拿到的照舊有效 */
   retired?: boolean
 }
 
@@ -96,14 +96,17 @@ export const RELICS: Record<RelicId, RelicDef> = {
   captainBand: { id: 'captainBand', tier: 'silver' },
 }
 
-/** 獎勵、商店、起始秘寶會出現的秘寶 */
+/** 獎勵、商店、起始秘技會出現的秘技 */
 export const OFFERED_RELICS = (Object.keys(RELICS) as RelicId[]).filter((id) => !RELICS[id].retired)
 
 export function equipmentOf(p: Player): readonly EquipmentId[] {
   return p.equipment ?? []
 }
 
-/** 把裝備的加成加進能力值（不超過上限），比賽用這份；錦標賽裡存的是沒加成的原始能力 */
+/**
+ * 把裝備的加成加進能力值（不超過上限），比賽用這份；錦標賽裡存的是沒加成的原始能力。
+ * 加完就把裝備清單拿掉，再套一次不會重複加（守位羈絆在佈陣畫面和比賽中都會套）
+ */
 export function withEquipment<P extends Player>(p: P): P {
   const items = equipmentOf(p)
   if (!items.length) return p
@@ -111,7 +114,8 @@ export function withEquipment<P extends Player>(p: P): P {
   for (const id of items) {
     for (const [k, v] of Object.entries(EQUIPMENT[id].bonus)) ratings[k] = Math.min(MAX_RATING, ratings[k] + (v as number))
   }
-  return { ...p, ratings } as P
+  const { equipment: _worn, ...rest } = p
+  return { ...rest, ratings } as unknown as P
 }
 
 export function mapRoster(roster: Roster, f: <P extends Player>(p: P) => P): Roster {

@@ -274,15 +274,16 @@ export interface GameSetup {
 /**
  * 目前的規則版本。2：AI 守備時會佈陣；3：左右投打相剋；4：AI 依左右相剋換投、派代打；
  * 5：配球對決（出棒決定擊球方向、猜球，投球改成選球種、位置並畫手勢）；6：守本職以外的守位時守備打折；
- * 7：流派羈絆與隊長；8：守位羈絆（黃金二遊、投捕搭檔）
+ * 7：流派羈絆與隊長；8：守位羈絆（黃金二遊、投捕搭檔）；
+ * 9：守位羈絆還要守備 B 以上、防守型當指定打擊不算鐵壁球隊
  */
-export const RULES_VERSION = 8
+export const RULES_VERSION = 9
 
 /**
  * 流派羈絆的效果，依階級（0 未啟動、1 是 3 人階、2 是 5 人階）取值；只作用在該流派的球員身上，鐵壁球隊作用在整個守備。
  * 重砲：全壘打、長打變多，揮空也變多；快腿：盜壘、跑壘推進、內野安打；
  * 精準：揮空變少、比較不追打壞球、兩好球後安打率提高；鐵壁：失誤變少、守備範圍變大。
- * 3 人階只有三個人吃得到，所以每人的效果接近 5 人階的八成（校準目標：3 人階約等於一張銀卡秘寶，5 人階約等於金卡）
+ * 3 人階只有三個人吃得到，所以每人的效果接近 5 人階的八成（校準目標：3 人階約等於一張銀卡秘技，5 人階約等於金卡）
  */
 export const SYNERGY_EFFECT = {
   slugPower: [0, 1.5, 2],
@@ -342,7 +343,7 @@ export interface TeamState {
   pitcherSincePa: number
   /** 先發投手，用來分辨後援 */
   starterId: string
-  /** 錦標賽的秘寶；AI 隊伍和舊存檔沒有 */
+  /** 錦標賽的秘技；AI 隊伍和舊存檔沒有 */
   relics: readonly RelicId[]
   /** 隊長；比賽中被換下場就變成 null，這場不會遞補 */
   captainId: string | null
@@ -396,6 +397,8 @@ export class Game {
   readonly synergyOn: boolean
   /** 有沒有守位羈絆（規則版本 8 起） */
   readonly positionSynergyOn: boolean
+  /** 規則版本 9 起：守位羈絆還要守備 B 以上，防守型當指定打擊不算鐵壁球隊 */
+  private readonly strictSynergy: boolean
   /** 這場比賽各隊羈絆的紀錄：最高階、中途失效、促成了什麼 */
   readonly synergyLog: Record<Side, Partial<Record<SynergyKey, SynergyRecord>>> = { home: {}, away: {} }
   readonly synergyStats: Record<Side, SynergyStats> = { home: emptySynergyStats(), away: emptySynergyStats() }
@@ -425,6 +428,7 @@ export class Game {
     this.positionsOn = (setup.rules ?? RULES_VERSION) >= 6
     this.synergyOn = (setup.rules ?? RULES_VERSION) >= 7
     this.positionSynergyOn = (setup.rules ?? RULES_VERSION) >= 8
+    this.strictSynergy = (setup.rules ?? RULES_VERSION) >= 9
     this.seed = setup.seed
     this.trackSynergies()
     this.prepareAtBat()
@@ -518,12 +522,12 @@ export class Game {
   /** 這一隊某個流派羈絆目前的階級；舊規則的比賽沒有羈絆 */
   synergyTier(team: TeamState, archetype: Archetype): SynergyTier {
     if (!this.synergyOn) return 0
-    return tierOf(archetypeCounts(team.lineup, team.captainId, team.relics)[archetype], archetype, team.relics)
+    return tierOf(archetypeCounts(team.lineup, team.captainId, team.relics, this.strictSynergy)[archetype], archetype, team.relics)
   }
 
   /** 守位羈絆成立沒有（規則版本 8 起） */
   positionSynergy(team: TeamState, key: 'middle' | 'battery'): boolean {
-    return this.positionSynergyOn && positionSynergies(team.lineup)[key]
+    return this.positionSynergyOn && positionSynergies(team.lineup, this.strictSynergy)[key]
   }
 
   /** 任一個羈絆目前的階級：流派羈絆 0～2，守位羈絆成立就是 1 */
@@ -596,7 +600,7 @@ export class Game {
     return this.fielding.pitcher
   }
 
-  /** 投手的疲勞門檻（球數）；給了所屬的隊伍才算秘寶「耐力訓練」 */
+  /** 投手的疲勞門檻（球數）；給了所屬的隊伍才算秘技「耐力訓練」 */
   fatigueLimit(p: Pitcher, team?: TeamState): number {
     const relic = team && hasRelic(team, 'stamina') ? 15 : 0
     return 50 + p.ratings.stamina * 8 + (hasTrait(p, 'ironArm') ? 40 : 0) - (hasTrait(p, 'lowStamina') ? 15 : 0) + relic
@@ -1119,7 +1123,7 @@ export class Game {
     const penalty = (over / 15) * (hasTrait(p, 'ironArm') ? 0.5 : 1)
     // 終結者：第 8 局起球威、控球都提升
     const closing = hasTrait(p, 'closer') && this.inning >= 8 ? 1.5 : 0
-    // 秘寶：後援陣容（後援球威）、守護神（第 9 局起球威）、好球帶（控球）、王朝（都加）
+    // 秘技：後援陣容（後援球威）、守護神（第 9 局起球威）、好球帶（控球）、王朝（都加）
     const dynasty = hasRelic(team, 'dynasty') ? 0.5 : 0
     const stuff =
       (hasRelic(team, 'deepRelief') && p.id !== team.starterId ? 1 : 0) + (hasRelic(team, 'guardian') && this.inning >= 9 ? 1.5 : 0) + dynasty
@@ -1143,7 +1147,7 @@ export class Game {
       if (hasTrait(b, 'clutch')) k += 2
       if (hasTrait(b, 'clutchBad')) k -= 2
     }
-    // 秘寶：開路先鋒（每半局第一棒）、得點圈之魂、逆轉魂（第 7 局起落後）、王朝
+    // 秘技：開路先鋒（每半局第一棒）、得點圈之魂、逆轉魂（第 7 局起落後）、王朝
     const team = this.batting
     if (hasRelic(team, 'leadoff') && this.paIndex === this.halfStartPa) k += 2
     if (hasRelic(team, 'rispSoul') && this.scoringPosition()) k += 1

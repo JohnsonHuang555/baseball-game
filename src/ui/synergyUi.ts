@@ -1,7 +1,9 @@
 // 羈絆的畫面元件：流派徽章、隊長標記、羈絆追蹤欄與說明、球員所在的羈絆、羈絆變化預告、錦標賽主畫面的摘要
 import type { RelicId } from '../sim/items'
 import { positionPenalty } from '../sim/positions'
+import { withEquipment } from '../sim/items'
 import {
+  POSITION_SYNERGY_FIELDING,
   SYNERGY_KEYS,
   THRESHOLD_RELICS,
   archetypeCounts,
@@ -15,6 +17,7 @@ import {
 } from '../sim/synergy'
 import { ARCHETYPES, type Archetype, type Batter, type LineupSpot, type Roster } from '../sim/types'
 import { avatar } from './avatar'
+import { gradeOf } from './grades'
 import { el } from './playerCard'
 import { ARCHETYPE_NAMES, CAPTAIN_TITLES, FIELDER_TITLES, POSITION_SPOT, SYNERGY_DESC, SYNERGY_NAMES, SYNERGY_SCOUTING, SYNERGY_SHORT, T } from './strings'
 import { ARCHETYPE_COLORS, archetypeSvg, captainSvg, positionSynergySvg, synergySvg } from './synergyIcons'
@@ -27,7 +30,7 @@ export interface SynergyRow {
   tier: SynergyTier
   /** 流派羈絆的人數（隊長算兩人或三人）；守位羈絆成立就是 1 */
   count: number
-  /** 兩階的門檻（有門檻秘寶時是 2、4）；守位羈絆都是 1 */
+  /** 兩階的門檻（有門檻秘技時是 2、4）；守位羈絆都是 1 */
   low: number
   high: number
   /** 算進去的先發打者；守位羈絆是站在那些守位的人 */
@@ -47,14 +50,21 @@ export function synergyRows(lineup: readonly LineupSpot[], captain: string | nul
   const tiers = synergyTiers(lineup, cap, relics)
   const rows: SynergyRow[] = ARCHETYPES.map((a) => {
     const [low, high] = thresholds(a, relics)
-    return { key: a, position: false, tier: tiers[a], count: counts[a], low, high, members: lineup.map((s) => s.player).filter((p) => p.archetype === a), reason: '' }
+    // 防守型當指定打擊不算鐵壁球隊
+    const members = lineup.filter((s) => s.player.archetype === a && !(a === 'defense' && s.position === 'DH')).map((s) => s.player)
+    return { key: a, position: false, tier: tiers[a], count: counts[a], low, high, members, reason: '' }
   })
   const pos = positionSynergies(lineup)
   const spot = (p: 'C' | '2B' | 'SS') => lineup.find((s) => s.position === p)
+  // 未成立的原因：先看有沒有人守非本職，再看誰的守備不到 B（含裝備）
+  const fielding = (p: Batter) => withEquipment(p).ratings.fielding
   const why = (positions: ('C' | '2B' | 'SS')[], ok: boolean) => {
     if (ok) return positions.length > 1 ? T.middleOk : T.positionOk(FIELDER_TITLES.C, spot('C')?.player.name ?? '')
-    const bad = positions.map(spot).find((s) => s && s.player.primary !== s.position)
-    return bad ? T.positionOff(FIELDER_TITLES[bad.position as 'C' | '2B' | 'SS'], bad.player.name) : ''
+    const spots = positions.map(spot).filter((s): s is LineupSpot => !!s)
+    const off = spots.find((s) => s.player.primary !== s.position)
+    if (off) return T.positionOff(FIELDER_TITLES[off.position as 'C' | '2B' | 'SS'], off.player.name)
+    const weak = spots.find((s) => fielding(s.player) < POSITION_SYNERGY_FIELDING)
+    return weak ? T.positionWeak(FIELDER_TITLES[weak.position as 'C' | '2B' | 'SS'], weak.player.name, gradeOf(fielding(weak.player))) : ''
   }
   for (const [key, positions] of [['middle', ['2B', 'SS']], ['battery', ['C']]] as const) {
     const ok = pos[key]
@@ -161,6 +171,8 @@ export function synergyDetail(row: SynergyRow, roster: Roster, relics: readonly 
   if (!row.position) {
     const bench = roster.bench.filter((p) => p.archetype === row.key)
     if (bench.length) box.append(el('p', 'syn-note', T.synergyBenchNote(bench.map((p) => p.name).join('、'))))
+    const dh = roster.lineup.find((s) => s.position === 'DH')?.player
+    if (row.key === 'defense' && dh?.archetype === 'defense') box.append(el('p', 'syn-note', T.dhNotIron(dh.name)))
   }
   return box
 }
@@ -304,7 +316,7 @@ export function playerSynergies(p: Batter, roster: Roster, relics: readonly Reli
   const own = rows.find((r) => r.key === p.archetype)!
   line(
     own,
-    !spot ? T.synergyBenchSelf : captain ? `${T.synergyCaptainNote(captainWeight(relics))}；${T.synergyNoteActive(missing(own), own.tier)}` : T.synergyNoteActive(missing(own), own.tier),
+    !spot ? T.synergyBenchSelf : spot.position === 'DH' && p.archetype === 'defense' ? T.dhNotIronSelf : captain ? `${T.synergyCaptainNote(captainWeight(relics))}；${T.synergyNoteActive(missing(own), own.tier)}` : T.synergyNoteActive(missing(own), own.tier),
   )
   if (spot) {
     const key = spot.position === '2B' || spot.position === 'SS' ? 'middle' : spot.position === 'C' ? 'battery' : null
@@ -324,7 +336,7 @@ export interface BadgeOptions {
   near?: boolean
 }
 
-/** 精簡標籤上的階級：3 人階寫「3 人」，5 人階寫「5 人」（金底），守位羈絆寫「成立」；有門檻秘寶時照實際門檻 */
+/** 精簡標籤上的階級：3 人階寫「3 人」，5 人階寫「5 人」（金底），守位羈絆寫「成立」；有門檻秘技時照實際門檻 */
 function tierText(row: SynergyRow): string {
   if (row.position) return T.positionOn
   return T.synergyTierLabel(row.tier === 2 ? row.high : row.low)
@@ -351,7 +363,8 @@ export function synergyBadges(lineup: readonly LineupSpot[], captain: string | n
   if (opts.near && closest) {
     const badge = el('span', 'syn-badge near')
     badge.title = `${SYNERGY_NAMES[closest.key]}：${closest.position ? closest.reason : T.synergyHint(0, missing(closest))}`
-    badge.append(synergyIcon(closest.key, 18, 'syn-icon off'), el('span', 'syn-badge-name', (opts.full ? SYNERGY_NAMES : SYNERGY_SHORT)[closest.key]), el('span', 'syn-badge-tier', T.synergyMissing(missing(closest))))
+    const gap = closest.position ? T.positionOffShort : T.synergyMissing(missing(closest))
+    badge.append(synergyIcon(closest.key, 18, 'syn-icon off'), el('span', 'syn-badge-name', (opts.full ? SYNERGY_NAMES : SYNERGY_SHORT)[closest.key]), el('span', 'syn-badge-tier', gap))
     box.append(badge)
   } else if (!active.length) box.append(el('span', 'syn-badge-hint', T.noSynergyShort))
   return box
@@ -427,11 +440,11 @@ export function warnTag(text: string, kind: 'captain' | 'offpos'): HTMLElement {
   return tag
 }
 
-// ---- 羈絆秘寶 ----
+// ---- 羈絆秘技 ----
 
 /**
- * 羈絆秘寶卡上的「連動」與「你的隊伍」：拿到這個秘寶以後，目前的陣容會怎樣。
- * 不是羈絆秘寶就回傳 null
+ * 羈絆秘技卡上的「連動」與「你的隊伍」：拿到這個秘技以後，目前的陣容會怎樣。
+ * 不是羈絆秘技就回傳 null
  */
 export function relicPreview(id: RelicId, roster: Roster, relics: readonly RelicId[]): HTMLElement | null {
   const archetype = ARCHETYPES.find((a) => THRESHOLD_RELICS[a] === id)

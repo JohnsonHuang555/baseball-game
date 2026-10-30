@@ -366,7 +366,7 @@
   font-family: var(--font-display);
   font-weight: 400;
 }
-/* 例行賽、季後賽、秘寶與背包的白底面板 */
+/* 例行賽、季後賽、秘技與背包的白底面板 */
 .hub-panel {
   margin: 12px 12px 0;
   padding: 12px 12px 14px;
@@ -954,7 +954,7 @@ button.kit-chip {
   box-sizing: border-box;
   border-bottom: 1px solid var(--line);
 }
-/* 名單上方的整排按鈕：先放進背包、收下秘寶 */
+/* 名單上方的整排按鈕：先放進背包、收下秘技 */
 .panel-action {
   flex: none;
   margin: 10px 10px 4px;
@@ -1936,7 +1936,7 @@ button.trophy-card {
   font-weight: 900;
 }
 
-/* ---- 錦標賽主畫面：秘寶與我方羈絆、下一個對手的羈絆 ---- */
+/* ---- 錦標賽主畫面：秘技與我方羈絆、下一個對手的羈絆 ---- */
 .panel-head {
   display: flex;
   align-items: baseline;

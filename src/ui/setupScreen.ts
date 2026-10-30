@@ -759,11 +759,11 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
   }
 
   function rerollWholeTeam(): void {
-    if (!allowReroll || setup.teamRerollsLeft <= 0) return
+    if (!allowReroll) return
     const before = new Set(allIds())
     play('dice')
     update(rerollTeam(setup))
-    toast(T.rerolledTeam(setup.teamRerollsLeft))
+    toast(T.rerolledTeam)
     revealed = 'all'
     render()
     celebrate(newPlayers(before))
@@ -783,8 +783,7 @@ export function showRosterEditor(root: HTMLElement, opts: RosterEditorOptions): 
     const row = el('div', 'footer-buttons')
     if (allowReroll) {
       const rerollAll = withIcon('btn-indigo', ICONS.dice, T.rerollTeam)
-      rerollAll.append(el('span', 'count-pill', String(setup.teamRerollsLeft)), kbd('R'))
-      rerollAll.disabled = setup.teamRerollsLeft <= 0
+      rerollAll.append(kbd('R'))
       rerollAll.onclick = rerollWholeTeam
       row.append(rerollAll)
     }

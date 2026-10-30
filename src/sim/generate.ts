@@ -152,6 +152,7 @@ function battingOrderScore(b: Batter): number {
 export function generateRoster(rng: Rng, mean = BASE_MEAN): Roster {
   // 開局的八個守位各有一名本職，指定打擊和板凳的本職隨機
   const lineup = POSITIONS.map((position) => ({ position, player: generateBatter(rng, mean, position === 'DH' ? undefined : position) }))
+  spreadArchetypes(lineup)
   lineup.sort((a, b) => battingOrderScore(b.player) - battingOrderScore(a.player))
   return {
     captain: defaultCaptain(lineup, []),
@@ -159,6 +160,23 @@ export function generateRoster(rng: Rng, mean = BASE_MEAN): Roster {
     bench: [generateBatter(rng, mean), generateBatter(rng, mean)],
     starter: generatePitcher(rng, mean),
     relievers: [generatePitcher(rng, mean), generatePitcher(rng, mean)],
+  }
+}
+
+/** 開局先發每種流派最多幾人：加上隊長最多 4/5，5 人階一定要靠之後招募 */
+export const START_ARCHETYPE_CAP = 3
+
+/**
+ * 開局先發同流派超過上限時，從後面（指定打擊、外野）開始把多出來的人改成人數最少的流派，
+ * 並把他最高的能力換到新流派對應的那一項。不多抽亂數
+ */
+function spreadArchetypes(lineup: { position: string; player: Batter }[]): void {
+  const count = (a: Archetype) => lineup.filter((s) => s.player.archetype === a).length
+  for (let i = lineup.length - 1; i >= 0; i--) {
+    const p = lineup[i].player
+    if (count(p.archetype) <= START_ARCHETYPE_CAP) continue
+    const target = [...ARCHETYPES].sort((a, b) => count(a) - count(b))[0]
+    lineup[i] = { ...lineup[i], player: { ...p, archetype: target, ratings: favor(p.ratings, ARCHETYPE_STAT[target]) } }
   }
 }
 

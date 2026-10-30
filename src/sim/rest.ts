@@ -65,7 +65,7 @@ export function enterRest(t: Tournament, choice: RestChoice): Tournament {
 // ---- 商店 ----
 
 const SHOP_TIERS: [CardTier, number][] = [['bronze', 40], ['silver', 35], ['gold', 20], ['rainbow', 5]]
-/** 商店的貨架：2 名球員、2 件裝備、1 個秘寶、1 張特性 */
+/** 商店的貨架：2 名球員、2 件裝備、1 個秘技、1 張特性 */
 const SHOP_SHELF: RewardCard['kind'][] = ['player', 'player', 'equipment', 'equipment', 'relic', 'trait']
 
 function stockShop(t: Tournament): Tournament {
@@ -75,7 +75,7 @@ function stockShop(t: Tournament): Tournament {
     // 特性那一格有時改賣球種特性或新球種
     const kind = shelf === 'trait' ? rng.weighted<RewardCard['kind']>([['trait', 3], ['pitchTrait', 2], ['newPitch', 1]]) : shelf
     const card = rewardOf(rng, kind, rng.weighted(SHOP_TIERS), t)
-    // 秘寶全部擁有了（或沒有投手用得到球種卡）就改賣裝備
+    // 秘技全部擁有了（或沒有投手用得到球種卡）就改賣裝備
     const item = card ?? rewardOf(rng, 'equipment', 'silver', t)!
     shop.push({ card: item, price: priceOf(item), sold: false })
   }
@@ -91,7 +91,7 @@ export function rerollShop(t: Tournament): Tournament {
 
 /**
  * 買一格商品。球員要指定換掉誰（交易）；裝備指定誰帶（null 放進背包，裝滿要指定換下哪一件）；
- * 特性指定誰學；秘寶直接加進全隊
+ * 特性指定誰學；秘技直接加進全隊
  */
 export function buy(t: Tournament, index: number, target: { release?: Slot; playerId?: string | null; replace?: number } = {}): Tournament {
   expectPhase(t, 'shop')

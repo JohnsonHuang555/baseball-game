@@ -1091,8 +1091,8 @@ describe('差一步的關鍵打席', () => {
   })
 })
 
-describe('秘寶', () => {
-  /** 主隊帶著秘寶打 300 場的總得分 */
+describe('秘技', () => {
+  /** 主隊帶著秘技打 300 場的總得分 */
   function homeRuns(relics: RelicId[]): number {
     let runs = 0
     for (let seed = 1; seed <= 300; seed++) {
@@ -1103,13 +1103,13 @@ describe('秘寶', () => {
     return runs
   }
 
-  it('進攻秘寶讓得分變多', () => {
+  it('進攻秘技讓得分變多', () => {
     const base = homeRuns([])
     expect(homeRuns(['dynasty'])).toBeGreaterThan(base)
     expect(homeRuns(['rispSoul', 'powerHouse'])).toBeGreaterThan(base)
   })
 
-  it('沒有秘寶的隊伍跟以前一模一樣（舊存檔重播不受影響）', () => {
+  it('沒有秘技的隊伍跟以前一模一樣（舊存檔重播不受影響）', () => {
     const s = setup(42)
     const a = playOut(new Game(s))
     const b = playOut(new Game({ ...s, home: { ...s.home, relics: [] }, away: { ...s.away, relics: [] } }))

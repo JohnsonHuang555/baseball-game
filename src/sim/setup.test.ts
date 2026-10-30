@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   PLAYER_REROLLS,
-  TEAM_REROLLS,
   createSetup,
   getSlot,
   rerollPlayer,
@@ -11,23 +10,20 @@ import {
 } from './setup'
 
 describe('賽前重骰', () => {
-  it('開局有整隊 3 次、單人 5 次', () => {
+  it('開局有單人重骰 5 次', () => {
     const s = createSetup(1)
-    expect(s.teamRerollsLeft).toBe(TEAM_REROLLS)
     expect(s.playerRerollsLeft).toBe(PLAYER_REROLLS)
-    expect(TEAM_REROLLS).toBe(3)
     expect(PLAYER_REROLLS).toBe(5)
   })
 
-  it('整隊重骰換掉所有人並扣次數，用完就不能再骰', () => {
+  it('整隊重骰換掉所有人，不限次數', () => {
     let s = createSetup(1)
-    const before = s.team.roster.starter.id
-    s = rerollTeam(s)
-    expect(s.team.roster.starter.id).not.toBe(before)
-    expect(s.teamRerollsLeft).toBe(2)
-    s = rerollTeam(rerollTeam(s))
-    expect(s.teamRerollsLeft).toBe(0)
-    expect(rerollTeam(s)).toBe(s)
+    const seen = new Set([s.team.roster.starter.id])
+    for (let i = 0; i < 10; i++) {
+      s = rerollTeam(s)
+      expect(seen.has(s.team.roster.starter.id)).toBe(false)
+      seen.add(s.team.roster.starter.id)
+    }
   })
 
   it('單人重骰只換該格球員，守備位置不變', () => {
