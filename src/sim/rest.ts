@@ -1,6 +1,6 @@
 // 休息站：例行賽每兩場一站，教練從商店、訓練、事件中選一個
 import { allPlayers, type CardTier } from './generate'
-import { EQUIPMENT, RELICS, type EquipmentId, type RelicId } from './items'
+import { EQUIPMENT, OFFERED_RELICS, type EquipmentId, type RelicId } from './items'
 import { advancePotential, trainingBoost } from './potential'
 import { SHOP_REROLL_COST, priceOf, upgradeCost } from './prices'
 import { Rng } from './rng'
@@ -199,7 +199,7 @@ export function canChoose(t: Tournament, event: EventId, option: number): boolea
 
 function unownedRelics(t: Tournament): RelicId[] {
   const owned = new Set(relicsOf(t))
-  return (Object.keys(RELICS) as RelicId[]).filter((id) => !owned.has(id))
+  return OFFERED_RELICS.filter((id) => !owned.has(id))
 }
 
 export interface EventResult {

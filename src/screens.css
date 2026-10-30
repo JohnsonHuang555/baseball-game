@@ -371,9 +371,8 @@
   margin: 12px 12px 0;
   padding: 12px 12px 14px;
   background: #fff;
-  border: 2.5px solid var(--ink);
+  border: 1.5px solid var(--ink);
   border-radius: 16px;
-  box-shadow: 0 4px 0 var(--ink);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1935,4 +1934,513 @@ button.trophy-card {
 .end-reward-line {
   font-size: 15px;
   font-weight: 900;
+}
+
+/* ---- 錦標賽主畫面：秘寶與我方羈絆、下一個對手的羈絆 ---- */
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.panel-count {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.hub-synergies .panel-count {
+  margin-left: 0;
+}
+.kit-chip-name svg {
+  display: inline-block;
+  vertical-align: -4px;
+  margin-right: 4px;
+}
+.hub-synergies {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 2px dashed #d4d7ee;
+}
+.hub-scout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1.5px solid var(--ink);
+  background: #fff6ee;
+}
+.hub-scout-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.hub-scout-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: #6b3a12;
+}
+.hub-scout-captain {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.hub-scout-text {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.hub-scout-btn {
+  min-height: 44px;
+}
+
+/* ---- 自由練習：編輯球員的流派與本職（四欄大格子） ---- */
+.pe-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.pe-tile {
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 2px solid #c9cce6;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.pe-tile[aria-checked='true'] {
+  border: 2.5px solid var(--ink);
+  background: #fff8db;
+  box-shadow: 0 0 0 3px var(--yellow);
+}
+.pe-tile-big {
+  font-size: 17px;
+}
+.pe-tile-small {
+  font-size: 10px;
+  font-weight: 700;
+}
+.pe-hint {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7099;
+  line-height: 1.5;
+}
+
+/* ---- 要換掉誰（獎勵與商店共用）：推薦 3 人，其他收起來 ---- */
+.replace-list {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 16px;
+  border: 1.5px solid var(--ink);
+  overflow: hidden;
+  text-align: left;
+  color: var(--ink);
+}
+.replace-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1.5px solid var(--line);
+}
+.replace-face {
+  position: relative;
+  flex: none;
+  display: block;
+  width: 40px;
+  height: 40px;
+}
+.replace-face .avatar {
+  width: 40px;
+  height: 40px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2.5px solid var(--home);
+  overflow: hidden;
+}
+.replace-face .arch-icon {
+  position: absolute;
+  right: -6px;
+  top: -5px;
+}
+.replace-face.small,
+.replace-face.small .avatar {
+  width: 36px;
+  height: 36px;
+}
+.replace-face.small .avatar {
+  border: 2px solid #c9cce6;
+}
+.replace-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.replace-title {
+  font-size: 17px;
+  font-weight: 900;
+}
+.replace-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.replace-body {
+  display: flex;
+  flex-direction: column;
+}
+.replace-section {
+  padding: 10px 14px 4px;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.replace-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1.5px solid var(--line);
+}
+.replace-row.open {
+  background: #fafbff;
+}
+.replace-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.replace-order {
+  flex: none;
+  width: 18px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+.replace-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.replace-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.replace-name {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.replace-best {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 16px;
+}
+.replace-where {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7099;
+}
+.replace-net {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.replace-net-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: #6b7099;
+}
+.replace-net-value {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.1;
+  color: var(--ink-soft);
+}
+.replace-net-value.up {
+  color: #1e7a3c;
+}
+.replace-net-value.down {
+  color: #b01e30;
+}
+.replace-btn {
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+}
+.replace-tags,
+.replace-toggle,
+.replace-detail {
+  margin-left: 62px;
+}
+.replace-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.replace-toggle {
+  align-self: flex-start;
+  min-height: 28px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  color: #1a4fb8;
+  cursor: pointer;
+}
+.replace-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--paper);
+}
+.replace-detail[hidden] {
+  display: none;
+}
+.replace-changes,
+.replace-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.replace-change {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 7px;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1.5px solid #c9cce6;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.replace-change.up {
+  color: #1e7a3c;
+  border-color: #1e7a3c;
+}
+.replace-change.down {
+  color: #b01e30;
+  border-color: #d9283c;
+}
+.replace-note {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.replace-more {
+  margin: 8px 14px 14px;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1.5px solid #c9cce6;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.replace-more-title {
+  flex: none;
+  font-size: 13px;
+  font-weight: 900;
+}
+.replace-more-names {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7099;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.replace-others[hidden] {
+  display: none;
+}
+.draft-release-list .replace-list {
+  border: 0;
+  border-radius: 0;
+}
+/* 球員卡底下的「最多能讓」 */
+.gain-line {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.gain-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+
+/* ---- 比賽結果的羈絆區塊 ---- */
+.result-synergy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+.result-syn-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.result-syn-heading {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 900;
+}
+.result-syn-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.result-syn-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1.5px solid #c9cce6;
+  background: #fff;
+}
+.result-syn-row.lost {
+  border-style: dashed;
+  background: #fafbff;
+}
+.result-syn-row .syn-icon.faded {
+  opacity: 0.75;
+}
+.result-syn-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.result-syn-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.result-syn-lost {
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1.5px dashed #6b7099;
+  background: #eceef8;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 18px;
+}
+.result-syn-stat {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.result-syn-assist {
+  align-self: flex-start;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--yellow);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 24px;
+}
+.result-syn-assist.none {
+  background: #eceef8;
+  color: #6b7099;
+}
+.result-syn-assist.opponent:not(.none) {
+  background: var(--away);
+  color: var(--ink);
+}
+.result-syn-opp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1.5px solid var(--ink);
+  background: #ffe3cc;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.result-syn-opp-tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1.5px solid var(--ink);
+  background: var(--away);
+  font-size: 11px;
+  line-height: 18px;
+}
+.result-syn-opp-text {
+  min-width: 0;
+}
+.result-syn-opp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.result-syn-opp-list[hidden] {
+  display: none;
 }

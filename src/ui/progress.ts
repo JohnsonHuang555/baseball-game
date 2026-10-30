@@ -5,6 +5,7 @@ import type { RelicId } from '../sim/items'
 import { TIERS, seasonRecord, type AwakenLog, type GameRecord, type Round, type Tier, type Tournament } from '../sim/tournament'
 import type { TraitId } from '../sim/traits'
 import type { Player, Roster } from '../sim/types'
+import { addMissingFields } from './save'
 
 const KEY = 'dice-baseball.progress'
 
@@ -75,7 +76,7 @@ function load(): Progress {
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return empty
-    const p = JSON.parse(raw) as Partial<Progress>
+    const p = addMissingFields(JSON.parse(raw)) as Partial<Progress>
     return {
       trophies: Array.isArray(p.trophies) ? p.trophies : [],
       cleared: typeof p.cleared === 'number' ? p.cleared : 0,

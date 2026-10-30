@@ -10,7 +10,9 @@ import { gradeBadge, gradeOf, overallBadge } from './grades'
 import { kbd, type KeyMap } from './keys'
 import { choiceModal } from './modal'
 import { el, potentialTag, traitTag } from './playerCard'
-import { applyCardState, handChip, pitchChip, tendencyChip } from './visual'
+import { applyCardState, handChip, pitchChip, primaryChip, tendencyChip } from './visual'
+import { synergyRelicSvg } from './synergyIcons'
+import { archetypeChip } from './synergyUi'
 import {
   EQUIPMENT_NAMES,
   PITCH_TRAIT_DESC,
@@ -167,7 +169,7 @@ export function playerCard(p: Player, selected: boolean, reveal: boolean, i: num
   inner.append(el('span', 'draft-role', `${T.rewardKinds.player}・${p.role === 'pitcher' ? T.pitcher : T.batter}`))
   const chips = el('span', 'draft-chips')
   chips.append(handChip(p))
-  if (p.role === 'batter') chips.append(tendencyChip(p.tendency, true))
+  if (p.role === 'batter') chips.append(archetypeChip(p), primaryChip(p), tendencyChip(p.tendency, true))
   else chips.append(pitchChip(p, true))
   inner.append(chips)
   const stats = el('span', 'draft-stats')
@@ -211,7 +213,9 @@ export function itemCard(card: Exclude<RewardCard, { kind: 'player' }>, selected
   const topRow = el('span', 'draft-top')
   topRow.append(el('span', 'tier-tag', T.tierNames[tier]), el('span', 'item-kind', T.rewardKinds[card.kind]))
   const icon = el('span', 'item-icon')
-  icon.innerHTML = card.kind === 'equipment' ? GEAR_ICONS[GEAR_OF[card.id]] : KIND_ICONS[card.kind]
+  // 羈絆秘寶用寶石加流派記號
+  const synergyRelic = card.kind === 'relic' ? synergyRelicSvg(card.id, 64) : null
+  icon.innerHTML = card.kind === 'equipment' ? GEAR_ICONS[GEAR_OF[card.id]] : (synergyRelic ?? KIND_ICONS[card.kind])
   inner.append(topRow, icon)
   if (card.kind === 'equipment') {
     const role = EQUIPMENT[card.id].role === 'pitcher' ? T.pitcher : T.batter

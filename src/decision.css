@@ -618,3 +618,11 @@
   font-size: 12px;
   font-weight: 900;
 }
+
+/* 換人的羈絆預告：羈絆變化、失去隊長、下局起守非本職 */
+.option-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}

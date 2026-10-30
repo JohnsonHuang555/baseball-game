@@ -1,13 +1,15 @@
 // 圖像化的球員元件：小卡、詳細資料、能力值、特性、toast
 import { cardTier, isSpecial } from '../sim/generate'
 import { repertoire } from '../sim/pitches'
+import { fieldingAtPosition, positionPenalty } from '../sim/positions'
 import { TRAITS } from '../sim/traits'
-import type { Pitcher, Player, Tendency } from '../sim/types'
+import type { Batter, Pitcher, Player, Position, Tendency } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
-import { gradeBadge, overallBadge } from './grades'
+import { gradeBadge, gradeOf, overallBadge } from './grades'
 import { el, potentialTag, traitTag } from './playerCard'
 import { play } from './sound'
-import { PITCH_TRAIT_DESC, PITCH_TRAIT_NAMES, RATING_FULL, RATING_LABELS, T, TRAIT_DESC } from './strings'
+import { archetypeChip } from './synergyUi'
+import { PITCH_TRAIT_DESC, PITCH_TRAIT_NAMES, POSITION_SPOT, RATING_FULL, RATING_LABELS, T, TRAIT_DESC } from './strings'
 
 /** 球場動畫用的隊伍顏色，和頭像帽子同色：我方藍、對手橘 */
 export const USER_COLOR = '#2D7CFF'
@@ -82,6 +84,31 @@ export function pitchChip(p: Pitcher, full = false): HTMLElement {
   return chip
 }
 
+/** 非本職的警示三角：紅底、白色驚嘆號 */
+export function offPosIcon(size = 12): HTMLElement {
+  const icon = el('span', 'offpos-icon')
+  icon.innerHTML = `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24"><path d="M12 2.4 22.6 20.8H1.4Z" fill="#D9283C" stroke="#141633" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 8.6v5.6" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="18" r="1.4" fill="#fff"/></svg>`
+  return icon
+}
+
+/** 本職標籤：「本職 二壘」 */
+export function primaryChip(b: Batter): HTMLElement {
+  return el('span', 'primary-chip', T.primaryChip(POSITION_SPOT[b.primary]))
+}
+
+/** 守非本職時的完整說明：「目前守游擊（非本職）：守備 B → C」加上原因；守本職就回傳 null */
+export function offPositionNote(b: Batter, position: Position): HTMLElement | null {
+  const penalty = positionPenalty(b.primary, position)
+  if (!penalty) return null
+  const box = el('div', 'offpos-note')
+  const text = el('span', 'offpos-text')
+  const from = gradeOf(b.ratings.fielding)
+  const to = gradeOf(fieldingAtPosition(b, position))
+  text.append(el('strong', '', T.offPositionTitle(POSITION_SPOT[position], from, to)), el('span', '', T.offPositionWhy(penalty, POSITION_SPOT[b.primary])))
+  box.append(offPosIcon(24), text)
+  return box
+}
+
 /** 「我方」或「對手」的小標籤，讓玩家一眼分出自己的球隊 */
 export function sideTag(isUser: boolean): HTMLElement {
   return el('span', `side-tag ${isUser ? 'user' : 'opponent'}`, isUser ? T.mySide : T.opponentSide)
@@ -111,12 +138,18 @@ export function gradeLine(p: Player): HTMLElement {
   return line
 }
 
-/** 能力值列：全名、字母、依等級上色的長條 */
-export function ratingBars(p: Player): HTMLElement {
+/** 能力值列：全名、字母、依等級上色的長條。給了守位就把守備換成守這個位置的實際值，非本職時字母加紅框 */
+export function ratingBars(p: Player, position?: Position): HTMLElement {
   const list = el('div', 'rating-bars')
-  for (const [key, value] of Object.entries(p.ratings)) {
+  for (const [key, raw] of Object.entries(p.ratings)) {
     const row = el('div', 'rating-row')
+    const off = key === 'fielding' && p.role === 'batter' && position !== undefined && positionPenalty(p.primary, position) > 0
+    const value = off ? fieldingAtPosition(p as Batter, position) : raw
     const badge = gradeBadge(value, 'md')
+    if (off) {
+      badge.classList.add('off-outline')
+      row.classList.add('off')
+    }
     const bar = el('span', 'bar')
     const fill = el('span', `bar-fill fill-${badge.textContent}`)
     fill.style.width = `${value * 10}%`
@@ -153,7 +186,7 @@ export function playerHeader(p: Player, label: string, team: AvatarTeam = 'user'
   const info = el('div', 'detail-info')
   info.append(el('span', 'tier-tag', T.tierNames[tier]), el('h2', 'detail-name', p.name), el('span', 'detail-label', label))
   info.append(handChip(p))
-  if (p.role === 'batter') info.append(tendencyChip(p.tendency, true))
+  if (p.role === 'batter') info.append(archetypeChip(p), primaryChip(p), tendencyChip(p.tendency, true))
   else info.append(pitchChip(p, true))
   const ovr = el('div', 'detail-ovr')
   ovr.append(el('span', 'eyebrow-ink', T.overallLabel), overallBadge(p, 'lg'))

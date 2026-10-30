@@ -200,6 +200,34 @@ describe('守備能力', () => {
     expect(bad.hitRate).toBeGreaterThan(good.hitRate)
   })
 
+  /** 守位不動，把每個野手的本職改成別的位置，全隊都守非本職 */
+  function allOffPosition(team: Team): Team {
+    const lineup = team.roster.lineup.map((s) => ({ ...s, player: { ...s.player, primary: s.position === 'C' ? ('CF' as const) : ('C' as const) } }))
+    return { ...team, roster: { ...team.roster, lineup } }
+  }
+
+  function errorRate(off: boolean, rules?: number) {
+    let errors = 0
+    let inPlay = 0
+    for (let i = 1; i <= 300; i++) {
+      const s = setup(i)
+      const g = new Game({ ...s, home: off ? allOffPosition(s.home) : s.home, rules })
+      while (!g.over) {
+        for (const e of g.step()) {
+          if (e.type !== 'play' || g.half !== 'top' || !e.ball) continue
+          inPlay++
+          if (e.kind === 'error') errors++
+        }
+      }
+    }
+    return errors / inPlay
+  }
+
+  it('野手都守非本職時失誤變多；舊規則（版本 5）不打折', () => {
+    expect(errorRate(true)).toBeGreaterThan(errorRate(false) * 1.1)
+    expect(errorRate(true, 5)).toBe(errorRate(false, 5))
+  })
+
   it('捕手守備越好，對方盜壘成功率越低', () => {
     const g = new Game(setup(4))
     while (!(g.battingSide === 'away' && g.bases[0] && !g.bases[1])) g.step()
@@ -755,7 +783,7 @@ describe('左右投打相剋', () => {
   it('同側對決的安打率明顯低於對側；舊規則（版本 2）沒有差別', () => {
     const rate = (rules?: number) => {
       const r = { same: [0, 0], opposite: [0, 0] }
-      for (let seed = 1; seed <= 250; seed++) {
+      for (let seed = 1; seed <= 400; seed++) {
         const g = new Game({ ...setup(seed), rules })
         while (!g.over) {
           const m = g.matchup()

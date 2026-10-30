@@ -1,11 +1,13 @@
 // 決策面板：標題緞帶、局勢條、打者對投手、重點調度、其他指令格、詳細資訊
-import { ALIGNMENTS, sameTactic, type Alignment, type Game, type Side, type Tactic } from '../sim/game'
-import type { Batter, Player } from '../sim/types'
+import { ALIGNMENTS, sameTactic, type Alignment, type Game, type Side, type Tactic, type TeamState } from '../sim/game'
+import { isOffPosition } from '../sim/positions'
+import type { Batter, Player, Roster } from '../sim/types'
 import { avatar, type AvatarTeam } from './avatar'
 import { gradeBadge } from './grades'
 import { kbd, setKeys, type KeyMap } from './keys'
 import { el } from './playerCard'
-import { POSITION_FULL, RATING_FULL, T, runnersText } from './strings'
+import { POSITION_FULL, POSITION_SPOT, RATING_FULL, T, runnersText } from './strings'
+import { diffTag, synergyDiff, warnTag } from './synergyUi'
 import { handChip, pitchChip, tendencyChip } from './visual'
 
 export type SheetReason = 'leverage' | 'fatigue' | 'pause'
@@ -64,6 +66,8 @@ interface OptionCard {
   who: Player
   team: AvatarTeam
   diffs: HTMLElement[]
+  /** 換人會讓羈絆怎麼變、隊長離場、下局起守非本職（最多兩個） */
+  tags?: HTMLElement[]
 }
 
 /** 畫出面板，並把面板的快捷鍵換上去（1～3 選項、O 其他指令、I 詳細資訊、Esc 收起、Space 交給球員） */
@@ -96,6 +100,23 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     return Math.round(game.staminaLeft(game.fielding) * 100)
   }
 
+  /**
+   * 換人的預告：板凳的 incoming 換下先發第 lineupIndex 棒之後，這隊的羈絆會怎麼變。
+   * 換下的是隊長就先標「失去隊長」；換上的人下局起守非本職也標出來。舊規則的比賽沒有羈絆
+   */
+  function subTags(team: TeamState, lineupIndex: number, incoming: Batter): HTMLElement[] {
+    if (!game.synergyOn) return []
+    const spot = team.lineup[lineupIndex]
+    const before = { lineup: team.lineup, captain: team.captainId ?? undefined } as Roster
+    const lineup = team.lineup.map((s, i) => (i === lineupIndex ? { ...s, player: incoming } : s))
+    const after = { lineup, captain: team.captainId === spot.player.id ? undefined : (team.captainId ?? undefined) } as Roster
+    const tags: HTMLElement[] = []
+    if (team.captainId === spot.player.id) tags.push(warnTag(T.loseCaptainGame, 'captain'))
+    tags.push(...synergyDiff(before, after, team.relics).filter((d) => d.kind !== 'count').map((d) => diffTag(d)))
+    if (spot.position !== 'DH' && isOffPosition(incoming, spot.position)) tags.push(warnTag(T.offPositionNextInning(POSITION_SPOT[spot.position]), 'offpos'))
+    return tags.slice(0, 2)
+  }
+
   // ---- 每種指令的選項卡 ----
 
   function optionFor(t: Tactic): OptionCard {
@@ -107,6 +128,7 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
         const out = game.batter
         return {
           tactic: t, tag: T.tagPinchHit, sub: T.replaces(out.name), main: p.name, who: p, team: teamOf(game.battingSide),
+          tags: subTags(batTeam, batTeam.battingIndex, p),
           diffs: [
             compare(RATING_FULL.contact, out.ratings.contact, p.ratings.contact),
             compare(RATING_FULL.power, out.ratings.power, p.ratings.power),
@@ -122,6 +144,7 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
         const runner = game.bases[t.base - 1]!
         return {
           tactic: t, tag: T.tagPinchRun, sub: T.runnerOut(BASE_NAMES[t.base - 1], runner.name), main: p.name, who: p, team: teamOf(game.battingSide),
+          tags: subTags(batTeam, batTeam.lineup.findIndex((s) => s.player.id === runner.id), p),
           diffs: [compare(RATING_FULL.speed, runner.ratings.speed, p.ratings.speed)],
         }
       }
@@ -189,7 +212,9 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
         const p = fieldTeam.bench[t.benchIndex]
         return {
           tactic: t, tag: T.tagDefense, sub: T.runnerOut(POSITION_FULL[spot.position], spot.player.name), main: p.name, who: p, team: teamOf(game.fieldingSide),
-          diffs: [compare(RATING_FULL.fielding, spot.player.ratings.fielding, p.ratings.fielding), compare(RATING_FULL.contact, spot.player.ratings.contact, p.ratings.contact)],
+          tags: subTags(fieldTeam, t.lineupIndex, p),
+          // 守備比的是守這個位置的實際值，守非本職會打折
+          diffs: [compare(RATING_FULL.fielding, game.spotFielding(spot), game.spotFielding({ player: p, position: spot.position })), compare(RATING_FULL.contact, spot.player.ratings.contact, p.ratings.contact)],
         }
       }
     }
@@ -200,7 +225,10 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     const team = game.fielding
     return tactics
       .flatMap((t) => (t.type === 'defensiveSub' ? [t] : []))
-      .map((t) => ({ tactic: t, gain: team.bench[t.benchIndex].ratings.fielding - team.lineup[t.lineupIndex].player.ratings.fielding }))
+      .map((t) => {
+        const spot = team.lineup[t.lineupIndex]
+        return { tactic: t, gain: game.spotFielding({ player: team.bench[t.benchIndex], position: spot.position }) - game.spotFielding(spot) }
+      })
       .filter((d) => d.gain > 0)
       .sort((a, b) => b.gain - a.gain)
   }
@@ -282,6 +310,11 @@ export function renderDecisionPanel(game: Game, reason: SheetReason, state: Pane
     const diffs = el('span', 'option-diffs')
     diffs.append(...o.diffs)
     body.append(el('span', 'option-sub', o.sub), el('span', 'option-main', o.main), diffs)
+    if (o.tags?.length) {
+      const tags = el('span', 'option-tags')
+      tags.append(...o.tags)
+      body.append(tags)
+    }
     const arrow = el('span', 'option-arrow')
     arrow.innerHTML = CHEVRON_RIGHT
     btn.append(face, body, arrow)

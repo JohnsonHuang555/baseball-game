@@ -21,7 +21,7 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
       text: '藍圈都是你的球員，右下角的字母是綜合評價（S 最好、G 最差）。點一下可以看能力、交換位置，或重骰這名球員。',
     },
     {
-      target: '.order-panel',
+      target: ['.order-panel', '.order-open'],
       title: '打序',
       text: '由上到下是打擊順序，字母依序是打擊、力量、速度、守備。先點一名球員再點另一名，就能交換棒次。',
     },
@@ -142,6 +142,25 @@ export const TUTORIAL_STEPS: Record<TutorialId, TutorialStep[]> = {
       target: '.draft-release',
       title: '交給誰',
       text: '球員卡要換掉一名同類型的球員；裝備選誰帶上（或先放進背包）；特性選誰學會。都不想要就放棄。',
+    },
+  ],
+  // 第一次看到羈絆：依序指著流派徽章、非本職名牌、羈絆追蹤欄
+  synergy: [
+    {
+      target: '.node-arch',
+      title: '流派',
+      text: '每位打者有一種流派，產生球員時就決定、不會變。看頭像右上角的徽章：力量型、速度型、技巧型、防守型，顏色和形狀都不一樣。投手沒有流派。',
+    },
+    {
+      target: '.node-name.off',
+      title: '本職守位',
+      text: '每位打者有一個最擅長的守位。守別的位置守備會打折：名牌變紅框，並標出「守 B→C」。指定打擊誰都能擔任，不打折。',
+      optional: true,
+    },
+    {
+      target: ['.syn-strip', '.syn-card'],
+      title: '羈絆與隊長',
+      text: '先發 9 人中同流派湊到 3 人就啟動羈絆，5 人升級；二壘、游擊、捕手守本職也有羈絆。再從先發打者指定一位隊長，他在自己流派算兩人。',
     },
   ],
 }

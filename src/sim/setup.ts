@@ -60,9 +60,13 @@ export function getSlot(roster: Roster, slot: Slot): Player {
 
 export function setSlot(roster: Roster, slot: Slot, player: Player): Roster {
   switch (slot.kind) {
-    case 'lineup':
+    case 'lineup': {
       if (player.role !== 'batter') throw new Error('打序只能放打者')
-      return { ...roster, lineup: roster.lineup.map((s, i) => (i === slot.index ? { ...s, player } : s)) }
+      // 隊長離開先發（被換掉或換到板凳）就沒有隊長，等教練重新指定
+      const leaving = roster.lineup[slot.index].player.id
+      const captain = roster.captain === leaving && player.id !== leaving ? undefined : roster.captain
+      return { ...roster, captain, lineup: roster.lineup.map((s, i) => (i === slot.index ? { ...s, player } : s)) }
+    }
     case 'bench':
       if (player.role !== 'batter') throw new Error('板凳只能放打者')
       return { ...roster, bench: roster.bench.map((b, i) => (i === slot.index ? player : b)) }
@@ -73,6 +77,12 @@ export function setSlot(roster: Roster, slot: Slot, player: Player): Roster {
       if (player.role !== 'pitcher') throw new Error('後援只能放投手')
       return { ...roster, relievers: roster.relievers.map((p, i) => (i === slot.index ? player : p)) }
   }
+}
+
+/** 指定隊長：只能是先發打者 */
+export function setCaptain(roster: Roster, playerId: string): Roster {
+  if (!roster.lineup.some((s) => s.player.id === playerId)) throw new Error('隊長只能是先發打者')
+  return { ...roster, captain: playerId }
 }
 
 /** 交換兩名先發的守位，打序不變（例如把守備好的人換到游擊） */

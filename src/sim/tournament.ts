@@ -2,7 +2,8 @@
 import { RULES_VERSION, type Command, type GameSetup, type PlayerLine } from './game'
 import { applyGrowth, type Growth } from './growth'
 import { BASE_MEAN, allPlayers, cardTier, generateBatter, generatePitcher, generateRoster, overall, teamName, type CardTier } from './generate'
-import { EQUIPMENT, MAX_EQUIPMENT, RELICS, equippedTeam, mapRoster, type EquipmentId, type RelicId } from './items'
+import { defaultCaptain } from './synergy'
+import { EQUIPMENT, MAX_EQUIPMENT, OFFERED_RELICS, RELICS, equippedTeam, mapRoster, type EquipmentId, type RelicId } from './items'
 import { PITCH_TRAIT_IDS, PITCH_TYPES, isBreaking, repertoire, type PitchTraitId, type PitchType } from './pitches'
 import { advancePotential, statOf, withPotential } from './potential'
 import { STARTING_FUNDS, gameFunds, releaseValue } from './prices'
@@ -246,7 +247,7 @@ export function startTournament(t: Tournament): Tournament {
   expectPhase(t, 'pregame')
   const rng = new Rng(t.rngState)
   // 起始秘寶不出彩虹，免得開局就定生死
-  const pool = (Object.keys(RELICS) as RelicId[]).filter((id) => RELICS[id].tier !== 'rainbow')
+  const pool = OFFERED_RELICS.filter((id) => RELICS[id].tier !== 'rainbow')
   const relicOptions = rng.shuffle(pool).slice(0, STARTING_RELICS)
   const startOverall = Object.fromEntries(allPlayers(t.setup.team.roster).map((p) => [p.id, overall(p)]))
   return {
@@ -426,7 +427,7 @@ export function rewardOf(rng: Rng, kind: RewardCard['kind'], tier: CardTier, t: 
       const pool = (Object.keys(EQUIPMENT) as EquipmentId[]).filter((id) => EQUIPMENT[id].tier === want)
       if (pool.length) return { kind, id: rng.pick(pool) }
     } else if (kind === 'relic') {
-      const pool = (Object.keys(RELICS) as RelicId[]).filter((id) => RELICS[id].tier === want && !owned.has(id))
+      const pool = OFFERED_RELICS.filter((id) => RELICS[id].tier === want && !owned.has(id))
       if (pool.length) return { kind, id: rng.pick(pool) }
     } else {
       const traitTier = want === 'gold' || want === 'rainbow' ? 'gold' : 'blue'
@@ -509,7 +510,9 @@ export function addLegend(t: Tournament, legend: Player): Tournament {
       ? [{ kind: 'starter' }, ...roster.relievers.map((_, i): Slot => ({ kind: 'reliever', index: i }))]
       : [...roster.lineup.map((_, i): Slot => ({ kind: 'lineup', index: i })), ...roster.bench.map((_, i): Slot => ({ kind: 'bench', index: i }))]
   const weakest = slots.reduce((a, b) => (overall(getSlot(roster, b)) < overall(getSlot(roster, a)) ? b : a))
-  const next = setSlot(roster, weakest, player)
+  const replaced = setSlot(roster, weakest, player)
+  // 開局一定有隊長：傳奇取代的剛好是隊長，就重新挑一位
+  const next = replaced.captain ? replaced : { ...replaced, captain: defaultCaptain(replaced.lineup, []) }
   return { ...t, setup: { ...t.setup, team: { ...t.setup.team, roster: next } } }
 }
 

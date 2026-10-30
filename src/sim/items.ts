@@ -63,26 +63,41 @@ export type RelicId =
   | 'powerHouse' // 重砲軍團
   | 'guardian' // 守護神
   | 'dynasty' // 王朝
+  | 'powerFactory' // 全壘打工廠
+  | 'runSchool' // 跑壘學校
+  | 'hitClass' // 打擊教室
+  | 'ironCurtain' // 銅牆鐵壁
+  | 'captainBand' // 隊長臂章
 
 export interface RelicDef {
   id: RelicId
   tier: CardTier
+  /** 有了羈絆之後不再出現的舊秘寶；已經拿到的照舊有效 */
+  retired?: boolean
 }
 
 export const RELICS: Record<RelicId, RelicDef> = {
   leadoff: { id: 'leadoff', tier: 'bronze' },
-  speedster: { id: 'speedster', tier: 'bronze' },
+  speedster: { id: 'speedster', tier: 'bronze', retired: true },
   deepRelief: { id: 'deepRelief', tier: 'bronze' },
   stamina: { id: 'stamina', tier: 'bronze' },
   rispSoul: { id: 'rispSoul', tier: 'silver' },
-  ironWall: { id: 'ironWall', tier: 'silver' },
+  ironWall: { id: 'ironWall', tier: 'silver', retired: true },
   comeback: { id: 'comeback', tier: 'silver' },
   strikeZone: { id: 'strikeZone', tier: 'silver' },
   patience: { id: 'patience', tier: 'silver' },
-  powerHouse: { id: 'powerHouse', tier: 'gold' },
+  powerHouse: { id: 'powerHouse', tier: 'gold', retired: true },
   guardian: { id: 'guardian', tier: 'gold' },
   dynasty: { id: 'dynasty', tier: 'rainbow' },
+  powerFactory: { id: 'powerFactory', tier: 'gold' },
+  runSchool: { id: 'runSchool', tier: 'gold' },
+  hitClass: { id: 'hitClass', tier: 'gold' },
+  ironCurtain: { id: 'ironCurtain', tier: 'gold' },
+  captainBand: { id: 'captainBand', tier: 'silver' },
 }
+
+/** 獎勵、商店、起始秘寶會出現的秘寶 */
+export const OFFERED_RELICS = (Object.keys(RELICS) as RelicId[]).filter((id) => !RELICS[id].retired)
 
 export function equipmentOf(p: Player): readonly EquipmentId[] {
   return p.equipment ?? []
@@ -101,6 +116,7 @@ export function withEquipment<P extends Player>(p: P): P {
 
 export function mapRoster(roster: Roster, f: <P extends Player>(p: P) => P): Roster {
   return {
+    ...roster,
     lineup: roster.lineup.map((s) => ({ ...s, player: f(s.player) })),
     bench: roster.bench.map(f),
     starter: f(roster.starter),
