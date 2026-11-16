@@ -17,7 +17,9 @@ import {
   type TeamStrategies,
 } from '../domain/club'
 import { RETENTION_CONFIG } from '../domain/config'
+import { assertValidLineup } from '../domain/lineup'
 import { rewardFor } from '../domain/rewards'
+import { coachParamIssues } from '../domain/tactics'
 import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome } from './batchRunner'
 import { advanceAnchor, dueMatches, type Clock, type DueMatches } from './idleEngine'
 
@@ -196,6 +198,13 @@ export interface SettingsChange {
  * 呼叫前應該先把已經到時間的比賽結算掉（服務層的 updateSettings 會做），否則那些場次也會用新設定
  */
 export function applySettingsChange(club: ClubSaveV3, change: SettingsChange): ClubSaveV3 {
+  // 先驗證再動手：不合法的陣容、戰術參數不會進到存檔
+  if (change.roster) assertValidLineup(change.roster)
+  if (change.coach) {
+    if (change.coach.style !== 'balanced') throw new RangeError(`不支援的戰術風格：${change.coach.style}`)
+    const issues = coachParamIssues(change.coach.params ?? {})
+    if (issues.length) throw new RangeError(`戰術設定不合法：${issues.join('；')}`)
+  }
   const next = structuredClone(club)
   if (change.roster) next.roster = structuredClone(change.roster)
   if (change.coach) next.strategy.coach = structuredClone(change.coach)

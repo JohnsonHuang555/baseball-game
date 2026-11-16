@@ -9,7 +9,14 @@ import { BATCH_CONFIG } from '../domain/config'
 import { ClubRepository, browserStorage, createClubLock, type KeyValueStorage, type LockManagerLike } from './clubRepository'
 import { systemClock } from './systemClock'
 
-export type V2Deps = SettlementDeps & LifecycleDeps & { store: ClubRepository; lock: ClubLock; batch: NonNullable<SettlementDeps['batch']> }
+export type V2Deps = SettlementDeps &
+  LifecycleDeps & {
+    store: ClubRepository
+    lock: ClubLock
+    batch: NonNullable<SettlementDeps['batch']>
+    /** 存檔所在的儲存：畫面用來放「可寫分頁」標記、讀取原始存檔做備份；不能用來寫存檔 */
+    storage: KeyValueStorage | null
+  }
 
 export interface V2DepsOverrides {
   /** 不給就用 localStorage（被停用時是 null，存取會丟 storage-unavailable） */
@@ -25,6 +32,7 @@ export function createV2Deps(overrides: V2DepsOverrides = {}): V2Deps {
   const storage = overrides.storage !== undefined ? overrides.storage : browserStorage()
   const nav = 'navigator' in overrides ? overrides.navigator : (globalThis.navigator as { locks?: LockManagerLike } | undefined)
   return {
+    storage: storage ?? null,
     store: new ClubRepository(storage ?? null),
     lock: overrides.lock ?? createClubLock(nav),
     clock: overrides.clock ?? systemClock,

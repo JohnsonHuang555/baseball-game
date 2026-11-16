@@ -26,6 +26,8 @@ import { discardOldTournament, loadTournament } from './ui/save'
 import { randomSeed, rays } from './ui/setupScreen'
 import { T } from './ui/strings'
 import { openTournament } from './ui/tournamentScreen'
+import { openV2 } from './v2/ui/app'
+import { V2_HASH, v1Label, v2EntryButton } from './v2/ui/entry'
 
 const root = document.getElementById('app')!
 
@@ -150,6 +152,8 @@ function showTitle(): void {
   hero.append(el('h1', 'home-title', T.gameTitle), subtitle)
 
   const buttons = el('div', 'home-buttons')
+  // 模式選擇：V2 放置經營在最上面，V1 原版的按鈕照舊
+  buttons.append(v2EntryButton(enterV2), v1Label())
   const saved = loadTournament()
   const quick = el('button', saved ? 'btn-white btn-big' : 'btn-yellow btn-big', T.quickMatch)
   quick.onclick = startPractice
@@ -191,5 +195,16 @@ function startPractice(): void {
   showPractice(root, showTitle)
 }
 
-showTitle()
+/** V2 放置經營：網址記下 #v2，重新整理後直接回到 V2；離開時清掉 */
+function enterV2(): void {
+  history.replaceState(null, '', V2_HASH)
+  setKeys({})
+  openV2(root, () => {
+    history.replaceState(null, '', location.pathname + location.search)
+    showTitle()
+  })
+}
+
+if (location.hash === V2_HASH) enterV2()
+else showTitle()
 if (discardOldTournament()) toast(T.oldSaveDiscarded)
