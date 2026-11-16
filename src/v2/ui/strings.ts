@@ -20,6 +20,8 @@ export const V2T = {
   nameRequired: '請輸入球團名稱',
   nameTooLong: '球團名稱最多 12 個字',
   createdElsewhere: '其他分頁已經建立了球團，已幫你讀取',
+  alreadyExists: '已經有一份 V2 球團存檔，無法再建立新的',
+  createWriteFailed: '建立失敗：存檔寫不進去（可能是儲存空間不足或被瀏覽器封鎖），請確認後再按一次建立',
 
   navHome: '球團',
   navLineup: '陣容',
@@ -137,6 +139,11 @@ export const V2T = {
   readOnlyBanner: '這個 V2 已經在其他分頁開啟，這個分頁目前只能查看',
   takeOver: '在此分頁繼續',
   readOnly: '這個分頁目前只能查看，請按「在此分頁繼續」或回到原本的分頁',
+  lostWriter: '其他分頁已經接手，這個分頁改為只能查看；進行中的結算已中斷，沒有寫入存檔',
+  exclusiveLimit: '這個瀏覽器不支援跨分頁鎖：同一時間只能在一個分頁操作。切換分頁的瞬間仍有極小機率衝突，遇到時會提示重新讀取，不會靜默覆蓋',
+  settingsConflict: '其他分頁已經修改並儲存了這項設定，你的草稿沒有儲存。請先載入最新設定再重新調整',
+  draftStale: '其他分頁已經修改了這項設定，你的草稿是根據舊設定做的，無法直接儲存',
+  loadLatest: '載入最新設定（捨棄草稿）',
 
   writeFailed: '存檔失敗（可能是儲存空間不足），這次操作沒有生效，請再試一次',
   simulationFailed: '比賽模擬發生錯誤；已完成的場次都已保存，請再試一次',
@@ -154,4 +161,7 @@ export const V2T = {
   resetConfirmMessage: '這會永久刪除 V2 的球團、球員與戰績（V1 的存檔不受影響）。建議先下載備份。',
   resetConfirm: '刪除',
   loading: '讀取中…',
+  leaveUnsavedTitle: '有尚未儲存的變更',
+  leaveUnsavedMessage: '陣容或戰術的修改還沒儲存，離開 V2 之後這些修改會消失。',
+  leaveUnsavedConfirm: '不儲存，直接離開',
 } as const

@@ -49,3 +49,28 @@ describe('單一可寫分頁', () => {
     expect(notified).toBe(1)
   })
 })
+
+describe('寫入前確認身分', () => {
+  it('不是可寫分頁時，存檔、建立、刪除都丟 read-only，什麼都不寫；讀取照常', async () => {
+    const { ClubRepository, ClubSaveError, CLUB_STORAGE_KEY } = await import('../infrastructure/clubRepository')
+    const { guardStore } = await import('./writerGuard')
+    const storage = new MemoryStorage()
+    const repo = new ClubRepository(storage)
+    const a = createWriterGuard({ crossTab: false, storage, tabId: 'a' })
+    const store = guardStore(repo, a)
+    const club = store.createClub({ clubName: '甲', clubSeed: 1, clubId: 'c', now: 0 })
+    createWriterGuard({ crossTab: false, storage, tabId: 'b' })
+    const raw = storage.getItem(CLUB_STORAGE_KEY)
+    for (const op of [() => store.saveClub({ ...club, clubName: '乙' }, club.revision), () => store.resetClub(), () => store.createClub({ clubName: '丙', now: 0 })]) {
+      try {
+        op()
+        throw new Error('應該被擋下')
+      } catch (e) {
+        expect(e).toBeInstanceOf(ClubSaveError)
+        expect((e as InstanceType<typeof ClubSaveError>).code).toBe('read-only')
+      }
+    }
+    expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(raw)
+    expect(store.loadClub()).toEqual(club)
+  })
+})

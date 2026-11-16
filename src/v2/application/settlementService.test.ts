@@ -286,3 +286,24 @@ describe('換陣容、戰術', () => {
     expect(replay.setup[replay.setup.userSide].roster.starter.id).toBe(newRoster.starter.id)
   })
 })
+
+describe('設定的版本檢查', () => {
+  it('草稿的版本跟存檔目前的不同：丟 settings-conflict，存檔不變', async () => {
+    const { deps } = createIn()
+    const { settingsVersions } = await import('../domain/fingerprint')
+    const before = deps.store.loadClub()!
+    const base = settingsVersions(before)
+    const changed = await updateSettings(deps, { coach: { style: 'balanced', params: { stealMin: 0.85 } } }, { coach: base.coach })
+    const error = await updateSettings(deps, { coach: { style: 'balanced', params: { stealMin: 0.65 } } }, { coach: base.coach }).catch((e) => e)
+    expect(error).toBeInstanceOf(SettlementError)
+    expect(error.code).toBe('settings-conflict')
+    expect(deps.store.loadClub()).toEqual(changed)
+    // 戰術改過，不影響用原本的陣容版本儲存陣容
+    expect((await updateSettings(deps, { roster: before.roster }, { roster: base.roster })).revision).toBe(changed.revision + 1)
+  })
+
+  it('沒給版本（舊的呼叫方式）照常儲存', async () => {
+    const { deps } = createIn()
+    expect((await updateSettings(deps, { coach: { style: 'balanced', params: { stealMin: 0.85 } } })).strategy.coach.params).toEqual({ stealMin: 0.85 })
+  })
+})

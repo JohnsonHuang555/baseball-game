@@ -16,27 +16,37 @@ import { V2T } from './strings'
 
 export interface LineupView {
   render(state: ControllerState): HTMLElement
-  /** 存檔變了（儲存成功、其他分頁改了）：沒有未儲存的修改就換成最新陣容 */
+  /** 存檔變了（儲存成功、其他分頁改了）：沒有未儲存的修改就換成最新陣容；有的話草稿留著，並標示是根據舊陣容 */
   sync(state: ControllerState): void
+  hasUnsavedChanges(): boolean
 }
 
 export function createLineupView(controller: ClubController): LineupView {
   let saved: PersistentRoster | null = null
   let draft: PersistentRoster | null = null
+  /** 草稿建立時的陣容版本：儲存時交給 updateSettings 在鎖內比對 */
+  let base: string | null = null
   let selected: Slot | null = null
   let lastState: ControllerState = controller.state
   let container: HTMLElement | null = null
 
   const dirty = () => !!saved && !!draft && JSON.stringify(saved) !== JSON.stringify(draft)
+  const latestVersion = () => controller.settingsVersions()?.roster ?? null
+  /** 草稿是根據舊陣容做的（別的分頁已經改過） */
+  const stale = () => dirty() && base !== null && base !== latestVersion()
+
+  function resetDraft(roster: PersistentRoster): void {
+    draft = structuredClone(roster)
+    base = latestVersion()
+    selected = null
+  }
 
   function sync(state: ControllerState): void {
     const roster = state.club?.roster ?? null
     if (!roster) return
-    if (!saved || !dirty()) {
-      draft = structuredClone(roster)
-      selected = null
-    }
+    const keep = !!saved && dirty()
     saved = roster
+    if (!keep) resetDraft(roster)
   }
 
   function rerender(): void {
@@ -166,38 +176,40 @@ export function createLineupView(controller: ClubController): LineupView {
     // 儲存列：有修改才能存；不合法就顯示原因、不能存
     const bar = el('div', 'v2-savebar')
     const issues = lineupIssues(r)
-    const status = el('span', 'v2-savebar-status', issues.length ? issues.join('；') : dirty() ? V2T.unsavedChanges : V2T.lineupEffective)
-    if (issues.length) status.classList.add('error')
-    const reset = el('button', 'btn-white', V2T.resetDraft)
+    const isStale = stale()
+    const status = el('span', 'v2-savebar-status', isStale ? V2T.draftStale : issues.length ? issues.join('；') : dirty() ? V2T.unsavedChanges : V2T.lineupEffective)
+    if (issues.length || isStale) status.classList.add('error')
+    const reset = el('button', 'btn-white', isStale ? V2T.loadLatest : V2T.resetDraft)
     reset.type = 'button'
     reset.disabled = !dirty() || state.saving
     reset.onclick = () => {
-      draft = saved ? structuredClone(saved) : draft
-      selected = null
+      if (saved) resetDraft(saved)
       rerender()
     }
     const save = el('button', 'btn-yellow', state.saving ? V2T.saving : V2T.saveLineup)
     save.type = 'button'
-    save.disabled = !dirty() || issues.length > 0 || state.saving || !state.canWrite
+    save.disabled = !dirty() || isStale || issues.length > 0 || state.saving || !state.canWrite
     save.onclick = async () => {
       save.disabled = true
-      const res = await controller.saveRoster(r)
+      const res = await controller.saveRoster(r, base ?? '')
       if (res.message) toast(res.message)
-      if (res.ok) {
-        saved = controller.state.club?.roster ?? saved
-        draft = saved ? structuredClone(saved) : draft
-        rerender()
+      if (res.ok && controller.state.club) {
+        saved = controller.state.club.roster
+        resetDraft(saved)
       }
+      // 衝突：controller 已讀進最新存檔，草稿留著並標示過期
+      rerender()
     }
     const buttons = el('div', 'v2-savebar-buttons')
     buttons.append(reset, save)
     bar.append(status, buttons)
+    if (isStale) bar.classList.add('stale')
 
     page.append(intro, starters, bench, pitchers, bar)
     return page
   }
 
-  return { render, sync }
+  return { render, sync, hasUnsavedChanges: dirty }
 }
 
 /** 最多羈絆排法：先列出會改的人，玩家確認才套用到草稿 */

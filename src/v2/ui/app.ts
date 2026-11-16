@@ -57,6 +57,8 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
   let shownWelcome: string | null = null
   let lineup: LineupView | null = null
   let tactics: TacticsView | null = null
+  /** 建立表單裡輸入的名稱：重繪表單（例如建立失敗）時保留，重試不用重打 */
+  let draftName = ''
 
   const screen = el('div', 'v2-screen')
   const header = el('header', 'v2-header')
@@ -64,7 +66,7 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
   back.type = 'button'
   back.innerHTML = BACK_ICON
   back.setAttribute('aria-label', V2T.backToTitle)
-  back.onclick = () => exit()
+  back.onclick = () => void leave()
   const titles = el('div', 'v2-titles')
   const title = el('h1', 'v2-title', V2T.modeTitle)
   const subtitle = el('span', 'v2-subtitle', V2T.modeBadge)
@@ -76,11 +78,20 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
   nav.setAttribute('aria-label', V2T.modeTitle)
   screen.append(header, banner, main, nav)
   root.replaceChildren(screen)
-  setKeys({ Escape: () => exit() })
+  setKeys({ Escape: () => void leave() })
 
   function exit(): void {
     close()
     onExit()
+  }
+
+  /** 離開 V2：陣容或戰術有未儲存的草稿就先問，不讓草稿無聲消失 */
+  async function leave(): Promise<void> {
+    if (lineup?.hasUnsavedChanges() || tactics?.hasUnsavedChanges()) {
+      const ok = await confirmModal({ title: V2T.leaveUnsavedTitle, message: V2T.leaveUnsavedMessage, confirmLabel: V2T.leaveUnsavedConfirm, danger: true })
+      if (!ok || closed) return
+    }
+    exit()
   }
 
   function show(next: V2Tab): void {
@@ -188,7 +199,9 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     input.maxLength = 12
     input.placeholder = V2T.clubNamePlaceholder
     input.autocomplete = 'off'
-    const error = el('p', 'v2-form-error')
+    input.value = draftName
+    input.oninput = () => (draftName = input.value)
+    const error = el('p', 'v2-form-error', state.createError ?? '')
     error.setAttribute('role', 'alert')
     const submit = el('button', 'btn-yellow btn-big v2-create-btn', state.creating ? V2T.creating : V2T.createButton)
     submit.type = 'submit'
@@ -196,17 +209,22 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     form.append(label, input, error, submit)
     form.onsubmit = async (e) => {
       e.preventDefault()
+      draftName = input.value
       submit.disabled = true
-      const res = await controller.createClub(input.value)
+      // 失敗原因放在 controller 的 createError，表單重繪時也會顯示；輸入的名稱保留在 draftName
+      const res = await controller.createClub(draftName)
       if (closed) return
-      if (!res.ok) {
-        error.textContent = res.message ?? ''
-        submit.disabled = false
-        input.focus()
-      } else if (res.message) toast(res.message)
+      if (res.ok) {
+        draftName = ''
+        if (res.message) toast(res.message)
+      }
     }
     box.append(points, form)
-    queueMicrotask(() => input.isConnected && input.focus())
+    queueMicrotask(() => {
+      if (!input.isConnected) return
+      input.focus()
+      input.setSelectionRange?.(input.value.length, input.value.length)
+    })
     return box
   }
 

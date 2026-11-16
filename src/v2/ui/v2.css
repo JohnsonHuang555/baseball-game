@@ -916,3 +916,15 @@
     grid-column: 1 / -1;
   }
 }
+
+/* 草稿過期（別的分頁已經改過設定）、沒有 Web Locks 的限制說明 */
+.v2-savebar.stale {
+  border-color: var(--v2-loss);
+  box-shadow: 0 5px 0 var(--v2-loss);
+}
+.v2-limit {
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #fff;
+  border: 2px dashed var(--lilac);
+}

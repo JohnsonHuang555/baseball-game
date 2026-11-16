@@ -51,7 +51,10 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
   refresh.type = 'button'
   refresh.disabled = state.settling || !state.canWrite
   refresh.onclick = actions.refresh
-  progress.append(el('h2', 'v2-card-title', V2T.progressTitle), board, meta, el('p', 'v2-hint', V2T.offlineCap), refresh)
+  progress.append(el('h2', 'v2-card-title', V2T.progressTitle), board, meta, el('p', 'v2-hint', V2T.offlineCap))
+  // 沒有 Web Locks：照實說明限制，不宣稱跨分頁安全
+  if (!state.crossTab) progress.append(el('p', 'v2-hint v2-limit', V2T.exclusiveLimit))
+  progress.append(refresh)
 
   // C. 未領取收益
   const rewards = el('section', 'v2-card v2-rewards')

@@ -8,20 +8,30 @@ import { V2T } from './strings'
 export interface TacticsView {
   render(state: ControllerState): HTMLElement
   sync(state: ControllerState): void
+  hasUnsavedChanges(): boolean
 }
 
 export function createTacticsView(controller: ClubController): TacticsView {
   let saved: TacticSettings | null = null
   let draft: TacticSettings | null = null
+  /** 草稿建立時的戰術版本：儲存時在鎖內比對 */
+  let base: string | null = null
   let lastState = controller.state
   let container: HTMLElement | null = null
-  const dirty = () => JSON.stringify(saved) !== JSON.stringify(draft)
+  const dirty = () => !!saved && JSON.stringify(saved) !== JSON.stringify(draft)
+  const stale = () => dirty() && base !== null && base !== (controller.settingsVersions()?.coach ?? null)
+
+  function resetDraft(now: TacticSettings): void {
+    draft = { ...now }
+    base = controller.settingsVersions()?.coach ?? null
+  }
 
   function sync(state: ControllerState): void {
     if (!state.club) return
     const now = fromCoachParams(state.club.strategy.coach.params)
-    if (!saved || !dirty()) draft = { ...now }
+    const keep = !!saved && dirty()
     saved = now
+    if (!keep) resetDraft(now)
   }
 
   function rerender(): void {
@@ -62,28 +72,44 @@ export function createTacticsView(controller: ClubController): TacticsView {
     card.append(toggle(V2T.buntLabel, V2T.buntDesc, d.sacBunt, locked, (v) => ((draft = { ...d, sacBunt: v }), rerender())))
 
     const bar = el('div', 'v2-savebar')
-    bar.append(el('span', 'v2-savebar-status', dirty() ? V2T.unsavedChanges : V2T.tacticsEffective))
+    const isStale = stale()
+    const status = el('span', 'v2-savebar-status', isStale ? V2T.draftStale : dirty() ? V2T.unsavedChanges : V2T.tacticsEffective)
+    if (isStale) {
+      status.classList.add('error')
+      bar.classList.add('stale')
+    }
+    bar.append(status)
+    const buttons = el('div', 'v2-savebar-buttons')
+    if (dirty()) {
+      const reset = el('button', 'btn-white', isStale ? V2T.loadLatest : V2T.resetDraft)
+      reset.type = 'button'
+      reset.disabled = state.saving
+      reset.onclick = () => {
+        if (saved) resetDraft(saved)
+        rerender()
+      }
+      buttons.append(reset)
+    }
     const save = el('button', 'btn-yellow', state.saving ? V2T.saving : V2T.saveTactics)
     save.type = 'button'
-    save.disabled = !dirty() || locked
+    save.disabled = !dirty() || isStale || locked
     save.onclick = async () => {
       save.disabled = true
-      const res = await controller.saveTactics(d)
+      const res = await controller.saveTactics(d, base ?? '')
       if (res.message) toast(res.message)
       if (res.ok && controller.state.club) {
         saved = fromCoachParams(controller.state.club.strategy.coach.params)
-        draft = { ...saved }
-        rerender()
+        resetDraft(saved)
       }
+      rerender()
     }
-    const buttons = el('div', 'v2-savebar-buttons')
     buttons.append(save)
     bar.append(buttons)
     page.append(card, bar)
     return page
   }
 
-  return { render, sync }
+  return { render, sync, hasUnsavedChanges: dirty }
 }
 
 function toggle(label: string, desc: string, value: boolean, locked: boolean, set: (v: boolean) => void): HTMLElement {

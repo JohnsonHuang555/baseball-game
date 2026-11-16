@@ -10,13 +10,14 @@ import { createClubSafely, resetClubSafely } from '../application/clubLifecycle'
 import { dueMatches, type DueMatches } from '../application/idleEngine'
 import { SettlementError, claim, settleDue, updateSettings, type SettlementReport } from '../application/settlementService'
 import type { ClubSaveV3, PersistentRoster, SummaryHighlight } from '../domain/club'
+import { settingsVersions } from '../domain/fingerprint'
 import { LineupError, lineupIssues } from '../domain/lineup'
 import { toCoachParams, type TacticSettings } from '../domain/tactics'
 import { ClubSaveError } from '../infrastructure/clubRepository'
 import type { V2Deps } from '../infrastructure/composition'
 import { V2T } from './strings'
 import { CLUB_STORAGE_KEY } from '../infrastructure/clubRepository'
-import type { StorageEventSource, WriterGuard } from './writerGuard'
+import { guardStore, type StorageEventSource, type WriterGuard } from './writerGuard'
 
 export type V2Status =
   | { kind: 'loading' }
@@ -42,6 +43,8 @@ export interface ControllerState {
   status: V2Status
   club: ClubSaveV3 | null
   creating: boolean
+  /** 建立球團失敗的原因（重繪表單時要一直顯示，直到下一次嘗試） */
+  createError: string | null
   settling: boolean
   claiming: boolean
   saving: boolean
@@ -61,6 +64,8 @@ export type SettleTrigger = 'enter' | 'resume' | 'manual' | 'tick'
 export interface ActionResult {
   ok: boolean
   message?: string
+  /** 草稿是根據舊的設定做的，別的分頁已經改過：沒有覆寫，請重新載入 */
+  conflict?: boolean
 }
 
 export class ClubController {
@@ -78,15 +83,20 @@ export class ClubController {
     if ((e.key === CLUB_STORAGE_KEY || e.key === null) && !this.current.settling) this.reload()
   }
 
+  private readonly deps: V2Deps
+
   constructor(
-    private readonly deps: V2Deps,
+    deps: V2Deps,
     private readonly guard: WriterGuard,
     private readonly events?: StorageEventSource,
   ) {
+    // 所有寫入在寫進儲存的前一刻再確認一次可寫分頁身分
+    this.deps = { ...deps, store: guardStore(deps.store, guard) }
     this.current = {
       status: { kind: 'loading' },
       club: null,
       creating: false,
+      createError: null,
       settling: false,
       claiming: false,
       saving: false,
@@ -97,6 +107,8 @@ export class ClubController {
       crossTab: deps.lock.crossTab,
     }
     this.unsubscribeGuard = guard.subscribe(() => {
+      // 別的分頁接手：盡量中斷還沒完成的批次結算（之後的存檔也會被 guardStore 擋下）
+      if (!guard.canWrite()) this.abort?.abort()
       this.set({ canWrite: guard.canWrite() })
       // 變成唯讀時，畫面要換成別的分頁寫進去的最新狀態
       this.reload()
@@ -207,11 +219,15 @@ export class ClubController {
   createClub(rawName: string): Promise<ActionResult> {
     if (this.createFlight) return this.createFlight
     const name = rawName.trim()
-    if (!name) return Promise.resolve({ ok: false, message: V2T.nameRequired })
-    if (name.length > 12) return Promise.resolve({ ok: false, message: V2T.nameTooLong })
-    if (!this.guard.canWrite()) return Promise.resolve({ ok: false, message: V2T.readOnly })
+    const fail = (message: string): Promise<ActionResult> => {
+      this.set({ createError: message })
+      return Promise.resolve({ ok: false, message })
+    }
+    if (!name) return fail(V2T.nameRequired)
+    if (name.length > 12) return fail(V2T.nameTooLong)
+    if (!this.guard.canWrite()) return fail(V2T.readOnly)
     this.createFlight = (async (): Promise<ActionResult> => {
-      this.set({ creating: true, error: null })
+      this.set({ creating: true, createError: null, error: null })
       try {
         const { value } = await createClubSafely(this.deps, { clubName: name })
         if (this.disposed) return { ok: true }
@@ -222,9 +238,13 @@ export class ClubController {
         // 別的分頁剛建好：讀進來就好
         if (e instanceof ClubSaveError && e.code === 'already-exists') {
           this.reload()
-          return { ok: this.current.status.kind === 'ready', message: V2T.createdElsewhere }
+          if (this.current.status.kind === 'ready') return { ok: true, message: V2T.createdElsewhere }
+          // 已經有存檔但讀不出來（壞掉、版本不相容）：reload 會切到錯誤畫面
+          return { ok: false, message: V2T.alreadyExists }
         }
-        return { ok: false, message: this.handleError(e) }
+        const message = e instanceof ClubSaveError && e.code === 'write-failed' ? V2T.createWriteFailed : this.handleError(e)
+        this.set({ createError: message, error: null })
+        return { ok: false, message }
       } finally {
         this.createFlight = null
         if (!this.disposed) this.set({ creating: false })
@@ -274,35 +294,49 @@ export class ClubController {
     return this.claimFlight
   }
 
-  /** 儲存陣容：先檢查合法，再交給 updateSettings（會先用舊陣容結算到期的比賽） */
-  saveRoster(roster: PersistentRoster): Promise<ActionResult> {
-    const issues = lineupIssues(roster)
-    if (issues.length) return Promise.resolve({ ok: false, message: issues.join('；') })
-    return this.saveSettings({ roster })
+  /** 目前畫面上這份存檔的設定版本：草稿建立時記下來，儲存時交回來比對 */
+  settingsVersions() {
+    return this.current.club ? settingsVersions(this.current.club) : null
   }
 
-  saveTactics(settings: TacticSettings): Promise<ActionResult> {
+  /**
+   * 儲存陣容：先檢查合法，再交給 updateSettings（會先用舊陣容結算到期的比賽）。
+   * baseVersion 是草稿建立時的陣容版本：別的分頁已經改過陣容就拒絕，不覆蓋
+   */
+  saveRoster(roster: PersistentRoster, baseVersion: string): Promise<ActionResult> {
+    const issues = lineupIssues(roster)
+    if (issues.length) return Promise.resolve({ ok: false, message: issues.join('；') })
+    return this.saveSettings({ roster }, { roster: baseVersion })
+  }
+
+  /** 儲存戰術；baseVersion 是草稿建立時的戰術版本 */
+  saveTactics(settings: TacticSettings, baseVersion: string): Promise<ActionResult> {
     let params
     try {
       params = toCoachParams(settings)
     } catch (e) {
       return Promise.resolve({ ok: false, message: (e as Error).message })
     }
-    return this.saveSettings({ coach: { style: 'balanced', params } })
+    return this.saveSettings({ coach: { style: 'balanced', params } }, { coach: baseVersion })
   }
 
-  private async saveSettings(change: Parameters<typeof updateSettings>[1]): Promise<ActionResult> {
+  private async saveSettings(change: Parameters<typeof updateSettings>[1], expected: Parameters<typeof updateSettings>[2]): Promise<ActionResult> {
     if (this.current.saving) return { ok: false }
     if (!this.guard.canWrite()) return { ok: false, message: V2T.readOnly }
     this.set({ saving: true, error: null })
     try {
-      const club = await updateSettings(this.deps, change)
+      const club = await updateSettings(this.deps, change, expected)
       if (this.disposed) return { ok: true }
       this.set({ club })
       return { ok: true, message: V2T.settingsSaved(club.strategy.effectiveFromMatch + 1) }
     } catch (e) {
       if (this.disposed) return { ok: false }
       if (e instanceof LineupError || e instanceof RangeError) return { ok: false, message: e.message }
+      if (e instanceof SettlementError && e.code === 'settings-conflict') {
+        // 讀進別的分頁存的最新設定；草稿留在畫面上，由玩家決定要不要捨棄
+        this.reload()
+        return { ok: false, conflict: true, message: V2T.settingsConflict }
+      }
       return { ok: false, message: this.handleError(e) }
     } finally {
       if (!this.disposed) this.set({ saving: false })
@@ -348,6 +382,11 @@ export class ClubController {
           this.reload()
           this.set({ notice: V2T.conflictReloaded })
           return V2T.conflictReloaded
+        case 'read-only':
+          // 別的分頁剛接手：這次沒有寫入，畫面換成唯讀
+          this.reload()
+          this.set({ canWrite: this.guard.canWrite(), notice: V2T.lostWriter })
+          return V2T.lostWriter
         case 'write-failed':
           this.set({ error: { message: V2T.writeFailed, retry } })
           return V2T.writeFailed

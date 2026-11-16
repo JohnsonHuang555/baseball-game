@@ -48,7 +48,16 @@ export function browserStorage(): KeyValueStorage | null {
   }
 }
 
-export type ClubSaveErrorCode = 'storage-unavailable' | 'invalid-json' | 'invalid-schema' | 'unsupported-version' | 'write-failed' | 'conflict' | 'already-exists'
+export type ClubSaveErrorCode =
+  | 'storage-unavailable'
+  | 'invalid-json'
+  | 'invalid-schema'
+  | 'unsupported-version'
+  | 'write-failed'
+  | 'conflict'
+  | 'already-exists'
+  /** 這個分頁已經不是可寫分頁（沒有 Web Locks 時的單一可寫分頁限制） */
+  | 'read-only'
 
 export class ClubSaveError extends Error {
   override name = 'ClubSaveError'

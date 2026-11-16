@@ -2,7 +2,9 @@
 // V2 畫面的 DOM 互動測試：建立球團、連點、首頁、領取按鈕、分頁切換、回歸摘要只彈一次、V1 入口
 import { afterEach, describe, expect, it } from 'vitest'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, HOUR, ManualClock, tab } from '../testkit'
+import { FakeLockManager, FlakyStorage, HOUR, ManualClock, tab } from '../testkit'
+import { updateSettings } from '../application/settlementService'
+import { substitute } from '../domain/lineup'
 import { openV2, type V2App } from './app'
 import { v1Label, v2EntryButton } from './entry'
 import { V2T } from './strings'
@@ -18,12 +20,17 @@ const flush = async (times = 30) => {
   for (let i = 0; i < times; i++) await new Promise((r) => setTimeout(r, 0))
 }
 
-function mount(storage = new MemoryStorage(), clock = new ManualClock()) {
+function mount(storage: MemoryStorage | FlakyStorage = new MemoryStorage(), clock = new ManualClock(), locks = new FakeLockManager()) {
   const root = document.createElement('div')
   document.body.append(root)
   let exited = 0
-  app = openV2(root, () => exited++, { deps: tab(storage, clock, new FakeLockManager()), tickMs: 0, tabId: 'test-tab' })
-  return { root, storage, clock, exited: () => exited }
+  app = openV2(root, () => exited++, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'test-tab' })
+  return { root, storage, clock, locks, exited: () => exited }
+}
+
+/** 瀏覽器在別的分頁寫入 localStorage 時發的 storage 事件 */
+function otherTabWrote(): void {
+  window.dispatchEvent(Object.assign(new Event('storage'), { key: CLUB_STORAGE_KEY, newValue: null }))
 }
 
 const $ = <T extends Element = HTMLElement>(sel: string) => document.querySelector<T & HTMLElement>(sel)
@@ -168,6 +175,83 @@ describe('V2 畫面', () => {
     expect(storage.getItem(CLUB_STORAGE_KEY)).toBe('{oops')
     $$('.v2-broken button')[2].click()
     expect(exited()).toBe(1)
+  })
+})
+
+describe('Code review 修正', () => {
+  it('建立失敗（寫入失敗）：顯示錯誤，表單重繪後名稱仍在，可以直接重試', async () => {
+    const storage = new FlakyStorage()
+    mount(storage)
+    await flush()
+    storage.failWrites = true
+    const input = $<HTMLInputElement>('#v2-club-name')!
+    input.value = '高雄海豚隊'
+    input.dispatchEvent(new Event('input'))
+    $<HTMLFormElement>('.v2-create-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await flush()
+    // 表單已經因為狀態改變重繪過：錯誤還在、名稱還在、按鈕可以按
+    expect(text('.v2-form-error')).toBe(V2T.createWriteFailed)
+    expect($<HTMLInputElement>('#v2-club-name')!.value).toBe('高雄海豚隊')
+    expect($<HTMLButtonElement>('.v2-create-btn')!.disabled).toBe(false)
+    storage.failWrites = false
+    $<HTMLFormElement>('.v2-create-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await flush()
+    expect(text('.v2-title')).toBe('高雄海豚隊')
+  })
+
+  it('陣容草稿過期：其他分頁存了新陣容，草稿留著並提示，不能儲存；「載入最新設定」才捨棄', async () => {
+    const { storage, clock, locks } = mount()
+    await flush()
+    await createClub()
+    $<HTMLButtonElement>('[data-tab="lineup"]')!.click()
+    $$('.v2-player')[0].click()
+    $$('.v2-player')[9].click()
+    const myDraftFirst = $$('.v2-player')[0].querySelector('.v2-player-name')!.textContent
+    // 別的分頁改了陣容並儲存
+    const other = tab(storage, clock, locks)
+    const club = other.store.loadClub()!
+    const theirs = substitute(club.roster, 3, 1)
+    await updateSettings(other, { roster: theirs })
+    otherTabWrote()
+    await flush()
+    expect(text('.v2-savebar-status')).toBe(V2T.draftStale)
+    expect($<HTMLButtonElement>('.v2-savebar .btn-yellow')!.disabled).toBe(true)
+    // 草稿沒有消失
+    expect($$('.v2-player')[0].querySelector('.v2-player-name')!.textContent).toBe(myDraftFirst)
+    // 存檔是別的分頁的版本
+    expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).roster).toEqual(theirs)
+    $<HTMLButtonElement>('.v2-savebar .btn-white')!.click()
+    expect(text('.v2-savebar-status')).toBe(V2T.lineupEffective)
+    expect($$('.v2-player')[3].querySelector('.v2-player-name')!.textContent).toContain(theirs.lineup[3].player.name)
+  })
+
+  it('戰術草稿過期：同樣提示、不能儲存', async () => {
+    const { storage, clock, locks } = mount()
+    await flush()
+    await createClub()
+    $<HTMLButtonElement>('[data-tab="tactics"]')!.click()
+    $$('.v2-seg-btn')[0].click()
+    await updateSettings(tab(storage, clock, locks), { coach: { style: 'balanced', params: { stealMin: 0.85 } } })
+    otherTabWrote()
+    await flush()
+    expect(text('.v2-savebar-status')).toBe(V2T.draftStale)
+    expect($<HTMLButtonElement>('.v2-savebar .btn-yellow')!.disabled).toBe(true)
+    expect($$('.v2-seg-btn')[0].getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('有未儲存的草稿時離開 V2：先確認，取消就留下', async () => {
+    const { exited } = mount()
+    await flush()
+    await createClub()
+    $<HTMLButtonElement>('[data-tab="tactics"]')!.click()
+    $$('.v2-seg-btn')[2].click()
+    $<HTMLButtonElement>('.v2-back')!.click()
+    await flush(2)
+    expect(text('.modal-box')).toContain(V2T.leaveUnsavedTitle)
+    $<HTMLButtonElement>('.modal-box .btn-white')!.click()
+    await flush(2)
+    expect(exited()).toBe(0)
+    expect($('.v2-tactics')).not.toBeNull()
   })
 })
 

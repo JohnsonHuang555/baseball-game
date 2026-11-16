@@ -4,7 +4,8 @@
 // 所以兩個分頁幾乎同時接手時，最後寫入的那個可寫、另一個唯讀。
 // 這不是交易鎖：接手的那一刻，前一個分頁如果正在存檔，仍可能撞上；那種情況會被 revision 檢查擋下（conflict），不會靜默覆蓋。
 // 有 Web Locks（crossTab === true）時不需要這個限制，所有分頁都可寫。
-import type { KeyValueStorage } from '../infrastructure/clubRepository'
+import type { ClubAdminStore } from '../application/clubLifecycle'
+import { ClubSaveError, type KeyValueStorage } from '../infrastructure/clubRepository'
 
 export const WRITER_KEY = 'dice-baseball.club.v3.writer'
 
@@ -78,4 +79,31 @@ export function createWriterGuard(opts: WriterGuardOptions): WriterGuard {
 export function randomTabId(): string {
   const c = globalThis.crypto
   return c?.randomUUID ? c.randomUUID() : `tab-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`
+}
+
+/**
+ * 包住存檔：每一次寫入（存檔、建立、刪除）在真正寫進儲存的前一刻，再確認一次這個分頁還是可寫分頁，
+ * 不是就丟 ClubSaveError('read-only')、什麼都不寫。讀取不受限制。
+ * 限制：「確認」和「寫入」是兩個步驟，中間如果剛好有別的分頁接手，仍然可能寫進去；
+ * 那種情況靠存檔的 revision 檢查讓其中一方失敗（conflict）。沒有 Web Locks（或 IndexedDB 交易）就做不到完全原子
+ */
+export function guardStore(store: ClubAdminStore, guard: WriterGuard): ClubAdminStore {
+  const check = () => {
+    if (!guard.canWrite()) throw new ClubSaveError('read-only', '這個分頁已經不是可寫分頁，沒有寫入')
+  }
+  return {
+    loadClub: () => store.loadClub(),
+    saveClub: (club, expectedRevision) => {
+      check()
+      return store.saveClub(club, expectedRevision)
+    },
+    createClub: (input) => {
+      check()
+      return store.createClub(input)
+    },
+    resetClub: () => {
+      check()
+      store.resetClub()
+    },
+  }
 }

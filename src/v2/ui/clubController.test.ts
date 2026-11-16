@@ -289,7 +289,7 @@ describe('陣容與戰術', () => {
     const oldStarter = c.state.club!.roster.lineup[0].player.id
     clock.advance(17 * MINUTE)
     const roster = substitute(c.state.club!.roster, 0, 0)
-    const res = await c.saveRoster(roster)
+    const res = await c.saveRoster(roster, c.settingsVersions()!.roster)
     expect(res.ok).toBe(true)
     expect(res.message).toBe(V2T.settingsSaved(4))
     const club = c.state.club!
@@ -306,19 +306,19 @@ describe('陣容與戰術', () => {
     const { c } = await readyClub()
     const r = c.state.club!.roster
     const bad = { ...r, lineup: r.lineup.map((s, i) => (i === 1 ? { ...s, position: r.lineup[0].position } : s)) }
-    const res = await c.saveRoster(bad)
+    const res = await c.saveRoster(bad, c.settingsVersions()!.roster)
     expect(res.ok).toBe(false)
     expect(c.state.club!.roster).toEqual(r)
     const other = generateRoster(new Rng(1))
-    expect((await c.saveRoster({ ...r, bench: [other.lineup[0].player, r.lineup[0].player] })).ok).toBe(false)
+    expect((await c.saveRoster({ ...r, bench: [other.lineup[0].player, r.lineup[0].player] }, c.settingsVersions()!.roster)).ok).toBe(false)
   })
 
   it('戰術設定儲存成合法的參數；不合法的設定被擋下', async () => {
     const { c } = await readyClub()
-    const res = await c.saveTactics({ baserunning: 'aggressive', latePlatoon: false, sacBunt: false })
+    const res = await c.saveTactics({ baserunning: 'aggressive', latePlatoon: false, sacBunt: false }, c.settingsVersions()!.coach)
     expect(res.ok).toBe(true)
     expect(c.state.club!.strategy.coach.params).toEqual({ stealMin: 0.65, latePlatoon: false, sacBunt: false })
-    const bad = await c.saveTactics({ baserunning: 'reckless' as never, latePlatoon: true, sacBunt: true })
+    const bad = await c.saveTactics({ baserunning: 'reckless' as never, latePlatoon: true, sacBunt: true }, c.settingsVersions()!.coach)
     expect(bad.ok).toBe(false)
     expect(c.state.club!.strategy.coach.params!.stealMin).toBe(0.65)
   })
@@ -346,7 +346,7 @@ describe('多分頁與存檔錯誤', () => {
     await a.c.settle('manual')
     expect(b.deps.store.loadClub()!.idle.nextMatchIndex).toBe(0)
     expect((await a.c.claim()).message).toBe(V2T.readOnly)
-    expect((await a.c.saveTactics({ baserunning: 'conservative', latePlatoon: true, sacBunt: true })).message).toBe(V2T.readOnly)
+    expect((await a.c.saveTactics({ baserunning: 'conservative', latePlatoon: true, sacBunt: true }, a.c.settingsVersions()!.coach)).message).toBe(V2T.readOnly)
     // 可寫分頁結算，唯讀分頁從 storage 事件重新讀取
     await b.c.settle('manual')
     expect(a.c.state.club!.idle.nextMatchIndex).toBe(12)
@@ -408,9 +408,155 @@ describe('多分頁與存檔錯誤', () => {
     const club = deps.store.loadClub()!
     deps.store.saveClub({ ...club, clubName: '被改名' }, club.revision)
     expect(a.c.state.club!.clubName).toBe('測試貓熊隊')
-    const res = await a.c.saveTactics({ baserunning: 'aggressive', latePlatoon: true, sacBunt: true })
+    const res = await a.c.saveTactics({ baserunning: 'aggressive', latePlatoon: true, sacBunt: true }, a.c.settingsVersions()!.coach)
     expect(res.ok).toBe(true)
     // updateSettings 在鎖內重新讀取，所以拿到的是最新版（名稱沒被蓋回去）
     expect(a.c.state.club!.clubName).toBe('被改名')
+  })
+})
+
+describe('舊草稿不能覆蓋其他分頁的設定', () => {
+  /** 兩個共用儲存與 Web Locks 的分頁，各自已經讀進同一個球團 */
+  async function twoTabs() {
+    const storage = new MemoryStorage()
+    const clock = new ManualClock()
+    const locks = new FakeLockManager()
+    const a = await readyClub([storage, clock, locks])
+    const b = controllerFor(storage, clock, locks, undefined, 'tab-b')
+    await b.c.start()
+    return { a, b, clock }
+  }
+
+  it('陣容：A 開始編輯、B 先儲存、A 再存舊草稿 → 拒絕，B 的陣容保留', async () => {
+    const { a, b } = await twoTabs()
+    // 1、2：A 根據目前的陣容開始編輯，記下草稿的版本
+    const baseA = a.c.settingsVersions()!.roster
+    const draftA = substitute(a.c.state.club!.roster, 0, 0)
+    // 3：B 修改並儲存
+    const draftB = substitute(b.c.state.club!.roster, 1, 1)
+    expect((await b.c.saveRoster(draftB, b.c.settingsVersions()!.roster)).ok).toBe(true)
+    // 4：A 存舊草稿 → 拒絕
+    const res = await a.c.saveRoster(draftA, baseA)
+    expect(res).toEqual({ ok: false, conflict: true, message: V2T.settingsConflict })
+    expect(b.deps.store.loadClub()!.roster).toEqual(draftB)
+    // A 的畫面已經換成最新的存檔，可以根據最新陣容重新編輯
+    expect(a.c.state.club!.roster).toEqual(draftB)
+    const retry = substitute(a.c.state.club!.roster, 0, 0)
+    expect((await a.c.saveRoster(retry, a.c.settingsVersions()!.roster)).ok).toBe(true)
+  })
+
+  it('戰術：同樣的情境 → 拒絕，B 的戰術保留', async () => {
+    const { a, b } = await twoTabs()
+    const baseA = a.c.settingsVersions()!.coach
+    expect((await b.c.saveTactics({ baserunning: 'conservative', latePlatoon: false, sacBunt: true }, b.c.settingsVersions()!.coach)).ok).toBe(true)
+    const res = await a.c.saveTactics({ baserunning: 'aggressive', latePlatoon: true, sacBunt: false }, baseA)
+    expect(res.conflict).toBe(true)
+    expect(b.deps.store.loadClub()!.strategy.coach.params).toEqual({ stealMin: 0.85, latePlatoon: false, sacBunt: true })
+  })
+
+  it('陣容與戰術分開比對：B 改了戰術，不影響 A 儲存陣容', async () => {
+    const { a, b } = await twoTabs()
+    const baseA = a.c.settingsVersions()!.roster
+    expect((await b.c.saveTactics({ baserunning: 'aggressive', latePlatoon: true, sacBunt: true }, b.c.settingsVersions()!.coach)).ok).toBe(true)
+    const draftA = substitute(a.c.state.club!.roster, 0, 0)
+    expect((await a.c.saveRoster(draftA, baseA)).ok).toBe(true)
+    const saved = a.deps.store.loadClub()!
+    expect(saved.roster).toEqual(draftA)
+    expect(saved.strategy.coach.params!.stealMin).toBe(0.65)
+  })
+
+  it('兩個分頁同時儲存同一個版本的草稿：只有一個成功，另一個收到衝突', async () => {
+    const { a, b } = await twoTabs()
+    const base = a.c.settingsVersions()!.roster
+    const [ra, rb] = await Promise.all([a.c.saveRoster(substitute(a.c.state.club!.roster, 0, 0), base), b.c.saveRoster(substitute(b.c.state.club!.roster, 2, 1), base)])
+    expect([ra.ok, rb.ok].filter(Boolean)).toHaveLength(1)
+    expect([ra.conflict, rb.conflict].filter(Boolean)).toHaveLength(1)
+  })
+})
+
+describe('單一可寫分頁接手', () => {
+  it('A 離線結算到一半、B 接手：A 的批次中斷、什麼都沒寫入，B 結算全部場次', async () => {
+    const bus = new StorageBus()
+    const ea = bus.source()
+    const eb = bus.source()
+    const storage = new BroadcastStorage((key, value) => {
+      ea.emitOthers(key, value)
+      eb.emitOthers(key, value)
+    })
+    const clock = new ManualClock()
+    const a = await readyClub([storage, clock, null, ea, 'tab-a'])
+    let simulatedByA = 0
+    a.deps.batch.simulate = (p: MatchPlan) => {
+      simulatedByA++
+      return runMatch(p.setup, p.ai)
+    }
+    clock.advance(8 * HOUR)
+    const settling = a.c.settle('enter')
+    // A 才剛開始結算，B 就開啟（自動接手）
+    const b = controllerFor(storage, clock, null, eb, 'tab-b')
+    expect(a.c.state.canWrite).toBe(false)
+    await settling
+    // A 盡快停下來：只打了第一批，沒有寫入
+    expect(simulatedByA).toBeLessThan(96)
+    expect(b.deps.store.loadClub()!.idle.nextMatchIndex).toBe(0)
+    expect(a.c.state.error).toBeNull()
+    await b.c.start()
+    expect(b.c.state.club!.idle.nextMatchIndex).toBe(96)
+    expect(b.c.state.club!.record.wins + b.c.state.club!.record.losses).toBe(96)
+  })
+
+  it('寫入前一刻再確認身分：唯讀分頁就算繞過畫面直接呼叫，也寫不進去', async () => {
+    const storage = new MemoryStorage()
+    const clock = new ManualClock()
+    const a = await readyClub([storage, clock, null, undefined, 'tab-a'])
+    clock.advance(HOUR)
+    await a.c.settle('manual')
+    // 別的分頁接手（沒有事件通知 A：模擬事件還沒送到）
+    storage.setItem('dice-baseball.club.v3.writer', 'tab-b')
+    const before = storage.getItem(CLUB_STORAGE_KEY)
+    const res = await a.c.claim()
+    expect(res).toEqual({ ok: false, message: V2T.readOnly })
+    clock.advance(HOUR)
+    // 就算 controller 的狀態還以為自己可寫，存檔前的檢查也會擋下
+    await a.c.saveTactics({ baserunning: 'aggressive', latePlatoon: true, sacBunt: true }, a.c.settingsVersions()!.coach)
+    expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(before)
+  })
+})
+
+describe('建立球團失敗', () => {
+  it('寫入失敗：顯示明確錯誤，可以重試', async () => {
+    const storage = new FlakyStorage()
+    const { c } = controllerFor(storage as unknown as MemoryStorage)
+    await c.start()
+    storage.failWrites = true
+    const res = await c.createClub('台北貓熊隊')
+    expect(res).toEqual({ ok: false, message: V2T.createWriteFailed })
+    expect(c.state.createError).toBe(V2T.createWriteFailed)
+    expect(c.state.status.kind).toBe('no-club')
+    storage.failWrites = false
+    expect((await c.createClub('台北貓熊隊')).ok).toBe(true)
+    expect(c.state.createError).toBeNull()
+  })
+
+  it('非預期錯誤：顯示錯誤訊息，留在建立畫面', async () => {
+    const { c, deps } = controllerFor()
+    await c.start()
+    deps.store.createClub = () => {
+      throw new Error('boom')
+    }
+    // controller 包了一層 guardStore，要換掉的是它包住的那一個：重新建立 controller
+    const again = new ClubController(deps, createWriterGuard({ crossTab: true, storage: deps.storage, tabId: 'x' }))
+    again.reload()
+    const res = await again.createClub('隊伍')
+    expect(res.ok).toBe(false)
+    expect(again.state.createError).toBe(V2T.unknownError)
+    expect(again.state.status.kind).toBe('no-club')
+  })
+
+  it('名稱錯誤也記在 createError（表單重繪時仍然顯示）', async () => {
+    const { c } = controllerFor()
+    await c.start()
+    await c.createClub('  ')
+    expect(c.state.createError).toBe(V2T.nameRequired)
   })
 })
