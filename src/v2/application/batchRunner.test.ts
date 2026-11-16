@@ -1,11 +1,13 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateRoster } from '../../sim/generate'
 import { Rng } from '../../sim/rng'
 import { deriveSeed, newClub, type ClubSaveV3 } from '../domain/club'
 import { T0 } from '../testkit'
-import { planMatch, planMatches, runBatch, type MatchOutcome } from './batchRunner'
+import { BatchResumeError, planMatch, planMatches, runBatch, yieldToMain, type MatchOutcome } from './batchRunner'
 import { runMatch } from './matchRunner'
+import { applySettingsChange } from './settlementService'
+import { RULES_VERSION } from '../../sim/game'
 
 function club(seed = 7): ClubSaveV3 {
   return newClub({ clubId: 'club-a', clubName: '測試球團', clubSeed: seed, roster: generateRoster(new Rng(seed)), now: T0 })
@@ -75,7 +77,7 @@ describe('批次執行', () => {
   it('接續的場次跟計畫對不起來就報錯', async () => {
     const other = planMatches(club(99), 0, 1)
     const fake: MatchOutcome = { plan: { ...other[0], matchId: plans[0].matchId }, result: runMatch(other[0].setup, other[0].ai) }
-    await expect(runBatch(plans, { completed: [fake] })).rejects.toThrow('對不起來')
+    await expect(runBatch(plans, { completed: [fake] })).rejects.toThrow(BatchResumeError)
   })
 
   it('某一場模擬失敗：回傳失敗之前的場次，失敗的那場沒有結果', async () => {
@@ -90,11 +92,121 @@ describe('批次執行', () => {
     expect(run.outcomes).toHaveLength(9)
   })
 
+  it('從存檔讀回來（JSON 來回、key 順序不同）的舊結果，計畫相同就可以沿用', async () => {
+    const first = await runBatch(plans.slice(0, 3), { yieldControl: null })
+    const restored = JSON.parse(JSON.stringify(first.outcomes)) as MatchOutcome[]
+    const run = await runBatch(plans.slice(0, 3), { completed: restored, simulate: () => { throw new Error('不應該重打') } })
+    expect(run.status).toBe('completed')
+  })
+
   it('chunkSize 必須是大於 0 的整數', async () => {
     for (const chunkSize of [0, -1, 1.5, NaN]) await expect(runBatch(plans, { chunkSize })).rejects.toThrow(RangeError)
   })
 
   it('沒有 DOM 也能跑', () => {
     expect(typeof document).toBe('undefined')
+  })
+})
+
+describe('接續時拒絕舊結果', () => {
+  /** 中斷在第 5 場，回傳舊結果 */
+  async function interrupted(c: ClubSaveV3) {
+    const controller = new AbortController()
+    const run = await runBatch(planMatches(c, 0, 10), { yieldControl: null, signal: controller.signal, onProgress: (d) => d === 5 && controller.abort() })
+    expect(run.outcomes).toHaveLength(5)
+    return run.outcomes
+  }
+
+  it('陣容改了之後，用新計畫接續舊結果：拒絕', async () => {
+    const c = club()
+    const old = await interrupted(c)
+    const roster = structuredClone(c.roster)
+    roster.lineup[0].player.ratings.power = 10
+    const changed = applySettingsChange(c, { roster })
+    // 種子、場次、matchId 都一樣，只有陣容不同
+    expect(planMatch(changed, 0).seed).toBe(old[0].plan.seed)
+    const error = await runBatch(planMatches(changed, 0, 10), { yieldControl: null, completed: old }).catch((e) => e)
+    expect(error).toBeInstanceOf(BatchResumeError)
+    expect(error.matchId).toBe(old[0].plan.matchId)
+  })
+
+  it('戰術改了之後接續舊結果：拒絕', async () => {
+    const c = club()
+    const old = await interrupted(c)
+    const changed = applySettingsChange(c, { coach: { style: 'balanced', params: { stealMin: 0.95 } } })
+    await expect(runBatch(planMatches(changed, 0, 10), { yieldControl: null, completed: old })).rejects.toThrow(BatchResumeError)
+  })
+
+  it('舊結果的規則版本、比賽設定或 AI 設定被改過：拒絕', async () => {
+    const c = club()
+    const plans = planMatches(c, 0, 10)
+    const tamper = async (f: (o: MatchOutcome) => void) => {
+      const old = structuredClone(await interrupted(c))
+      f(old[2])
+      return runBatch(plans, { yieldControl: null, completed: old })
+    }
+    await expect(tamper((o) => (o.result.replay.rulesVersion = RULES_VERSION - 1))).rejects.toThrow(/規則版本/)
+    await expect(tamper((o) => (o.plan.setup.rules = RULES_VERSION - 1))).rejects.toThrow(BatchResumeError)
+    await expect(tamper((o) => (o.result.replay.setup.seed = 1))).rejects.toThrow(/比賽設定/)
+    await expect(tamper((o) => (o.result.replay.ai = { home: { kind: 'builtin' }, away: { kind: 'autoCoach', style: 'balanced' } }))).rejects.toThrow(BatchResumeError)
+  })
+
+  it('計畫寫明規則版本', () => {
+    expect(planMatch(club(), 0).setup.rules).toBe(RULES_VERSION)
+  })
+})
+
+describe('讓出主執行緒', () => {
+  afterEach(() => {
+    delete (globalThis as { scheduler?: unknown }).scheduler
+  })
+  const plans = planMatches(club(), 0, 20)
+
+  it('預設就用 yieldToMain：每 chunkSize 場讓出一次', async () => {
+    const yieldSpy = vi.fn(() => Promise.resolve())
+    ;(globalThis as { scheduler?: unknown }).scheduler = { yield: yieldSpy }
+    await runBatch(plans, { chunkSize: 6 })
+    expect(yieldSpy).toHaveBeenCalledTimes(3)
+    yieldSpy.mockClear()
+    await runBatch(plans)
+    expect(yieldSpy).toHaveBeenCalledTimes(Math.floor(20 / 8))
+  })
+
+  it('讓出發生在第 chunkSize、2×chunkSize… 場打完之後', async () => {
+    const at: number[] = []
+    let done = 0
+    await runBatch(plans, { chunkSize: 5, onProgress: (d) => (done = d), yieldControl: async () => void at.push(done) })
+    expect(at).toEqual([5, 10, 15, 20])
+  })
+
+  it('yieldControl: null（Web Worker）就不讓出', async () => {
+    const yieldSpy = vi.fn(() => Promise.resolve())
+    ;(globalThis as { scheduler?: unknown }).scheduler = { yield: yieldSpy }
+    await runBatch(plans, { chunkSize: 1, yieldControl: null })
+    expect(yieldSpy).not.toHaveBeenCalled()
+  })
+
+  it('yieldToMain 是真的讓出到下一個工作（不是微任務），中間其他工作可以執行', async () => {
+    let resolved = false
+    const p = yieldToMain().then(() => (resolved = true))
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(resolved).toBe(false)
+    let other = false
+    setTimeout(() => (other = true), 0)
+    await p
+    await new Promise((r) => setTimeout(r, 0))
+    expect(resolved && other).toBe(true)
+  })
+
+  it('批次在讓出時，其他工作（例如畫面更新）真的有機會插進來', async () => {
+    const ticks: number[] = []
+    let done = 0
+    const interval = setInterval(() => ticks.push(done), 0)
+    try {
+      await runBatch(plans, { chunkSize: 2, onProgress: (d) => (done = d), yieldControl: () => new Promise((r) => setTimeout(r, 0)) })
+    } finally {
+      clearInterval(interval)
+    }
+    expect(ticks.some((d) => d > 0 && d < 20)).toBe(true)
   })
 })

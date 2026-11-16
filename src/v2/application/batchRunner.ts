@@ -4,7 +4,7 @@
 import { generateTeam } from '../../sim/generate'
 import { equippedTeam } from '../../sim/items'
 import { Rng } from '../../sim/rng'
-import type { GameSetup, Side } from '../../sim/game'
+import { RULES_VERSION, type GameSetup, type Side } from '../../sim/game'
 import { SEED_SALT, deriveSeed, matchIdFor, userSideFor, type ClubSaveV3 } from '../domain/club'
 import { BATCH_CONFIG } from '../domain/config'
 import { runMatch, type MatchAi, type MatchResult } from './matchRunner'
@@ -16,7 +16,8 @@ export interface MatchPlan {
   seed: number
   userSide: Side
   opponentName: string
-  setup: GameSetup
+  /** 規則版本寫明在 setup 裡，接續舊結果時要比對 */
+  setup: GameSetup & { rules: number }
   ai: MatchAi
 }
 
@@ -41,7 +42,7 @@ export function planMatch(club: ClubSaveV3, matchIndex: number): MatchPlan {
     seed,
     userSide,
     opponentName: opponent.name,
-    setup: { home: userSide === 'home' ? ours : opponent, away: userSide === 'away' ? ours : opponent, seed, userSide },
+    setup: { home: userSide === 'home' ? ours : opponent, away: userSide === 'away' ? ours : opponent, seed, userSide, rules: RULES_VERSION },
     ai: { [userSide]: { kind: 'autoCoach', style: coach.style, params: coach.params }, [otherSide]: { kind: 'builtin' } } as MatchAi,
   }
 }
@@ -73,8 +74,11 @@ export interface BatchRun {
 export interface BatchOptions {
   /** 每打幾場讓出一次主執行緒 */
   chunkSize?: number
-  /** 讓出主執行緒；不給就不讓出（測試、Worker 裡用） */
-  yieldControl?: () => Promise<void>
+  /**
+   * 讓出主執行緒。不給就用 yieldToMain（正式環境的預設，忘了注入也不會卡住畫面）；
+   * 測試可以注入可控制的函式；在 Web Worker 裡不需要讓出時給 null
+   */
+  yieldControl?: (() => Promise<void>) | null
   /** 中斷：每場開打前檢查 */
   signal?: AbortSignal
   /** 上次中斷時已經打完的場次：不會重打，直接沿用 */
@@ -91,16 +95,16 @@ export async function runBatch(plans: readonly MatchPlan[], options: BatchOption
   const chunkSize = options.chunkSize ?? BATCH_CONFIG.chunkSize
   if (!Number.isSafeInteger(chunkSize) || chunkSize <= 0) throw new RangeError(`chunkSize 必須是大於 0 的整數：${chunkSize}`)
   const simulate = options.simulate ?? defaultSimulate
+  const yieldControl = options.yieldControl === undefined ? yieldToMain : options.yieldControl
   const done = new Map((options.completed ?? []).map((o) => [o.plan.matchId, o]))
   const outcomes: MatchOutcome[] = []
   let sinceYield = 0
   for (const plan of plans) {
     const previous = done.get(plan.matchId)
     if (previous) {
-      // 接續：同一場的計畫必須完全一樣，否則代表陣容或種子變了，不能沿用
-      if (previous.plan.seed !== plan.seed || previous.plan.matchIndex !== plan.matchIndex) {
-        throw new Error(`接續的場次跟計畫對不起來：${plan.matchId}`)
-      }
+      // 接續：舊結果必須是用完全一樣的計畫打出來的（陣容、戰術、對手、種子、規則版本），否則拒絕
+      const why = resumeMismatch(previous, plan)
+      if (why) throw new BatchResumeError(plan.matchId, why)
       outcomes.push(previous)
       continue
     }
@@ -111,12 +115,43 @@ export async function runBatch(plans: readonly MatchPlan[], options: BatchOption
       return { ...finish('failed', plans, outcomes), failedMatchId: plan.matchId, error }
     }
     options.onProgress?.(outcomes.length, plans.length)
-    if (++sinceYield >= chunkSize && options.yieldControl) {
+    if (++sinceYield >= chunkSize && yieldControl) {
       sinceYield = 0
-      await options.yieldControl()
+      await yieldControl()
     }
   }
   return finish('completed', plans, outcomes)
+}
+
+/** 舊結果不能沿用：計畫或結果跟現在的計畫不一致 */
+export class BatchResumeError extends Error {
+  override name = 'BatchResumeError'
+  constructor(
+    readonly matchId: string,
+    readonly reason: string,
+  ) {
+    super(`接續的比賽 ${matchId} 跟目前的計畫不一致（${reason}），不能沿用舊結果`)
+  }
+}
+
+/** 比對舊結果與現在的計畫，回傳不一致的原因；一致就是 null */
+function resumeMismatch(previous: MatchOutcome, plan: MatchPlan): string | null {
+  const replay = previous.result.replay
+  if (stableJson(previous.plan) !== stableJson(plan)) return '計畫內容不同（陣容、戰術、對手或種子）'
+  // 結果本身也要是這份計畫打出來的：重播設定（含規則版本）與 AI 設定都要相同
+  if (replay.rulesVersion !== plan.setup.rules) return `規則版本不同（${replay.rulesVersion} ≠ ${plan.setup.rules}）`
+  if (stableJson(replay.setup) !== stableJson(plan.setup)) return '結果的比賽設定與計畫不同'
+  if (stableJson(replay.ai) !== stableJson(plan.ai)) return '結果的 AI 設定與計畫不同'
+  return null
+}
+
+/** 跟 JSON.stringify 一樣（略過 undefined），但物件的 key 排序，從存檔讀回來的資料也能比對 */
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  )
 }
 
 function finish(status: BatchRun['status'], plans: readonly MatchPlan[], outcomes: MatchOutcome[]): BatchRun {
@@ -140,6 +175,7 @@ export function yieldToMain(): Promise<void> {
       const channel = new MessageChannel()
       channel.port1.onmessage = () => {
         channel.port1.close()
+        channel.port2.close()
         resolve()
       }
       channel.port2.postMessage(null)

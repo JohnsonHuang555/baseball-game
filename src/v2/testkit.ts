@@ -1,7 +1,7 @@
 // V2 測試共用的替身：可控制的時鐘、共用的假 Web Locks、會寫入失敗的儲存。只給測試和效能量測用
 import type { Clock } from './application/idleEngine'
-import type { SettlementDeps } from './application/settlementService'
-import { ClubRepository, InProcessLock, MemoryStorage, WebLocksClubLock, type KeyValueStorage, type LockManagerLike } from './infrastructure/clubRepository'
+import { MemoryStorage, type KeyValueStorage, type LockManagerLike } from './infrastructure/clubRepository'
+import { createV2Deps, type V2Deps } from './infrastructure/composition'
 
 export const MINUTE = 60 * 1000
 export const HOUR = 60 * MINUTE
@@ -51,12 +51,10 @@ export class FlakyStorage implements KeyValueStorage {
 /** 讓出控制權但不用計時器：只等一個微任務，測試裡兩個「分頁」會交錯執行 */
 export const microYield = () => Promise.resolve()
 
-/** 一個「分頁」：自己的 repository 與時鐘，儲存與鎖可以跟其他分頁共用 */
-export function tab(storage: KeyValueStorage, clock: Clock, locks?: LockManagerLike): SettlementDeps & { store: ClubRepository } {
-  return {
-    store: new ClubRepository(storage),
-    lock: locks ? new WebLocksClubLock(locks) : new InProcessLock(),
-    clock,
-    batch: { yieldControl: microYield, chunkSize: 4 },
-  }
+/**
+ * 一個「分頁」：用正式的組裝入口建立依賴，只換掉儲存、時鐘、navigator.locks 與讓出方式。
+ * 儲存與鎖可以跟其他分頁共用；不給 locks 就是不支援 Web Locks 的瀏覽器
+ */
+export function tab(storage: KeyValueStorage, clock: Clock, locks?: LockManagerLike): V2Deps {
+  return createV2Deps({ storage, clock, navigator: locks ? { locks } : {}, batch: { yieldControl: microYield, chunkSize: 4 } })
 }

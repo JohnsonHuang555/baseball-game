@@ -156,20 +156,33 @@ export function settleIdle(club: ClubSaveV3, outcomes: readonly MatchOutcome[], 
 
 export interface ClaimOutcome {
   club: ClubSaveV3
+  /** 這次（或重送時，原本那次）領到的數量 */
   claimed: Resources
-  /** 這個領取編號之前已經領過 */
+  /** 這個序號之前已經處理過，這次沒有入帳 */
   duplicate: boolean
 }
 
-/** 領取：把未領取的收益全部搬進球團資產。同一個 claimId 重送不會再入帳；沒有東西可領就是 0 */
-export function claimRewards(club: ClubSaveV3, claimId: string): ClaimOutcome {
-  if (!claimId) throw new RangeError('claimId 不能是空的')
-  if (club.economy.recentClaimIds.includes(claimId)) return { club, claimed: { funds: 0, experience: 0 }, duplicate: true }
+/**
+ * 領取：把未領取的收益全部搬進球團資產。
+ * 請求帶上讀到的 economy.nextClaimSeq：等於目前序號才入帳，序號加 1；比目前小代表已經處理過（重送、別的分頁先領了），
+ * 不入帳；比目前大代表請求來自不存在的未來狀態，直接拒絕
+ */
+export function claimRewards(club: ClubSaveV3, claimSeq: number): ClaimOutcome {
+  if (!Number.isSafeInteger(claimSeq) || claimSeq < 0) throw new RangeError(`領取序號不合法：${claimSeq}`)
+  const { economy } = club
+  if (claimSeq < economy.nextClaimSeq) {
+    const original = economy.lastClaim?.seq === claimSeq ? { ...economy.lastClaim.claimed } : { funds: 0, experience: 0 }
+    return { club, claimed: original, duplicate: true }
+  }
+  if (claimSeq > economy.nextClaimSeq) {
+    throw new SettlementError('mismatch', `領取序號 ${claimSeq} 比目前的 ${economy.nextClaimSeq} 還大，請重新讀取存檔`)
+  }
   const next = structuredClone(club)
   const claimed = { ...next.economy.unclaimed }
   addTo(next.economy.assets, claimed)
   next.economy.unclaimed = { funds: 0, experience: 0 }
-  next.economy.recentClaimIds = [...next.economy.recentClaimIds, claimId].slice(-RETENTION_CONFIG.claimIds)
+  next.economy.lastClaim = { seq: claimSeq, claimed: { ...claimed } }
+  next.economy.nextClaimSeq = claimSeq + 1
   return { club: next, claimed, duplicate: false }
 }
 
@@ -252,11 +265,11 @@ export function settleDue(deps: SettlementDeps, options: { signal?: AbortSignal 
   })
 }
 
-/** 領取收益：冪等，同一個 claimId 只入帳一次 */
-export function claim(deps: Pick<SettlementDeps, 'store' | 'lock'>, claimId: string): Promise<ClaimOutcome> {
+/** 領取收益：冪等，同一個領取序號只入帳一次（序號用 club.economy.nextClaimSeq） */
+export function claim(deps: Pick<SettlementDeps, 'store' | 'lock'>, claimSeq: number): Promise<ClaimOutcome> {
   return deps.lock.run(async () => {
     const club = loadOrThrow(deps.store)
-    const out = claimRewards(club, claimId)
+    const out = claimRewards(club, claimSeq)
     if (out.duplicate) return out
     return { ...out, club: deps.store.saveClub(out.club, club.revision) }
   })

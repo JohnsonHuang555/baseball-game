@@ -24,14 +24,20 @@ export interface Resources {
 
 /**
  * 經濟：三筆分開記，避免「結算一次、領取一次」被算成兩次。
- * unclaimed：已結算、還沒領取；assets：已領取、算進球團資產；lifetime：總共賺過多少（= assets 累計領取 + unclaimed，核對用）
+ * unclaimed：已結算、還沒領取；assets：已領取、算進球團資產；lifetime：總共賺過多少。
+ * Phase 2 沒有支出，所以不變量是 assets + unclaimed = lifetime（見 economyViolations；Phase 3 加支出的調整見 ADR-0008）
  */
 export interface EconomyState {
   assets: Resources
   unclaimed: Resources
   lifetime: Resources
-  /** 最近幾次領取的編號：同一個編號重送不會再入帳 */
-  recentClaimIds: string[]
+  /**
+   * 領取序號：下一次領取必須帶這個號碼，成功後加 1。號碼比它小的請求一律當作已處理，
+   * 所以不管過了多久、領了幾次，舊請求重送都不會再入帳；存檔只多一個整數
+   */
+  nextClaimSeq: number
+  /** 上一次成功的領取：重送同一個請求時回傳當時領到的數字 */
+  lastClaim: { seq: number; claimed: Resources } | null
 }
 
 /** 放置進度：anchorMs 之前的時間已經換成比賽；nextMatchIndex 是結算游標，比它小的場次都已結算 */
@@ -125,7 +131,7 @@ export function newClub(input: NewClubInput): ClubSaveV3 {
     createdAt: input.now,
     roster: structuredClone(input.roster),
     strategy: { coach: { style: 'balanced' }, effectiveFromMatch: 0 },
-    economy: { assets: zero(), unclaimed: zero(), lifetime: zero(), recentClaimIds: [] },
+    economy: { assets: zero(), unclaimed: zero(), lifetime: zero(), nextClaimSeq: 0, lastClaim: null },
     idle: { anchorMs: input.now, nextMatchIndex: 0, lastSettledAt: null },
     record: { wins: 0, losses: 0, runsFor: 0, runsAgainst: 0 },
     recentMatches: [],
@@ -162,6 +168,23 @@ function mix(x: number): number {
 /** 這一場我方是主隊還是客隊：輪流 */
 export function userSideFor(matchIndex: number): Side {
   return matchIndex % 2 === 0 ? 'home' : 'away'
+}
+
+// ---- 帳務不變量 ----
+
+/**
+ * 經濟的不變量，回傳違反的項目（空陣列代表正常）：
+ * 1. 每筆都 ≥ 0；2. assets + unclaimed = lifetime（Phase 2 沒有支出）；
+ * 3. lastClaim 一定是上一個序號（nextClaimSeq − 1），還沒領過時 nextClaimSeq 是 0
+ */
+export function economyViolations(e: EconomyState): string[] {
+  const out: string[] = []
+  for (const k of ['funds', 'experience'] as const) {
+    if (e.assets[k] < 0 || e.unclaimed[k] < 0 || e.lifetime[k] < 0) out.push(`${k} 出現負數`)
+    if (e.assets[k] + e.unclaimed[k] !== e.lifetime[k]) out.push(`${k}：資產 ${e.assets[k]} + 未領取 ${e.unclaimed[k]} ≠ 總收益 ${e.lifetime[k]}`)
+  }
+  if (e.lastClaim === null ? e.nextClaimSeq !== 0 : e.lastClaim.seq !== e.nextClaimSeq - 1) out.push('領取序號與上一次領取對不起來')
+  return out
 }
 
 // ---- 驗證 ----
@@ -205,8 +228,16 @@ export function validateClub(value: unknown): ClubSaveV3 {
     num(r, 'funds', `economy.${key}`)
     num(r, 'experience', `economy.${key}`)
   }
-  const claims = arr(economy, 'recentClaimIds', 'economy')
-  if (!claims.every((c) => typeof c === 'string')) throw invalid('economy.recentClaimIds', '必須是字串陣列')
+  int(economy, 'nextClaimSeq', 'economy')
+  if (economy.lastClaim !== null) {
+    const last = obj(economy, 'lastClaim', 'economy')
+    int(last, 'seq', 'economy.lastClaim')
+    const claimed = obj(last, 'claimed', 'economy.lastClaim')
+    num(claimed, 'funds', 'economy.lastClaim.claimed')
+    num(claimed, 'experience', 'economy.lastClaim.claimed')
+  }
+  const violations = economyViolations(economy as unknown as EconomyState)
+  if (violations.length > 0) throw invalid('economy', `帳務對不起來：${violations.join('；')}`)
   const idle = obj(value, 'idle')
   num(idle, 'anchorMs', 'idle')
   int(idle, 'nextMatchIndex', 'idle')

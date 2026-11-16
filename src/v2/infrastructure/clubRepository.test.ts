@@ -73,6 +73,10 @@ describe('存檔讀寫', () => {
       { ...club, roster: { ...club.roster, starter: club.roster.lineup[0].player } },
       { ...club, recentMatches: [{ matchId: 'x' }] },
       { ...club, strategy: { coach: { style: 'yolo' }, effectiveFromMatch: 0 } },
+      // 帳務對不起來：資產 + 未領取 ≠ 總收益、領取序號跟上一次領取不符
+      { ...club, economy: { ...club.economy, assets: { funds: 999, experience: 0 } } },
+      { ...club, economy: { ...club.economy, nextClaimSeq: 3, lastClaim: null } },
+      { ...club, economy: { ...club.economy, recentClaimIds: [] as string[], nextClaimSeq: undefined } },
       [],
       null,
     ]
@@ -112,7 +116,7 @@ describe('存檔讀寫', () => {
     create(deps.store)
     clock.advance(HOUR)
     await settleDue(deps)
-    await claim(deps, 'c')
+    await claim(deps, 0)
     deps.store.resetClub()
     for (const [k, v] of Object.entries(v1)) expect(storage.getItem(k)).toBe(v)
     expect(storage.keys().sort()).toEqual(Object.keys(v1).sort())
@@ -136,9 +140,10 @@ describe('跨分頁', () => {
     expect(club.idle.nextMatchIndex).toBe(24)
     expect(club.record.wins + club.record.losses).toBe(24)
     expect(club.economy.lifetime.funds).toBe(club.recentMatches.reduce((s, m) => s + m.earnedFunds, 0))
-    // 同時領取：只入帳一次
-    const claims = await Promise.all([claim(a, 'tab-a'), claim(b, 'tab-b')])
-    expect(claims[0].claimed.funds + claims[1].claimed.funds).toBe(club.economy.unclaimed.funds)
+    // 兩個分頁看到同一個序號、同時領取：只入帳一次
+    const seq = club.economy.nextClaimSeq
+    const claims = await Promise.all([claim(a, seq), claim(b, seq)])
+    expect(claims.filter((c) => !c.duplicate)).toHaveLength(1)
     expect(a.store.loadClub()!.economy.assets.funds).toBe(club.economy.lifetime.funds)
   })
 

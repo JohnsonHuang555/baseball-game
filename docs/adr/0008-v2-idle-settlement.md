@@ -23,8 +23,24 @@ V2 的比賽在玩家不在的時候也要「打完」，回來時一次結算�
 
 - 第 i 場的 `matchId = clubId#i`，種子 = `deriveSeed(clubSeed, i)`，對手也由球團種子推導，所以重新整理或重跑批次都只會得到同一場比賽。
 - **結算游標** `idle.nextMatchIndex`：比它小的場次再送來就略過，跳號或種子對不起來就整批拒絕。
-- **三筆帳分開**：戰績 `record`（已結算）、`economy.unclaimed`（已結算未領取）、`economy.assets`（已領取）。結算只加 `unclaimed`，領取把 `unclaimed` 搬進 `assets`；同一個 `claimId` 重送不會再入帳。恆等式：`assets + unclaimed = lifetime`。
+- **三筆帳分開**：戰績 `record`（已結算）、`economy.unclaimed`（已結算未領取）、`economy.assets`（已領取）。結算只加 `unclaimed`，領取把 `unclaimed` 搬進 `assets`。
+- **領取序號**：領取請求要帶讀到的 `economy.nextClaimSeq`。序號等於目前值才入帳，然後加 1；比目前小就當作已經處理過（重送、別的分頁先領了），回傳當時領到的數量（`lastClaim`）；比目前大就拒絕。存檔只多一個整數和上一次的結果，不管領過幾次，任何舊請求都不會再生效。（第一版用「最近 20 個 claimId」，第 21 次之後舊的編號就會失效，所以改成序號。）
 - 狀態轉換都是不改輸入的純函式；服務層在鎖內「重新讀取 → 計算 → 存檔」，**存檔成功才回報成功**。
+
+## 帳務不變量
+
+`domain/club.ts` 的 `economyViolations` 檢查以下三點，讀檔驗證時對不起來就當作存檔損壞（`invalid-schema`），測試裡隨機交錯結算、領取、重送也要一直成立：
+
+1. 每一筆都 ≥ 0。
+2. `assets + unclaimed = lifetime`（Phase 2 沒有支出）。
+3. `lastClaim.seq = nextClaimSeq − 1`；還沒領過時 `nextClaimSeq = 0`、`lastClaim = null`。
+
+**Phase 3 加入支出時的調整**（本階段不實作）：
+
+- 新增 `economy.spent`（累計支出），不變量改成 `assets = (lifetime − unclaimed) − spent`，也就是「已領取的總額 − 已花掉的總額」。`lifetime` 仍然只代表賺到的錢，不扣支出，戰績、成就照舊看它。
+- 支出要用跟領取一樣的方式做到冪等：每筆支出帶單調遞增的序號（`nextSpendSeq`），或是帶唯一的購買編號，並以「目前序號」當游標，不要靠保留最近 N 筆編號。
+- 支出在同一把 ClubLock 裡做「重新讀取 → 檢查 `assets` 夠不夠 → 扣款 → 存檔」，不允許 `assets` 變成負數；只能花已領取的錢，不能直接花 `unclaimed`。
+- 這是存檔格式的改變：schemaVersion 升到 4，並提供 3 → 4 的轉換（`spent = 0`、`nextSpendSeq = 0`）。
 
 ## 失敗恢復
 
@@ -34,6 +50,7 @@ V2 的比賽在玩家不在的時候也要「打完」，回來時一次結算�
 - **模擬失敗**：失敗之前的場次存檔，失敗的那一場沒有任何紀錄或收益，游標停在它，然後丟 `SettlementError`。
 - **存檔失敗**：什麼都不算，丟 `ClubSaveError('write-failed')`。重試的結果跟沒失敗過一樣。
 - 換設定時，如果到期的比賽沒有全部打完，整個操作都不存。
+- **接續舊結果**（`runBatch` 的 `completed`）：舊結果的整份計畫（陣容、戰術、對手、種子、規則版本）要跟現在的計畫完全一樣；結果本身的重播設定、規則版本與 AI 設定也要跟計畫相同。只要有一項不同就丟 `BatchResumeError`，不會拿舊陣容打出來的結果，記在新陣容的帳上。比對時會先把物件的 key 排序，所以從存檔讀回來的資料也能比對。
 
 ## 多分頁
 
@@ -41,6 +58,7 @@ localStorage 沒有交易，也沒有 compare-and-swap：兩個分頁可能都�
 
 - **有 Web Locks**（`navigator.locks`，主流瀏覽器 2022 年起都支援）：結算、領取、換設定整段包在同一把跨分頁的鎖 `dice-baseball.club.v3.settlement` 裡，鎖內重新讀取最新存檔。
 - **沒有 Web Locks**：降級成分頁內互斥（`InProcessLock`，`crossTab: false`）。存檔前會重新讀取並比對 `revision`，衝突時丟 `conflict`，能擋下大部分重複結算；但「比對」和「寫入」之間仍可能被別的分頁插隊，所以**不宣稱跨分頁安全**。UI 看到 `crossTab: false` 時應該限制成單一可寫分頁（例如提示「請關閉其他分頁」，其他分頁只讀）。
+- **建立與重設球團**也走同一把鎖：UI 一律用 `application/clubLifecycle.ts` 的 `createClubSafely`、`resetClubSafely`，回傳值會帶 `crossTab`。`ClubRepository.createClub`、`resetClub` 是沒有上鎖的底層操作，只給這兩個入口使用。有 Web Locks 時，重設會等正在進行的結算存完才刪，刪掉的球團不會被寫回來；沒有 Web Locks 時，結算存檔前的 revision 檢查會發現球團已經不在（或已經被重新建立），丟 `conflict`，一樣能擋下大部分情況，但不保證。
 - 不用自製的 localStorage 鎖（寫一個時間戳當鎖）：它本身就有同樣的競爭問題，只會讓人誤以為安全。
 
 **IndexedDB**：readwrite 交易在同一個物件存放區上會被瀏覽器序列化，可以在交易裡做真正的 compare-and-swap。但模擬是非同步分批執行的，不能放在交易裡（交易會在事件迴圈閒下來時自動提交），所以還是得「交易外計算、交易內比對 revision 後寫入」；而且要處理非同步 API、schema 升級，測試也要另外裝 fake-indexeddb。Phase 2 的存檔大約 50 KB，Web Locks 已經足夠；之後如果要保存大量完整 replay，再把 replay 封存移到 IndexedDB。
@@ -52,9 +70,13 @@ localStorage 沒有交易，也沒有 compare-and-swap：兩個分頁可能都�
 | 永久 | 球團、球員、戰術、資產、未領取、總收益、戰績、結算游標 | 一直保留 |
 | 一段時間 | 近期比賽摘要（含最多 3 個精彩事件） | 最近 50 場 |
 | 選擇性 | 完整 MatchReplay（含雙方陣容與指令） | 最近 3 場 |
-| 防重送 | 領取編號 | 最近 20 個 |
+| 防重送 | 領取序號與上一次領取的結果 | 一個整數，不會成長 |
 
 近期比賽滿了之後，存檔大約維持在 50 KB，不會隨場次成長（有測試驗證）。
+
+## 依賴組裝
+
+`infrastructure/composition.ts` 的 `createV2Deps()` 是唯一的組裝入口：localStorage、Web Locks（不支援時降級）、系統時間，以及批次每 `BATCH_CONFIG.chunkSize` 場用 `yieldToMain` 讓出主執行緒。即使有人繞過入口直接呼叫 `runBatch`，預設也會讓出（`yieldControl` 沒給就是 `yieldToMain`；Web Worker 裡給 `null` 才不讓出）。測試用 `createV2Deps` 的覆寫參數，換成可控制的時鐘、儲存與讓出函式。
 
 ## 效能（`npm run bench:v2:idle`）
 

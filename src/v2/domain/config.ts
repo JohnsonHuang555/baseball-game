@@ -27,8 +27,6 @@ export const RETENTION_CONFIG = {
   highlightsPerMatch: 3,
   /** 完整的比賽 replay（含雙方陣容，一份約 10 KB） */
   replays: 3,
-  /** 記住最近幾次領取的編號，讓重送的領取不會重複入帳 */
-  claimIds: 20,
 } as const
 
 /** 批次模擬：每打幾場就讓出一次主執行緒 */

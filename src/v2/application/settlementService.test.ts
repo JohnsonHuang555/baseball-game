@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { generateRoster } from '../../sim/generate'
 import { Rng } from '../../sim/rng'
-import { matchIdFor, type ClubSaveV3 } from '../domain/club'
+import { economyViolations, matchIdFor, type ClubSaveV3 } from '../domain/club'
 import { ClubSaveError, MemoryStorage } from '../infrastructure/clubRepository'
 import { FlakyStorage, HOUR, MINUTE, ManualClock, T0, tab } from '../testkit'
 import { planMatches, runBatch, type MatchPlan } from './batchRunner'
@@ -35,7 +35,7 @@ describe('冪等結算（純函式）', () => {
     const before = JSON.stringify(club)
     const { outcomes } = await runBatch(planMatches(club, 0, 3))
     settleOutcomes(club, outcomes, T0)
-    claimRewards(club, 'c1')
+    claimRewards(club, 0)
     applySettingsChange(club, { coach: { style: 'balanced', params: { stealMin: 0.9 } } })
     expect(JSON.stringify(club)).toBe(before)
   })
@@ -64,7 +64,9 @@ describe('冪等結算（純函式）', () => {
 })
 
 describe('領取收益', () => {
-  it('結算一次、領取一次只算一次；重複領取不會增加資源', async () => {
+  const seq = (deps: ReturnType<typeof tab>) => deps.store.loadClub()!.economy.nextClaimSeq
+
+  it('結算一次、領取一次只算一次；同一個序號重送不會增加資源', async () => {
     const { deps, clock } = createIn()
     clock.advance(HOUR)
     const report = await settleDue(deps)
@@ -72,27 +74,66 @@ describe('領取收益', () => {
     expect(report.club.economy.assets.funds).toBe(0)
     expect(report.club.economy.unclaimed.funds).toBe(earned)
 
-    const first = await claim(deps, 'claim-1')
+    const first = await claim(deps, 0)
     expect(first.claimed.funds).toBe(earned)
-    for (let i = 0; i < 5; i++) expect((await claim(deps, 'claim-1')).duplicate).toBe(true)
-    const other = await claim(deps, 'claim-2')
-    expect(other.claimed).toEqual({ funds: 0, experience: 0 })
+    for (let i = 0; i < 5; i++) {
+      const again = await claim(deps, 0)
+      expect(again.duplicate).toBe(true)
+      // 重送回傳原本那次領到的數字，方便呼叫端顯示
+      expect(again.claimed.funds).toBe(earned)
+    }
+    // 下一個序號：沒有新收益，領到 0
+    expect((await claim(deps, 1)).claimed).toEqual({ funds: 0, experience: 0 })
 
     const c = deps.store.loadClub()!
     expect(c.economy.assets.funds).toBe(earned)
     expect(c.economy.unclaimed).toEqual({ funds: 0, experience: 0 })
     expect(c.economy.lifetime.funds).toBe(earned)
+    expect(c.economy.nextClaimSeq).toBe(2)
+  })
+
+  it('領取超過 20 次之後，重送任何一個舊請求都不會再入帳', async () => {
+    const { deps, clock } = createIn()
+    const sent: number[] = []
+    for (let i = 0; i < 30; i++) {
+      clock.advance(7 * MINUTE)
+      await settleDue(deps)
+      const s = seq(deps)
+      sent.push(s)
+      await claim(deps, s)
+    }
+    clock.advance(20 * MINUTE)
+    await settleDue(deps)
+    const before = deps.store.loadClub()!
+    expect(before.economy.unclaimed.funds).toBeGreaterThan(0)
+    // 最舊的請求（第 0 號）到最新的都重送一遍：未領取的收益原封不動，資產不變
+    for (const s of sent) expect((await claim(deps, s)).duplicate).toBe(true)
+    const after = deps.store.loadClub()!
+    expect(after.economy).toEqual(before.economy)
+    expect(after.revision).toBe(before.revision)
+    // 存檔裡領取相關的資料不隨次數成長
+    expect(JSON.stringify(after.economy).length).toBeLessThan(400)
+  })
+
+  it('序號比目前大：拒絕，不入帳', async () => {
+    const { deps, clock } = createIn()
+    clock.advance(HOUR)
+    await settleDue(deps)
+    await expect(claim(deps, 5)).rejects.toThrow(SettlementError)
+    expect(() => claimRewards(deps.store.loadClub()!, -1)).toThrow(RangeError)
+    expect(deps.store.loadClub()!.economy.assets.funds).toBe(0)
   })
 
   it('資產 + 未領取 永遠等於總收益', async () => {
     const { deps, clock } = createIn()
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       clock.advance(23 * MINUTE)
       await settleDue(deps)
-      if (i % 2) await claim(deps, `c${i}`)
-      const { economy } = deps.store.loadClub()!
-      expect(economy.assets.funds + economy.unclaimed.funds).toBe(economy.lifetime.funds)
-      expect(economy.assets.experience + economy.unclaimed.experience).toBe(economy.lifetime.experience)
+      if (i % 2) await claim(deps, seq(deps))
+      // 偶爾重送舊序號
+      if (i % 3 === 0) await claim(deps, Math.max(0, seq(deps) - 1)).catch(() => undefined)
+      const club = deps.store.loadClub()!
+      expect(economyViolations(club.economy)).toEqual([])
     }
   })
 })
