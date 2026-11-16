@@ -7,6 +7,7 @@ import { Rng } from '../../sim/rng'
 import { RULES_VERSION, type GameSetup, type Side } from '../../sim/game'
 import { SEED_SALT, deriveSeed, matchIdFor, userSideFor, type ClubSaveV3 } from '../domain/club'
 import { BATCH_CONFIG } from '../domain/config'
+import { stableJson } from '../domain/fingerprint'
 import { runMatch, type MatchAi, type MatchResult } from './matchRunner'
 
 /** 一場比賽的計畫：開打前就把球團的陣容與戰術複製一份，之後球團再怎麼改都不影響這一場 */
@@ -143,15 +144,6 @@ function resumeMismatch(previous: MatchOutcome, plan: MatchPlan): string | null 
   if (stableJson(replay.setup) !== stableJson(plan.setup)) return '結果的比賽設定與計畫不同'
   if (stableJson(replay.ai) !== stableJson(plan.ai)) return '結果的 AI 設定與計畫不同'
   return null
-}
-
-/** 跟 JSON.stringify 一樣（略過 undefined），但物件的 key 排序，從存檔讀回來的資料也能比對 */
-function stableJson(value: unknown): string {
-  return JSON.stringify(value, (_key, v: unknown) =>
-    v && typeof v === 'object' && !Array.isArray(v)
-      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
-      : v,
-  )
 }
 
 function finish(status: BatchRun['status'], plans: readonly MatchPlan[], outcomes: MatchOutcome[]): BatchRun {

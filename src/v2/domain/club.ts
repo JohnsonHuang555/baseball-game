@@ -5,6 +5,8 @@ import type { Side } from '../../sim/game'
 import type { Roster } from '../../sim/types'
 import type { CoachParams, CoachStyle } from '../application/autoCoach'
 import type { MatchReplay } from '../application/matchRunner'
+import { lineupIssues } from './lineup'
+import { coachParamIssues } from './tactics'
 
 export const CLUB_SCHEMA_VERSION = 3
 
@@ -217,10 +219,14 @@ export function validateClub(value: unknown): ClubSaveV3 {
   num(value, 'createdAt')
   int(value, 'revision')
   validateRoster(obj(value, 'roster'), 'roster')
+  const rosterIssues = lineupIssues(value.roster as unknown as PersistentRoster)
+  if (rosterIssues.length) throw invalid('roster', rosterIssues.join('；'))
   const strategy = obj(value, 'strategy')
   const coach = obj(strategy, 'coach', 'strategy')
   if (coach.style !== 'balanced') throw invalid('strategy.coach.style', '不支援的戰術風格')
   if (coach.params !== undefined && !isObj(coach.params)) throw invalid('strategy.coach.params', '必須是物件')
+  const paramIssues = coach.params === undefined ? [] : coachParamIssues(coach.params as Partial<CoachParams>)
+  if (paramIssues.length) throw invalid('strategy.coach.params', paramIssues.join('；'))
   int(strategy, 'effectiveFromMatch', 'strategy')
   const economy = obj(value, 'economy')
   for (const key of ['assets', 'unclaimed', 'lifetime']) {

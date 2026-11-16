@@ -17,7 +17,10 @@ import {
   type TeamStrategies,
 } from '../domain/club'
 import { RETENTION_CONFIG } from '../domain/config'
+import { settingsVersions, type SettingsVersions } from '../domain/fingerprint'
+import { assertValidLineup } from '../domain/lineup'
 import { rewardFor } from '../domain/rewards'
+import { coachParamIssues } from '../domain/tactics'
 import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome } from './batchRunner'
 import { advanceAnchor, dueMatches, type Clock, type DueMatches } from './idleEngine'
 
@@ -35,7 +38,7 @@ export interface ClubLock {
   run<T>(fn: () => Promise<T>): Promise<T>
 }
 
-export type SettlementErrorCode = 'no-club' | 'out-of-order' | 'mismatch' | 'simulation-failed'
+export type SettlementErrorCode = 'no-club' | 'out-of-order' | 'mismatch' | 'simulation-failed' | 'settings-conflict'
 
 export class SettlementError extends Error {
   override name = 'SettlementError'
@@ -196,6 +199,13 @@ export interface SettingsChange {
  * 呼叫前應該先把已經到時間的比賽結算掉（服務層的 updateSettings 會做），否則那些場次也會用新設定
  */
 export function applySettingsChange(club: ClubSaveV3, change: SettingsChange): ClubSaveV3 {
+  // 先驗證再動手：不合法的陣容、戰術參數不會進到存檔
+  if (change.roster) assertValidLineup(change.roster)
+  if (change.coach) {
+    if (change.coach.style !== 'balanced') throw new RangeError(`不支援的戰術風格：${change.coach.style}`)
+    const issues = coachParamIssues(change.coach.params ?? {})
+    if (issues.length) throw new RangeError(`戰術設定不合法：${issues.join('；')}`)
+  }
   const next = structuredClone(club)
   if (change.roster) next.roster = structuredClone(change.roster)
   if (change.coach) next.strategy.coach = structuredClone(change.coach)
@@ -277,11 +287,18 @@ export function claim(deps: Pick<SettlementDeps, 'store' | 'lock'>, claimSeq: nu
 
 /**
  * 換陣容、戰術：先用舊設定把到期的比賽打完，再套用新設定，兩件事一起存檔。
- * 到期的比賽沒全部打完（失敗）就整個不改，丟錯
+ * 到期的比賽沒全部打完（失敗）就整個不改，丟錯。
+ * expected 是草稿建立時的設定版本：在鎖內跟存檔目前的版本比，不一致（別的分頁已經改過）就丟 settings-conflict，
+ * 不會用舊草稿覆蓋別人的修改。只比這次要改的那一項（改陣容時不管戰術有沒有被改）
  */
-export function updateSettings(deps: SettlementDeps, change: SettingsChange): Promise<ClubSaveV3> {
+export function updateSettings(deps: SettlementDeps, change: SettingsChange, expected: Partial<SettingsVersions> = {}): Promise<ClubSaveV3> {
   return deps.lock.run(async () => {
     const club = loadOrThrow(deps.store)
+    const current = settingsVersions(club)
+    const stale = (['roster', 'coach'] as const).filter((k) => (k === 'roster' ? change.roster : change.coach) && expected[k] !== undefined && expected[k] !== current[k])
+    if (stale.length) {
+      throw new SettlementError('settings-conflict', `${stale.map((k) => (k === 'roster' ? '陣容' : '戰術')).join('、')}已經在其他地方被修改，請重新載入後再編輯`)
+    }
     const now = deps.clock.now()
     const { next, batch } = await settleDueUnsaved(club, now, deps)
     if (batch.status !== 'completed') {

@@ -7,7 +7,7 @@ import { RETENTION_CONFIG } from '../domain/config'
 import { FakeLockManager, FlakyStorage, HOUR, ManualClock, T0, tab } from '../testkit'
 import { CLUB_STORAGE_KEY, ClubRepository, ClubSaveError, InProcessLock, MemoryStorage, WebLocksClubLock, createClubLock } from './clubRepository'
 
-const create = (repo: ClubRepository) => repo.createClub({ clubName: '測試球團', clubSeed: 11, clubId: 'club-x', now: T0 })
+const create = (repo: Pick<ClubRepository, 'createClub'>) => repo.createClub({ clubName: '測試球團', clubSeed: 11, clubId: 'club-x', now: T0 })
 
 function expectCode(fn: () => unknown, code: string): void {
   try {
