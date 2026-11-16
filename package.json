@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "preview": "vite preview",
-    "bench:v2": "vite-node scripts/bench-v2.ts"
+    "bench:v2": "vite-node scripts/bench-v2.ts",
+    "bench:v2:idle": "vite-node scripts/bench-v2-idle.ts"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
