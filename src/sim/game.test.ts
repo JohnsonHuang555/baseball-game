@@ -1072,7 +1072,8 @@ describe('球種特性與新球種', () => {
     expect(awayRuns((p) => ({ ...p, pitchTraits: Object.fromEntries(ALL.map((x) => [x, 'sharp'])) }))).toBeLessThan(base)
     expect(awayRuns((p) => ({ ...p, pitchTraits: Object.fromEntries(ALL.map((x) => [x, 'heavy'])) }))).toBeLessThan(base)
     expect(awayRuns((p) => ({ ...p, extraPitches: ALL.filter((x) => !repertoire(p).includes(x)) }))).toBeLessThan(base)
-  })
+    // 一共跑 4,000 場，單獨跑就要將近 5 秒，跟其他測試一起跑會超過預設的 5 秒逾時
+  }, 30_000)
 })
 
 describe('差一步的關鍵打席', () => {
