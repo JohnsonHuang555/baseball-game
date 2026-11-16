@@ -11,7 +11,7 @@ export type SideAi = { kind: 'autoCoach'; style?: CoachStyle; params?: Partial<C
 export type MatchAi = Record<Side, SideAi>
 
 export interface MatchOptions {
-  /** 最多推進幾步（一步約一球）；超過就丟 MatchStepLimitError，不會產生比分 */
+  /** 最多推進幾步（一步約一球），必須是大於 0 的安全整數；超過就丟 MatchStepLimitError，不會產生比分 */
   maxSteps?: number
 }
 
@@ -42,7 +42,10 @@ export interface Highlight {
   /** 換投時被換下的投手 */
   outId?: string
   runs: number
-  /** 這一步結束後的比分 */
+  /**
+   * 這個事件發生當下的比分（已經算進這個事件本身的得分）：全壘打、安打、再見是打完那一球的比分，
+   * 換投是換投那一刻的比分。由事件流逐一累加，不是整步推進完才讀的比分
+   */
   score: { home: number; away: number }
 }
 
@@ -119,18 +122,29 @@ export interface MatchRun {
 /** 自動打完一整場，連同打完的 Game 一起回傳 */
 export function runMatchWithGame(setup: GameSetup, ai: MatchAi = defaultAi(setup.userSide), options: MatchOptions = {}): MatchRun {
   const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS
+  // NaN、Infinity、0、負數、小數都不行：NaN 會讓上限永遠不成立，Infinity 等於沒有上限
+  if (!Number.isSafeInteger(maxSteps) || maxSteps <= 0) {
+    throw new MatchConfigError(`maxSteps 必須是大於 0 的安全整數：${maxSteps}`)
+  }
   const resolved = resolveSetup(setup, ai)
   const game = new Game(resolved)
   const sideAi = ai[resolved.userSide] as Extract<SideAi, { kind: 'autoCoach' }>
   const coach = new AutoCoach(createPolicy(sideAi.style, sideAi.params))
-  const highlights = new HighlightCollector(game)
+  const highlights = new HighlightCollector({ inning: game.inning, half: game.half, score: game.score })
+  const collect = (events: readonly GameEvent[]) => {
+    highlights.collect(events)
+    // 事件累加出來的比分一定要跟引擎一致；不一致代表事件流少了得分，與其給錯的精彩事件不如直接報錯
+    if (highlights.score.home !== game.score.home || highlights.score.away !== game.score.away) {
+      throw new Error(`精彩事件的比分 ${highlights.score.away}:${highlights.score.home} 跟比賽 ${game.score.away}:${game.score.home} 對不起來`)
+    }
+  }
 
   while (!game.over) {
     if (game.stepIndex >= maxSteps) {
       throw new MatchStepLimitError(maxSteps, { inning: game.inning, half: game.half, score: { ...game.score } })
     }
-    highlights.collect(coach.act(game))
-    highlights.collect(game.step())
+    collect(coach.act(game))
+    collect(game.step())
   }
 
   const result: MatchResult = {
@@ -174,24 +188,27 @@ function playerStats(game: Game): PlayerStat[] {
 }
 
 /**
- * 從事件流挑出精彩事件。事件不帶局數，所以自己跟著 halfInningEnd 推進局數；
- * 同一步裡半局結束之後的事件（例如下個半局開始時的換投）算在下個半局
+ * 從事件流挑出精彩事件。事件不帶局數和比分，所以自己跟著事件推進：
+ * halfInningEnd 換半局（同一步裡半局結束之後的事件，例如下個半局開始時的換投，算在下個半局），
+ * play 的 runs 加到當時的進攻方，每個精彩事件記的就是它發生當下的比分
  */
-class HighlightCollector {
+export class HighlightCollector {
   readonly list: Highlight[] = []
+  readonly score: { home: number; away: number }
   private inning: number
   private half: Half
 
-  constructor(private readonly game: Game) {
-    this.inning = game.inning
-    this.half = game.half
+  constructor(start: { inning: number; half: Half; score: { home: number; away: number } }) {
+    this.inning = start.inning
+    this.half = start.half
+    this.score = { ...start.score }
   }
 
   collect(events: readonly GameEvent[]): void {
-    const game = this.game
     events.forEach((e, i) => {
       const batting: Side = this.half === 'top' ? 'away' : 'home'
-      const base = { inning: this.inning, half: this.half, score: { ...game.score } }
+      if (e.type === 'play') this.score[batting] += e.runs
+      const base = { inning: this.inning, half: this.half, score: { ...this.score } }
       if (e.type === 'halfInningEnd') {
         if (e.half === 'top') this.half = 'bottom'
         else {

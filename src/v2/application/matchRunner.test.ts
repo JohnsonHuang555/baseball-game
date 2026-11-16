@@ -1,12 +1,22 @@
 // @vitest-environment node
 /// <reference types="vite/client" />
 import { describe, expect, it } from 'vitest'
-import { Game, RULES_VERSION, replay, type GameSetup, type Side } from '../../sim/game'
+import { Game, RULES_VERSION, replay, type GameEvent, type GameSetup, type PlayKind, type Side } from '../../sim/game'
 import { generateTeam } from '../../sim/generate'
 import { Rng } from '../../sim/rng'
 import type { Pitcher, Team } from '../../sim/types'
 import { AutoCoach, BalancedPolicy, alignmentFor } from './autoCoach'
-import { MatchConfigError, MatchStepLimitError, defaultAi, runMatch, runMatchWithGame, type MatchAi, type MatchResult } from './matchRunner'
+import {
+  DEFAULT_MAX_STEPS,
+  HighlightCollector,
+  MatchConfigError,
+  MatchStepLimitError,
+  defaultAi,
+  runMatch,
+  runMatchWithGame,
+  type MatchAi,
+  type MatchResult,
+} from './matchRunner'
 
 function setup(seed: number, userSide: Side = 'home'): GameSetup {
   return { home: generateTeam(new Rng(seed * 2 + 1)), away: generateTeam(new Rng(seed * 2 + 2)), seed, userSide }
@@ -193,9 +203,72 @@ describe('自動教練', () => {
   })
 })
 
+describe('精彩事件的比分', () => {
+  const play = (kind: PlayKind, runs: number, batterId = 'b'): GameEvent => ({ type: 'play', kind, batterId, ball: null, moves: [], runs, notation: null })
+
+  it('記的是事件發生當下的比分，不是整批事件處理完的比分', () => {
+    const c = new HighlightCollector({ inning: 1, half: 'top', score: { home: 0, away: 0 } })
+    // 同一批事件裡有兩次得分、中間換投、換半局後再得分
+    c.collect([
+      play('homeRun', 2, 'a1'),
+      { type: 'substitution', side: 'home', kind: 'pitcher', inId: 'p2', outId: 'p1' },
+      play('double', 2, 'a2'),
+      { type: 'halfInningEnd', inning: 1, half: 'top' },
+      play('homeRun', 1, 'h1'),
+    ])
+    expect(c.list.map((h) => [h.kind, h.side, h.half, h.score])).toEqual([
+      ['homeRun', 'away', 'top', { home: 0, away: 2 }],
+      ['pitchingChange', 'home', 'top', { home: 0, away: 2 }],
+      ['clutchHit', 'away', 'top', { home: 0, away: 4 }],
+      ['homeRun', 'home', 'bottom', { home: 1, away: 4 }],
+    ])
+    expect(c.score).toEqual({ home: 1, away: 4 })
+  })
+
+  it('再見的比分就是最後比分；比分依時間只增不減，且已經算進這次的得分', () => {
+    for (let i = 1; i <= 200; i++) {
+      const r = runMatch(setup(i))
+      let prev = { home: 0, away: 0 }
+      for (const h of r.highlights) {
+        expect(h.score.home).toBeGreaterThanOrEqual(prev.home)
+        expect(h.score.away).toBeGreaterThanOrEqual(prev.away)
+        expect(h.score.home).toBeLessThanOrEqual(r.score.home)
+        expect(h.score.away).toBeLessThanOrEqual(r.score.away)
+        if (h.kind === 'homeRun' || h.kind === 'clutchHit') expect(h.score[h.side]).toBeGreaterThanOrEqual(h.runs)
+        if (h.kind === 'walkOff') expect(h.score).toEqual(r.score)
+        prev = h.score
+      }
+    }
+  })
+
+  it('每一個得分事件的比分，都等於 V1 重播到那一步的比分', () => {
+    for (let i = 1; i <= 50; i++) {
+      const r = runMatch(setup(i))
+      // 照 V1 重播，記下每個全壘打（打者、局數、半局）當下的比分
+      const game = new Game(r.replay.setup)
+      const expected: { home: number; away: number }[] = []
+      let c = 0
+      while (!game.over) {
+        while (c < r.replay.commands.length && r.replay.commands[c].stepIndex === game.stepIndex) game.issue(r.replay.commands[c++].tactic)
+        for (const e of game.step()) if (e.type === 'play' && e.kind === 'homeRun') expected.push({ ...game.score })
+      }
+      expect(r.highlights.filter((h) => h.kind === 'homeRun').map((h) => h.score)).toEqual(expected)
+    }
+  })
+})
+
 describe('錯誤處理', () => {
   it('超過最大步數就丟錯，不會默默給比分', () => {
     expect(() => runMatch(setup(1), undefined, { maxSteps: 50 })).toThrow(MatchStepLimitError)
+    expect(() => runMatch(setup(1), undefined, { maxSteps: 1 })).toThrow(MatchStepLimitError)
+  })
+
+  it('maxSteps 必須是大於 0 的安全整數', () => {
+    for (const maxSteps of [NaN, Infinity, -Infinity, -1, 0, -0, 1.5, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => runMatch(setup(1), undefined, { maxSteps }), String(maxSteps)).toThrow(MatchConfigError)
+    }
+    expect(runMatch(setup(1), undefined, { maxSteps: DEFAULT_MAX_STEPS }).steps).toBeGreaterThan(0)
+    expect(runMatch(setup(1), undefined, { maxSteps: Number.MAX_SAFE_INTEGER }).steps).toBeGreaterThan(0)
   })
 
   it('雙方 AI 設定不合法、規則版本不支援時丟錯', () => {

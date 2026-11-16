@@ -62,18 +62,21 @@ const QUEUED_TYPES: ReadonlySet<Tactic['type']> = new Set(['steal', 'bunt', 'hit
 
 /**
  * 自動教練：負責「什麼時候問策略、問到的指令能不能下」，判斷本身交給 CoachPolicy。
- * 每個打席開始時（還沒投球）只決策一次；每個指令先確認在 availableTactics() 裡、
+ * 每個打席開始時（還沒投球）只決策一次（打席以局數、上下半局、打席序號識別）；每個指令先確認在 availableTactics() 裡、
  * 同一打席不重複、同時最多排一個戰術，才交給 game.issue()
  */
 export class AutoCoach {
-  private decidedPa = -1
+  /** 上一次決策的打席：局數、上下半局加上打席序號 */
+  private decided: string | null = null
 
   constructor(readonly policy: CoachPolicy) {}
 
   /** 每次 game.step() 之前呼叫；回傳這次下的指令產生的事件（換人等） */
   act(game: Game): GameEvent[] {
-    if (game.over || game.balls + game.strikes > 0 || game.paIndex === this.decidedPa) return []
-    this.decidedPa = game.paIndex
+    // 不能只看 paIndex：盜壘被阻殺成第三個出局時半局換了，paIndex 卻沒變，新半局的第一個打席會被跳過
+    const atBat = `${game.inning}-${game.half}-${game.paIndex}`
+    if (game.over || game.balls + game.strikes > 0 || atBat === this.decided) return []
+    this.decided = atBat
     const events: GameEvent[] = []
     const issued: Tactic[] = []
     for (let i = 0; i < MAX_ACTIONS_PER_PA && !game.over; i++) {
