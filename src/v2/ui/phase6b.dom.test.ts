@@ -50,6 +50,7 @@ const stage = (): ReplayStage => {
     align: (a) => ((alignment = a), anim()),
     sync: () => undefined,
     pitch: anim,
+    pitchResult: anim,
     play: anim,
     run: anim,
     cancel: () => undefined,
@@ -97,7 +98,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function watch(s: Scan, at: number, o: { stopAt?: number; reduced?: boolean } = {}) {
+function watch(s: Scan, at: number, o: { stopAt?: number; reduced?: boolean; stage?: (now: () => number) => () => ReplayStage } = {}) {
   const c = clock(at)
   if (o.stopAt !== undefined) c.stopAt = o.stopAt
   const recs: Rec[] = []
@@ -107,7 +108,7 @@ function watch(s: Scan, at: number, o: { stopAt?: number; reduced?: boolean } = 
     title: 'test',
     source: source(s),
     clock: c,
-    createStage: stage,
+    createStage: o.stage ? o.stage(() => c.now()) : stage,
     timeScale: 0,
     reducedMotion: o.reduced ?? false,
     sound: (name) => sounds.push({ t: c.now(), name }),
@@ -335,5 +336,131 @@ describe('資料安全：觀戰只是播放', () => {
     const after = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
     for (const key of ['revision', 'record', 'economy', 'league', 'players', 'roster', 'idle', 'liveMatch', 'recentMatches', 'onboarding']) expect(after[key]).toEqual(before[key])
     expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(JSON.stringify(before))
+  })
+})
+
+// ---- PR #11 review：投球動畫的前段（中性）與結果分開 ----
+
+interface StageCall {
+  t: number
+  kind: 'approach' | 'result' | 'play' | 'run' | 'cancel'
+  arg: string
+}
+/** 記錄每一次動畫呼叫（階段、參數、時間）的球場替身 */
+function recordingStage(calls: StageCall[]) {
+  return (now: () => number) => (): ReplayStage => {
+    let alignment: ReplayStage['alignment'] = 'normal'
+    const rec = (kind: StageCall['kind'], arg = '') => {
+      calls.push({ t: now(), kind, arg })
+      return Promise.resolve()
+    }
+    return {
+      elements: [document.createElement('canvas')],
+      setColors: () => undefined,
+      align: (a) => ((alignment = a), Promise.resolve()),
+      sync: () => undefined,
+      // 前段只拿得到時間、球種、投手：參數裡沒有結果
+      pitch: (...args: unknown[]) => rec('approach', String(args.length)),
+      pitchResult: (result) => rec('result', result),
+      play: () => rec('play'),
+      run: () => rec('run'),
+      cancel: () => void rec('cancel'),
+      resize: () => undefined,
+      get alignment() {
+        return alignment
+      },
+    }
+  }
+}
+type PitchEv = Extract<import('../../sim/game').GameEvent, { type: 'pitch' }>
+const pitchOf = (s: Scan, j: number) => s.live.timeline.frames[j].events.find((e): e is PitchEv => e.type === 'pitch') ?? null
+
+describe('投球動畫：前段中性、結果在提交後（PR #11 review）', () => {
+  it('整場：壞球、好球、揮空、界外、擊球進場、三振、安打、全壘打的結果動畫都在那一格提交之後，而且每一球只播一次；前段沒有結果參數', async () => {
+    const s = find((x) => {
+      const kinds = new Set(x.live.timeline.frames.flatMap((f) => f.events.flatMap((e) => (e.type === 'pitch' ? [e.result] : e.type === 'play' ? [e.kind] : []))))
+      return ['ball', 'calledStrike', 'swingingStrike', 'foul', 'inPlay', 'strikeout', 'single', 'homeRun'].every((k) => kinds.has(k as never))
+    })
+    const calls: StageCall[] = []
+    watch(s, START, { stage: recordingStage(calls) })
+    await untilEnded()
+    const frames = s.live.timeline.frames
+    // 前段：一律只有 3 個參數（時間、球種、投手），沒有結果；而且屬於還沒提交的那一格
+    for (const c of calls.filter((x) => x.kind === 'approach')) {
+      expect(c.arg).toBe('3')
+      const p = committed(s, c.t)
+      expect(pitchOf(s, p)).not.toBeNull()
+    }
+    // 結果：屬於已經提交的最後一格，結果跟那一球一致；依序、每一球恰好一次
+    const results = calls.filter((x) => x.kind === 'result')
+    const owners = results.map((c) => committed(s, c.t) - 1)
+    results.forEach((c, i) => {
+      expect(owners[i]).toBeGreaterThanOrEqual(0)
+      expect(c.t).toBeGreaterThanOrEqual(START + s.live.schedule.endOf(owners[i]))
+      expect(c.arg).toBe(pitchOf(s, owners[i])!.result)
+    })
+    const pitchFrames = frames.map((_, j) => j).filter((j) => pitchOf(s, j))
+    expect(owners).toEqual(pitchFrames)
+    // 擊球（安打、全壘打）的飛行也在提交之後
+    for (const c of calls.filter((x) => x.kind === 'play')) {
+      const j = committed(s, c.t) - 1
+      expect(frames[j].events.some((e) => e.type === 'play')).toBe(true)
+      expect(c.t).toBeGreaterThanOrEqual(START + s.live.schedule.endOf(j))
+    }
+    // 每一種結果都實際出現過
+    expect(new Set(results.map((c) => c.arg))).toEqual(new Set(['ball', 'calledStrike', 'swingingStrike', 'foul', 'inPlay']))
+  })
+
+  for (const want of ['foul', 'ball', 'swingingStrike', 'calledStrike'] as const) {
+    it(`${want}：提交前 1 毫秒還沒有結果動畫；提交後才播出 ${want}`, async () => {
+      const s = scan(3)
+      const j = s.live.timeline.frames.findIndex((_f, i) => i > 10 && pitchOf(s, i)?.result === want)
+      const calls: StageCall[] = []
+      const commitAt = START + s.live.schedule.endOf(j)
+      const { c } = watch(s, START + s.live.schedule.startOf(j) + 1, { stopAt: commitAt - 1, stage: recordingStage(calls) })
+      await flush(40)
+      expect(c.now()).toBe(commitAt - 1)
+      expect(calls.some((x) => x.kind === 'approach')).toBe(true)
+      expect(calls.filter((x) => x.kind === 'result')).toEqual([])
+      expect(document.querySelector('.v2-replay-last')!.textContent).not.toMatch(/好球|壞球|界外|揮棒/)
+      c.stopAt = commitAt + 1
+      for (let i = 0; i < 100 && !calls.some((x) => x.kind === 'result'); i++) await flush(2)
+      const r = calls.find((x) => x.kind === 'result')!
+      expect(r.arg).toBe(want)
+      expect(r.t).toBeGreaterThanOrEqual(commitAt)
+    })
+  }
+
+  it('中途加入：不補播加入前已經提交的那一球的結果', async () => {
+    const s = scan(1)
+    const j = s.live.timeline.frames.findIndex((_f, i) => i > 30 && pitchOf(s, i) && pitchOf(s, i - 1))
+    const calls: StageCall[] = []
+    const mid = START + (s.live.schedule.startOf(j) + s.live.schedule.endOf(j)) / 2
+    watch(s, mid, { stopAt: START + s.live.schedule.endOf(j + 1) - 1, stage: recordingStage(calls) })
+    await flush(60)
+    const results = calls.filter((x) => x.kind === 'result')
+    // 只有第 j 格（加入後才提交的那一球）的結果，沒有第 j − 1 格
+    expect(results.map((x) => committed(s, x.t) - 1)).toEqual([j])
+  })
+
+  it('暫停、繼續：同一球的結果動畫不重播；結束觀戰後不再有任何動畫', async () => {
+    const s = scan(2)
+    const calls: StageCall[] = []
+    const { c, player } = watch(s, START + 30_000, { stopAt: START + 60_000, stage: recordingStage(calls) })
+    for (let k = 0; k < 6; k++) {
+      await flush(5 + k * 3)
+      player().pause()
+      player().resume()
+    }
+    for (let i = 0; i < 400 && c.now() < START + 60_000; i++) await flush(2)
+    const owners = calls.filter((x) => x.kind === 'result').map((x) => committed(s, x.t) - 1)
+    for (let i = 1; i < owners.length; i++) expect(owners[i]).toBeGreaterThan(owners[i - 1])
+    viewer!.close()
+    viewer = null
+    const n = calls.length
+    expect(calls.at(-1)!.kind).toBe('cancel')
+    c.stopAt = Infinity
+    await flush(40)
+    expect(calls.length).toBe(n)
   })
 })

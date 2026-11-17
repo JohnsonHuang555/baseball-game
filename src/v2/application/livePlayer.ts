@@ -54,6 +54,9 @@ export interface LiveView {
 /** 最後一格的揭曉（再見、最後一個出局）在 endsAt 之後最多演多久，之後顯示勝負 */
 export const FINAL_REVEAL_MS = 4500
 
+/** 懸念段至少要有這麼多時間才演（揭曉超出預算時直接跳過，避免落後越積越多） */
+export const MIN_PRELUDE_MS = 40
+
 export class LivePlayer {
   private status: LiveStatus = 'idle'
   /** 已經提交的格數：只在時間到了才前進 */
@@ -230,8 +233,10 @@ export class LivePlayer {
           pendingReveal = -1
           if (!(await play(target - 1, controller, 'reveal', revealBudget))) return
         }
-        // 後段：這一格的懸念，球在 endOf(target) 到達本壘
-        if (!(await play(target, controller, 'prelude', schedule.endOf(target) - (this.clock.now() - startsAt)))) return
+        // 後段：這一格的懸念，球在 endOf(target) 到達本壘。
+        // 上一段揭曉超出預算、剩下的時間太短時就不演懸念（不讓動畫把比賽往後拖；結果仍照常在提交後揭曉）
+        const left = schedule.endOf(target) - (this.clock.now() - startsAt)
+        if (left >= MIN_PRELUDE_MS && !(await play(target, controller, 'prelude', left))) return
       }
       // 動畫早播完：等到這一格排定的結束時間才提交（不提前揭露這一格的結果）
       const wait = startsAt + schedule.endOf(target) - this.clock.now()

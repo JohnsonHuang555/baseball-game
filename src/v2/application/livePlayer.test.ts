@@ -6,7 +6,7 @@ import { Rng } from '../../sim/rng'
 import { MINUTE } from '../testkit'
 import { planMatch } from './batchRunner'
 import { liveTimeline } from './liveMatch'
-import { LivePlayer, type LiveClock, type LiveSource } from './livePlayer'
+import { LivePlayer, MIN_PRELUDE_MS, type LiveClock, type LiveSource } from './livePlayer'
 import type { FrameContext, ReplayPresenter, ReplayState } from './replayPlayer'
 import { MemoryStorage, CLUB_STORAGE_KEY } from '../infrastructure/clubRepository'
 import { FakeLockManager, ManualClock, T0, tab } from '../testkit'
@@ -395,5 +395,40 @@ describe('完整觀看與不觀看：最終結算結果相同', () => {
     expect(fin.linescore).toEqual(m.box!.linescore)
     expect((fin.winner === timeline.userSide)).toBe(m.result.won)
     expect(storage.getItem(CLUB_STORAGE_KEY)).toContain('"nextMatchIndex":1')
+  })
+})
+
+describe('LivePlayer：動畫超出時間預算（PR #11 review）', () => {
+  it('某一格的揭曉多拖了 3 秒：不提前提交、不累積落後；之後每一格仍在自己的結束時間提交，剩餘時間太短的懸念直接跳過', async () => {
+    const s = source()
+    const c = clock(START + 30_000)
+    const p = auditPresenter(c, 0)
+    let slow = -1
+    // 第一個揭曉段多花 3 秒（例如裝置太慢、動畫卡住）
+    p.hold = (index) => {
+      const last = p.frames.at(-1)!
+      if (slow === -1 && last.ctx.phase === 'reveal') {
+        slow = index
+        return c.sleep(3000, last.ctx.signal)
+      }
+      return null
+    }
+    const player = new LivePlayer(s, p, c)
+    player.start()
+    await player.settled()
+    expect(slow).toBeGreaterThanOrEqual(0)
+    expectNoFuture(s, p.commits)
+    const slowAt = p.frames.find((f) => f.index === slow && f.ctx.phase === 'reveal')!.at
+    // 拖延結束後的提交：一律在排定的結束時間（同步或提交），不會一直落後 3 秒
+    const later = p.commits.filter((x) => x.kind === 'commit' && x.at > slowAt + 3000)
+    expect(later.length).toBeGreaterThan(50)
+    for (const x of later) expect(x.at).toBe(s.startsAt + s.schedule.endOf(x.position - 1))
+    // 拖延期間錯過的格不補演揭曉
+    const reveals = p.frames.filter((f) => f.ctx.phase === 'reveal').map((f) => f.index)
+    expect(new Set(reveals).size).toBe(reveals.length)
+    // 拖延當下，時間段剩下不到 MIN_PRELUDE_MS 的那一格不演懸念
+    const preludes = p.frames.filter((f) => f.ctx.phase === 'prelude')
+    for (const f of preludes) expect(f.ctx.budgetMs!).toBeGreaterThanOrEqual(MIN_PRELUDE_MS)
+    expect(player.view.status).toBe('ended')
   })
 })

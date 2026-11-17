@@ -55,7 +55,13 @@ export interface ReplayStage {
   setColors(userFielding: boolean): void
   align(alignment: Alignment, ms: number): Promise<void>
   sync(bases: readonly (string | null)[], batterId: string | null): void
-  pitch(result: PitchResult, ms: number, pitch: PitchType | undefined, thrower: Pitcher | undefined): Promise<void>
+  /**
+   * 投球的前段（懸念）：球飛向本壘，跟這一球的結果無關（所以沒有 result 參數）。
+   * 直播在結果正式提交之前播；不能畫出界外球的後續軌跡、不能依好壞球決定進壘點
+   */
+  pitch(ms: number, pitch: PitchType | undefined, thrower: Pitcher | undefined): Promise<void>
+  /** 投球的結果（揭曉）：進壘點、界外球的後續軌跡、球收起或留在本壘等著被擊出。直播在結果正式提交之後才播 */
+  pitchResult(result: PitchResult, ms: number): Promise<void>
   play(ball: BattedBall | null, moves: RunnerMove[], caught: boolean, ms: number): Promise<void>
   run(moves: RunnerMove[], ms: number): Promise<void>
   /** 取消所有進行中的動畫 */
@@ -82,10 +88,15 @@ export function canvasStage(): ReplayStage {
     },
     align: (a, ms) => ensure().align(a, ms),
     sync: (bases, batterId) => ensure().sync(bases, batterId),
-    async pitch(result, ms, pitch, thrower) {
+    async pitch(ms, pitch, thrower) {
       const f = ensure()
-      if (pitch && thrower) await Promise.all([f.pitch(result, ms, pitch, thrower.throws), cam.play(pitch, thrower, result, ms)])
-      else await f.pitch(result, ms)
+      if (pitch && thrower) await Promise.all([f.pitchTravel(ms, pitch, thrower.throws), cam.approach(pitch, thrower, ms)])
+      else await f.pitchTravel(ms)
+    },
+    async pitchResult(result, ms) {
+      const f = ensure()
+      // 界外球：後續軌跡；投球視角：球從中性軌跡轉到真正的進壘點
+      await Promise.all([f.pitchOutcome(result, result === 'foul' ? ms : 0), cam.finish(result, Math.min(ms, 160))])
     },
     play: (ball, moves, caught, ms) => ensure().play(ball, moves, caught, ms),
     run: (moves, ms) => ensure().run(moves, ms),
@@ -538,7 +549,7 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
   function revealMs(frame: ReplayFrame): number {
     let ms = 0
     for (const e of frame.events) {
-      if (e.type === 'pitch') ms += e.result === 'inPlay' ? 0 : MATCH_PACE.afterPitch
+      if (e.type === 'pitch') ms += MATCH_PACE.afterPitch * 0.4 + (e.result === 'foul' ? MATCH_PACE.pitch * 0.8 : 0) + (e.result === 'inPlay' ? 0 : MATCH_PACE.afterPitch)
       else if (e.type === 'play') ms += MATCH_PACE.flightBase + (e.ball?.distance ?? 0) * MATCH_PACE.flightPerFoot + MATCH_PACE.afterPlay + (e.kind === 'homeRun' ? MATCH_PACE.homeRunStats : e.kind === 'strikeout' ? MATCH_PACE.strikeout : 0)
       else if (e.type === 'steal') ms += MATCH_PACE.steal + MATCH_PACE.afterPlay
       else if (e.type === 'halfInningEnd') ms += MATCH_PACE.afterHalfInning
@@ -593,7 +604,8 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
           batterAnnounced = atBatKey
           lastPlay.textContent = V2T.atBat(name(before.batterId))
         }
-        await untilAborted(theStage.pitch(e.result, MATCH_PACE.pitch * k() * pitchPace(e.pitch), e.pitch, thrower), signal)
+        // 中性的投球：不帶結果（結果在揭曉段才畫）
+        await untilAborted(theStage.pitch(MATCH_PACE.pitch * k() * pitchPace(e.pitch), e.pitch, thrower), signal)
       } else if (e.type === 'steal') {
         lastPlay.textContent = V2T.stealStart(name(e.runnerId))
       }
@@ -628,8 +640,10 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
     for (const [i, e] of frame.events.entries()) {
       if (signal.aborted || closed) throw abortErr()
       if (e.type === 'pitch') {
+        // 投球結果（揭曉）：進壘點、界外球後續軌跡；結果文字與音效在球到位的同時
         cue(`${frame.index}:pitch`, pitchSound(e, frame.events[i + 1]))
         lastPlay.textContent = PITCH_TEXT[e.result]
+        await untilAborted(theStage.pitchResult(e.result, (e.result === 'foul' ? MATCH_PACE.pitch * 0.8 : MATCH_PACE.afterPitch * 0.4) * k()), signal)
         if (e.result !== 'inPlay') {
           shown.balls = e.balls
           shown.strikes = e.strikes

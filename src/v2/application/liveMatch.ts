@@ -82,7 +82,8 @@ export function preludeWeight(events: readonly GameEvent[]): number {
 export function revealWeight(events: readonly GameEvent[]): number {
   let w = 0
   for (const e of events) {
-    if (e.type === 'pitch') w += e.result === 'inPlay' ? 0 : 0.3
+    // 投球結果：進壘點（約 0.12）、界外球的後續軌跡（約 0.48）、結果文字的停頓（0.3，打進場內的接著播擊球）
+    if (e.type === 'pitch') w += e.result === 'inPlay' ? 0.12 : e.result === 'foul' ? 0.9 : 0.42
     else if (e.type === 'play') w += 1.45 + (e.ball?.distance ?? 0) * 0.0026 + (e.kind === 'homeRun' ? 1.4 : e.kind === 'strikeout' ? 0.5 : 0)
     else if (e.type === 'steal') w += 0.95
     else if (e.type === 'halfInningEnd') w += 0.9
