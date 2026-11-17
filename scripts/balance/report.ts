@@ -1,10 +1,13 @@
 // 把平衡模擬矩陣（matrix.ts 的 JSONL）整理成 Markdown 表格：IN=檔案1,檔案2  OUT=xxx.md  TITLE=標題
+import { assertSingleExperiment, type Experiment } from './experiment'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { LEAGUES } from '../../src/v2/domain/leagueConfig'
 import { STRATEGIES, STRATEGY_NAMES, censoredQuantiles, dist, type SimResult, type Strategy } from './simulate'
 
 export function loadRuns(files: string[]): SimResult[] {
-  return files.flatMap((f) => readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as SimResult))
+  const runs = files.flatMap((f) => readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as SimResult & { experiment?: Experiment }))
+  assertSingleExperiment(runs)
+  return runs
 }
 
 const f0 = (x: number) => (Number.isFinite(x) ? Math.round(x).toLocaleString('en-US') : '—')

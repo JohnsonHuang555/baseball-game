@@ -425,10 +425,10 @@ export function dist(xs: readonly number[]): Dist {
 }
 
 /** 有「沒有發生」（例如 30 天內沒到）的分位數：沒發生的當成無限大，所以 P50 只在一半以上的樣本有發生時才是有限值 */
-export function censoredQuantiles(xs: readonly (number | null)[]): { n: number; reached: number; p50: number; p90: number } {
+export function censoredQuantiles(xs: readonly (number | null)[]): { n: number; reached: number; p10: number; p50: number; p90: number } {
   const v = xs.map((x) => (x === null ? Infinity : x)).sort((a, b) => a - b)
   const q = (p: number) => (v.length ? v[Math.min(v.length - 1, Math.ceil(v.length * p) - 1)] : NaN)
-  return { n: v.length, reached: xs.filter((x) => x !== null).length, p50: q(0.5), p90: q(0.9) }
+  return { n: v.length, reached: xs.filter((x) => x !== null).length, p10: q(0.1), p50: q(0.5), p90: q(0.9) }
 }
 
 /** 兩組成對樣本的平均差與 95% 信賴區間（t 分佈近似） */
