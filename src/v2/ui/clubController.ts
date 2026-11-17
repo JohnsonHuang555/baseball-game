@@ -11,6 +11,7 @@ import { EconomyError, recruit, release, upgrade, type SpendOutcome } from '../a
 import { LeagueError, challengeNextLeague, type ChallengeOutcome } from '../application/leagueService'
 import { dueMatches, type DueMatches } from '../application/idleEngine'
 import { SettlementError, claim, settleDue, updateSettings, type SettlementReport } from '../application/settlementService'
+import { markWatchedLive, setOnboarding } from '../application/onboardingService'
 import type { ClubSave, PersistentRoster, SummaryHighlight } from '../domain/club'
 import { settingsVersions } from '../domain/fingerprint'
 import { LineupError, lineupIssues } from '../domain/lineup'
@@ -406,6 +407,34 @@ export class ClubController {
       }
     })()
     return this.challengeFlight
+  }
+
+  /**
+   * 新手任務「觀看第一場比賽」：成功進入直播後呼叫。已經記過、或這個分頁不能寫入就什麼都不做；
+   * 失敗（例如別的分頁同時寫入）不打擾玩家，下次進入直播會再記一次
+   */
+  async markWatchedLive(): Promise<void> {
+    if (this.disposed || !this.guard.canWrite() || this.current.club?.onboarding.watchedLive !== false) return
+    try {
+      const out = await markWatchedLive(this.deps)
+      if (!this.disposed && out.changed) this.set({ club: out.club })
+    } catch (e) {
+      if (!this.disposed && e instanceof ClubSaveError && e.code === 'conflict') this.reload()
+    }
+  }
+
+  /** 收合／展開新手任務區塊（存在球團存檔，重新整理、換分頁都一樣） */
+  async setOnboardingCollapsed(collapsed: boolean): Promise<ActionResult> {
+    if (!this.guard.canWrite()) return { ok: false, message: V2T.readOnly }
+    if (this.current.club?.onboarding.collapsed === collapsed) return { ok: true }
+    try {
+      const out = await setOnboarding(this.deps, { collapsed })
+      if (!this.disposed) this.set({ club: out.club })
+      return { ok: true }
+    } catch (e) {
+      if (this.disposed) return { ok: false }
+      return { ok: false, message: this.handleError(e) }
+    }
   }
 
   dismissChallengeResult(): void {

@@ -1,4 +1,6 @@
 // 球員詳情：名稱、流派、特性、等級，以及每項能力的「原始 → 目前（比賽實際使用）→ 下一級」、升級成本與升級按鈕。
+// 升級預覽（Phase 6A）：目前等級 → 下一級、會提升的能力與變化量、整體能力；數字全部由 progression.ts 的 leveled() 算出來，
+// 沒有提升的能力不顯示增加。升級成功後在畫面上留一段回饋，說明新能力從下一場尚未開始的比賽生效。
 // 預備球員另外有「釋出球員」：按下後要再確認一次才會釋出（不可復原、不退款）。
 // 打開時跟著 controller 的狀態更新（升級、其他分頁改了都會重畫），關閉時取消訂閱
 import { gradeBadge } from '../../ui/grades'
@@ -6,6 +8,8 @@ import { el } from '../../ui/playerCard'
 import { RATING_FULL } from '../../ui/strings'
 import { archetypeChip } from '../../ui/synergyUi'
 import { pitchChip, toast, traitList } from '../../ui/visual'
+import { overall } from '../../sim/generate'
+import type { Player } from '../../sim/types'
 import { canAfford } from '../application/economyService'
 import { MAX_LEVEL, leveled, upgradeCost } from '../domain/progression'
 import { assignedIds, recordOf } from '../domain/roster'
@@ -15,11 +19,23 @@ import { V2T } from './strings'
 
 const fmt1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1)
 const fmt = (x: number) => x.toLocaleString('zh-Hant')
+const fmt2 = (x: number) => (Math.round(x * 100) / 100).toFixed(2)
+const ratingsOf = (p: Player) => p.ratings as unknown as Record<string, number>
+
+/** 從 before 到 after，每項能力的變化（只列有提升的）與整體能力 */
+export function upgradeGains(before: Player, after: Player): { gains: { key: string; from: number; to: number }[]; overall: { from: number; to: number } } {
+  const gains = Object.keys(before.ratings)
+    .map((key) => ({ key, from: ratingsOf(before)[key], to: ratingsOf(after)[key] }))
+    .filter((g) => Math.round((g.to - g.from) * 100) > 0)
+  return { gains, overall: { from: overall(before), to: overall(after) } }
+}
 
 export function openPlayerDetail(controller: ClubController, playerId: string): () => void {
   const body = el('div', 'v2-player-detail')
   /** 已經按過「釋出球員」、正在等第二次確認 */
   let confirming = false
+  /** 剛完成的升級（顯示成功回饋）：升到幾級、哪些能力提升、從第幾場生效 */
+  let done: { level: number; gains: ReturnType<typeof upgradeGains>; fromMatch: number } | null = null
   let close: () => void = () => {}
   const draw = (state: ControllerState) => {
     const club = state.club
@@ -45,7 +61,6 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
     const hr = el('tr')
     hr.append(el('th', '', ''), el('th', '', V2T.baseRating), el('th', 'current', V2T.currentRating), el('th', '', next ? V2T.nextRating : ''))
     table.append(hr)
-    const ratingsOf = (p: typeof base) => p.ratings as unknown as Record<string, number>
     for (const key of Object.keys(base.ratings)) {
       const tr = el('tr')
       tr.dataset.rating = key
@@ -57,10 +72,31 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
       if (next) {
         const n = ratingsOf(next)[key]
         const diff = Math.round((n - c) * 100) / 100
-        nx.append(el('span', 'v2-num', fmt1(n)), el('span', diff > 0 ? 'v2-diff up' : 'v2-diff', diff > 0 ? `+${diff.toFixed(2)}` : '±0'))
+        // 沒有提升（已達上限）就照實顯示，不放假的增加
+        nx.append(el('span', 'v2-num', fmt1(n)), el('span', diff > 0 ? 'v2-diff up' : 'v2-diff', diff > 0 ? `+${diff.toFixed(2)}` : c >= 10 ? V2T.ratingCapped : '±0'))
       }
       tr.append(el('th', '', RATING_FULL[key as keyof typeof RATING_FULL]), el('td', 'base', fmt1(b)), cur, nx)
       table.append(tr)
+    }
+
+    // 升級預覽：Lv.N → Lv.N+1、會提升的能力（變化量）、整體能力
+    const preview = el('div', 'v2-upgrade-preview')
+    if (next) {
+      const g = upgradeGains(current, next)
+      const top = el('div', 'v2-preview-head')
+      top.append(el('span', 'v2-preview-title', V2T.upgradePreview), el('strong', 'v2-preview-levels', V2T.upgradeLevels(record.level, record.level + 1)))
+      const list = el('ul', 'v2-preview-list')
+      for (const x of g.gains) {
+        const li = el('li')
+        li.dataset.gain = x.key
+        li.append(el('span', 'v2-preview-name', RATING_FULL[x.key as keyof typeof RATING_FULL]), el('span', 'v2-preview-val', `${fmt2(x.from)} → ${fmt2(x.to)}`), el('span', 'v2-diff up', `+${fmt2(x.to - x.from)}`))
+        list.append(li)
+      }
+      if (!g.gains.length) list.append(el('li', 'v2-hint', V2T.upgradeNoGain))
+      const ov = el('li', 'v2-preview-overall')
+      ov.append(el('span', 'v2-preview-name', V2T.upgradeOverall), el('span', 'v2-preview-val', `${fmt2(g.overall.from)} → ${fmt2(g.overall.to)}`))
+      list.append(ov)
+      preview.append(top, list, el('p', 'v2-hint', V2T.upgradeEffective))
     }
 
     const costBox = el('div', 'v2-upgrade')
@@ -85,12 +121,21 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
       button.disabled = !affordable || state.spending || !state.canWrite
       button.onclick = async () => {
         button.disabled = true
+        const before = current
         const res = await controller.upgrade(playerId, record.level)
-        if (res.message) toast(res.message)
+        const saved = res.ok && res.outcome ? recordOf(res.outcome.club, playerId) : undefined
+        if (saved && res.outcome) {
+          // 進行中那一場已經固定（用升級前的能力）：新能力從下一場開始，也就是第 nextMatchIndex + 2 場（從 1 數）
+          done = { level: saved.level, gains: upgradeGains(before, leveled(base, saved.level)), fromMatch: res.outcome.club.idle.nextMatchIndex + 2 }
+          draw(controller.state)
+        } else if (res.message) toast(res.message)
       }
     }
     costBox.append(button)
-    body.replaceChildren(head, table, costBox, el('p', 'v2-hint', V2T.progressionNote), traitList(base))
+    body.replaceChildren(head)
+    if (done) body.append(doneBox(base.name, done))
+    if (next) body.append(preview)
+    body.append(table, costBox, el('p', 'v2-hint', V2T.progressionNote), traitList(base))
 
     // 釋出：只有預備名單的球員；用存檔裡最新的陣容判斷，按下後還會在鎖內再檢查一次
     const isReserve = !assignedIds(club.roster).has(playerId)
@@ -141,4 +186,15 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
   const unsubscribe = controller.subscribe(draw)
   close = v2Modal(V2T.playerTitle, body, unsubscribe)
   return close
+}
+
+/** 升級成功的回饋：升到幾級、哪些能力提升多少、什麼時候生效 */
+function doneBox(name: string, d: { level: number; gains: ReturnType<typeof upgradeGains>; fromMatch: number }): HTMLElement {
+  const box = el('div', 'v2-upgrade-done')
+  box.setAttribute('role', 'status')
+  box.append(el('strong', '', V2T.upgradeDone(name, d.level)))
+  const parts = d.gains.gains.map((g) => `${RATING_FULL[g.key as keyof typeof RATING_FULL]} +${fmt2(g.to - g.from)}`)
+  if (parts.length) box.append(el('span', 'v2-upgrade-gains', parts.join('・')))
+  box.append(el('span', '', `${V2T.upgradeEffective}${V2T.upgradeEffectiveFrom(d.fromMatch)}`))
+  return box
 }

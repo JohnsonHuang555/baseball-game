@@ -35,14 +35,7 @@ export const V2T = {
   wins: '勝場',
   losses: '敗場',
 
-  progressTitle: '自動比賽',
-  nextMatchIn: '下一場完成',
-  matchesPlayed: '已完成場次',
-  dueNow: '可結算',
-  offlineCap: '離線時比賽會繼續進行，最多累積 8 小時（96 場）',
-  refresh: '更新進度',
   settling: '結算比賽中…',
-  readyToSettle: '比賽已完成，正在結算',
 
   rewardsTitle: '未領取收益',
   claimButton: '領取收益',
@@ -208,12 +201,8 @@ export const V2T = {
   // 聯盟與晉級
   leagueTitle: '聯盟',
   leagueRecord: (w: number, l: number) => `本聯盟 ${n(w)} 勝 ${n(l)} 敗`,
-  leagueRecent: (rate: number, games: number) => `最近 ${games} 場勝率 ${(rate * 100).toFixed(0)}%`,
   leagueNext: (name: string) => `下一級：${name}`,
   leagueTop: '已經是最高的聯盟',
-  leagueMatchesNeed: (have: number, need: number) => `本聯盟比賽 ${Math.min(have, need)} / ${need} 場`,
-  leagueRateNeed: (need: number, window: number) => `最近 ${window} 場勝率達到 ${(need * 100).toFixed(0)}%`,
-  leagueRetry: (k: number) => `挑戰失敗，再打 ${k} 場比賽後可以再挑戰`,
   leagueHint: (mult: number) => `一般比賽收益 ×${mult.toFixed(2)}`,
   challengeButton: '挑戰下一聯盟',
   challenging: '挑戰賽進行中…',
@@ -280,4 +269,77 @@ export const V2T = {
   liveSettling: '比賽結束，結算中',
   liveEndedLine: (won: boolean, innings: number) => `比賽結束・${innings > 9 ? `延長 ${innings} 局・` : ''}${won ? '勝利' : '落敗'}（收益在結算後加到未領取）`,
   watchLastChallenge: '觀看上次晉級挑戰',
+  // Phase 6A：首頁、目前建議、新手任務、養成預覽、聯盟目標
+  liveFoot: '球隊每 5 分鐘自動打完一場，離開網站也會繼續（最多累積 8 小時）',
+  livePlayed: (k: number) => `已完成 ${n(k)} 場`,
+  nextTitle: '目前建議',
+  nextClaimTitle: '領取比賽收益',
+  nextClaimWhy: (funds: number, exp: number) => `+${n(funds)} 資金・+${n(exp)} 經驗在等你領取，領了才能用來培養球員`,
+  nextClaimButton: '領取收益',
+  nextChallengeTitle: (league: string) => `挑戰「${league}」`,
+  nextChallengeWhy: '晉級條件都達成了。挑戰賽一按就打完，贏了就晉級，之後的比賽收益更高',
+  nextChallengeButton: '前往聯盟挑戰',
+  nextUpgradeTitle: (name: string, lv: number) => `培養 ${name}（Lv.${lv} → Lv.${lv + 1}）`,
+  nextUpgradeWhy: (funds: number, exp: number) => `需要 ${n(funds)} 資金、${n(exp)} 經驗，你的資源已經足夠`,
+  nextUpgradeButton: '查看升級',
+  nextLineupTitle: (name: string) => `讓 ${name} 上場`,
+  nextLineupWhy: (name: string, out: string) => `預備名單的 ${name} 能力比上場的 ${out} 高，到陣容把他換上場`,
+  nextLineupButton: '前往陣容',
+  nextWatchTitle: '球隊正在比賽',
+  nextWatchWhy: '目前沒有需要處理的事。看看比賽，或等收益累積後回來培養球員',
+  nextWatchGoal: (name: string, exp: number, funds: number) =>
+    `下一個目標：${name} 升級還差 ${[exp > 0 ? `${n(exp)} 經驗` : '', funds > 0 ? `${n(funds)} 資金` : ''].filter(Boolean).join('、')}`,
+  nextWatchButton: '觀看比賽',
+
+  onboardTitle: '新手任務',
+  onboardCount: (done: number, total: number) => `${done} / ${total}`,
+  onboardCollapse: '收起',
+  onboardExpand: '展開',
+  onboardAllDone: '新手任務全部完成！接下來的長期目標是達成晉級條件、挑戰更高的聯盟。',
+  onboardSuggested: '見上方建議',
+  onboardTasks: {
+    club: { title: '建立自己的球隊', hint: '' },
+    watch: { title: '觀看一場比賽', hint: '看看球隊怎麼打，不用看完' },
+    firstMatch: { title: '完成第一場比賽', hint: '每 5 分鐘自動打完一場，不用一直停在畫面上' },
+    claim: { title: '領取比賽收益', hint: '比賽的資金與經驗先放在「未領取」，按領取才會入帳' },
+    upgrade: { title: '培養一名球員', hint: '用資金與經驗幫球員升級，能力會提高' },
+    lineup: { title: '調整自己的陣容', hint: '到「陣容」點兩位球員交換（換上板凳球員或交換棒次），再按「儲存陣容」' },
+  },
+  onboardClaimWait: '第一場打完就有收益可以領',
+  onboardUpgradeShort: (exp: number, funds: number) =>
+    `最便宜的升級還差 ${[exp > 0 ? `${n(exp)} 經驗` : '', funds > 0 ? `${n(funds)} 資金` : ''].filter(Boolean).join('、')}（先領取收益）`,
+  onboardGo: {
+    watch: '觀看比賽',
+    claim: '領取收益',
+    upgrade: '前往陣容',
+    lineup: '前往陣容',
+  },
+
+  teamTitle: '球隊',
+  teamAssets: '可用資源',
+  upgradeShort: (exp: number, funds: number) =>
+    `升級還差 ${[exp > 0 ? `${n(exp)} 經驗` : '', funds > 0 ? `${n(funds)} 資金` : ''].filter(Boolean).join('、')}`,
+  growthHint: '比賽收益可以升級球員（能力提高）或招募新球員；陣容與戰術在下面的分頁調整',
+
+  rewardsEmpty: '比賽結束後，資金與經驗會先累積在這裡',
+
+  leagueProgressTitle: '晉級進度',
+  leagueMatchesLine: (have: number, need: number) => (have >= need ? `已完成 ${n(have)} 場（需要 ${n(need)} 場）` : `已完成 ${n(have)} / ${n(need)} 場（還差 ${n(need - have)} 場）`),
+  leagueRateLine: (rate: number, games: number, need: number, window: number) =>
+    games < window
+      ? `最近 ${games} 場勝率 ${(rate * 100).toFixed(0)}%・需要打滿 ${window} 場、勝率 ${(need * 100).toFixed(0)}%`
+      : `最近 ${window} 場勝率 ${(rate * 100).toFixed(0)}%・需要至少 ${(need * 100).toFixed(0)}%${rate >= need ? '' : `（還差 ${Math.ceil((need - rate) * 100)}%）`}`,
+  leagueCooldownLine: (k: number) => `上次挑戰失敗：再完成 ${n(k)} 場才能再挑戰`,
+  leagueReady: '晉級條件都達成了！',
+  leagueWhy: (mult: number) => `晉級後對手更強，一般比賽收益變成 ×${mult.toFixed(2)}`,
+  leagueLongTerm: '這是長期目標：照常比賽、培養球員，條件會慢慢達成',
+
+  upgradePreview: '升級預覽',
+  upgradeLevels: (from: number, to: number) => `Lv.${from} → Lv.${to}`,
+  upgradeOverall: '整體能力',
+  upgradeNoGain: '這一級沒有提升任何能力（能力已達上限）',
+  upgradeEffective: '新能力將從下一場尚未開始的比賽生效。',
+  upgradeEffectiveFrom: (no: number) => `（第 ${n(no)} 場起；進行中的比賽維持開賽時的能力）`,
+  upgradeDone: (name: string, lv: number) => `升級成功！${name} 升到 Lv.${lv}`,
+  ratingCapped: '上限',
 } as const

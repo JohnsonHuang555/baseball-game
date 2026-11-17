@@ -210,6 +210,8 @@ export function claimRewards(club: ClubSave, claimSeq: number): ClaimOutcome {
   next.economy.unclaimed = { funds: 0, experience: 0 }
   next.economy.lastClaim = { seq: claimSeq, claimed: { ...claimed } }
   next.economy.nextClaimSeq = claimSeq + 1
+  // 新手任務「領取比賽收益」：領到的不是 0 才算
+  if (claimed.funds > 0 || claimed.experience > 0) next.onboarding = { ...next.onboarding, claimedRewards: true }
   return { club: next, claimed, duplicate: false }
 }
 
@@ -239,7 +241,11 @@ export function applySettingsChange(club: ClubSave, change: SettingsChange): Clu
     if (issues.length) throw new RangeError(`戰術設定不合法：${issues.join('；')}`)
   }
   const next = structuredClone(club)
-  if (change.roster) next.roster = structuredClone(change.roster)
+  if (change.roster) {
+    next.roster = structuredClone(change.roster)
+    // 新手任務「調整自己的陣容」：只有配置真的改變才算（原樣再存一次不算）
+    if (stableJson(club.roster) !== stableJson(next.roster)) next.onboarding = { ...next.onboarding, lineupChanged: true }
+  }
   if (change.coach) next.strategy.coach = structuredClone(change.coach)
   // 進行中那一場已經固定：新設定從下一場開始
   next.strategy.effectiveFromMatch = next.idle.nextMatchIndex + (next.liveMatch?.matchIndex === next.idle.nextMatchIndex ? 1 : 0)

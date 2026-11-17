@@ -18,6 +18,7 @@ import { createLineupView, type LineupView } from './lineupView'
 import { challengeResultModal, challengeStartModal } from './leagueView'
 import { openMatchReport, renderReports, welcomeModal } from './reportView'
 import { openRecruit } from './recruitView'
+import { openPlayerDetail } from './playerView'
 import { V2T } from './strings'
 import { createTacticsView, type TacticsView } from './tacticsView'
 import { createWriterGuard, randomTabId, type StorageEventSource } from './writerGuard'
@@ -207,6 +208,8 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
           if (!closed) render(controller.state)
         },
       })
+      // 新手任務「觀看第一場比賽」：成功進入直播才算（不要求看完）；已經記過就不會再寫入
+      void controller.markWatchedLive()
     } catch {
       toast(V2T.replayLoadFailed)
     } finally {
@@ -295,13 +298,17 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
       main.replaceChildren(
         renderDashboard(state, controller, {
           claim: () => void claimWithToast(),
-          refresh: () => void controller.settle('manual'),
           openReport: (m) => openMatchReport(m, state.club!),
           watchLive: () => void watchLive(),
           liveCard,
           allReports: () => show('reports'),
           recruit: () => openRecruit(controller, () => show('lineup')),
           lineup: () => show('lineup'),
+          openPlayer: (id) => void openPlayerDetail(controller, id),
+          toggleOnboarding: (collapsed) =>
+            void controller.setOnboardingCollapsed(collapsed).then((res) => {
+              if (!closed && !res.ok && res.message) toast(res.message)
+            }),
           watchChallenge: state.club?.challengeReplay ? () => void watchChallenge() : null,
           challenge: (expected) =>
             void controller.challenge(expected).then((res) => {
