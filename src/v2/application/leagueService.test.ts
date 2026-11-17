@@ -192,6 +192,47 @@ describe('晉級挑戰', () => {
     }
   })
 
+  it('過期畫面：分頁 B 已經晉級，分頁 A 拿著新秀聯盟的舊畫面挑戰 → 拒絕，不會開始「業餘 → 挑戰者」', async () => {
+    for (const locks of [new FakeLockManager(), null]) {
+      const { deps, storage } = await setupWithChallenge(true)
+      const tabA = tab(storage, new ManualClock(), locks ?? undefined)
+      const tabB = tab(storage, new ManualClock(), locks ?? undefined)
+      // 分頁 A 的畫面：新秀聯盟、挑戰序號 0
+      const shown = { fromTier: load(tabA).league.tier, challengeSeq: load(tabA).league.nextChallengeSeq }
+      expect(shown).toEqual({ fromTier: 0, challengeSeq: 0 })
+      // 分頁 B 晉級到業餘聯盟，接著又打到符合業餘聯盟的晉級條件
+      await challengeNextLeague(tabB, { ...shown, requestId: 'tab-b' })
+      forceEligible(deps)
+      const before = load(deps)
+      expect(before.league.tier).toBe(1)
+      // 分頁 A 按舊畫面的按鈕
+      const error = await challengeNextLeague(tabA, { ...shown, requestId: 'tab-a' }).catch((e) => e)
+      expect(error).toBeInstanceOf(LeagueError)
+      expect(error.code).toBe('stale-request')
+      const after = load(deps)
+      expect(after.league).toEqual(before.league)
+      expect(after.league.challenges.some((c) => c.fromTier === 1)).toBe(false)
+      expect(after.economy).toEqual(before.economy)
+      // 拿著 B 晉級前「目前」序號（1）但聯盟是舊的（0）也一樣拒絕
+      const mixed = await challengeNextLeague(tabA, { fromTier: 0, challengeSeq: 1, requestId: 'tab-a2' }).catch((e) => e)
+      expect(mixed.code).toBe('stale-request')
+      expect(load(deps).league.nextChallengeSeq).toBe(1)
+      void locks
+    }
+  })
+
+  it('同一個請求（同一個 requestId）重送：回傳原本的結果；不同 requestId 用同一個序號：拒絕', async () => {
+    const { deps } = await setupWithChallenge(false)
+    const req = { fromTier: 0, challengeSeq: 0, requestId: 'click-1' }
+    const first = await challengeNextLeague(deps, req)
+    const resend = await challengeNextLeague(deps, req)
+    expect(resend.duplicate).toBe(true)
+    expect(resend.challenge).toEqual(first.challenge)
+    const other = await challengeNextLeague(deps, { ...req, requestId: 'click-2' }).catch((e) => e)
+    expect(other.code).toBe('stale-request')
+    expect(load(deps).league.nextChallengeSeq).toBe(1)
+  })
+
   it('挑戰前先用舊聯盟結算到期的比賽；晉級後的下一場才是新聯盟', async () => {
     const { deps, clock } = await setupWithChallenge(true)
     clock.advance(HOUR)

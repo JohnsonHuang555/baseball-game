@@ -3,10 +3,10 @@
 // 跟一般比賽完全分開：挑戰賽用自己的序號（league.nextChallengeSeq）、自己的種子 salt、自己的比賽編號（<球團>#c<序號>），
 // 不動一般比賽的結算游標（idle.nextMatchIndex）與時間錨點，也不記進總戰績、近期比賽與 replay。
 //
-// 冪等：請求帶上讀到的 nextChallengeSeq 與目前聯盟。
-// - 序號等於目前值：檢查資格、模擬、晉級（或記下失敗），序號加 1
-// - 序號是上一個、而且請求內容跟最近一筆挑戰相同：重送，回傳原本的結果，不再模擬、不再發獎
-// - 其他：拒絕（別的分頁已經挑戰過），請重新讀取
+// 冪等：請求帶上「畫面顯示時」的 nextChallengeSeq 與聯盟（不是送出當下重新讀到的值），以及這次操作的 requestId。
+// - 序號與聯盟都等於存檔目前的值：檢查資格、模擬、晉級（或記下失敗），序號加 1
+// - 序號是上一個、而且請求內容（聯盟 + requestId）跟最近一筆挑戰相同：同一個請求重送，回傳原本的結果，不再模擬、不再發獎
+// - 其他（別的分頁已經挑戰過或晉級、畫面過期）：拒絕，請重新讀取。不會因為畫面過期而開始另一個聯盟的挑戰
 // 所以重複點擊、重送、多分頁同時按都只會挑戰一次，不會連跳兩級。
 //
 // 一致性：在 ClubLock 裡「讀最新存檔 → 用目前的聯盟結算到期的比賽 → 驗證資格 → 模擬 → 更新聯盟與獎勵 → 一次存檔」。
@@ -41,6 +41,11 @@ export interface ChallengeRequest {
   challengeSeq: number
   /** 畫面上看到的目前聯盟：跟存檔不同（別的分頁剛晉級）就拒絕 */
   fromTier: number
+  /**
+   * 這次操作的識別碼（每次按下按鈕產生一個）：用來分辨「同一個請求重送」與「另一個分頁拿著同樣的序號送來的不同請求」。
+   * 沒有給的話，只要序號與聯盟相同就視為重送
+   */
+  requestId?: string
 }
 
 export interface ChallengeOutcome {
@@ -82,12 +87,12 @@ export function planChallenge(club: ClubSave): MatchPlan {
 }
 
 function requestKeyFor(req: ChallengeRequest): string {
-  return `challenge:${req.fromTier}`
+  return req.requestId ? `challenge:${req.fromTier}:${req.requestId}` : `challenge:${req.fromTier}`
 }
 
 /** 檢查序號：可以挑戰回傳 null；重送回傳原本那一筆 */
 export function checkChallenge(club: ClubSave, req: ChallengeRequest): ChallengeRecord | null {
-  if (!Number.isSafeInteger(req.challengeSeq) || req.challengeSeq < 0 || !Number.isSafeInteger(req.fromTier)) {
+  if (!Number.isSafeInteger(req.challengeSeq) || req.challengeSeq < 0 || !Number.isSafeInteger(req.fromTier) || (req.requestId !== undefined && (typeof req.requestId !== 'string' || !req.requestId))) {
     throw new LeagueError('bad-request', '挑戰請求不合法')
   }
   const { league } = club

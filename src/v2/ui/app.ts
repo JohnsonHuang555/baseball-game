@@ -171,8 +171,8 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
           allReports: () => show('reports'),
           recruit: () => openRecruit(controller, () => show('lineup')),
           lineup: () => show('lineup'),
-          challenge: () =>
-            void controller.challenge().then((res) => {
+          challenge: (expected) =>
+            void controller.challenge(expected).then((res) => {
               if (!closed && !res.ok && res.message) toast(res.message)
             }),
         }),

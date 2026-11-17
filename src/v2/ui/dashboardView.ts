@@ -20,7 +20,8 @@ export interface DashboardActions {
   allReports: () => void
   recruit: () => void
   lineup: () => void
-  challenge: () => void
+  /** 帶上按鈕顯示時的聯盟與挑戰序號（不是送出當下重新讀到的值） */
+  challenge: (expected: { fromTier: number; challengeSeq: number }) => void
 }
 
 /** 上場 14 人（先發、板凳、投手）的平均能力，含養成 */
@@ -181,10 +182,14 @@ export function leagueCard(state: ControllerState, actions: Pick<DashboardAction
     const btn = el('button', 'btn-yellow btn-big v2-challenge', state.challenging ? V2T.challenging : V2T.challengeButton)
     btn.type = 'button'
     btn.dataset.action = 'challenge'
+    // 記住畫面顯示時的聯盟與挑戰序號：畫面過期（別的分頁已經晉級）時，服務會拒絕，不會挑戰到另一個聯盟
+    const expected = { fromTier: league.tier, challengeSeq: league.nextChallengeSeq }
+    btn.dataset.tier = String(expected.fromTier)
+    btn.dataset.seq = String(expected.challengeSeq)
     btn.disabled = state.challenging || !state.canWrite
     btn.onclick = () => {
       btn.disabled = true
-      actions.challenge()
+      actions.challenge(expected)
     }
     card.append(btn)
   } else {

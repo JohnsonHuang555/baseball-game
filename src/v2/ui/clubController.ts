@@ -371,21 +371,17 @@ export class ClubController {
   }
 
   /**
-   * 挑戰下一級聯盟：序號與目前聯盟取自最新存檔，連點只會送一次；重送拿到原本的結果。
-   * 結果放在 state.challengeResult，畫面顯示後呼叫 dismissChallengeResult
+   * 挑戰下一級聯盟。expected 是按鈕「畫面顯示時」的聯盟與挑戰序號：不從最新存檔重新取值，
+   * 所以別的分頁已經晉級或挑戰過時，服務會在鎖內拒絕（stale-request），畫面重新載入，不會挑戰到玩家沒預期的聯盟。
+   * 每次呼叫產生一個 requestId；連點只會送一次（single flight）。結果放在 state.challengeResult，畫面顯示後呼叫 dismissChallengeResult
    */
-  challenge(): Promise<ActionResult> {
+  challenge(expected: { fromTier: number; challengeSeq: number }): Promise<ActionResult> {
     if (this.challengeFlight) return this.challengeFlight
     if (!this.guard.canWrite()) return Promise.resolve({ ok: false, message: V2T.readOnly })
     this.challengeFlight = (async (): Promise<ActionResult> => {
       this.set({ challenging: true, error: null })
       try {
-        const latest = this.deps.store.loadClub()
-        if (!latest) {
-          this.reload()
-          return { ok: false, message: V2T.noClubAnymore }
-        }
-        const out = await challengeNextLeague(this.deps, { challengeSeq: latest.league.nextChallengeSeq, fromTier: latest.league.tier })
+        const out = await challengeNextLeague(this.deps, { challengeSeq: expected.challengeSeq, fromTier: expected.fromTier, requestId: newRequestId() })
         if (this.disposed) return { ok: true }
         this.set({ club: out.club, challengeResult: out })
         return { ok: true }
@@ -393,7 +389,10 @@ export class ClubController {
         if (this.disposed) return { ok: false }
         if (e instanceof LeagueError) {
           if (e.settled) this.set({ club: e.settled.club })
-          if (e.code === 'stale-request') this.reload()
+          if (e.code === 'stale-request') {
+            this.reload()
+            return { ok: false, message: V2T.challengeStale }
+          }
           return { ok: false, message: e.code === 'not-eligible' ? V2T.challengeNotReady : e.message }
         }
         if (e instanceof SettlementError && e.code === 'simulation-failed') {
@@ -552,6 +551,12 @@ export class ClubController {
     this.current = { ...this.current, ...patch }
     for (const l of this.listeners) l(this.current)
   }
+}
+
+/** 一次挑戰操作的識別碼：只用來分辨重送與不同的請求，不需要密碼學強度 */
+function newRequestId(): string {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto
+  return c?.randomUUID ? c.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
 function brokenStatus(e: unknown): V2Status {

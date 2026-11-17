@@ -218,6 +218,7 @@ export const V2T = {
   challengeButton: '挑戰下一聯盟',
   challenging: '挑戰賽進行中…',
   challengeNotReady: '還沒有達到晉級條件',
+  challengeStale: '聯盟狀態已經在其他地方改變（可能另一個分頁剛挑戰或晉級），已重新載入，請確認後再挑戰',
   challengeFailedToRun: '挑戰賽沒有順利完成，沒有晉級，請再試一次',
   challengeTitle: '晉級挑戰賽',
   challengeWin: '挑戰成功！',

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
 import { FakeLockManager, ManualClock, tab } from '../testkit'
 import { recruit } from '../application/economyService'
-import { planChallenge } from '../application/leagueService'
+import { challengeNextLeague, planChallenge } from '../application/leagueService'
 import { runMatch } from '../application/matchRunner'
 import { LEAGUES, PROMOTION_CONFIG } from '../domain/leagueConfig'
 import type { ClubSave } from '../domain/club'
@@ -102,6 +102,30 @@ describe('聯盟卡片', () => {
     $<HTMLButtonElement>('.v2-modal-close')!.click()
     await flush()
     expect(text('.v2-league-need')).toContain(V2T.leagueRetry(PROMOTION_CONFIG.retryAfterMatches))
+  })
+})
+
+describe('過期畫面的挑戰按鈕', () => {
+  it('分頁 A 顯示新秀聯盟、分頁 B 已經晉級：A 按舊按鈕被拒絕並重新載入，不會挑戰「業餘 → 挑戰者」', async () => {
+    const { storage, deps } = await mountClub(await seedFor(true), eligible)
+    const btn = $<HTMLButtonElement>('[data-action="challenge"]')!
+    expect([btn.dataset.tier, btn.dataset.seq]).toEqual(['0', '0'])
+    // 分頁 B（另一份依賴、同一個儲存）晉級，並且在業餘聯盟也達到條件；分頁 A 沒收到通知，畫面還是舊的
+    await challengeNextLeague(deps, { fromTier: 0, challengeSeq: 0, requestId: 'tab-b' })
+    const c = deps.store.loadClub()!
+    deps.store.saveClub(eligible(c), c.revision)
+    const before = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).league
+    expect(before.tier).toBe(1)
+    expect(text('.v2-league-name')).toBe(LEAGUES[0].name)
+    btn.click()
+    await flush()
+    const after = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).league
+    expect(after).toEqual(before)
+    expect($('.v2-challenge-result')).toBeNull()
+    // 重新載入：畫面換成業餘聯盟，新的按鈕帶的是新的聯盟與序號
+    expect(text('.v2-league-name')).toBe(LEAGUES[1].name)
+    const fresh = $<HTMLButtonElement>('[data-action="challenge"]')!
+    expect([fresh.dataset.tier, fresh.dataset.seq]).toEqual(['1', '1'])
   })
 })
 
