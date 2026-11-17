@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import fixture from './__fixtures__/club-v3-phase3.json'
 import fixtureV4 from './__fixtures__/club-v4-phase4.json'
+import fixtureV5 from './__fixtures__/club-v5-phase5.json'
 import { CLUB_SCHEMA_VERSION, economyViolations, validateClub } from './club'
 import { eligibility } from './league'
 import { validateClubV3 } from './legacyV3'
@@ -13,7 +14,7 @@ const v3 = () => structuredClone(fixture) as unknown as ReturnType<typeof valida
 /** Phase 4 的程式實際產生的 V4 存檔（114 場、升級過、招募過一位預備球員、多次領取） */
 const v4 = () => structuredClone(fixtureV4) as unknown as Record<string, unknown> & typeof fixtureV4
 
-describe('V3 → V5 遷移（經過 V4）', () => {
+describe('V3 → V6 遷移（經過 V4、V5）', () => {
   it('fixture 是合法的 V3 存檔', () => {
     expect(needsMigration(v3())).toBe(true)
     expect(sourceVersion(v3())).toBe(3)
@@ -68,16 +69,17 @@ describe('V3 → V5 遷移（經過 V4）', () => {
   })
 })
 
-describe('V4 → V5 遷移', () => {
+describe('V4 → V6 遷移（經過 V5）', () => {
   it('fixture 是 Phase 4 的 V4 存檔', () => {
     expect(sourceVersion(v4())).toBe(4)
     expect(needsMigration({ ...v4(), schemaVersion: CLUB_SCHEMA_VERSION })).toBe(false)
   })
 
-  it('除了 league、schemaVersion、revision、migratedFrom 以外，每個欄位都一模一樣', () => {
+  it('除了 league、challengeReplay、schemaVersion、revision、migratedFrom 以外，每個欄位都一模一樣', () => {
     const old = v4()
     const club = migrateToLatest(old)
-    const { schemaVersion, league, revision, migratedFrom, ...rest } = club
+    const { schemaVersion, league, revision, migratedFrom, challengeReplay, ...rest } = club
+    expect(challengeReplay).toBeNull()
     const { schemaVersion: _s, revision: oldRevision, migratedFrom: _m, ...oldRest } = old as typeof old & { migratedFrom?: unknown }
     expect(rest).toEqual(oldRest)
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
@@ -115,5 +117,39 @@ describe('V4 → V5 遷移', () => {
   it('已經是目前格式或未知版本：不是可遷移的舊版', () => {
     expect(sourceVersion({ schemaVersion: 9 })).toBeNull()
     expect(() => migrateToLatest({ schemaVersion: 9 })).toThrow(MigrationError)
+  })
+})
+
+/** Phase 5A 的程式實際產生的 V5 存檔（324 場、招募 2 次、釋出 1 次、挑戰 2 次都失敗、30 筆支出紀錄） */
+const v5 = () => structuredClone(fixtureV5) as unknown as Record<string, unknown> & typeof fixtureV5
+
+describe('V5 → V6 遷移', () => {
+  it('fixture 是 Phase 5A 的 V5 存檔', () => {
+    expect(sourceVersion(v5())).toBe(5)
+  })
+
+  it('只加上 challengeReplay = null；其他每個欄位都一模一樣（聯盟、挑戰紀錄、支出、游標、錨點）', () => {
+    const old = v5()
+    const club = migrateToLatest(old)
+    const { schemaVersion, revision, migratedFrom, challengeReplay, ...rest } = club
+    const { schemaVersion: _s, revision: oldRevision, ...oldRest } = old
+    expect(rest).toEqual(oldRest)
+    expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
+    expect(challengeReplay).toBeNull()
+    expect(revision).toBe(oldRevision + 1)
+    expect(migratedFrom).toEqual({ schemaVersion: 5, revision: oldRevision })
+    expect(club.league).toEqual(old.league)
+    expect(club.idle).toEqual(old.idle)
+    expect(club.economy).toEqual(old.economy)
+    expect(economyViolations(club.economy)).toEqual([])
+  })
+
+  it('確定性、不改輸入；壞掉的 V5 丟 MigrationError', () => {
+    const old = v5()
+    const before = JSON.stringify(old)
+    expect(migrateToLatest(old)).toEqual(migrateToLatest(v5()))
+    expect(JSON.stringify(old)).toBe(before)
+    expect(() => migrateToLatest({ ...v5(), league: { ...v5().league, tier: 9 } })).toThrow(MigrationError)
+    expect(() => migrateToLatest({ schemaVersion: 5 })).toThrow(MigrationError)
   })
 })

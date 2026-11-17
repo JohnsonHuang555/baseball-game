@@ -18,8 +18,12 @@ export interface DashboardActions {
   refresh: () => void
   openReport: (m: SettledMatch) => void
   allReports: () => void
+  /** 觀看最近一場比賽；最近一場沒有保留完整重播時是 null（按鈕停用） */
+  watchLatest?: (() => void) | null
   recruit: () => void
   lineup: () => void
+  /** 觀看最近一次晉級挑戰賽；沒有保留就是 null（不顯示） */
+  watchChallenge?: (() => void) | null
   /** 帶上按鈕顯示時的聯盟與挑戰序號（不是送出當下重新讀到的值） */
   challenge: (expected: { fromTier: number; challengeSeq: number }) => void
 }
@@ -130,6 +134,14 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
     head.append(all)
   }
   recent.append(head)
+  if (club.recentMatches.length) {
+    const watch = el('button', 'btn-white v2-watch-btn', actions.watchLatest ? V2T.watchLatest : V2T.watchLatestNone)
+    watch.type = 'button'
+    watch.dataset.action = 'watch-latest'
+    watch.disabled = !actions.watchLatest
+    if (actions.watchLatest) watch.onclick = actions.watchLatest
+    recent.append(watch)
+  }
   const list = club.recentMatches.slice(-RECENT_ON_HOME).reverse()
   if (!list.length) recent.append(el('p', 'v2-empty', V2T.noMatches))
   else recent.append(matchList(list, actions.openReport))
@@ -140,7 +152,7 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
 }
 
 /** 聯盟卡片：名稱、徽章、本聯盟戰績、最近勝率、晉級進度，以及「挑戰下一聯盟」或還差哪些條件 */
-export function leagueCard(state: ControllerState, actions: Pick<DashboardActions, 'challenge'>): HTMLElement {
+export function leagueCard(state: ControllerState, actions: Pick<DashboardActions, 'challenge' | 'watchChallenge'>): HTMLElement {
   const club = state.club!
   const { league } = club
   const def = leagueOf(league.tier)
@@ -161,6 +173,13 @@ export function leagueCard(state: ControllerState, actions: Pick<DashboardAction
     el('span', 'v2-hint', V2T.leagueHint(def.rewardMultiplier)),
   )
   card.append(head, lines)
+  if (actions.watchChallenge) {
+    const watch = el('button', 'v2-link v2-watch-challenge', V2T.watchLastChallenge)
+    watch.type = 'button'
+    watch.dataset.action = 'watch-last-challenge'
+    watch.onclick = actions.watchChallenge
+    card.append(watch)
+  }
   if (e.atMaxTier) return card
 
   // 進度條：場數與勝率兩個條件裡，比較落後的那個

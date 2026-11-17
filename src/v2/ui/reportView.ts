@@ -24,8 +24,8 @@ export function highlightText(h: SummaryHighlight): string {
   return V2T.highlight[h.kind](h.playerName || '—', h.runs, V2T.inningHalf(h.inning, h.half))
 }
 
-/** 單場戰報 */
-export function openMatchReport(m: SettledMatch, club: ClubSave): () => void {
+/** 單場戰報；有保留完整重播而且給了 watch，就多一個「觀看比賽」 */
+export function openMatchReport(m: SettledMatch, club: ClubSave, watch?: (m: SettledMatch) => void): () => void {
   const r = m.result
   const body = el('div', 'v2-report')
   const score = el('div', `v2-report-score ${r.won ? 'won' : 'lost'}`)
@@ -44,11 +44,17 @@ export function openMatchReport(m: SettledMatch, club: ClubSave): () => void {
     for (const h of r.highlights) ul.append(el('li', h.ours ? 'ours' : 'theirs', highlightText(h)))
     highlights.append(ul)
   } else highlights.append(el('p', 'v2-empty', V2T.noHighlights))
-  body.append(score, meta, rewards, highlights)
-
   const kept = club.replays.find((x) => x.matchId === m.matchId)
+  body.append(score, meta)
+  if (kept && watch) {
+    const b = el('button', 'btn-yellow btn-big v2-watch-btn', V2T.watchMatch)
+    b.type = 'button'
+    b.dataset.action = 'watch'
+    b.onclick = () => watch(m)
+    body.append(b)
+  } else if (!kept) body.append(el('p', 'v2-replay-missing', V2T.replayNotKept))
+  body.append(rewards, highlights)
   if (kept) body.append(...replayDetails(kept.replay))
-  else body.append(el('p', 'v2-hint', V2T.noReplay))
   return v2Modal(V2T.reportTitle(m.matchIndex + 1), body)
 }
 

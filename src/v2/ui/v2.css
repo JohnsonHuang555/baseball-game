@@ -1221,3 +1221,256 @@
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+
+/* ---- 觀戰（Phase 5B）：蓋在 V2 畫面上方的子畫面 ---- */
+.v2-replay-overlay {
+  --v2-win: #22a35a;
+  --v2-loss: #e5383b;
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  overflow: hidden;
+  background-color: var(--indigo);
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 12px, transparent 12px 24px);
+}
+.v2-replay {
+  max-width: 480px;
+  height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: calc(8px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom));
+  color: var(--ink);
+}
+.v2-replay > * {
+  flex-shrink: 0;
+}
+.v2-replay-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-replay-back {
+  flex: none;
+  height: 40px;
+  padding: 0 14px;
+  font-size: 15px;
+}
+.v2-replay-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-replay-sound {
+  height: 40px;
+  min-width: 40px;
+}
+.v2-replay-field {
+  position: relative;
+}
+/* 爆炸框大字：跟 V1 比賽畫面相同的樣式 */
+.v2-replay .callout {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%) rotate(-6deg) scale(0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.15s,
+    transform 0.25s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.v2-replay .callout.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) rotate(-6deg) scale(1);
+}
+.v2-replay-final {
+  position: absolute;
+  inset: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 2.5px solid var(--ink);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4px 0 var(--ink);
+}
+.v2-replay-final[hidden] {
+  display: none;
+}
+.v2-replay-verdict {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1;
+}
+.v2-replay-final.won .v2-replay-verdict {
+  color: var(--v2-win);
+}
+.v2-replay-final.lost .v2-replay-verdict {
+  color: var(--v2-loss);
+}
+.v2-replay-final-score {
+  font-family: var(--font-display);
+  font-size: 30px;
+}
+.v2-replay-linescore {
+  max-width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  text-align: center;
+}
+.v2-replay-linescore th,
+.v2-replay-linescore td {
+  padding: 2px 3px;
+}
+.v2-replay-linescore td.name {
+  max-width: 64px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-replay-linescore tr.mine {
+  font-weight: 900;
+}
+.v2-replay-linescore td.total {
+  font-weight: 900;
+}
+.v2-replay-duel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-height: 40px;
+}
+.v2-replay-duel-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 14px;
+}
+.v2-replay-duel-card strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-replay-duel-label {
+  flex: none;
+  color: #5a5fa8;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-replay-last {
+  margin: 0;
+  min-height: 22px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+}
+.v2-replay-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 6px 10px;
+  overflow-y: auto;
+  list-style: none;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+}
+.v2-replay-log li {
+  padding: 2px 0;
+}
+.v2-replay-log li.divider {
+  color: #5a5fa8;
+  font-size: 12px;
+  text-align: center;
+}
+.v2-replay-log li.score,
+.v2-replay-log li.hr {
+  color: var(--v2-win);
+  font-weight: 900;
+}
+.v2-replay-log li.sub {
+  color: #5a5fa8;
+}
+.v2-replay-controls {
+  display: grid;
+  grid-template-columns: 1.2fr 1.6fr;
+  gap: 8px;
+}
+.v2-replay-toggle {
+  height: 48px;
+  font-size: 17px;
+}
+.v2-replay-speed {
+  height: 48px;
+}
+.v2-replay-restart,
+.v2-replay-skip {
+  height: 44px;
+  font-size: 15px;
+}
+.v2-replay-error {
+  margin-top: 24px;
+}
+.v2-watch-btn {
+  width: 100%;
+  margin-top: 10px;
+}
+.v2-replay-missing {
+  margin: 8px 0 0;
+  color: #5a5fa8;
+  font-size: 13px;
+}
+/* 電腦版：V1 的比分條在桌面會把隊名移到另一欄；觀戰畫面只有一欄，維持手機版的比分條 */
+@media (min-width: 1024px) {
+  .v2-replay .match-header {
+    height: 64px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 60px 60px 72px;
+    gap: 0;
+    padding: 0;
+  }
+  .v2-replay .mh-teams {
+    display: flex;
+  }
+  .v2-replay .mh-inning {
+    align-self: stretch;
+    background: var(--ink);
+    color: #fff;
+  }
+  .v2-replay .mh-inning-num {
+    font-size: 24px;
+  }
+  .v2-replay .match-field .field {
+    max-width: none;
+  }
+  .v2-replay {
+    max-width: 560px;
+  }
+  .v2-replay .speed-toggle {
+    flex: none;
+    width: auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

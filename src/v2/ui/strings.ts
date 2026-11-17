@@ -237,4 +237,33 @@ export const V2T = {
   releaseOnlyReserve: '只有預備名單的球員可以釋出；先發、板凳與投手要先在陣容中換下來',
   releasing: '釋出中…',
   released: (name: string) => `已釋出 ${name}`,
+
+  // 觀戰（Phase 5B）
+  replayTitle: '觀看比賽',
+  watchMatch: '觀看比賽',
+  watchLatest: '觀看最近比賽',
+  watchLatestNone: '還沒有可以觀看的比賽',
+  replayNotKept: '這場比賽的完整重播已不再保留（只保存最近 3 場），以下是文字戰報',
+  replayBack: '返回',
+  replayPlay: '播放',
+  replayPause: '暫停',
+  replayAgain: '再看一次',
+  replayRestart: '重新播放',
+  replaySkip: '跳到結束',
+  replaySpeed: '播放速度',
+  replayBatter: '打者',
+  replayPitcher: '投手',
+  replayReady: '比賽即將開始',
+  replayFinalShort: '終',
+  replayFinalLine: (won: boolean, innings: number) => `比賽結束・${innings > 9 ? `延長 ${innings} 局・` : ''}${won ? '勝利' : '落敗'}`,
+  replayErrorTitle: '無法播放這場比賽',
+  replayErrorText: (code: 'corrupt' | 'unsupported-version' | 'mismatch') =>
+    code === 'unsupported-version'
+      ? '這場比賽是用不同版本的規則打的，目前的程式無法重播。戰報與戰績不受影響。'
+      : code === 'mismatch'
+        ? '重播的結果跟戰報對不起來，為了避免顯示錯誤的內容，不播放這場比賽。戰報與戰績不受影響。'
+        : '這場比賽的重播資料不完整或已損壞。戰報與戰績不受影響。',
+  replayLoadFailed: '觀戰畫面載入失敗，請再試一次',
+  watchChallenge: '觀看挑戰過程',
+  watchLastChallenge: '觀看上次晉級挑戰',
 } as const

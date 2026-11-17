@@ -129,7 +129,7 @@ describe('V2 畫面', () => {
     $<HTMLButtonElement>('.v2-modal-close')!.click()
     $$('.v2-match')[3].click()
     expect($('.v2-linescore')).toBeNull()
-    expect(text('.v2-report')).toContain(V2T.noReplay)
+    expect(text('.v2-report')).toContain(V2T.replayNotKept)
   })
 
   it('陣容：點先發再點板凳換人，儲存後從下一場生效；不儲存可以還原', async () => {

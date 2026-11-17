@@ -8,6 +8,7 @@ import { setKeys } from '../../ui/keys'
 import { toast } from '../../ui/visual'
 import { CLUB_STORAGE_KEY } from '../infrastructure/clubRepository'
 import { createV2Deps, type V2Deps } from '../infrastructure/composition'
+import type { SettledMatch } from '../domain/club'
 import { ClubController, type ControllerState } from './clubController'
 import { renderDashboard, updateCountdown } from './dashboardView'
 import { createLineupView, type LineupView } from './lineupView'
@@ -39,6 +40,10 @@ export interface V2AppOptions {
   /** 倒數更新的間隔（毫秒），0 代表不開計時器（測試用） */
   tickMs?: number
   initialTab?: V2Tab
+  /** 測試用：觀戰畫面的球場（測試環境沒有 Canvas） */
+  replayStage?: () => import('./replayView').ReplayStage
+  /** 測試用：觀戰的等待時間倍率（0 = 不等待） */
+  replayTimeScale?: number
 }
 
 export interface V2App {
@@ -61,6 +66,10 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
   let shownChallenge: number | null = null
   let lineup: LineupView | null = null
   let tactics: TacticsView | null = null
+  /** 開著的觀戰畫面（同一時間只有一個） */
+  let viewer: { close(): void } | null = null
+  /** 正在載入觀戰畫面（動態 import 中）：連點不會開兩個 */
+  let viewerLoading = false
   /** 建立表單裡輸入的名稱：重繪表單（例如建立失敗）時保留，重試不用重打 */
   let draftName = ''
 
@@ -147,6 +156,66 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     }
   }
 
+  /**
+   * 觀看一場已經結算的比賽：從目前畫面上的球團複製一份 Replay（之後存檔被更新、Replay 被新的結算擠掉都不影響這次播放），
+   * 動態載入觀戰畫面。觀戰不經過 controller，不寫入任何東西；關閉後回到原本的分頁（戰報對話框也還在）
+   */
+  async function watchMatch(m: SettledMatch): Promise<void> {
+    const club = controller.state.club
+    const kept = club?.replays.find((x) => x.matchId === m.matchId)
+    if (!club || !kept) {
+      toast(V2T.replayNotKept)
+      return
+    }
+    const r = m.result
+    await openViewer(kept.replay, { userSide: r.userSide, runsFor: r.runsFor, runsAgainst: r.runsAgainst, won: r.won, innings: r.innings }, `${V2T.matchNo(m.matchIndex + 1)}・${V2T.vs(r.opponentName)}`)
+  }
+
+  /** 觀看最近一次晉級挑戰賽（只保留最近一場）；比分用挑戰紀錄核對 */
+  async function watchChallenge(): Promise<void> {
+    const club = controller.state.club
+    const kept = club?.challengeReplay
+    const record = kept && club!.league.challenges.find((c) => c.seq === kept.seq)
+    if (!kept || !record) {
+      toast(V2T.replayNotKept)
+      return
+    }
+    const expected = { userSide: kept.replay.setup.userSide, runsFor: record.runsFor, runsAgainst: record.runsAgainst, won: record.won, innings: record.innings }
+    await openViewer(kept.replay, expected, `${V2T.challengeTitle}・${V2T.vs(record.opponentName)}`)
+  }
+
+  async function openViewer(replay: import('../application/matchRunner').MatchReplay, expected: import('../application/replayPlayer').ReplayExpectation, title: string): Promise<void> {
+    if (viewer || viewerLoading || closed) return
+    // 複製一份：之後存檔被更新、Replay 被新的結算或挑戰取代，都不影響這次播放
+    const snapshot = structuredClone(replay)
+    viewerLoading = true
+    try {
+      const mod = await import('./replayView')
+      if (closed) return
+      viewer = mod.openReplayViewer({
+        replay: snapshot,
+        expected,
+        title,
+        createStage: opts.replayStage,
+        timeScale: opts.replayTimeScale,
+        onClose: () => {
+          viewer = null
+        },
+      })
+    } catch {
+      toast(V2T.replayLoadFailed)
+    } finally {
+      viewerLoading = false
+    }
+  }
+
+  /** 首頁「觀看最近比賽」：最近一場有保留完整重播才有 */
+  function latestWatchable(state: ControllerState): SettledMatch | null {
+    const club = state.club
+    const last = club?.recentMatches.at(-1)
+    return last && club!.replays.some((x) => x.matchId === last.matchId) ? last : null
+  }
+
   async function claimWithToast(): Promise<void> {
     const res = await controller.claim()
     if (!closed && res.message) toast(res.message)
@@ -167,10 +236,18 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
         renderDashboard(state, controller, {
           claim: () => void claimWithToast(),
           refresh: () => void controller.settle('manual'),
-          openReport: (m) => openMatchReport(m, state.club!),
+          openReport: (m) => openMatchReport(m, state.club!, watchMatch),
+          watchLatest: latestWatchable(state)
+            ? () => {
+                // 按下時用最新的球團：如果最近一場已經換了，就看新的那一場
+                const m = latestWatchable(controller.state)
+                if (m) void watchMatch(m)
+              }
+            : null,
           allReports: () => show('reports'),
           recruit: () => openRecruit(controller, () => show('lineup')),
           lineup: () => show('lineup'),
+          watchChallenge: state.club?.challengeReplay ? () => void watchChallenge() : null,
           challenge: (expected) =>
             void controller.challenge(expected).then((res) => {
               if (!closed && !res.ok && res.message) toast(res.message)
@@ -183,7 +260,7 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     } else if (tab === 'tactics') {
       tactics ??= createTacticsView(controller)
       main.replaceChildren(tactics.render(state))
-    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!)))
+    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!, watchMatch)))
 
     if (state.notice) {
       toast(state.notice)
@@ -191,10 +268,12 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     }
     if (state.challengeResult && state.challengeResult.challenge.seq !== shownChallenge) {
       shownChallenge = state.challengeResult.challenge.seq
+      const result = state.challengeResult
+      const canWatch = result.club.challengeReplay?.seq === result.challenge.seq
       challengeResultModal(state.challengeResult, () => {
         shownChallenge = null
         controller.dismissChallengeResult()
-      })
+      }, canWatch ? () => void watchChallenge() : undefined)
     }
     if (state.welcome && state.welcome.key !== shownWelcome) {
       shownWelcome = state.welcome.key
@@ -302,6 +381,7 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     if (closed) return
     closed = true
     if (timer) clearInterval(timer)
+    viewer?.close()
     doc?.removeEventListener('visibilitychange', onVisible)
     win?.removeEventListener('focus', onFocus)
     unsubscribe()

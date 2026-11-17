@@ -9,6 +9,7 @@ import { FakeLockManager, FlakyStorage, HOUR, ManualClock, tab } from '../testki
 import { planMatch, planMatches, runBatch } from './batchRunner'
 import { createClubSafely } from './clubLifecycle'
 import { LeagueError, applyChallenge, challengeNextLeague, planChallenge } from './leagueService'
+import { buildTimeline } from './replayPlayer'
 import { runMatch } from './matchRunner'
 import { SettlementError, claim, settleDue, settleOutcomes } from './settlementService'
 
@@ -189,6 +190,28 @@ describe('晉級挑戰', () => {
       const stale = await challengeNextLeague(other, { challengeSeq: 0, fromTier: 1 }).catch((e) => e)
       expect(stale).toBeInstanceOf(LeagueError)
       expect(stale.code).toBe('stale-request')
+    }
+  })
+
+  it('挑戰賽的 Replay：成功、失敗都存最近一場；重送不會改變；可以重現同樣的比分，而且不影響聯盟進度', async () => {
+    for (const want of [true, false]) {
+      const { deps } = await setupWithChallenge(want)
+      const out = await challengeNextLeague(deps, { fromTier: 0, challengeSeq: 0, requestId: 'r1' })
+      const c = load(deps)
+      expect(c.challengeReplay).toMatchObject({ seq: 0, matchId: 'club-league#c0' })
+      const t = buildTimeline(c.challengeReplay!.replay, {
+        userSide: c.challengeReplay!.replay.setup.userSide,
+        runsFor: out.challenge.runsFor,
+        runsAgainst: out.challenge.runsAgainst,
+        won: out.challenge.won,
+        innings: out.challenge.innings,
+      })
+      expect(t.final.over).toBe(true)
+      const again = await challengeNextLeague(deps, { fromTier: 0, challengeSeq: 0, requestId: 'r1' })
+      expect(again.duplicate).toBe(true)
+      expect(load(deps)).toEqual(c)
+      // 觀看（重建時間軸）不改任何東西
+      expect(load(deps).league).toEqual(c.league)
     }
   })
 

@@ -6,7 +6,8 @@ import { PROMOTION_CONFIG } from '../domain/leagueConfig'
 import { v2Modal } from './reportView'
 import { V2T } from './strings'
 
-export function challengeResultModal(out: ChallengeOutcome, onClose: () => void): () => void {
+/** watch 有給（這次挑戰有保留 Replay）就多一個「觀看挑戰過程」：觀戰畫面蓋在結果對話框上方，返回後回到這裡 */
+export function challengeResultModal(out: ChallengeOutcome, onClose: () => void, watch?: () => void): () => void {
   const c = out.challenge
   const body = el('div', `v2-challenge-result ${c.won ? 'won' : 'lost'}`)
   body.append(el('p', 'v2-challenge-verdict', c.won ? V2T.challengeWin : V2T.challengeLose))
@@ -19,6 +20,13 @@ export function challengeResultModal(out: ChallengeOutcome, onClose: () => void)
     body.append(el('p', 'v2-hint', V2T.challengeNextWin))
   } else {
     body.append(el('p', 'v2-hint', V2T.challengeNextLose(PROMOTION_CONFIG.retryAfterMatches)))
+  }
+  if (watch) {
+    const b = el('button', 'btn-white v2-watch-btn', V2T.watchChallenge)
+    b.type = 'button'
+    b.dataset.action = 'watch-challenge'
+    b.onclick = watch
+    body.append(b)
   }
   return v2Modal(V2T.challengeTitle, body, onClose)
 }

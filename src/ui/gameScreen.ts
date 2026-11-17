@@ -11,6 +11,7 @@ import { PITCH_MOTION, PitchCam } from './pitchCam'
 import { maybeTutorial } from './tutorial'
 import { TUTORIAL_STEPS } from './tutorialSteps'
 import { play, soundToggle } from './sound'
+import { BURST_SVG, MATCH_PACE, OUT_KINDS, ROUTINE_SPEEDUP, pitchSound, playSound } from './playAnimation'
 import { el } from './playerCard'
 import { MANUAL_MODES, PROMPT_LEVELS, loadManual, loadPromptLevel, saveManual, savePromptLevel, type ManualMode } from './prefs'
 import { PITCH_TEXT, PROMPT_NAMES, SYNERGY_DESC, SYNERGY_NAMES, T, describePlay, homeRunName, runnersText } from './strings'
@@ -43,11 +44,8 @@ export interface GameScreenOptions {
   manualToggle?: boolean
 }
 
-const HIT_KINDS = new Set(['single', 'double', 'triple'])
 /** 比賽速度選項，預設 1x；2x、4x 給想快點打完的人 */
 const SPEEDS = [1, 2, 4]
-
-const OUT_KINDS = new Set(['groundOut', 'doublePlay', 'flyOut', 'sacrificeFly', 'lineOut', 'buntPopOut', 'sacrificeBunt'])
 
 
 
@@ -56,17 +54,6 @@ const PAUSE_ICON =
 /** 進攻方標記：用 SVG 三角形，不用 ▶ 字元（部分手機會變成 emoji） */
 const BATTING_MARK =
   '<svg class="mh-mark" aria-hidden="true" width="9" height="10" viewBox="0 0 9 10"><path d="M0 0 L9 5 L0 10 Z" fill="currentColor"/></svg>'
-
-/** 大字提示後面的爆炸框 */
-const BURST_SVG = (() => {
-  const pts: string[] = []
-  for (let i = 0; i < 24; i++) {
-    const r = i % 2 ? 46 : 74
-    const a = (i * Math.PI) / 12
-    pts.push(`${(Math.cos(a) * r * 1.5).toFixed(1)},${(Math.sin(a) * r * 0.9).toFixed(1)}`)
-  }
-  return `<svg class="burst" aria-hidden="true" viewBox="-125 -75 250 150"><polygon points="${pts.join(' ')}"/></svg>`
-})()
 
 /** 壘包狀態小菱形：有人的壘亮黃燈 */
 export function basesSvg(on: readonly boolean[]): string {
@@ -499,23 +486,13 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
 
   const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
-  /** 1x 時的節奏（毫秒）：動畫本身加上之後的停頓，讓人看得清楚每一球 */
-  const PACE = {
-    pitch: 600,
-    afterPitch: 300,
-    flightBase: 650,
-    flightPerFoot: 2.6,
-    afterPlay: 800,
-    steal: 650,
-    afterHalfInning: 900,
-    homeRunStats: 1400,
-    strikeout: 500,
-  }
+  /** 節奏與 V2 觀戰共用（ui/playAnimation.ts） */
+  const PACE = MATCH_PACE
 
   /** thrower：這一步開始時的投手；這一步裡換投的話跟著換 */
   async function animate(events: GameEvent[], important: boolean, thrower: Pitcher = game.pitcher): Promise<void> {
     // 關鍵時刻用正常速度，平常稍微快一點
-    const k = 1 / (speed * (important ? 1 : 1.4))
+    const k = 1 / (speed * (important ? 1 : ROUTINE_SPEEDUP))
     for (const [i, e] of events.entries()) {
       const text = describe(e)
       if (e.type === 'substitution' && e.kind === 'pitcher') thrower = game.player(e.inId) as Pitcher
@@ -527,18 +504,7 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
           await Promise.all([field.pitch(e.result, ms, e.pitch, thrower.throws), pitchCam.play(e.pitch, thrower, e.result, ms)])
         } else await field.pitch(e.result, PACE.pitch * k)
         // 球到本壘的那一刻發聲：進手套、揮空、擦棒，或打進場內（全壘打更響）
-        const next = events[i + 1]
-        play(
-          e.result === 'inPlay'
-            ? next?.type === 'play' && next.kind === 'homeRun'
-              ? 'bigCrack'
-              : 'crack'
-            : e.result === 'foul'
-              ? 'foul'
-              : e.result === 'swingingStrike'
-                ? 'whoosh'
-                : 'mitt',
-        )
+        play(pitchSound(e, events[i + 1]))
         if (e.result !== 'inPlay') {
           renderBoard()
           await wait(PACE.afterPitch * k)
@@ -547,9 +513,8 @@ export function showGame(root: HTMLElement, opts: GameScreenOptions): void {
         const caught = OUT_KINDS.has(e.kind)
         const ms = (PACE.flightBase + (e.ball?.distance ?? 0) * PACE.flightPerFoot) * k
         await field.play(e.ball, e.moves, caught, ms)
-        if (e.kind === 'homeRun') play('roar')
-        else if (e.kind === 'strikeout') play('strikeout')
-        else if (e.runs > 0 || HIT_KINDS.has(e.kind) || e.kind === 'doublePlay') play('cheer')
+        const sound = playSound(e.kind, e.runs)
+        if (sound) play(sound)
         const cls = e.kind === 'homeRun' ? 'hr' : e.runs > 0 ? 'score' : e.kind === 'error' ? 'error' : ''
         if (e.kind === 'homeRun') {
           flash(`${homeRunName(e.runs)}！`, 'hr', '', e.assist)

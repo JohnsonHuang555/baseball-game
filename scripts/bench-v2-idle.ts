@@ -142,3 +142,24 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   console.log(`\n最高聯盟、${c.players.length} 人、${c.idle.nextMatchIndex} 場、挑戰紀錄 ${c.league.challenges.length} 筆（上限）、支出紀錄 ${c.economy.recentOps.length} 筆`)
   console.log(`挑戰每次 ${ms(tChallenge / tries)}（${tries} 次，含讀檔、驗證、模擬、存檔）；釋出每次 ${ms(tRelease)}；最高聯盟結算 ${report.settled.length} 場 ${ms(tSettle)}；存檔大小 ${(size / 1024).toFixed(1)} KB`)
 }
+
+// ---- Phase 5B：Replay 大小與建立觀戰時間軸的耗時 ----
+{
+  const { buildTimeline } = await import('../src/v2/application/replayPlayer')
+  const storage = new MemoryStorage()
+  const repo = new ClubRepository(storage)
+  const club = repo.createClub({ clubName: '觀戰', clubSeed: 5, clubId: 'replay-bench', now: T0 })
+  const batch = await runBatch(planMatches(club, 0, 96), { chunkSize: 8, yieldControl: () => Promise.resolve() })
+  const sizes = batch.outcomes.map((o) => JSON.stringify(o.result.replay).length)
+  const avg = sizes.reduce((a, b) => a + b, 0) / sizes.length
+  const settled = settleOutcomes(club, batch.outcomes, T0 + 96 * MATCH_INTERVAL_MS).club
+  const replaysBytes = JSON.stringify(settled.replays).length
+  const total = JSON.stringify(settled).length
+  let t = performance.now()
+  let frames = 0
+  for (const o of batch.outcomes.slice(0, 20)) frames += buildTimeline(o.result.replay).frames.length
+  const tTimeline = (performance.now() - t) / 20
+  console.log(`\n單場 Replay JSON 平均 ${(avg / 1024).toFixed(1)} KB（最小 ${(Math.min(...sizes) / 1024).toFixed(1)}、最大 ${(Math.max(...sizes) / 1024).toFixed(1)} KB）`)
+  console.log(`存檔保留 ${settled.replays.length} 場完整 Replay，共 ${(replaysBytes / 1024).toFixed(1)} KB（占存檔 ${(total / 1024).toFixed(1)} KB 的 ${((replaysBytes / total) * 100).toFixed(0)}%）`)
+  console.log(`建立觀戰時間軸每場 ${ms(tTimeline)}（平均 ${(frames / 20).toFixed(0)} 格）`)
+}

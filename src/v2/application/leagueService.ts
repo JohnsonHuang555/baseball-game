@@ -1,7 +1,7 @@
 // 晉級挑戰：達到晉級條件後，打一場自動模擬的挑戰賽，贏了晉級到下一級聯盟。
 //
 // 跟一般比賽完全分開：挑戰賽用自己的序號（league.nextChallengeSeq）、自己的種子 salt、自己的比賽編號（<球團>#c<序號>），
-// 不動一般比賽的結算游標（idle.nextMatchIndex）與時間錨點，也不記進總戰績、近期比賽與 replay。
+// 不動一般比賽的結算游標（idle.nextMatchIndex）與時間錨點，也不記進總戰績、近期比賽與一般比賽的 replay（挑戰賽的 Replay 另外存在 challengeReplay，只留最近一場）。
 //
 // 冪等：請求帶上「畫面顯示時」的 nextChallengeSeq 與聯盟（不是送出當下重新讀到的值），以及這次操作的 requestId。
 // - 序號與聯盟都等於存檔目前的值：檢查資格、模擬、晉級（或記下失敗），序號加 1
@@ -117,7 +117,8 @@ export function assertEligible(club: ClubSave): void {
  * 把挑戰結果記進球團（不改輸入）：
  * - 贏：晉級、晉級次數 +1、更新最高階級、本聯盟戰績歸零；第一次到這個聯盟的獎勵加到未領取與累計收益（每個聯盟只發一次）
  * - 輸：記下失敗，要再打 retryAfterMatches 場一般比賽才能再挑戰
- * 球員、等級、資產、總戰績、近期比賽、replay 都不動
+ * 不管輸贏，都把這場挑戰賽的完整 Replay 存進 challengeReplay（取代上一次的）。
+ * 球員、等級、資產、總戰績、近期比賽、一般比賽的 replay 都不動
  */
 export function applyChallenge(club: ClubSave, req: ChallengeRequest, outcome: MatchOutcome, now: number): { club: ClubSave; challenge: ChallengeRecord } {
   const { plan, result } = outcome
@@ -166,6 +167,7 @@ export function applyChallenge(club: ClubSave, req: ChallengeRequest, outcome: M
   }
   league.nextChallengeSeq++
   league.challenges = [...league.challenges, challenge].slice(-PROMOTION_CONFIG.historyLimit)
+  next.challengeReplay = { seq: challenge.seq, matchId: plan.matchId, replay: structuredClone(result.replay) }
   return { club: next, challenge }
 }
 

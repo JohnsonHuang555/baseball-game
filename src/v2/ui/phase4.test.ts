@@ -2,6 +2,7 @@
 // Phase 4 的控制器與完整遊玩流程：建立 → 結算 → 領取 → 升級 → 看能力 → 招募 → 上場 → 再比賽 → 確認進入模擬 → 重新整理
 import { describe, expect, it } from 'vitest'
 import fixture from '../domain/__fixtures__/club-v3-phase3.json'
+import { CLUB_SCHEMA_VERSION } from '../domain/club'
 import { swapWithReserve } from '../domain/lineup'
 import { leveled } from '../domain/progression'
 import { recruitCost } from '../domain/recruitment'
@@ -127,7 +128,7 @@ describe('控制器：進入時遷移', () => {
     await c.start()
     expect(c.state.status.kind).toBe('ready')
     expect(notices).toContain(V2T.migrated)
-    expect(c.state.club!.schemaVersion).toBe(5)
+    expect(c.state.club!.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(c.state.club!.record).toEqual(fixture.record)
     expect(storage.getItem(CLUB_BACKUP_KEY_V3)).toBe(JSON.stringify(fixture))
   })

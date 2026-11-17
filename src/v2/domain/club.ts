@@ -1,6 +1,6 @@
-// V2 球團存檔（schemaVersion 5）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度與近期比賽。
+// V2 球團存檔（schemaVersion 6）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度、近期比賽與最近一次晉級挑戰的 Replay。
 // 不沿用 V1 的 Tournament：錦標賽是一輪一輪的 roguelike，V2 的球團要一直存在、一直累積。
-// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → 5）見 migration.ts
+// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → 5 → 6）見 migration.ts
 import type { Side } from '../../sim/game'
 import type { Player, Position, Roster } from '../../sim/types'
 import type { CoachParams, CoachStyle } from '../application/autoCoach'
@@ -15,7 +15,7 @@ import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, v
 
 export { ClubValidationError, type ClubValidationCode } from './validation'
 
-export const CLUB_SCHEMA_VERSION = 5
+export const CLUB_SCHEMA_VERSION = 6
 
 /**
  * 換算好的陣容：先發、板凳、投手都是完整的球員物件（養成後的能力），也就是模擬引擎吃的 Roster。
@@ -144,7 +144,14 @@ export interface SettledMatch {
   settledAt: number
 }
 
-export interface ClubSaveV5 {
+/** 最近一次晉級挑戰賽的完整 Replay（只留一場）：seq 一定是最近一次挑戰的序號 */
+export interface ChallengeReplay {
+  seq: number
+  matchId: string
+  replay: MatchReplay
+}
+
+export interface ClubSaveV6 {
   schemaVersion: typeof CLUB_SCHEMA_VERSION
   clubId: string
   clubName: string
@@ -166,14 +173,16 @@ export interface ClubSaveV5 {
   recentMatches: SettledMatch[]
   /** 最近幾場的完整 replay，最多 RETENTION_CONFIG.replays 份 */
   replays: { matchId: string; replay: MatchReplay }[]
+  /** 最近一次晉級挑戰賽的完整 Replay（schemaVersion 6 起）；還沒挑戰過、或遷移前挑戰的都是 null */
+  challengeReplay: ChallengeReplay | null
   /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄；從 3 升上來時是 3） */
-  migratedFrom?: { schemaVersion: 3 | 4; revision: number }
+  migratedFrom?: { schemaVersion: 3 | 4 | 5; revision: number }
   /** 每存一次加 1：用來發現別的分頁已經改過存檔 */
   revision: number
 }
 
 /** 目前格式的球團存檔 */
-export type ClubSave = ClubSaveV5
+export type ClubSave = ClubSaveV6
 
 export interface NewClubInput {
   clubId: string
@@ -219,6 +228,7 @@ export function newClub(input: NewClubInput): ClubSave {
     record: { wins: 0, losses: 0, runsFor: 0, runsAgainst: 0 },
     recentMatches: [],
     replays: [],
+    challengeReplay: null,
     revision: 0,
   }
 }
@@ -305,6 +315,7 @@ export function validateClub(value: unknown): ClubSave {
   int(strategy, 'effectiveFromMatch', 'strategy')
   validateEconomy(obj(value, 'economy'))
   validateLeague(obj(value, 'league'))
+  validateChallengeReplay(value.challengeReplay, obj(value, 'league'))
   const idle = obj(value, 'idle')
   num(idle, 'anchorMs', 'idle')
   int(idle, 'nextMatchIndex', 'idle')
@@ -349,6 +360,16 @@ function validateAssignment(value: Obj): void {
   }
   const issues = lineupIssues(resolved)
   if (issues.length) throw invalid('roster', issues.join('；'))
+}
+
+function validateChallengeReplay(value: unknown, league: Obj): void {
+  if (value === null) return
+  if (!isObj(value)) throw invalid('challengeReplay', '必須是 null 或物件')
+  int(value, 'seq', 'challengeReplay')
+  str(value, 'matchId', 'challengeReplay')
+  if (!isObj(value.replay) || !isObj(value.replay.setup) || !Array.isArray(value.replay.commands)) throw invalid('challengeReplay.replay', '格式不對')
+  // 只保留最近一次挑戰
+  if (value.seq !== (league.nextChallengeSeq as number) - 1) throw invalid('challengeReplay.seq', '不是最近一次挑戰')
 }
 
 function validateLeague(league: Obj): void {
