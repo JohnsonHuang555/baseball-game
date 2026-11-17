@@ -230,13 +230,23 @@ export interface FrameContext {
   before: ReplayState
   /** 直播：這一格的動畫要在幾毫秒內播完（依剩餘時間縮放）；沒有就照 speed 播 */
   budgetMs?: number
+  /**
+   * 直播：只「呈現」這一格的事件（投球、擊球、跑壘、大字、文字），不提交這一格之後的狀態
+   * （比分條、出局、好壞球、壘上、比賽結束）。狀態由播放器在這一格排定的結束時間到了才用 commit() 提交
+   */
+  presentOnly?: boolean
 }
 
 /** 畫面這一側：播放一格動畫、直接顯示某個狀態（跳轉、暫停中斷後） */
 export interface ReplayPresenter {
   playFrame(frame: ReplayFrame, ctx: FrameContext): Promise<void>
-  /** 不播動畫，直接把畫面設成這個狀態；position 是已經播完幾格 */
+  /** 不播動畫，直接把畫面設成這個狀態（中斷進行中的動畫）；position 是已經播完幾格 */
   show(state: ReplayState, position: number): void
+  /**
+   * 直播：正式提交某個時間點的比賽狀態（比分條、壘上、局數），不中斷進行中的效果（大字、數據卡）。
+   * 沒有實作就用 show()
+   */
+  commit?(state: ReplayState, position: number): void
 }
 
 export interface ReplayView {

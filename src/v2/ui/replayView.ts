@@ -351,6 +351,18 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
     if (s.over) renderFinal(s)
   }
 
+  /**
+   * 直播：正式提交某個時間點的比賽狀態。只更新比分條、局數、壘上與守備位置，不中斷進行中的大字與數據卡。
+   * 播放器只會提交「排定時間已經到了」的狀態，所以這裡不會出現未來的比分；最終比分由 ended 時的 show() 揭曉
+   */
+  function commitState(s: ReplayState, _position: number): void {
+    if (closed) return
+    theStage.setColors((s.battingSide === 'home' ? 'away' : 'home') === userSide())
+    if (!s.over && theStage.alignment !== s.alignment) void theStage.align(s.alignment, 300)
+    theStage.sync(s.bases, s.over ? null : s.batterId)
+    renderBoard(s)
+  }
+
   function renderFinal(s: ReplayState): void {
     const won = s.winner === userSide()
     finalPanel.className = `v2-replay-final ${won ? 'won' : 'lost'}`
@@ -404,17 +416,22 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
       const endsHalf = frame.events.some((e) => e.type === 'halfInningEnd' || e.type === 'gameOver')
       const lastAction = frame.events.reduce((last, e, j) => (e.type === 'play' || e.type === 'steal' ? j : last), -1)
       /** 打完一球（或盜壘）之後的比分條：得分逐一累加；結束半局時顯示三出局；這一格最後的動作之後就是模擬的狀態 */
+      // 直播只呈現事件：比分條、壘上、局數這些「狀態」等播放器在排定時間提交（commit），不在動畫裡提前更新
+      const board = (st: ReplayState, outs?: number) => {
+        if (!ctx.presentOnly) renderBoard(st, outs)
+      }
       const afterAction = (i: number, runs: number) => {
         shown.score[ctx.before.battingSide] += runs
         shown.balls = 0
         shown.strikes = 0
-        if (endsHalf) renderBoard(shown, frame.after.over ? Math.max(frame.after.outs, shown.outs) : 3)
-        else if (i === lastAction) renderBoard(frame.after)
-        else renderBoard(shown)
+        if (endsHalf) board(shown, frame.after.over ? Math.max(frame.after.outs, shown.outs) : 3)
+        else if (i === lastAction) board(frame.after)
+        else board(shown)
       }
       for (const [i, e] of frame.events.entries()) {
         if (signal.aborted || closed) throw abortErr()
-        const text = describe(e)
+        // 直播：「比賽結束」是最終結果的一部分，要到 endsAt 才由播放器揭曉
+        const text = ctx.presentOnly && e.type === 'gameOver' ? null : describe(e)
         if (e.type === 'substitution' && e.kind === 'pitcher') thrower = timeline.players.get(e.inId) as Pitcher | undefined
         if (e.type === 'pitch') {
           lastPlay.textContent = PITCH_TEXT[e.result]
@@ -423,7 +440,7 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
           if (e.result !== 'inPlay') {
             shown.balls = e.balls
             shown.strikes = e.strikes
-            renderBoard(shown)
+            board(shown)
             await wait(MATCH_PACE.afterPitch)
           }
         } else if (e.type === 'play') {
@@ -464,6 +481,8 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
         }
       }
       if (signal.aborted || closed) throw abortErr()
+      // 直播：狀態等播放器在這一格的結束時間提交
+      if (ctx.presentOnly) return
       // 一格結束：對齊這一步之後的模擬狀態
       const after = frame.after
       theStage.setColors((after.battingSide === 'home' ? 'away' : 'home') === userSide())
@@ -472,6 +491,7 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
       renderBoard(after)
     },
     show: showState,
+    commit: commitState,
   }
 
   // ---- 球場縮放 ----

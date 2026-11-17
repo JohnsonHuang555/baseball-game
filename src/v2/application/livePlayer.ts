@@ -1,10 +1,16 @@
 // 直播播放器：依真實時間播放進行中的那一場。不碰 DOM、不碰存檔。
 //
-// - 比賽的進度只由時間決定：開賽後經過 t 毫秒，就該播到 schedule.positionAt(t) 那一格。
-//   進入觀戰時直接跳到目前的進度（不會從第一球開始播一場已經打了兩分鐘的比賽）。
-// - 暫停只停「自己的畫面」：比賽時間照走。繼續時同步到當下的進度，不補播中間錯過的球。
-// - 每一格的動畫要在這一格的時間段內播完（畫面依剩餘時間縮放動畫長度）；播完了就等到下一格的時間。
-// - 到了預定結束時間就顯示最終比分。獎勵仍然只在結算時發放（結算由一般的放置流程負責，這裡不觸發任何寫入）。
+// 兩件事要分開：
+// - 呈現事件（presentation）：第 i 格的時間段 [startOf(i), endOf(i)) 內，播這一格的投球、擊球、跑壘動畫與文字。
+//   動畫依剩餘時間縮放，可能比時間段早播完。
+// - 提交狀態（commit）：開賽後經過 t 毫秒，正式的比賽狀態是「結束時間 ≤ t 的那些格」播完之後的狀態，
+//   也就是 stateAt(schedule.positionAt(t))。比分條、出局、壘上、局數、比賽結束與勝敗只看這個，
+//   動畫早播完也要等到 endOf(i) 才提交第 i 格之後的狀態；最後一格的最終比分要到 endsAt 才揭曉。
+// 其他規則：
+// - 進入觀戰時直接同步到目前的進度（不會從第一球開始播一場已經打了兩分鐘的比賽）。
+// - 動畫因為背景分頁、系統負載或時間跳動而落後：直接同步到當下，不補播中間的事件。
+// - 暫停只停「自己的畫面」：比賽時間照走。繼續時用當下時間重新同步。
+// - 獎勵仍然只在結算時發放（結算由一般的放置流程負責，這裡不觸發任何寫入、不改比賽計畫與結果）。
 // - 時間倒退（現在比開賽時間早）：顯示「即將開始」並等待，不宣稱正在直播
 import { abortableWait, type ReplayPresenter, type ReplayState, type ReplayTimeline } from './replayPlayer'
 import type { LiveSchedule } from './liveMatch'
@@ -32,10 +38,10 @@ export interface LiveSource {
 
 export interface LiveView {
   status: LiveStatus
-  /** 畫面已經播完幾格 */
+  /** 已經正式提交的格數（= 這一刻比賽應該進行到的格數；永遠不會超過真實時間） */
   position: number
   total: number
-  /** 畫面目前顯示的狀態 */
+  /** 已經提交的比賽狀態（比分條顯示的就是這個） */
   state: ReplayState
   startsAt: number
   endsAt: number
@@ -43,6 +49,7 @@ export interface LiveView {
 
 export class LivePlayer {
   private status: LiveStatus = 'idle'
+  /** 已經提交的格數：只在時間到了才前進 */
   private displayed = 0
   private loopId = 0
   private current: AbortController | null = null
@@ -131,10 +138,28 @@ export class LivePlayer {
     })
   }
 
+  /** 正式提交：比分條等狀態換成第 position 格之後的狀態（不中斷進行中的效果） */
+  private commitTo(position: number): void {
+    this.displayed = position
+    const state = this.stateAt(position)
+    if (this.presenter.commit) this.presenter.commit(state, position)
+    else this.presenter.show(state, position)
+    this.emit()
+  }
+
+  /** 同步：中斷進行中的動畫，直接把畫面設成這個時間點的狀態（剛進來、繼續、落後） */
+  private syncTo(position: number): void {
+    this.displayed = position
+    this.presenter.show(this.stateAt(position), position)
+    this.emit()
+  }
+
   private async loop(id: number): Promise<void> {
     const { schedule, startsAt, endsAt } = this.source
     const frames = this.source.timeline.frames
     let synced = false
+    /** 已經呈現（播過動畫）的那一格；同一格不重播 */
+    let presented = -1
     while (id === this.loopId) {
       const now = this.clock.now()
       const controller = new AbortController()
@@ -143,14 +168,14 @@ export class LivePlayer {
         // 還沒開賽（時間倒退）：等到開賽
         this.setStatus('waiting')
         if (!synced) {
-          this.displayed = 0
-          this.presenter.show(this.stateAt(0), 0)
+          this.syncTo(0)
           synced = true
         }
         if (!(await this.idle(this.clock.sleep(startsAt - now, controller.signal), id))) return
         continue
       }
       if (now >= endsAt) {
+        // 到了預定結束時間才揭曉最終比分與勝敗
         this.displayed = frames.length
         this.status = 'ended'
         this.current = null
@@ -160,30 +185,29 @@ export class LivePlayer {
       }
       this.setStatus('live')
       const target = this.livePosition(now)
-      const elapsed = now - startsAt
-      // 畫面跑得比比賽快（這一格的動畫提早播完）：等到下一格的時間
-      if (synced && target < this.displayed) {
-        if (!(await this.idle(this.clock.sleep(schedule.startOf(this.displayed) - elapsed, controller.signal), id))) return
-        continue
-      }
-      // 剛進來、繼續、或畫面落後（例如背景分頁）：直接跳到目前的進度
-      if (!synced || target !== this.displayed) {
-        this.displayed = target
-        this.presenter.show(this.stateAt(target), target)
-        this.emit()
+      if (!synced || target > this.displayed + 1 || target < this.displayed) {
+        // 剛進來、繼續、或畫面落後超過一格：直接同步到當下，不補播中間的事件
+        this.syncTo(target)
         synced = true
+      } else if (target === this.displayed + 1) {
+        // 上一格排定的結束時間到了：正式提交（動畫效果不中斷）
+        this.commitTo(target)
       }
-      const frame = frames[target]
-      const budgetMs = Math.max(0, schedule.endOf(target) - elapsed)
-      try {
-        await this.presenter.playFrame(frame, { speed: () => 1, signal: controller.signal, before: this.stateAt(target), budgetMs })
-      } catch (e) {
-        if (id !== this.loopId || controller.signal.aborted) return
-        throw e
+      const elapsed = now - startsAt
+      if (presented !== target) {
+        presented = target
+        const budgetMs = Math.max(0, schedule.endOf(target) - elapsed)
+        try {
+          await this.presenter.playFrame(frames[target], { speed: () => 1, signal: controller.signal, before: this.stateAt(target), budgetMs, presentOnly: true })
+        } catch (e) {
+          if (id !== this.loopId || controller.signal.aborted) return
+          throw e
+        }
+        if (id !== this.loopId) return
       }
-      if (id !== this.loopId) return
-      this.displayed = target + 1
-      this.emit()
+      // 動畫早播完：等到這一格排定的結束時間才提交（不提前揭露下一格的狀態）
+      const wait = startsAt + schedule.endOf(target) - this.clock.now()
+      if (wait > 0 && !(await this.idle(this.clock.sleep(wait, controller.signal), id))) return
     }
   }
 

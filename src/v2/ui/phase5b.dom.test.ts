@@ -159,6 +159,60 @@ describe('直播觀戰', () => {
     expect(position()).toBeGreaterThan(paused + 5)
   })
 
+  it('動畫早播完也不提前揭露：得分那一格播完時，比分條仍是這一格開始時的比分，排定時間到了才更新', async () => {
+    const { storage, clock, gate } = await mountAt12()
+    const info = currentLiveMatch(club(storage), clock.now())
+    const { timeline, schedule } = liveTimeline(info.plan)
+    const us = timeline.userSide
+    const j = timeline.frames.findIndex((f, i) => i > 0 && f.events.some((e) => e.type === 'play' && e.runs > 0))
+    expect(j).toBeGreaterThan(0)
+    const at = info.startsAt + schedule.startOf(j) + 1
+    clock.set(at)
+    gate.stopAt = at
+    $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
+    await untilOverlay()
+    await flush(20)
+    // 這一格的動畫（投球、擊球、得分大字）已經播完，但時間還沒到這一格的結束
+    const before = timeline.frames[j - 1].after
+    const after = timeline.frames[j].after
+    expect(after.score).not.toEqual(before.score)
+    expect(position()).toBe(j)
+    expect(text('[data-score="us"]')).toBe(String(before.score[us]))
+    expect(text('[data-score="them"]')).toBe(String(before.score[us === 'home' ? 'away' : 'home']))
+    // 時間走到這一格的結束：才提交得分後的比分
+    gate.stopAt = info.startsAt + schedule.endOf(j)
+    clock.set(gate.stopAt)
+    await flush(20)
+    expect(position()).toBeGreaterThanOrEqual(j + 1)
+    expect(text('[data-score="us"]')).toBe(String(timeline.frames[position() - 1].after.score[us]))
+  })
+
+  it('最後一格：endsAt 之前不顯示最終比分、勝敗與比賽結束；到 endsAt 才揭曉', async () => {
+    const { storage, clock, gate } = await mountAt12()
+    const info = currentLiveMatch(club(storage), clock.now())
+    const { timeline, schedule } = liveTimeline(info.plan)
+    const last = timeline.frames.length - 1
+    const at = info.startsAt + schedule.startOf(last) + 1
+    clock.set(at)
+    gate.stopAt = info.endsAt - 1
+    $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
+    await untilOverlay()
+    await flush(30)
+    expect(clock.now()).toBeLessThan(info.endsAt)
+    expect(screen().dataset.status).toBe('live')
+    expect($('.v2-replay-final')!.hidden).toBe(true)
+    expect($('.v2-replay-verdict')).toBeNull()
+    expect(text('.v2-replay-log')).not.toContain('比賽結束')
+    expect(text('.v2-replay-last')).not.toContain('比賽結束')
+    const prev = timeline.frames[last - 1].after
+    expect(text('[data-score="us"]')).toBe(String(prev.score[timeline.userSide]))
+    gate.stopAt = undefined
+    await untilEnded()
+    expect(clock.now()).toBeGreaterThanOrEqual(info.endsAt)
+    expect($('.v2-replay-final')!.hidden).toBe(false)
+    expect(text('[data-score="us"]')).toBe(String(timeline.final.score[timeline.userSide]))
+  })
+
   it('一直看到比賽結束：顯示最終比分；結算後的戰報比分跟直播一樣；可以接著看下一場', async () => {
     const { storage, gate } = await mountAt12()
     $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
