@@ -78,3 +78,67 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   console.log(`\n滿員 30 人（${ups} 次升級、16 次招募、${deps.store.loadClub()!.idle.nextMatchIndex} 場）`)
   console.log(`招募每次 ${ms(tRecruit)}、升級每次 ${ms(tUpgrade)}（含讀檔、驗證、存檔）；結算 96 場 ${ms(tSettle)}；存檔大小 ${(size / 1024).toFixed(1)} KB`)
 }
+
+// ---- Phase 5：最高聯盟、30 人、長期遊玩（挑戰紀錄、支出紀錄都滿）的存檔大小與耗時 ----
+{
+  const { createClubSafely } = await import('../src/v2/application/clubLifecycle')
+  const { recruit, release } = await import('../src/v2/application/economyService')
+  const { challengeNextLeague } = await import('../src/v2/application/leagueService')
+  const { settleDue } = await import('../src/v2/application/settlementService')
+  const { reserves } = await import('../src/v2/domain/roster')
+  const { MAX_TIER, PROMOTION_CONFIG } = await import('../src/v2/domain/leagueConfig')
+  const { FakeLockManager, HOUR, ManualClock, tab } = await import('../src/v2/testkit')
+  const storage = new MemoryStorage()
+  const clock = new ManualClock(T0)
+  const deps = tab(storage, clock, new FakeLockManager())
+  deps.batch.yieldControl = null
+  await createClubSafely(deps, { clubName: '傳奇', clubSeed: 11, clubId: 'legend' })
+  const load = () => deps.store.loadClub()!
+  const c0 = load()
+  const rich = { funds: 1e9, experience: 1e8 }
+  // 長期遊玩的狀態：已經打了很多場、挑戰過很多次（紀錄有上限），在倒數第二級、資格達標
+  const challenges = Array.from({ length: PROMOTION_CONFIG.historyLimit }, (_, i) => ({ seq: 40 + i, fromTier: MAX_TIER - 1, toTier: MAX_TIER, won: false, runsFor: 2, runsAgainst: 5, opponentName: '強敵', innings: 9, at: T0, matchIndexAt: 5000, reward: { funds: 0, experience: 0 }, requestKey: `challenge:${MAX_TIER - 1}` }))
+  const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
+  deps.store.saveClub(
+    {
+      ...c0,
+      economy: { ...c0.economy, assets: rich, earned: rich },
+      idle: { ...c0.idle, nextMatchIndex: 20_000 },
+      record: { wins: 11_000, losses: 9_000, runsFor: 90_000, runsAgainst: 85_000 },
+      league: { ...c0.league, tier: MAX_TIER - 1, highestTier: MAX_TIER - 1, promotions: MAX_TIER - 1, rewardedTiers: [1, 2, 3], matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window), nextChallengeSeq: 50, challenges },
+    },
+    c0.revision,
+  )
+  for (let i = 0; i < 16; i++) await recruit(deps, { opSeq: load().economy.nextOpSeq, role: i % 3 === 2 ? 'pitcher' : 'batter' })
+  // 挑戰 10 次（失敗就補回資格，量的是挑戰本身：讀檔、驗證、模擬、存檔）
+  let tChallenge = 0
+  let tries = 0
+  for (let i = 0; i < 10 && load().league.tier < MAX_TIER; i++) {
+    const c = load()
+    const t0 = performance.now()
+    await challengeNextLeague(deps, { challengeSeq: c.league.nextChallengeSeq, fromTier: c.league.tier })
+    tChallenge += performance.now() - t0
+    tries++
+    const after = load()
+    if (after.league.tier < MAX_TIER) deps.store.saveClub({ ...after, league: { ...after.league, challengeReadyAt: 0 } }, after.revision)
+  }
+  // 還沒晉級就直接放到最高聯盟（只為了量最高聯盟的結算與存檔大小）
+  {
+    const c = load()
+    if (c.league.tier < MAX_TIER) deps.store.saveClub({ ...c, league: { ...c.league, tier: MAX_TIER, highestTier: MAX_TIER, promotions: MAX_TIER, rewardedTiers: [1, 2, 3, 4], matches: 0, wins: 0, losses: 0, recent: '' } }, c.revision)
+  }
+  let t = performance.now()
+  t = performance.now()
+  const victims = reserves(load()).slice(0, 5)
+  for (const v of victims) await release(deps, { opSeq: load().economy.nextOpSeq, playerId: v.id })
+  const tRelease = (performance.now() - t) / victims.length
+  for (let i = 0; i < 5; i++) await recruit(deps, { opSeq: load().economy.nextOpSeq, role: 'batter' })
+  clock.advance(8 * HOUR)
+  t = performance.now()
+  const report = await settleDue(deps)
+  const tSettle = performance.now() - t
+  const size = storage.getItem(CLUB_STORAGE_KEY)!.length
+  const c = load()
+  console.log(`\n最高聯盟、${c.players.length} 人、${c.idle.nextMatchIndex} 場、挑戰紀錄 ${c.league.challenges.length} 筆（上限）、支出紀錄 ${c.economy.recentOps.length} 筆`)
+  console.log(`挑戰每次 ${ms(tChallenge / tries)}（${tries} 次，含讀檔、驗證、模擬、存檔）；釋出每次 ${ms(tRelease)}；最高聯盟結算 ${report.settled.length} 場 ${ms(tSettle)}；存檔大小 ${(size / 1024).toFixed(1)} KB`)
+}

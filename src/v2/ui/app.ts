@@ -11,6 +11,7 @@ import { createV2Deps, type V2Deps } from '../infrastructure/composition'
 import { ClubController, type ControllerState } from './clubController'
 import { renderDashboard, updateCountdown } from './dashboardView'
 import { createLineupView, type LineupView } from './lineupView'
+import { challengeResultModal } from './leagueView'
 import { openMatchReport, renderReports, welcomeModal } from './reportView'
 import { openRecruit } from './recruitView'
 import { V2T } from './strings'
@@ -56,6 +57,8 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
   let tab: V2Tab = opts.initialTab ?? 'home'
   let closed = false
   let shownWelcome: string | null = null
+  /** 正在顯示的挑戰結果（序號）：重繪時不重複開對話框，關閉後清掉 */
+  let shownChallenge: number | null = null
   let lineup: LineupView | null = null
   let tactics: TacticsView | null = null
   /** 建立表單裡輸入的名稱：重繪表單（例如建立失敗）時保留，重試不用重打 */
@@ -168,6 +171,10 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
           allReports: () => show('reports'),
           recruit: () => openRecruit(controller, () => show('lineup')),
           lineup: () => show('lineup'),
+          challenge: () =>
+            void controller.challenge().then((res) => {
+              if (!closed && !res.ok && res.message) toast(res.message)
+            }),
         }),
       )
     } else if (tab === 'lineup') {
@@ -181,6 +188,13 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     if (state.notice) {
       toast(state.notice)
       controller.clearNotice()
+    }
+    if (state.challengeResult && state.challengeResult.challenge.seq !== shownChallenge) {
+      shownChallenge = state.challengeResult.challenge.seq
+      challengeResultModal(state.challengeResult, () => {
+        shownChallenge = null
+        controller.dismissChallengeResult()
+      })
     }
     if (state.welcome && state.welcome.key !== shownWelcome) {
       shownWelcome = state.welcome.key

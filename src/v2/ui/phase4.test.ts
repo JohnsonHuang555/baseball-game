@@ -127,7 +127,7 @@ describe('控制器：進入時遷移', () => {
     await c.start()
     expect(c.state.status.kind).toBe('ready')
     expect(notices).toContain(V2T.migrated)
-    expect(c.state.club!.schemaVersion).toBe(4)
+    expect(c.state.club!.schemaVersion).toBe(5)
     expect(c.state.club!.record).toEqual(fixture.record)
     expect(storage.getItem(CLUB_BACKUP_KEY_V3)).toBe(JSON.stringify(fixture))
   })

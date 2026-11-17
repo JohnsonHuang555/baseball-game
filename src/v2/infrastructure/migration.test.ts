@@ -1,13 +1,15 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import fixture from '../domain/__fixtures__/club-v3-phase3.json'
+import fixtureV4 from '../domain/__fixtures__/club-v4-phase4.json'
 import { openClubSafely } from '../application/clubLifecycle'
 import { claim, settleDue } from '../application/settlementService'
 import { upgrade } from '../application/economyService'
 import { resolveRoster } from '../domain/roster'
 import { validateClubV3 } from '../domain/legacyV3'
+import { CLUB_SCHEMA_VERSION } from '../domain/club'
 import { FakeLockManager, HOUR, ManualClock, tab } from '../testkit'
-import { CLUB_BACKUP_KEY_V3, CLUB_STORAGE_KEY, ClubRepository, ClubSaveError, MemoryStorage, type KeyValueStorage } from './clubRepository'
+import { CLUB_BACKUP_KEY_V3, CLUB_BACKUP_KEY_V4, CLUB_STORAGE_KEY, ClubRepository, ClubSaveError, MemoryStorage, type KeyValueStorage } from './clubRepository'
 
 const RAW_V3 = JSON.stringify(fixture)
 const V1 = {
@@ -79,7 +81,7 @@ describe('遷移的備份不會被競爭操作覆寫', () => {
     expect(() => b.migrateClub()).toThrow(expect.objectContaining({ code: 'conflict' }))
     expect(storage.getItem(CLUB_BACKUP_KEY_V3)).toBe(RAW_V3)
     const main = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
-    expect(main.schemaVersion).toBe(4)
+    expect(main.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(main.migratedFrom.revision).toBe(revisionOf(storage.getItem(CLUB_BACKUP_KEY_V3)))
   })
 
@@ -141,7 +143,7 @@ describe('遷移的備份不會被競爭操作覆寫', () => {
     const repo = new ClubRepository(storage)
     repo.migrateClub()
     storage.setItem(CLUB_BACKUP_KEY_V3, 'sentinel')
-    expect(repo.migrateClub()!.schemaVersion).toBe(4)
+    expect(repo.migrateClub()!.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(storage.getItem(CLUB_BACKUP_KEY_V3)).toBe('sentinel')
   })
 })
@@ -165,9 +167,9 @@ describe('存檔遷移', () => {
     const { value } = await openClubSafely(deps)
     expect(value.migrated).toBe(true)
     const club = value.club!
-    expect(club.schemaVersion).toBe(4)
+    expect(club.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(storage.getItem(CLUB_BACKUP_KEY_V3)).toBe(RAW_V3)
-    expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).schemaVersion).toBe(4)
+    expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(resolveRoster(club)).toEqual(fixture.roster)
     expect(club.economy.assets).toEqual(fixture.economy.assets)
     expect(club.record).toEqual(fixture.record)
@@ -207,7 +209,7 @@ describe('存檔遷移', () => {
       expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(RAW_V3)
       storage.failKey = null
       const { value } = await openClubSafely(deps)
-      expect(value.club!.schemaVersion).toBe(4)
+      expect(value.club!.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
       expect(storage.getItem(CLUB_BACKUP_KEY_V3)).toBe(RAW_V3)
     }
   })
@@ -256,5 +258,79 @@ describe('存檔遷移', () => {
     const { value } = await openClubSafely(tab(storage, new ManualClock(), new FakeLockManager()))
     expect(value).toEqual({ club: null, migrated: false })
     expect(storage.keys()).toEqual([])
+  })
+})
+
+describe('V4 → V5 存檔遷移', () => {
+  const RAW_V4 = JSON.stringify(fixtureV4)
+
+  it('打開球團時自動遷移：原始文字備份到 backup-schema4，等級、陣容、資產、支出、游標、錨點都不變，V3 備份不受影響', async () => {
+    const storage = new MemoryStorage()
+    storage.setItem(CLUB_STORAGE_KEY, RAW_V4)
+    storage.setItem(CLUB_BACKUP_KEY_V3, RAW_V3)
+    for (const [k, v] of Object.entries(V1)) storage.setItem(k, v)
+    const { value } = await openClubSafely(tab(storage, new ManualClock(fixtureV4.idle.anchorMs), new FakeLockManager()))
+    const club = value.club!
+    expect(value.migrated).toBe(true)
+    expect(club.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
+    expect(storage.getItem(CLUB_BACKUP_KEY_V4)).toBe(RAW_V4)
+    expect(storage.getItem(CLUB_BACKUP_KEY_V3)).toBe(RAW_V3)
+    expect(club.players).toEqual(fixtureV4.players)
+    expect(club.roster).toEqual(fixtureV4.roster)
+    expect(club.economy).toEqual(fixtureV4.economy)
+    expect(club.idle).toEqual(fixtureV4.idle)
+    expect(club.record).toEqual(fixtureV4.record)
+    expect(club.revision).toBe(fixtureV4.revision + 1)
+    for (const [k, v] of Object.entries(V1)) expect(storage.getItem(k)).toBe(v)
+  })
+
+  it('遷移後繼續遊玩：不重算舊比賽、不重複發獎、招募次數接著算', async () => {
+    const storage = new MemoryStorage()
+    storage.setItem(CLUB_STORAGE_KEY, RAW_V4)
+    const clock = new ManualClock(fixtureV4.idle.anchorMs)
+    const deps = tab(storage, clock, new FakeLockManager())
+    await openClubSafely(deps)
+    expect((await settleDue(deps)).settled).toHaveLength(0)
+    clock.advance(HOUR)
+    const report = await settleDue(deps)
+    expect(report.settled[0].matchIndex).toBe(fixtureV4.idle.nextMatchIndex)
+    expect(report.club.league.matches).toBe(fixtureV4.record.wins + fixtureV4.record.losses + 12)
+    expect(report.club.recruitment.count).toBe(fixtureV4.recruitment.count)
+  })
+
+  it('備份位置已經有另一個球團的備份：不覆寫，改寫到帶 revision 的 key', async () => {
+    const storage = new MemoryStorage()
+    const otherClub = JSON.stringify({ ...fixtureV4, clubId: 'another-club' })
+    storage.setItem(CLUB_STORAGE_KEY, RAW_V4)
+    storage.setItem(CLUB_BACKUP_KEY_V4, otherClub)
+    const repo = new ClubRepository(storage)
+    repo.migrateClub()
+    expect(storage.getItem(CLUB_BACKUP_KEY_V4)).toBe(otherClub)
+    expect(storage.getItem(`${CLUB_BACKUP_KEY_V4}.r${fixtureV4.revision}`)).toBe(RAW_V4)
+  })
+
+  it('多個分頁同時打開 V4：只遷移一次', async () => {
+    for (const locks of [new FakeLockManager(), undefined]) {
+      const storage = new SpyStorage()
+      storage.setItem(CLUB_STORAGE_KEY, RAW_V4)
+      storage.writes = []
+      const results = await Promise.allSettled([0, 1, 2].map(() => openClubSafely(tab(storage, new ManualClock(), locks))))
+      expect(storage.writes.filter((k) => k === CLUB_STORAGE_KEY)).toHaveLength(1)
+      for (const r of results) if (r.status === 'rejected') expect((r.reason as ClubSaveError).code).toBe('conflict')
+      expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).revision).toBe(fixtureV4.revision + 1)
+    }
+  })
+
+  it('V4 遷移寫入失敗：原本的存檔不變，可以重試', async () => {
+    for (const failKey of [CLUB_BACKUP_KEY_V4, CLUB_STORAGE_KEY]) {
+      const storage = new SpyStorage()
+      storage.setItem(CLUB_STORAGE_KEY, RAW_V4)
+      storage.failKey = failKey
+      const deps = tab(storage, new ManualClock(), new FakeLockManager())
+      expect((await openClubSafely(deps).catch((e) => e)).code).toBe('write-failed')
+      expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(RAW_V4)
+      storage.failKey = null
+      expect((await openClubSafely(deps)).value.club!.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
+    }
   })
 })

@@ -1,11 +1,13 @@
-// V2 球團存檔（schemaVersion 4）：球團、永久球員名單、陣容配置、戰術、經濟、放置進度與近期比賽。
+// V2 球團存檔（schemaVersion 5）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度與近期比賽。
 // 不沿用 V1 的 Tournament：錦標賽是一輪一輪的 roguelike，V2 的球團要一直存在、一直累積。
-// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移見 migration.ts
+// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → 5）見 migration.ts
 import type { Side } from '../../sim/game'
 import type { Player, Position, Roster } from '../../sim/types'
 import type { CoachParams, CoachStyle } from '../application/autoCoach'
 import type { MatchReplay } from '../application/matchRunner'
 import { lineupIssues } from './lineup'
+import { leagueViolations, newLeagueState, type LeagueState } from './league'
+import { MAX_TIER } from './leagueConfig'
 import { MAX_LEVEL, RECRUIT_CONFIG, SPEND_LOG_LIMIT } from './progressionConfig'
 import { resolveRoster } from './roster'
 import { coachParamIssues } from './tactics'
@@ -13,7 +15,7 @@ import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, v
 
 export { ClubValidationError, type ClubValidationCode } from './validation'
 
-export const CLUB_SCHEMA_VERSION = 4
+export const CLUB_SCHEMA_VERSION = 5
 
 /**
  * 換算好的陣容：先發、板凳、投手都是完整的球員物件（養成後的能力），也就是模擬引擎吃的 Roster。
@@ -52,10 +54,10 @@ export interface Resources {
   experience: number
 }
 
-/** 一筆支出（升級、招募）：原因、對象、金額、時間，以及用來辨識重送的請求內容 */
+/** 一筆名單操作（升級、招募、釋出）：原因、對象、金額（釋出是 0）、時間，以及用來辨識重送的請求內容 */
 export interface SpendRecord {
   seq: number
-  kind: 'upgrade' | 'recruit'
+  kind: 'upgrade' | 'recruit' | 'release'
   playerId: string
   cost: Resources
   at: number
@@ -127,6 +129,8 @@ export interface MatchSummary {
   highlights: SummaryHighlight[]
   rulesVersion: number
   coachVersion: number
+  /** 這場比賽所屬的聯盟階級（schemaVersion 5 起才有；更早的比賽都是新秀聯盟強度） */
+  leagueTier?: number
 }
 
 /** 一場已結算的比賽 */
@@ -140,7 +144,7 @@ export interface SettledMatch {
   settledAt: number
 }
 
-export interface ClubSaveV4 {
+export interface ClubSaveV5 {
   schemaVersion: typeof CLUB_SCHEMA_VERSION
   clubId: string
   clubName: string
@@ -150,8 +154,10 @@ export interface ClubSaveV4 {
   /** 永久球員名單：ID 唯一、不會被覆蓋 */
   players: PlayerRecord[]
   roster: RosterAssignment
-  /** 已招募的次數：第幾次招募的亂數、成本都由它決定 */
+  /** 已招募的次數：第幾次招募的亂數、成本、球員編號都由它決定，只增不減（釋出也不會減） */
   recruitment: { count: number }
+  /** 聯盟進度：階級、本聯盟戰績、晉級挑戰 */
+  league: LeagueState
   strategy: TeamStrategies
   economy: EconomyState
   idle: IdleState
@@ -160,14 +166,14 @@ export interface ClubSaveV4 {
   recentMatches: SettledMatch[]
   /** 最近幾場的完整 replay，最多 RETENTION_CONFIG.replays 份 */
   replays: { matchId: string; replay: MatchReplay }[]
-  /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄） */
-  migratedFrom?: { schemaVersion: 3; revision: number }
+  /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄；從 3 升上來時是 3） */
+  migratedFrom?: { schemaVersion: 3 | 4; revision: number }
   /** 每存一次加 1：用來發現別的分頁已經改過存檔 */
   revision: number
 }
 
 /** 目前格式的球團存檔 */
-export type ClubSave = ClubSaveV4
+export type ClubSave = ClubSaveV5
 
 export interface NewClubInput {
   clubId: string
@@ -206,6 +212,7 @@ export function newClub(input: NewClubInput): ClubSave {
     players,
     roster,
     recruitment: { count: 0 },
+    league: newLeagueState(),
     strategy: { coach: { style: 'balanced' }, effectiveFromMatch: 0 },
     economy: { assets: zero(), unclaimed: zero(), earned: zero(), spent: zero(), nextClaimSeq: 0, lastClaim: null, nextOpSeq: 0, recentOps: [] },
     idle: { anchorMs: input.now, nextMatchIndex: 0, lastSettledAt: null },
@@ -222,7 +229,8 @@ export function matchIdFor(club: Pick<ClubSave, 'clubId'>, matchIndex: number): 
 }
 
 /** 用途區分：同一場的比賽種子和對手種子不能相同 */
-export const SEED_SALT = { match: 0, opponent: 1, recruit: 2 } as const
+/** 不同用途的種子用不同的 salt：晉級挑戰賽用自己的序號與 salt，跟一般比賽的種子永遠不會重疊 */
+export const SEED_SALT = { match: 0, opponent: 1, recruit: 2, challenge: 3, challengeOpponent: 4 } as const
 
 /** 由球團種子與場次序號穩定推導出 32 位元種子（不靠任何亂數狀態，第幾場永遠是同一個種子） */
 export function deriveSeed(clubSeed: number, matchIndex: number, salt = 0): number {
@@ -296,6 +304,7 @@ export function validateClub(value: unknown): ClubSave {
   if (paramIssues.length) throw invalid('strategy.coach.params', paramIssues.join('；'))
   int(strategy, 'effectiveFromMatch', 'strategy')
   validateEconomy(obj(value, 'economy'))
+  validateLeague(obj(value, 'league'))
   const idle = obj(value, 'idle')
   num(idle, 'anchorMs', 'idle')
   int(idle, 'nextMatchIndex', 'idle')
@@ -342,6 +351,25 @@ function validateAssignment(value: Obj): void {
   if (issues.length) throw invalid('roster', issues.join('；'))
 }
 
+function validateLeague(league: Obj): void {
+  for (const key of ['tier', 'matches', 'wins', 'losses', 'promotions', 'highestTier', 'nextChallengeSeq', 'challengeReadyAt']) int(league, key, 'league')
+  if ((league.tier as number) > MAX_TIER) throw invalid('league.tier', `必須是 0～${MAX_TIER}`)
+  if (typeof league.recent !== 'string') throw invalid('league.recent', '必須是字串')
+  arr(league, 'challenges', 'league').forEach((c, i) => {
+    const path = `league.challenges[${i}]`
+    if (!isObj(c) || typeof c.won !== 'boolean') throw invalid(path, '格式不對')
+    for (const key of ['seq', 'fromTier', 'toTier', 'runsFor', 'runsAgainst', 'innings', 'matchIndexAt']) int(c, key, path)
+    num(c, 'at', path)
+    str(c, 'requestKey', path)
+    const reward = obj(c, 'reward', path)
+    num(reward, 'funds', `${path}.reward`)
+    num(reward, 'experience', `${path}.reward`)
+  })
+  if (!arr(league, 'rewardedTiers', 'league').every((t) => Number.isInteger(t))) throw invalid('league.rewardedTiers', '必須是整數陣列')
+  const violations = leagueViolations(league as unknown as LeagueState)
+  if (violations.length) throw invalid('league', violations.join('；'))
+}
+
 function validateEconomy(economy: Obj): void {
   for (const key of ['assets', 'unclaimed', 'earned', 'spent']) {
     const r = obj(economy, key, 'economy')
@@ -359,7 +387,7 @@ function validateEconomy(economy: Obj): void {
   int(economy, 'nextOpSeq', 'economy')
   arr(economy, 'recentOps', 'economy').forEach((op, i) => {
     const path = `economy.recentOps[${i}]`
-    if (!isObj(op) || (op.kind !== 'upgrade' && op.kind !== 'recruit')) throw invalid(path, '格式不對')
+    if (!isObj(op) || (op.kind !== 'upgrade' && op.kind !== 'recruit' && op.kind !== 'release')) throw invalid(path, '格式不對')
     int(op, 'seq', path)
     str(op, 'playerId', path)
     str(op, 'requestKey', path)

@@ -9,15 +9,17 @@ import { generateRoster } from '../../sim/generate'
 import { Rng } from '../../sim/rng'
 import type { ClubLock, ClubStore } from '../application/settlementService'
 import { ClubValidationError, newClub, validateClub, type ClubSave, type PersistentRoster } from '../domain/club'
-import { MigrationError, migrateV3ToV4, needsMigration } from '../domain/migration'
+import { MigrationError, migrateToLatest, needsMigration, sourceVersion, type MigratableVersion } from '../domain/migration'
 
 /**
- * V2 球團存檔的 key。名稱裡的 v3 是第一版存檔的版本號，現在存的是 schemaVersion 4：
- * 從 3 升到 4 時原地升級、沿用同一個 key，讓還開著舊版程式的分頁讀到 4 會停止寫入（見 ADR-0010）
+ * V2 球團存檔的 key。名稱裡的 v3 是第一版存檔的版本號，現在存的是 schemaVersion 5：
+ * 每次升版都原地升級、沿用同一個 key，讓還開著舊版程式的分頁讀到新版本會停止寫入（見 ADR-0010、ADR-0011）
  */
 export const CLUB_STORAGE_KEY = 'dice-baseball.club.v3'
-/** 遷移前的 schemaVersion 3 原始文字（逐字備份，遷移後不再寫入，也不會自動還原） */
+/** 遷移前的原始文字依來源版本逐字備份（遷移後不再寫入，也不會自動還原） */
 export const CLUB_BACKUP_KEY_V3 = 'dice-baseball.club.v3.backup-schema3'
+export const CLUB_BACKUP_KEY_V4 = 'dice-baseball.club.v3.backup-schema4'
+const BACKUP_KEYS: Record<MigratableVersion, string> = { 3: CLUB_BACKUP_KEY_V3, 4: CLUB_BACKUP_KEY_V4 }
 export const CLUB_LOCK_NAME = 'dice-baseball.club.v3.settlement'
 
 /** Storage 的最小子集，localStorage 與記憶體版都符合 */
@@ -65,7 +67,7 @@ export type ClubSaveErrorCode =
   | 'already-exists'
   /** 這個分頁已經不是可寫分頁（沒有 Web Locks 時的單一可寫分頁限制） */
   | 'read-only'
-  /** 存檔是舊格式（schemaVersion 3），要先遷移才能使用 */
+  /** 存檔是舊格式（schemaVersion 3 或 4），要先遷移才能使用 */
   | 'needs-migration'
   /** 舊格式遷移失敗：原本的存檔沒有被改動 */
   | 'migration-failed'
@@ -150,15 +152,17 @@ export class ClubRepository implements ClubStore {
   }
 
   /**
-   * 把舊格式（schemaVersion 3）的存檔升級到目前格式，回傳升級後的球團；沒有存檔回傳 null。
+   * 把舊格式（schemaVersion 3 或 4）的存檔升級到目前格式，回傳升級後的球團；沒有存檔回傳 null。
    * 呼叫端要在 ClubLock 裡呼叫（application 的 openClubSafely）。步驟：
    * 1. 讀主存檔的原始文字；已經是目前格式（別的分頁剛遷移完）就直接回傳
    * 2. 在記憶體裡遷移（純函式），失敗丟 migration-failed，什麼都不寫
    * 3. 碰備份之前，再讀一次主存檔：跟第 1 步不同（別的分頁已經遷移、或舊版分頁又存了一次）就丟 conflict，
    *    備份、主存檔都不寫。所以競爭中較晚的那一方，永遠不會覆寫已經存在、對應到真正遷移結果的備份
-   * 4. 把原始文字逐字寫進備份 key，再讀回來確認一字不差；寫入失敗丟 write-failed，主存檔不動
+   * 4. 把原始文字逐字寫進來源版本的備份 key（backup-schema3 / backup-schema4），再讀回來確認一字不差；
+   *    寫入失敗丟 write-failed，主存檔不動。備份 key 已經有「別的」內容（例如重設後的另一個球團、更早的遷移）
+   *    就不覆寫，改寫到 `<備份 key>.r<revision>`，所以有價值的舊備份不會被蓋掉
    * 5. 寫主存檔前最後再讀一次主存檔，還是第 1 步的原始文字才寫入升級後的存檔
-   * 備份永遠是「這一次被遷移的那份 V3」：只有第 3、5 步都確認主存檔還是它，才會寫備份與主存檔。
+   * 備份永遠是「這一次被遷移的那份舊存檔」：只有第 3、5 步都確認主存檔還是它，才會寫備份與主存檔。
    * 限制：localStorage 沒有交易，第 5 步的「確認」和「寫入」之間仍有極短的空檔。有 Web Locks 時所有 V2 分頁都在鎖裡
    * 排隊，不會有這種競爭；沒有 Web Locks 時（或還開著不認得鎖的舊版分頁）不保證原子性——萬一發生，
    * 主存檔會是升級後的格式（舊版分頁讀到會停止寫入），備份是遷移當下讀到的 V3，那次空檔內被覆蓋的進度會遺失
@@ -172,10 +176,11 @@ export class ClubRepository implements ClubStore {
     } catch (cause) {
       throw new ClubSaveError('invalid-json', '球團存檔不是合法的 JSON', { cause })
     }
-    if (!needsMigration(parsed)) return this.loadClub()
+    const version = sourceVersion(parsed)
+    if (version === null) return this.loadClub()
     let migrated: ClubSave
     try {
-      migrated = migrateV3ToV4(parsed)
+      migrated = migrateToLatest(parsed)
     } catch (cause) {
       const message = cause instanceof MigrationError ? cause.message : String(cause)
       throw new ClubSaveError('migration-failed', `球團存檔升級失敗，原本的存檔沒有被改動：${message}`, { cause })
@@ -185,12 +190,13 @@ export class ClubRepository implements ClubStore {
     }
     const storage = this.requireStorage()
     unchanged()
+    const backupKey = this.backupKeyFor(version, raw, parsed)
     try {
-      if (storage.getItem(CLUB_BACKUP_KEY_V3) !== raw) storage.setItem(CLUB_BACKUP_KEY_V3, raw)
+      if (storage.getItem(backupKey) !== raw) storage.setItem(backupKey, raw)
     } catch (cause) {
       throw new ClubSaveError('write-failed', '無法寫入舊存檔的備份，沒有進行升級', { cause })
     }
-    if (this.readBackupV3() !== raw) throw new ClubSaveError('write-failed', '舊存檔的備份讀回來不一致，沒有進行升級')
+    if (this.readKey(backupKey) !== raw) throw new ClubSaveError('write-failed', '舊存檔的備份讀回來不一致，沒有進行升級')
     unchanged()
     try {
       storage.setItem(this.key, JSON.stringify(migrated))
@@ -200,13 +206,38 @@ export class ClubRepository implements ClubStore {
     return migrated
   }
 
-  /** 遷移前的 schemaVersion 3 備份原始文字（給「下載備份」用），沒有就是 null */
-  readBackupV3(): string | null {
+  /**
+   * 這份舊存檔要備份到哪個 key。主要的 key 可以用的情況：空著、已經是同一份、或是同一個球團較舊（含相同）revision 的
+   * 未完成遷移殘留（被更新的同一個球團取代沒有損失）。其他內容（例如重設前另一個球團的備份）都視為有價值，
+   * 不覆寫，改用帶 revision 的 key
+   */
+  private backupKeyFor(version: MigratableVersion, raw: string, parsed: unknown): string {
+    const primary = BACKUP_KEYS[version]
+    const existing = this.readKey(primary)
+    if (existing === null || existing === raw || supersedes(parsed, existing)) return primary
+    const revision = (parsed as { revision?: unknown }).revision
+    const fallback = `${primary}.r${Number.isSafeInteger(revision) ? revision : 'x'}`
+    const other = this.readKey(fallback)
+    if (other !== null && other !== raw) throw new ClubSaveError('write-failed', '舊存檔的備份位置都已經有其他內容，為了不覆寫備份，沒有進行升級')
+    return fallback
+  }
+
+  private readKey(key: string): string | null {
     try {
-      return this.storage?.getItem(CLUB_BACKUP_KEY_V3) ?? null
+      return this.storage?.getItem(key) ?? null
     } catch {
       return null
     }
+  }
+
+  /** 遷移前的 schemaVersion 3 備份原始文字（給「下載備份」用），沒有就是 null */
+  readBackupV3(): string | null {
+    return this.readKey(CLUB_BACKUP_KEY_V3)
+  }
+
+  /** 遷移前的 schemaVersion 4 備份原始文字，沒有就是 null */
+  readBackupV4(): string | null {
+    return this.readKey(CLUB_BACKUP_KEY_V4)
   }
 
   /** 刪掉 V2 球團存檔（只動自己的 key；遷移備份保留） */
@@ -286,3 +317,13 @@ export function createClubLock(nav: { locks?: LockManagerLike } | undefined = gl
   return nav?.locks?.request ? new WebLocksClubLock(nav.locks) : new InProcessLock()
 }
 
+/** next 是不是同一個球團、revision 不比 existing 舊（existing 是無法解析的內容就不算） */
+function supersedes(next: unknown, existingRaw: string): boolean {
+  try {
+    const a = next as { clubId?: unknown; revision?: unknown }
+    const b = JSON.parse(existingRaw) as { clubId?: unknown; revision?: unknown }
+    return typeof a.clubId === 'string' && a.clubId === b.clubId && typeof a.revision === 'number' && typeof b.revision === 'number' && b.revision <= a.revision
+  } catch {
+    return false
+  }
+}

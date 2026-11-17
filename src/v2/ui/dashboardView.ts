@@ -1,10 +1,11 @@
-// 球團首頁：球團資訊、自動比賽進度（倒數）、未領取收益、最近比賽
+// 球團首頁：球團資訊、聯盟與晉級、自動比賽進度（倒數）、未領取收益、最近比賽
 import { el } from '../../ui/playerCard'
 import type { DueMatches } from '../application/idleEngine'
 import { overall } from '../../sim/generate'
 import { gradeBadge } from '../../ui/grades'
 import { canAfford } from '../application/economyService'
 import type { ClubSave, SettledMatch } from '../domain/club'
+import { eligibility, leagueOf } from '../domain/league'
 import { upgradeCost } from '../domain/progression'
 import { RECRUIT_CONFIG } from '../domain/progressionConfig'
 import { recruitCost, rosterFull } from '../domain/recruitment'
@@ -19,6 +20,7 @@ export interface DashboardActions {
   allReports: () => void
   recruit: () => void
   lineup: () => void
+  challenge: () => void
 }
 
 /** 上場 14 人（先發、板凳、投手）的平均能力，含養成 */
@@ -57,6 +59,8 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
     stat(V2T.experience, fmt(club.economy.assets.experience), 'exp'),
   )
   info.append(stats)
+
+  const league = leagueCard(state, actions)
 
   // 球隊戰力、養成與招募的提示
   const growth = el('section', 'v2-card v2-growth')
@@ -129,9 +133,72 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
   if (!list.length) recent.append(el('p', 'v2-empty', V2T.noMatches))
   else recent.append(matchList(list, actions.openReport))
 
-  page.append(info, growth, progress, rewards, recent)
+  page.append(info, league, growth, progress, rewards, recent)
   updateCountdown(page, controller.due(), state)
   return page
+}
+
+/** 聯盟卡片：名稱、徽章、本聯盟戰績、最近勝率、晉級進度，以及「挑戰下一聯盟」或還差哪些條件 */
+export function leagueCard(state: ControllerState, actions: Pick<DashboardActions, 'challenge'>): HTMLElement {
+  const club = state.club!
+  const { league } = club
+  const def = leagueOf(league.tier)
+  const e = eligibility(league, club.idle.nextMatchIndex)
+  const card = el('section', 'v2-card v2-league')
+  card.dataset.tier = String(league.tier)
+  const head = el('div', 'v2-league-head')
+  const badge = el('span', 'v2-league-badge', String(league.tier + 1))
+  badge.style.background = def.color
+  badge.setAttribute('aria-hidden', 'true')
+  const names = el('div', 'v2-league-names')
+  names.append(el('strong', 'v2-league-name', def.name), el('span', 'v2-league-sub', e.atMaxTier ? V2T.leagueTop : V2T.leagueNext(leagueOf(league.tier + 1).name)))
+  head.append(badge, names)
+  const lines = el('div', 'v2-league-lines')
+  lines.append(
+    el('span', '', V2T.leagueRecord(league.wins, league.losses)),
+    el('span', '', league.recent.length ? V2T.leagueRecent(e.winRate.have, league.recent.length) : V2T.leagueRecent(0, 0)),
+    el('span', 'v2-hint', V2T.leagueHint(def.rewardMultiplier)),
+  )
+  card.append(head, lines)
+  if (e.atMaxTier) return card
+
+  // 進度條：場數與勝率兩個條件裡，比較落後的那個
+  const matchRatio = Math.min(1, e.matches.have / e.matches.need)
+  const rateRatio = e.winRate.games < e.winRate.window ? Math.min(matchRatio, e.winRate.have / e.winRate.need) : Math.min(1, e.winRate.have / e.winRate.need)
+  const ratio = e.ok ? 1 : Math.min(matchRatio, rateRatio)
+  const bar = el('div', 'v2-league-bar')
+  bar.setAttribute('role', 'progressbar')
+  bar.setAttribute('aria-valuemin', '0')
+  bar.setAttribute('aria-valuemax', '100')
+  bar.setAttribute('aria-valuenow', String(Math.round(ratio * 100)))
+  const fill = el('span', 'v2-league-fill')
+  fill.style.width = `${Math.round(ratio * 100)}%`
+  fill.style.background = def.color
+  bar.append(fill)
+  card.append(bar)
+
+  if (e.ok) {
+    const btn = el('button', 'btn-yellow btn-big v2-challenge', state.challenging ? V2T.challenging : V2T.challengeButton)
+    btn.type = 'button'
+    btn.dataset.action = 'challenge'
+    btn.disabled = state.challenging || !state.canWrite
+    btn.onclick = () => {
+      btn.disabled = true
+      actions.challenge()
+    }
+    card.append(btn)
+  } else {
+    const need = el('ul', 'v2-league-need')
+    const item = (ok: boolean, text: string) => {
+      const li = el('li', ok ? 'done' : '', `${ok ? '✓' : '・'} ${text}`)
+      need.append(li)
+    }
+    item(e.matches.have >= e.matches.need, V2T.leagueMatchesNeed(e.matches.have, e.matches.need))
+    item(e.winRate.games >= e.winRate.window && e.winRate.have >= e.winRate.need, V2T.leagueRateNeed(e.winRate.need, e.winRate.window))
+    if (e.retryRemaining > 0) item(false, V2T.leagueRetry(e.retryRemaining))
+    card.append(need)
+  }
+  return card
 }
 
 /** 每秒更新倒數與「可結算」場數：只改文字，不重畫整個畫面 */
