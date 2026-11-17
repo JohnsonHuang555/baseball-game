@@ -371,6 +371,8 @@ export class ClubController {
       } catch (e) {
         if (this.disposed) return { ok: false }
         if (e instanceof EconomyError) {
+          // 支出被拒絕，但到期的比賽已經結算存檔：畫面換成存好的球團
+          if (e.settled) this.set({ club: e.settled.club })
           // 畫面資料過期：讀進最新的，讓玩家看清楚再操作
           if (e.code === 'stale-request' || e.code === 'level-mismatch') this.reload()
           return { ok: false, message: e.message }

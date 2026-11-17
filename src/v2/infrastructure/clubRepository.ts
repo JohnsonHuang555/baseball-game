@@ -152,11 +152,16 @@ export class ClubRepository implements ClubStore {
   /**
    * 把舊格式（schemaVersion 3）的存檔升級到目前格式，回傳升級後的球團；沒有存檔回傳 null。
    * 呼叫端要在 ClubLock 裡呼叫（application 的 openClubSafely）。步驟：
-   * 1. 讀原始文字；已經是目前格式（別的分頁剛遷移完）就直接回傳
+   * 1. 讀主存檔的原始文字；已經是目前格式（別的分頁剛遷移完）就直接回傳
    * 2. 在記憶體裡遷移（純函式），失敗丟 migration-failed，什麼都不寫
-   * 3. 把原始文字逐字寫進備份 key
-   * 4. 寫入前再讀一次原始文字，跟第 1 步不同（別的分頁改過）就丟 conflict，不覆蓋
-   * 5. 寫入升級後的存檔。任何一步寫入失敗都丟 write-failed：原本的存檔沒被改動，下次會重新遷移
+   * 3. 碰備份之前，再讀一次主存檔：跟第 1 步不同（別的分頁已經遷移、或舊版分頁又存了一次）就丟 conflict，
+   *    備份、主存檔都不寫。所以競爭中較晚的那一方，永遠不會覆寫已經存在、對應到真正遷移結果的備份
+   * 4. 把原始文字逐字寫進備份 key，再讀回來確認一字不差；寫入失敗丟 write-failed，主存檔不動
+   * 5. 寫主存檔前最後再讀一次主存檔，還是第 1 步的原始文字才寫入升級後的存檔
+   * 備份永遠是「這一次被遷移的那份 V3」：只有第 3、5 步都確認主存檔還是它，才會寫備份與主存檔。
+   * 限制：localStorage 沒有交易，第 5 步的「確認」和「寫入」之間仍有極短的空檔。有 Web Locks 時所有 V2 分頁都在鎖裡
+   * 排隊，不會有這種競爭；沒有 Web Locks 時（或還開著不認得鎖的舊版分頁）不保證原子性——萬一發生，
+   * 主存檔會是升級後的格式（舊版分頁讀到會停止寫入），備份是遷移當下讀到的 V3，那次空檔內被覆蓋的進度會遺失
    */
   migrateClub(): ClubSave | null {
     const raw = this.read()
@@ -175,13 +180,18 @@ export class ClubRepository implements ClubStore {
       const message = cause instanceof MigrationError ? cause.message : String(cause)
       throw new ClubSaveError('migration-failed', `球團存檔升級失敗，原本的存檔沒有被改動：${message}`, { cause })
     }
+    const unchanged = () => {
+      if (this.read() !== raw) throw new ClubSaveError('conflict', '升級時存檔被其他地方改過（可能是另一個分頁），沒有寫入任何東西，請重新讀取')
+    }
     const storage = this.requireStorage()
+    unchanged()
     try {
       if (storage.getItem(CLUB_BACKUP_KEY_V3) !== raw) storage.setItem(CLUB_BACKUP_KEY_V3, raw)
     } catch (cause) {
       throw new ClubSaveError('write-failed', '無法寫入舊存檔的備份，沒有進行升級', { cause })
     }
-    if (this.read() !== raw) throw new ClubSaveError('conflict', '升級時存檔被其他地方改過，請重新讀取')
+    if (this.readBackupV3() !== raw) throw new ClubSaveError('write-failed', '舊存檔的備份讀回來不一致，沒有進行升級')
+    unchanged()
     try {
       storage.setItem(this.key, JSON.stringify(migrated))
     } catch (cause) {

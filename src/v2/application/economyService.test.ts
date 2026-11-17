@@ -11,7 +11,8 @@ import { FakeLockManager, FlakyStorage, HOUR, MINUTE, ManualClock, T0, tab } fro
 import { planMatch } from './batchRunner'
 import { createClubSafely } from './clubLifecycle'
 import { EconomyError, recruit, recruitPlayer, upgrade, upgradePlayer } from './economyService'
-import { claim, settleDue, updateSettings } from './settlementService'
+import { SettlementError, claim, settleDue, updateSettings } from './settlementService'
+import { runMatch } from './matchRunner'
 
 const rich = { funds: 10_000_000, experience: 1_000_000 }
 
@@ -344,5 +345,122 @@ describe('經濟帳務', () => {
     const final = load(deps)
     expect(final.economy.recentOps.length).toBeLessThanOrEqual(30)
     expect(final.economy.nextOpSeq).toBeGreaterThan(0)
+  })
+})
+
+describe('支出失敗時，到期的比賽照樣保存', () => {
+  /** 資產固定為 assets；回傳之後「只有比賽相關欄位會變」的檢查 */
+  const spendState = (c: ClubSave) => ({ players: c.players, roster: c.roster, assets: c.economy.assets, spent: c.economy.spent, nextOpSeq: c.economy.nextOpSeq, recruitment: c.recruitment })
+
+  it('1. 離線 8 小時後資金不足而招募失敗：96 場保存、不扣款、名單不變', async () => {
+    const { deps, clock } = await setup({ funds: 100, experience: 0 })
+    const before = load(deps)
+    clock.advance(8 * HOUR)
+    const error = await recruit(deps, { opSeq: 0, role: 'batter' }).catch((e) => e)
+    expect(error).toBeInstanceOf(EconomyError)
+    expect(error.code).toBe('insufficient')
+    expect(error.settled.matches).toBe(96)
+    const after = load(deps)
+    expect(after.idle.nextMatchIndex).toBe(96)
+    expect(after.record.wins + after.record.losses).toBe(96)
+    expect(after.economy.unclaimed.funds).toBeGreaterThan(0)
+    expect(spendState(after)).toEqual(spendState(before))
+    expect(error.settled.club).toEqual(after)
+    expect(economyViolations(after.economy)).toEqual([])
+  })
+
+  it('2. 離線 8 小時後球員已滿級而升級失敗：96 場保存、等級與資產不變', async () => {
+    const { deps, clock } = await setup(rich)
+    const id = firstStarter(load(deps))
+    for (let lv = 1; lv < MAX_LEVEL; lv++) await upgrade(deps, { opSeq: load(deps).economy.nextOpSeq, playerId: id, expectedLevel: lv })
+    const before = load(deps)
+    clock.advance(8 * HOUR)
+    const error = await upgrade(deps, { opSeq: before.economy.nextOpSeq, playerId: id, expectedLevel: MAX_LEVEL }).catch((e) => e)
+    expect(error.code).toBe('max-level')
+    expect(error.settled.matches).toBe(96)
+    const after = load(deps)
+    expect(after.idle.nextMatchIndex).toBe(96)
+    expect(recordOf(after, id)!.level).toBe(MAX_LEVEL)
+    expect(spendState(after)).toEqual(spendState(before))
+  })
+
+  it('3. 離線後用過期的操作序號：拒絕支出，但比賽保存', async () => {
+    const { deps, clock } = await setup(rich)
+    const c = load(deps)
+    await upgrade(deps, { opSeq: 0, playerId: firstStarter(c), expectedLevel: 1 })
+    const before = load(deps)
+    clock.advance(2 * HOUR)
+    // 序號 0 已經被上一次升級用掉，這次是不同的請求
+    const error = await upgrade(deps, { opSeq: 0, playerId: c.roster.lineup[1].playerId, expectedLevel: 1 }).catch((e) => e)
+    expect(error.code).toBe('stale-request')
+    expect(error.settled.matches).toBe(24)
+    expect(load(deps).idle.nextMatchIndex).toBe(24)
+    expect(spendState(load(deps))).toEqual(spendState(before))
+  })
+
+  it('4. 失敗後重試：不會重複結算或扣款；資源夠了之後重試只扣一次', async () => {
+    const { deps, clock } = await setup({ funds: 100, experience: 0 })
+    clock.advance(8 * HOUR)
+    await recruit(deps, { opSeq: 0, role: 'pitcher' }).catch(() => undefined)
+    const afterFirst = load(deps)
+    // 同一個時間點重試：沒有新的比賽可以結算，也沒有扣款
+    const again = await recruit(deps, { opSeq: 0, role: 'pitcher' }).catch((e) => e)
+    expect(again.code).toBe('insufficient')
+    expect(again.settled).toBeUndefined()
+    expect(load(deps)).toEqual(afterFirst)
+    // 領取收益之後重試：成功，只扣一次
+    await claim(deps, afterFirst.economy.nextClaimSeq)
+    const funds = load(deps).economy.assets.funds
+    expect(funds).toBeGreaterThanOrEqual(recruitCost(0).funds)
+    await recruit(deps, { opSeq: 0, role: 'pitcher' })
+    await recruit(deps, { opSeq: 0, role: 'pitcher' }) // 重送
+    const final = load(deps)
+    expect(final.idle.nextMatchIndex).toBe(96)
+    expect(final.economy.assets.funds).toBe(funds - recruitCost(0).funds)
+    expect(final.players).toHaveLength(15)
+    expect(economyViolations(final.economy)).toEqual([])
+  })
+
+  it('5. 離線上限邊界：剛好 8 小時、超過 8 小時時操作失敗，之後的時間照樣累積，比賽不會被多丟掉', async () => {
+    for (const offline of [8 * HOUR, 8 * HOUR + 4 * MINUTE, 10 * HOUR]) {
+      const { deps, clock } = await setup({ funds: 0, experience: 0 })
+      clock.advance(offline)
+      const error = await upgrade(deps, { opSeq: 0, playerId: firstStarter(load(deps)), expectedLevel: 1 }).catch((e) => e)
+      expect(error.code).toBe('insufficient')
+      expect(load(deps).idle.nextMatchIndex).toBe(96)
+      // 失敗的那一刻起算：再過 1 小時就有 12 場。如果失敗時沒有存檔，
+      // 錨點會停在原處，1 小時後離線時間超過 8 小時，這 12 場就會被上限吃掉
+      clock.advance(HOUR)
+      expect((await settleDue(deps)).settled).toHaveLength(12)
+      expect(load(deps).idle.nextMatchIndex).toBe(108)
+    }
+  })
+
+  it('支出被拒絕、而且保存比賽時寫入失敗：回報寫入失敗，什麼都沒變', async () => {
+    const storage = new FlakyStorage()
+    const { deps, clock } = await setup({ funds: 100, experience: 0 }, storage)
+    const before = load(deps)
+    clock.advance(8 * HOUR)
+    storage.failWrites = true
+    const error = await recruit(deps, { opSeq: 0, role: 'batter' }).catch((e) => e)
+    expect(error).toBeInstanceOf(ClubSaveError)
+    expect(error.code).toBe('write-failed')
+    expect(load(deps)).toEqual(before)
+  })
+
+  it('支出前的結算失敗：失敗前的場次保存，不支出，回報結算失敗', async () => {
+    const { deps, clock } = await setup(rich)
+    const before = load(deps)
+    deps.batch.simulate = (p) => {
+      if (p.matchIndex === 10) throw new Error('模擬壞掉')
+      return runMatch(p.setup, p.ai)
+    }
+    clock.advance(HOUR)
+    const error = await upgrade(deps, { opSeq: 0, playerId: firstStarter(before), expectedLevel: 1 }).catch((e) => e)
+    expect(error).toBeInstanceOf(SettlementError)
+    expect(error.code).toBe('simulation-failed')
+    const after = load(deps)
+    expect(after.idle.nextMatchIndex).toBe(10)
+    expect(spendState(after)).toEqual(spendState(before))
   })
 })

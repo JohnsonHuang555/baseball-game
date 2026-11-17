@@ -6,9 +6,13 @@
 // - 其他（序號已經被別的操作用掉、或比目前大）：拒絕，請呼叫端重新讀取
 // 所以重複點擊、重送、多分頁同時操作都不會重複扣款，也不會用過期的畫面資料去花錢。
 //
-// 一致性：服務層在 ClubLock 裡「讀最新存檔 → 先用舊能力結算到期的比賽 → 支出 → 一次存檔」。
-// 資源與球員資料在同一份存檔裡一起寫入，寫入失敗就什麼都沒變（不會只扣款沒升級）。
-// 先結算到期的比賽，所以不能先升級、再用新能力回頭打完離線那段時間的比賽
+// 一致性：服務層在 ClubLock 裡「讀最新存檔 → 先用舊能力結算到期的比賽 → 支出 → 存檔」。
+// 先結算到期的比賽，所以不能先升級、再用新能力回頭打完離線那段時間的比賽。三種失敗分開處理：
+// - 結算失敗（模擬錯誤）：失敗前打完的場次照樣存檔，丟 SettlementError，不支出
+// - 支出被拒絕（資源不足、滿級、名單已滿、請求過期……）：到期的比賽照樣存檔（不扣款、不改球員資料），
+//   再丟 EconomyError（帶上存好的球團）。比賽是合法的進度，不能因為按錯一個按鈕就被丟掉
+// - 存檔寫入失敗：丟 ClubSaveError，什麼都沒變；就算原本是支出被拒絕，也回報寫入失敗，不會被當成「已存檔」
+// 成功時，結算、扣款、球員資料在同一次存檔裡寫入，寫入失敗就全部都沒變
 import type { ClubSave, PlayerRecord, Resources, SpendRecord } from '../domain/club'
 import { MAX_LEVEL, upgradeCost } from '../domain/progression'
 import { SPEND_LOG_LIMIT } from '../domain/progressionConfig'
@@ -20,6 +24,11 @@ export type EconomyErrorCode = 'bad-request' | 'stale-request' | 'no-player' | '
 
 export class EconomyError extends Error {
   override name = 'EconomyError'
+  /**
+   * 支出被拒絕之前，到期的比賽已經結算並存檔（沒有扣款、沒有改球員資料）：這是存好的球團。
+   * 沒有到期的比賽時是 undefined
+   */
+  settled?: { club: ClubSave; matches: number }
   constructor(
     readonly code: EconomyErrorCode,
     message: string,
@@ -118,12 +127,23 @@ async function spendSafely(deps: SettlementDeps, apply: (club: ClubSave, now: nu
     const now = deps.clock.now()
     // 已經到期的比賽先用目前（舊）的能力打完
     const { next, batch } = await settleDueUnsaved(club, now, deps)
+    const hasSettled = next.settled.length > 0
     if (batch.status !== 'completed') {
+      // 結算失敗：打完的前幾場照樣存檔（跟 settleDue 一樣），不支出
+      if (hasSettled) deps.store.saveClub(next.club, club.revision)
       throw new SettlementError('simulation-failed', `支出前的結算沒有完成：${batch.failedMatchId ?? batch.status}`, undefined, { cause: batch.error })
     }
-    const out = apply(next.club, now)
+    let out: SpendOutcome
+    try {
+      out = apply(next.club, now)
+    } catch (e) {
+      if (!(e instanceof EconomyError) || !hasSettled) throw e
+      // 支出被拒絕：只存結算（沒有扣款、沒有改球員資料）。寫入失敗會丟 ClubSaveError，蓋過這個 EconomyError
+      e.settled = { club: deps.store.saveClub(next.club, club.revision), matches: next.settled.length }
+      throw e
+    }
     // 重送且沒有新結算：什麼都沒變，不用存檔
-    if (out.duplicate && next.settled.length === 0) return { ...out, club }
+    if (out.duplicate && !hasSettled) return { ...out, club }
     return { ...out, club: deps.store.saveClub(out.club, club.revision) }
   })
 }
