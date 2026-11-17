@@ -13,6 +13,7 @@ import type { Player } from '../../sim/types'
 import { canAfford } from '../application/economyService'
 import { MAX_LEVEL, leveled, upgradeCost } from '../domain/progression'
 import { assignedIds, recordOf } from '../domain/roster'
+import { betterUpgrade, teamPower, teamPowerIf } from '../domain/growthInfo'
 import type { ClubController, ControllerState } from './clubController'
 import { v2Modal } from './reportView'
 import { V2T } from './strings'
@@ -96,7 +97,20 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
       const ov = el('li', 'v2-preview-overall')
       ov.append(el('span', 'v2-preview-name', V2T.upgradeOverall), el('span', 'v2-preview-val', `${fmt2(g.overall.from)} → ${fmt2(g.overall.to)}`))
       list.append(ov)
+      // 球隊戰力（上場 14 人的平均能力）的變化；預備球員升級不會改變目前的戰力
+      const tp = el('li', 'v2-preview-team')
+      tp.dataset.teamPower = ''
+      const after = teamPowerIf(club, playerId, record.level + 1)
+      tp.append(el('span', 'v2-preview-name', V2T.teamPower), el('span', 'v2-preview-val', after === null ? V2T.upgradeReserveTeam : `${fmt2(teamPower(club))} → ${fmt2(after)}`))
+      list.append(tp)
       preview.append(top, list, el('p', 'v2-hint', V2T.upgradeEffective))
+      // 同樣的經驗升別人明顯划算時提醒（只是資訊，不阻止升級）
+      const better = assignedIds(club.roster).has(playerId) ? betterUpgrade(club, playerId) : null
+      if (better) {
+        const tip = el('p', 'v2-hint v2-better-upgrade', V2T.betterUpgrade(better.name, better.level, better.ratio))
+        tip.dataset.better = better.playerId
+        preview.append(tip)
+      }
     }
 
     const costBox = el('div', 'v2-upgrade')
