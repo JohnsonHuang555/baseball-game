@@ -1,10 +1,12 @@
-// V2 觀戰畫面：播放已經結算的比賽（Read-only Replay）。
+// V2 觀戰畫面：直播進行中的比賽（主要），以及觀看晉級挑戰賽的過程。
 //
 // - 只在玩家按「觀看比賽」時才由 app 動態載入，放置結算、Headless MatchRunner 不會載入任何畫面或 Canvas。
-// - 畫面全部由時間軸（application/replayPlayer.ts）驅動：比分、出局、壘上、打者、投手都來自重播的模擬狀態，
+// - 畫面全部由時間軸驅動：比分、出局、壘上、打者、投手都來自確定性的模擬狀態，
 //   這裡不抽任何影響結果的亂數（V1 球場的界外球方向是純視覺的隨機，不影響狀態）。
 // - 用 V1 的 FieldRenderer、PitchCam、爆炸框大字、全壘打數據卡，節奏與音效規則與 V1 共用（ui/playAnimation.ts）。
-// - 完全不碰球團、存檔與 controller：打開時拿到的是一份複製的 Replay，播放過程不寫入任何東西。
+// - 完全不碰球團、存檔與 controller：播放過程不寫入任何東西。
+// - 直播（mode: 'live'）：依真實時間播放（livePlayer.ts），暫停只停自己的畫面，繼續時同步到當下進度；沒有重播、跳轉、調速度。
+// - 挑戰賽（mode: 'challenge'）：結果已經在按下挑戰時確定並存檔，這裡只是不先揭曉結果地播出來，可以暫停、調速度、直接看結果。
 // - 生命週期：close() 會停止播放迴圈、取消所有動畫與計時器、移除監聽器、還原鍵盤快捷鍵，之後不再操作 DOM。
 import type { Alignment, BattedBall, GameEvent, PitchResult, RunnerMove, Side } from '../../sim/game'
 import { homeRunStats } from '../../sim/game'
@@ -19,6 +21,7 @@ import { el } from '../../ui/playerCard'
 import { play, soundToggle } from '../../ui/sound'
 import { PITCH_TEXT, T, describePlay, homeRunName, runnersText } from '../../ui/strings'
 import { CPU_COLOR, USER_COLOR, sideTag } from '../../ui/visual'
+import { LivePlayer, type LiveClock, type LiveSource, type LiveView } from '../application/livePlayer'
 import type { MatchReplay } from '../application/matchRunner'
 import {
   REPLAY_SPEEDS,
@@ -92,39 +95,52 @@ export function canvasStage(): ReplayStage {
   }
 }
 
-export interface ReplayViewerOptions {
-  /** 開啟時複製好的 Replay（之後存檔被更新也不影響這一份） */
-  replay: MatchReplay
-  /** 戰報摘要：用來核對重播結果 */
-  expected?: ReplayExpectation
+interface ViewerCommon {
   /** 標題，例如「第 12 場・對手」 */
   title: string
   /** 關閉之後呼叫（回到原本的畫面） */
   onClose?: () => void
   /** 測試用：換掉 Canvas 球場 */
   createStage?: () => ReplayStage
-  /** 開啟後自動開始播放（預設 true） */
-  autoplay?: boolean
   /** 測試用：所有等待時間乘上這個數字（0 = 不等待） */
   timeScale?: number
 }
 
-export interface ReplayViewerHandle {
-  close(): void
-  /** 時間軸建立失敗時是 null */
-  readonly player: ReplayPlayer | null
-  readonly root: HTMLElement
+export interface LiveViewerOptions extends ViewerCommon {
+  mode: 'live'
+  source: LiveSource
+  clock: LiveClock
+  /** 這一場結束後，取得下一場（app 會先結算再推算）；沒有就是 null */
+  next?: () => Promise<{ source: LiveSource; title: string } | null>
 }
 
-const SPEED_KEYS: Record<string, number> = { '1': 1, '2': 2, '4': 4 }
+export interface ChallengeViewerOptions extends ViewerCommon {
+  mode: 'challenge'
+  /** 挑戰賽的 Replay（已經確定、已經存檔的那一場的複製） */
+  replay: MatchReplay
+  expected: ReplayExpectation
+  /** 播完（或直接看結果）之後呼叫：顯示挑戰結果 */
+  onFinished?: () => void
+  autoplay?: boolean
+}
+
+export type MatchViewerOptions = LiveViewerOptions | ChallengeViewerOptions
+
+export interface MatchViewerHandle {
+  close(): void
+  readonly root: HTMLElement
+  /** 測試用 */
+  readonly live: () => LivePlayer | null
+  readonly replay: () => ReplayPlayer | null
+}
 
 /** 打開觀戰畫面（蓋在 V2 畫面上方的子畫面） */
-export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle {
+export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
   const overlay = el('div', 'v2-replay-overlay')
   overlay.setAttribute('role', 'dialog')
   overlay.setAttribute('aria-modal', 'true')
-  overlay.setAttribute('aria-label', V2T.replayTitle)
-  const screen = el('div', 'v2-replay')
+  overlay.setAttribute('aria-label', opts.mode === 'live' ? V2T.liveTitle : V2T.challengeTitle)
+  const screen = el('div', `v2-replay ${opts.mode}`)
   overlay.append(screen)
   document.body.append(overlay)
 
@@ -140,20 +156,25 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
   const cleanups: (() => void)[] = []
   const previousKeys = setKeys({})
 
-  // 頂部：返回、標題、音效
+  // 頂部：離開、標題、直播狀態、音效
   const top = el('div', 'v2-replay-top')
-  const back = el('button', 'btn-white v2-replay-back', V2T.replayBack)
+  const back = el('button', 'btn-white v2-replay-back', opts.mode === 'live' ? V2T.liveLeave : V2T.replayBack)
   back.type = 'button'
   back.dataset.action = 'replay-back'
-  top.append(back, el('h2', 'v2-replay-title', opts.title), soundToggle('sound-btn v2-replay-sound'))
+  const title = el('h2', 'v2-replay-title', opts.title)
+  const badge = el('span', 'v2-live-badge')
+  badge.hidden = opts.mode !== 'live'
+  top.append(back, title, badge, soundToggle('sound-btn v2-replay-sound'))
   screen.append(top)
 
-  let player: ReplayPlayer | null = null
+  let livePlayer: LivePlayer | null = null
+  let replayPlayer: ReplayPlayer | null = null
   let stage: ReplayStage | null = null
   function close(): void {
     if (closed) return
     closed = true
-    player?.dispose()
+    livePlayer?.dispose()
+    replayPlayer?.dispose()
     stage?.cancel()
     for (const t of timers) clearTimeout(t)
     timers.clear()
@@ -163,10 +184,11 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
     opts.onClose?.()
   }
   back.onclick = close
+  const handle: MatchViewerHandle = { close, root: overlay, live: () => livePlayer, replay: () => replayPlayer }
 
   let timeline: ReplayTimeline
   try {
-    timeline = buildTimeline(opts.replay, opts.expected)
+    timeline = opts.mode === 'live' ? opts.source.timeline : buildTimeline(opts.replay, opts.expected)
   } catch (e) {
     // 資料損壞、版本不相容：顯示可以理解的錯誤，可以返回；不碰存檔
     const error = e instanceof ReplayError ? e : new ReplayError('corrupt', String(e))
@@ -175,54 +197,33 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
     box.append(el('h3', '', V2T.replayErrorTitle), el('p', '', V2T.replayErrorText(error.code)), el('p', 'v2-hint', error.message))
     screen.append(box)
     setKeys({ Escape: close })
-    return { close, player: null, root: overlay }
+    return handle
   }
 
-  const userSide = timeline.userSide
-  const otherSide: Side = userSide === 'home' ? 'away' : 'home'
-  const name = (id: string | null) => (id ? (timeline.players.get(id)?.name ?? '?') : '')
   const theStage = (opts.createStage ?? canvasStage)()
   stage = theStage
 
-  // 比分條（沿用 V1 比分條的樣式）
   const board = el('header', 'match-header v2-replay-board')
-  // 球場
   const fieldBox = el('section', 'match-field v2-replay-field')
   fieldBox.setAttribute('aria-label', '球場')
   const callout = el('div', 'callout')
   const finalPanel = el('div', 'v2-replay-final')
   finalPanel.hidden = true
-  fieldBox.append(...theStage.elements, callout, finalPanel)
-  // 打者與投手、最近一球
+  const pausedPanel = el('div', 'v2-live-paused')
+  pausedPanel.hidden = true
+  fieldBox.append(...theStage.elements, callout, pausedPanel, finalPanel)
   const duel = el('div', 'v2-replay-duel')
   const lastPlay = el('p', 'v2-replay-last')
   lastPlay.setAttribute('aria-live', 'polite')
   const log = el('ol', 'v2-replay-log')
   log.setAttribute('aria-label', '比賽紀錄')
-  // 控制區
-  const controls = el('div', 'v2-replay-controls')
-  const toggle = el('button', 'btn-yellow v2-replay-toggle')
-  toggle.type = 'button'
-  toggle.dataset.action = 'replay-toggle'
-  const speedGroup = el('div', 'speed-toggle v2-replay-speed')
-  speedGroup.setAttribute('role', 'group')
-  speedGroup.setAttribute('aria-label', V2T.replaySpeed)
-  const speedBtns = REPLAY_SPEEDS.map((s) => {
-    const b = el('button', '', `${s}×`)
-    b.type = 'button'
-    b.dataset.speed = String(s)
-    b.onclick = () => player?.setSpeed(s)
-    return b
-  })
-  speedGroup.append(...speedBtns)
-  const restart = el('button', 'btn-white v2-replay-restart', V2T.replayRestart)
-  restart.type = 'button'
-  restart.dataset.action = 'replay-restart'
-  const skip = el('button', 'btn-white v2-replay-skip', V2T.replaySkip)
-  skip.type = 'button'
-  skip.dataset.action = 'replay-skip'
-  controls.append(toggle, speedGroup, restart, skip)
+  const controls = el('div', `v2-replay-controls ${opts.mode}`)
   screen.append(board, fieldBox, duel, lastPlay, log, controls)
+
+  const name = (id: string | null) => (id ? (timeline.players.get(id)?.name ?? '?') : '')
+  const userSide = () => timeline.userSide
+  const otherSide = (): Side => (timeline.userSide === 'home' ? 'away' : 'home')
+  const speedNow = () => replayPlayer?.view.speed ?? 1
 
   // ---- 畫面 ----
 
@@ -233,10 +234,10 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
       const batting = !s.over && s.battingSide === side
       const row = el('div', `mh-team ${batting ? 'batting' : ''}`)
       const nameEl = el('span', 'mh-name', timeline.teamNames[side])
-      if (side === userSide) nameEl.append(sideTag(true))
+      if (side === userSide()) nameEl.append(sideTag(true))
       const score = el('span', 'mh-score', String(s.score[side]))
-      score.dataset.score = side === userSide ? 'us' : 'them'
-      row.append(el('span', `mh-swatch ${side === userSide ? 'user' : 'opponent'}`), nameEl, score)
+      score.dataset.score = side === userSide() ? 'us' : 'them'
+      row.append(el('span', `mh-swatch ${side === userSide() ? 'user' : 'opponent'}`), nameEl, score)
       teams.append(row)
     }
     const inning = el('div', 'mh-inning')
@@ -263,11 +264,11 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
     if (s.over) return
     const fielding: Side = s.battingSide === 'home' ? 'away' : 'home'
     const card = (label: string, id: string | null, side: Side, key: string) => {
-      const box = el('div', `v2-replay-duel-card ${side === userSide ? 'user' : 'opponent'}`)
+      const box = el('div', `v2-replay-duel-card ${side === userSide() ? 'user' : 'opponent'}`)
       const n = el('strong', '', name(id))
       n.dataset[key] = id ?? ''
       box.append(el('span', 'v2-replay-duel-label', label), n)
-      if (side === userSide) box.append(sideTag(true))
+      if (side === userSide()) box.append(sideTag(true))
       return box
     }
     duel.append(card(V2T.replayBatter, s.batterId, s.battingSide, 'batter'), card(V2T.replayPitcher, s.pitcherId, fielding, 'pitcher'))
@@ -285,8 +286,7 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
     if (topText) callout.append(el('span', 'callout-top', topText))
     callout.append(el('span', 'callout-label', label))
     callout.className = `callout show ${tone}`
-    const speed = player?.view.speed ?? 2
-    later(() => (callout.className = 'callout'), 1600 / speed)
+    later(() => (callout.className = 'callout'), 1600 / speedNow())
   }
 
   function showHomeRunStats(ball: BattedBall): void {
@@ -302,8 +302,7 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
     }
     card.append(tile(T.hrDistance, T.meters(stats.distanceFt), 'm'), tile(T.hrExitVelocity, T.kmh(stats.exitVelocityMph), 'km/h'), tile(T.hrLaunchAngle, String(stats.launchAngle), '°'))
     fieldBox.append(card)
-    const speed = player?.view.speed ?? 2
-    const shown = 2600 / Math.min(speed, 2)
+    const shown = 2600 / Math.min(speedNow(), 2)
     later(() => card.classList.add('leaving'), shown)
     later(() => card.remove(), shown + 300)
   }
@@ -319,7 +318,7 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
         return `${name(e.runnerId)} ${T.stealResult(e.success)}`
       case 'substitution': {
         const fn = { pinchHit: T.subPinchHit, pinchRun: T.subPinchRun, pitcher: T.subPitcher, defense: T.subDefense }[e.kind]
-        return (e.side === userSide ? '' : T.opponentPrefix) + fn(name(e.inId), name(e.outId))
+        return (e.side === userSide() ? '' : T.opponentPrefix) + fn(name(e.inId), name(e.outId))
       }
       case 'halfInningEnd':
         return T.halfEnd(e.inning, e.half === 'top')
@@ -336,15 +335,15 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
     fieldBox.querySelector('.hr-stats')?.remove()
   }
 
-  /** 直接把畫面設成某個狀態（跳轉、暫停中斷、比賽結束） */
+  /** 直接把畫面設成某個狀態（剛進來、同步、暫停中斷、比賽結束） */
   function showState(s: ReplayState, position: number): void {
     if (closed) return
     clearEffects()
-    theStage.setColors((s.battingSide === 'home' ? 'away' : 'home') === userSide)
+    theStage.setColors((s.battingSide === 'home' ? 'away' : 'home') === userSide())
     if (theStage.alignment !== s.alignment) void theStage.align(s.alignment, 0)
     theStage.sync(s.bases, s.over ? null : s.batterId)
     renderBoard(s)
-    if (position === 0) {
+    if (position === 0 && opts.mode === 'challenge') {
       log.replaceChildren()
       lastPlay.textContent = V2T.replayReady
     }
@@ -353,9 +352,9 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
   }
 
   function renderFinal(s: ReplayState): void {
-    const won = s.winner === userSide
+    const won = s.winner === userSide()
     finalPanel.className = `v2-replay-final ${won ? 'won' : 'lost'}`
-    finalPanel.replaceChildren(el('strong', 'v2-replay-verdict', won ? V2T.win : V2T.loss), el('span', 'v2-replay-final-score', `${s.score[userSide]} : ${s.score[otherSide]}`), linescore(s))
+    finalPanel.replaceChildren(el('strong', 'v2-replay-verdict', won ? V2T.win : V2T.loss), el('span', 'v2-replay-final-score', `${s.score[userSide()]} : ${s.score[otherSide()]}`), linescore(s))
     lastPlay.textContent = V2T.replayFinalLine(won, s.inning)
   }
 
@@ -368,7 +367,7 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
     head.append(el('th', '', 'R'), el('th', '', 'H'), el('th', '', 'E'))
     table.append(head)
     for (const side of ['away', 'home'] as const) {
-      const row = el('tr', side === userSide ? 'mine' : '')
+      const row = el('tr', side === userSide() ? 'mine' : '')
       row.append(el('td', 'name', timeline.teamNames[side]))
       for (let i = 0; i < innings; i++) row.append(el('td', '', s.linescore[side][i] === undefined ? 'X' : String(s.linescore[side][i])))
       row.append(el('td', 'total', String(s.score[side])), el('td', '', String(s.hits[side])), el('td', '', String(s.errors[side])))
@@ -379,11 +378,25 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
 
   // ---- 播一格（V1 animate() 的觀戰版：狀態全部來自時間軸） ----
 
+  /** 這一格在 1× 時大約要播多久（跟下面實際的等待一致），直播時用來把動畫縮放進時間段 */
+  function naturalMs(frame: ReplayFrame): number {
+    let ms = 0
+    for (const e of frame.events) {
+      if (e.type === 'pitch') ms += MATCH_PACE.pitch * pitchPace(e.pitch) + (e.result === 'inPlay' ? 0 : MATCH_PACE.afterPitch)
+      else if (e.type === 'play') ms += MATCH_PACE.flightBase + (e.ball?.distance ?? 0) * MATCH_PACE.flightPerFoot + MATCH_PACE.afterPlay + (e.kind === 'homeRun' ? MATCH_PACE.homeRunStats : e.kind === 'strikeout' ? MATCH_PACE.strikeout : 0)
+      else if (e.type === 'steal') ms += MATCH_PACE.steal + MATCH_PACE.afterPlay
+      else if (e.type === 'substitution') ms += MATCH_PACE.afterPlay
+      else if (e.type === 'halfInningEnd') ms += MATCH_PACE.afterHalfInning
+    }
+    return Math.max(1, ms)
+  }
+
   const presenter: ReplayPresenter = {
     async playFrame(frame: ReplayFrame, ctx: FrameContext): Promise<void> {
       const { signal } = ctx
       const scale = opts.timeScale ?? 1
-      const k = () => scale / (ctx.speed() * (frame.important ? 1 : ROUTINE_SPEEDUP))
+      // 直播：整格動畫縮放到剩下的時間裡（最多放慢一點點，不會拖過這一格的時間）；挑戰賽：照速度
+      const k = () => (ctx.budgetMs !== undefined ? scale * Math.min(1.3, ctx.budgetMs / naturalMs(frame)) : scale / (ctx.speed() * (frame.important ? 1 : ROUTINE_SPEEDUP)))
       const wait = (ms: number) => abortableWait(ms * k(), signal)
       const anim = <T>(p: Promise<T>) => untilAborted(p, signal)
       let thrower = timeline.players.get(frame.throwerId) as Pitcher | undefined
@@ -400,7 +413,7 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
         else renderBoard(shown)
       }
       for (const [i, e] of frame.events.entries()) {
-        if (signal.aborted || closed) throw new Error('aborted')
+        if (signal.aborted || closed) throw abortErr()
         const text = describe(e)
         if (e.type === 'substitution' && e.kind === 'pitcher') thrower = timeline.players.get(e.inId) as Pitcher | undefined
         if (e.type === 'pitch') {
@@ -450,10 +463,10 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
           }
         }
       }
-      if (signal.aborted || closed) throw new Error('aborted')
+      if (signal.aborted || closed) throw abortErr()
       // 一格結束：對齊這一步之後的模擬狀態
       const after = frame.after
-      theStage.setColors((after.battingSide === 'home' ? 'away' : 'home') === userSide)
+      theStage.setColors((after.battingSide === 'home' ? 'away' : 'home') === userSide())
       if (!after.over && theStage.alignment !== after.alignment) void theStage.align(after.alignment, 450 * k())
       theStage.sync(after.bases, after.over ? null : after.batterId)
       renderBoard(after)
@@ -461,78 +474,198 @@ export function openReplayViewer(opts: ReplayViewerOptions): ReplayViewerHandle 
     show: showState,
   }
 
-  // ---- 控制 ----
+  // ---- 球場縮放 ----
 
-  function renderControls(v: ReplayView): void {
-    const playing = v.status === 'playing'
-    toggle.textContent = playing ? V2T.replayPause : v.status === 'completed' ? V2T.replayAgain : V2T.replayPlay
-    toggle.setAttribute('aria-pressed', String(playing))
-    toggle.dataset.status = v.status
-    speedBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(REPLAY_SPEEDS[i] === v.speed)))
-    skip.disabled = v.status === 'completed'
-    screen.dataset.status = v.status
-    screen.dataset.position = `${v.position}/${v.total}`
-  }
-
-  const togglePlay = () => {
-    if (!player) return
-    const s = player.view.status
-    if (s === 'playing') player.pause()
-    else if (s === 'paused') player.resume()
-    else if (s === 'completed') player.restart()
-    else player.play()
-  }
-  toggle.onclick = togglePlay
-  restart.onclick = () => player?.restart()
-  skip.onclick = () => player?.skipToEnd()
-
-  // 先把畫面放進 DOM（球場量得到寬度）再建立播放器
-  player = new ReplayPlayer(timeline, presenter)
-  const unsubscribe = player.subscribe((v) => {
-    if (closed) return
-    renderControls(v)
-    if (v.status === 'error' && v.error) lastPlay.textContent = `${V2T.replayErrorTitle}：${v.error.message}`
-  })
-  cleanups.push(unsubscribe)
-
-  const keys: KeyMap = {
-    Space: togglePlay,
-    Escape: close,
-    s: () => {
-      if (!player) return
-      const i = REPLAY_SPEEDS.indexOf(player.view.speed)
-      player.setSpeed(REPLAY_SPEEDS[(i + 1) % REPLAY_SPEEDS.length])
-    },
-    e: () => player?.skipToEnd(),
-  }
-  for (const [key, s] of Object.entries(SPEED_KEYS)) keys[key] = () => player?.setSpeed(s as 1 | 2 | 4)
-  setKeys(keys)
-
-  // 背景化：暫停播放（不自動恢復），不在看不到的時候跑 Canvas 動畫
-  const onVisibility = () => {
-    if (document.hidden && player?.view.status === 'playing') player.pause()
-  }
-  document.addEventListener('visibilitychange', onVisibility)
-  cleanups.push(() => document.removeEventListener('visibilitychange', onVisibility))
-
-  // 球場跟著寬度縮放：中斷這一格（不推進）、重畫目前狀態，播放中的話接著播
   if (typeof ResizeObserver !== 'undefined') {
     let width = fieldBox.clientWidth
     const ro = new ResizeObserver(() => {
       if (closed || fieldBox.clientWidth === width || fieldBox.clientWidth === 0) return
       width = fieldBox.clientWidth
-      const wasPlaying = player?.view.status === 'playing'
-      if (wasPlaying) player!.pause()
-      theStage.resize()
-      if (player) showState(player.view.state, player.view.position)
-      if (wasPlaying) player!.resume()
+      // 中斷這一格（不推進）、重畫目前狀態，播放中的話接著播
+      if (livePlayer) {
+        const wasLive = livePlayer.view.status === 'live'
+        if (wasLive) livePlayer.pause()
+        theStage.resize()
+        showState(livePlayer.view.state, livePlayer.view.position)
+        if (wasLive) livePlayer.resume()
+      } else if (replayPlayer) {
+        const wasPlaying = replayPlayer.view.status === 'playing'
+        if (wasPlaying) replayPlayer.pause()
+        theStage.resize()
+        showState(replayPlayer.view.state, replayPlayer.view.position)
+        if (wasPlaying) replayPlayer.resume()
+      }
     })
     ro.observe(fieldBox)
     cleanups.push(() => ro.disconnect())
   }
 
-  if (opts.autoplay !== false) player.play()
-  return { close, player, root: overlay }
+  if (opts.mode === 'live') setupLive(opts)
+  else setupChallenge(opts)
+  return handle
+
+  // ---- 直播 ----
+
+  function setupLive(o: LiveViewerOptions): void {
+    const toggle = el('button', 'btn-yellow v2-replay-toggle')
+    toggle.type = 'button'
+    toggle.dataset.action = 'live-toggle'
+    const remain = el('span', 'v2-live-remain')
+    const nextBtn = el('button', 'btn-white v2-live-next', V2T.liveWatchNext)
+    nextBtn.type = 'button'
+    nextBtn.dataset.action = 'live-next'
+    nextBtn.hidden = true
+    controls.append(toggle, remain, nextBtn)
+    pausedPanel.append(el('strong', '', V2T.livePaused), el('span', '', V2T.livePausedHint))
+
+    let unsubscribe = () => {}
+    /** 剩餘時間：只看真實時間，跟畫面暫停無關 */
+    const tick = () => {
+      if (closed || !livePlayer) return
+      const v = livePlayer.view
+      const now = o.clock.now()
+      remain.textContent = now < v.startsAt ? V2T.liveStartsIn(fmtClock(v.startsAt - now)) : now < v.endsAt ? V2T.liveRemaining(fmtClock(v.endsAt - now)) : V2T.liveSettling
+    }
+    const render = (v: LiveView) => {
+      if (closed) return
+      screen.dataset.status = v.status
+      screen.dataset.position = `${v.position}/${v.total}`
+      toggle.textContent = v.status === 'paused' ? V2T.liveResume : V2T.livePause
+      toggle.hidden = v.status === 'ended' || v.status === 'error'
+      pausedPanel.hidden = v.status !== 'paused'
+      nextBtn.hidden = v.status !== 'ended' || !o.next
+      badge.textContent = v.status === 'waiting' ? V2T.liveUpcoming : v.status === 'ended' ? V2T.liveEnded : V2T.liveBadge
+      badge.className = `v2-live-badge ${v.status}`
+      if (v.status === 'ended') lastPlay.textContent = V2T.liveEndedLine(v.state.winner === userSide(), v.state.inning)
+      if (v.status === 'error') lastPlay.textContent = V2T.replayErrorTitle
+      tick()
+    }
+    const mount = (source: LiveSource) => {
+      unsubscribe()
+      livePlayer?.dispose()
+      timeline = source.timeline
+      log.replaceChildren()
+      lastPlay.textContent = ''
+      finalPanel.hidden = true
+      const player = new LivePlayer(source, presenter, o.clock)
+      livePlayer = player
+      unsubscribe = player.subscribe(render)
+      player.start()
+    }
+    const interval = setInterval(tick, 1000)
+    cleanups.push(() => clearInterval(interval))
+    cleanups.push(() => unsubscribe())
+
+    toggle.onclick = () => {
+      if (!livePlayer) return
+      if (livePlayer.view.status === 'paused') livePlayer.resume()
+      else livePlayer.pause()
+    }
+    nextBtn.onclick = async () => {
+      if (!o.next) return
+      nextBtn.disabled = true
+      const next = await o.next().catch(() => null)
+      if (closed) return
+      nextBtn.disabled = false
+      if (!next) return
+      title.textContent = next.title
+      mount(next.source)
+    }
+    // 背景化：自己的畫面先停住（比賽照走）；回到前景時同步到當下的進度
+    let hiddenPaused = false
+    const onVisibility = () => {
+      if (!livePlayer) return
+      if (document.hidden) {
+        if (livePlayer.view.status === 'live' || livePlayer.view.status === 'waiting') {
+          livePlayer.pause()
+          hiddenPaused = true
+        }
+      } else if (hiddenPaused) {
+        hiddenPaused = false
+        livePlayer.resume()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    cleanups.push(() => document.removeEventListener('visibilitychange', onVisibility))
+    setKeys({ Space: () => toggle.click(), Escape: close })
+    mount(o.source)
+  }
+
+  // ---- 晉級挑戰賽（結果已經確定，不先揭曉） ----
+
+  function setupChallenge(o: ChallengeViewerOptions): void {
+    const toggle = el('button', 'btn-yellow v2-replay-toggle')
+    toggle.type = 'button'
+    toggle.dataset.action = 'replay-toggle'
+    const speedGroup = el('div', 'speed-toggle v2-replay-speed')
+    speedGroup.setAttribute('role', 'group')
+    speedGroup.setAttribute('aria-label', V2T.replaySpeed)
+    const speedBtns = REPLAY_SPEEDS.map((s) => {
+      const b = el('button', '', `${s}×`)
+      b.type = 'button'
+      b.dataset.speed = String(s)
+      b.onclick = () => replayPlayer?.setSpeed(s)
+      return b
+    })
+    speedGroup.append(...speedBtns)
+    const skip = el('button', 'btn-white v2-replay-skip', V2T.challengeShowResult)
+    skip.type = 'button'
+    skip.dataset.action = 'replay-skip'
+    controls.append(toggle, speedGroup, skip)
+
+    let finished = false
+    const finish = () => {
+      if (finished) return
+      finished = true
+      o.onFinished?.()
+    }
+    const player = new ReplayPlayer(timeline, presenter)
+    replayPlayer = player
+    const render = (v: ReplayView) => {
+      if (closed) return
+      const playing = v.status === 'playing'
+      toggle.textContent = playing ? V2T.replayPause : V2T.replayPlay
+      toggle.hidden = v.status === 'completed'
+      speedBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(REPLAY_SPEEDS[i] === v.speed)))
+      skip.hidden = v.status === 'completed'
+      screen.dataset.status = v.status
+      screen.dataset.position = `${v.position}/${v.total}`
+      if (v.status === 'error' && v.error) lastPlay.textContent = `${V2T.replayErrorTitle}：${v.error.message}`
+      if (v.status === 'completed') finish()
+    }
+    cleanups.push(player.subscribe(render))
+    toggle.onclick = () => {
+      const s = player.view.status
+      if (s === 'playing') player.pause()
+      else if (s === 'paused') player.resume()
+      else player.play()
+    }
+    skip.onclick = () => player.skipToEnd()
+    const keys: KeyMap = {
+      Space: () => toggle.click(),
+      Escape: close,
+      s: () => player.setSpeed(REPLAY_SPEEDS[(REPLAY_SPEEDS.indexOf(player.view.speed) + 1) % REPLAY_SPEEDS.length]),
+      e: () => player.skipToEnd(),
+    }
+    setKeys(keys)
+    const onVisibility = () => {
+      if (document.hidden && player.view.status === 'playing') player.pause()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    cleanups.push(() => document.removeEventListener('visibilitychange', onVisibility))
+    if (o.autoplay !== false) player.play()
+  }
+}
+
+function abortErr(): Error {
+  const e = new Error('播放被中斷')
+  e.name = 'AbortError'
+  return e
+}
+
+function fmtClock(ms: number): string {
+  const secs = Math.max(0, Math.ceil(ms / 1000))
+  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 }
 
 /** 球種的投球速度係數（變化球比較慢），沒有球種就是 1 */

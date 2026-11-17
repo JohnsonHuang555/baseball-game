@@ -8,11 +8,14 @@ import { setKeys } from '../../ui/keys'
 import { toast } from '../../ui/visual'
 import { CLUB_STORAGE_KEY } from '../infrastructure/clubRepository'
 import { createV2Deps, type V2Deps } from '../infrastructure/composition'
-import type { SettledMatch } from '../domain/club'
+import type { ClubSave } from '../domain/club'
+import { currentLiveMatch, liveTimeline, type LiveTimeline } from '../application/liveMatch'
+import { systemLiveClock, type LiveClock, type LiveSource } from '../application/livePlayer'
+import type { LiveCard } from './dashboardView'
 import { ClubController, type ControllerState } from './clubController'
 import { renderDashboard, updateCountdown } from './dashboardView'
 import { createLineupView, type LineupView } from './lineupView'
-import { challengeResultModal } from './leagueView'
+import { challengeResultModal, challengeStartModal } from './leagueView'
 import { openMatchReport, renderReports, welcomeModal } from './reportView'
 import { openRecruit } from './recruitView'
 import { V2T } from './strings'
@@ -44,6 +47,8 @@ export interface V2AppOptions {
   replayStage?: () => import('./replayView').ReplayStage
   /** 測試用：觀戰的等待時間倍率（0 = 不等待） */
   replayTimeScale?: number
+  /** 測試用：直播的時鐘（虛擬時間） */
+  liveClock?: LiveClock
 }
 
 export interface V2App {
@@ -156,50 +161,50 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     }
   }
 
+  // ---- 觀戰 ----
+
+  /** 首頁「目前比賽」用的直播時間軸快取：同一場、同一個存檔版本只算一次（每秒更新不重算） */
+  let liveCache: { key: string; data: LiveTimeline } | null = null
+  function liveOf(club: ClubSave, now: number): LiveCard {
+    const info = currentLiveMatch(club, now)
+    const key = `${info.matchId}:${club.revision}`
+    if (liveCache?.key !== key) liveCache = { key, data: liveTimeline(info.plan) }
+    const { timeline, schedule } = liveCache.data
+    const position = schedule.positionAt(now - info.startsAt)
+    const state = position <= 0 ? timeline.initial : position >= timeline.frames.length ? timeline.final : timeline.frames[position - 1].after
+    return { info, state, userSide: timeline.userSide, teamNames: timeline.teamNames, now }
+  }
+  const liveCard = (): LiveCard | null => {
+    const club = controller.state.club
+    return club ? liveOf(club, deps.clock.now()) : null
+  }
+
+  /** 直播的時鐘：正式環境用系統時間，測試可以換成虛擬時鐘 */
+  const liveClock = (): LiveClock => opts.liveClock ?? systemLiveClock(() => deps.clock.now())
+
   /**
-   * 觀看一場已經結算的比賽：從目前畫面上的球團複製一份 Replay（之後存檔被更新、Replay 被新的結算擠掉都不影響這次播放），
-   * 動態載入觀戰畫面。觀戰不經過 controller，不寫入任何東西；關閉後回到原本的分頁（戰報對話框也還在）
+   * 觀看進行中的比賽：先把到期的比賽結算掉（可寫分頁），再用最新的存檔推算現在是哪一場、打到哪裡。
+   * 觀戰不經過 controller、不寫入任何東西；比賽結束後由一般的放置流程結算，獎勵只在那時發放
    */
-  async function watchMatch(m: SettledMatch): Promise<void> {
-    const club = controller.state.club
-    const kept = club?.replays.find((x) => x.matchId === m.matchId)
-    if (!club || !kept) {
-      toast(V2T.replayNotKept)
-      return
-    }
-    const r = m.result
-    await openViewer(kept.replay, { userSide: r.userSide, runsFor: r.runsFor, runsAgainst: r.runsAgainst, won: r.won, innings: r.innings }, `${V2T.matchNo(m.matchIndex + 1)}・${V2T.vs(r.opponentName)}`)
-  }
-
-  /** 觀看最近一次晉級挑戰賽（只保留最近一場）；比分用挑戰紀錄核對 */
-  async function watchChallenge(): Promise<void> {
-    const club = controller.state.club
-    const kept = club?.challengeReplay
-    const record = kept && club!.league.challenges.find((c) => c.seq === kept.seq)
-    if (!kept || !record) {
-      toast(V2T.replayNotKept)
-      return
-    }
-    const expected = { userSide: kept.replay.setup.userSide, runsFor: record.runsFor, runsAgainst: record.runsAgainst, won: record.won, innings: record.innings }
-    await openViewer(kept.replay, expected, `${V2T.challengeTitle}・${V2T.vs(record.opponentName)}`)
-  }
-
-  async function openViewer(replay: import('../application/matchRunner').MatchReplay, expected: import('../application/replayPlayer').ReplayExpectation, title: string): Promise<void> {
+  async function watchLive(): Promise<void> {
     if (viewer || viewerLoading || closed) return
-    // 複製一份：之後存檔被更新、Replay 被新的結算或挑戰取代，都不影響這次播放
-    const snapshot = structuredClone(replay)
     viewerLoading = true
     try {
+      const first = await nextLive()
+      if (closed || !first) return
       const mod = await import('./replayView')
       if (closed) return
-      viewer = mod.openReplayViewer({
-        replay: snapshot,
-        expected,
-        title,
+      viewer = mod.openMatchViewer({
+        mode: 'live',
+        source: first.source,
+        title: first.title,
+        clock: liveClock(),
+        next: nextLive,
         createStage: opts.replayStage,
         timeScale: opts.replayTimeScale,
         onClose: () => {
           viewer = null
+          if (!closed) render(controller.state)
         },
       })
     } catch {
@@ -209,11 +214,66 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     }
   }
 
-  /** 首頁「觀看最近比賽」：最近一場有保留完整重播才有 */
-  function latestWatchable(state: ControllerState): SettledMatch | null {
-    const club = state.club
-    const last = club?.recentMatches.at(-1)
-    return last && club!.replays.some((x) => x.matchId === last.matchId) ? last : null
+  /** 現在進行中的那一場（先結算到期的比賽） */
+  async function nextLive(): Promise<{ source: LiveSource; title: string } | null> {
+    if (controller.state.canWrite) await controller.settle('manual')
+    const club = deps.store.loadClub()
+    if (!club) return null
+    const now = deps.clock.now()
+    const info = currentLiveMatch(club, now)
+    const { timeline, schedule } = liveTimeline(info.plan)
+    const opponent = timeline.teamNames[timeline.userSide === 'home' ? 'away' : 'home']
+    return {
+      source: { matchIndex: info.matchIndex, matchId: info.matchId, startsAt: info.startsAt, endsAt: info.endsAt, timeline, schedule },
+      title: `${V2T.matchNo(info.matchIndex + 1)}・${V2T.vs(opponent)}`,
+    }
+  }
+
+  /**
+   * 觀看晉級挑戰賽：結果已經在按下挑戰時確定並存檔，這裡從存檔複製一份 Replay 播出來（不先揭曉）。
+   * onFinished：播完或直接看結果時呼叫（顯示挑戰結果）；中途離開也會呼叫，結果不會消失
+   */
+  async function watchChallenge(onFinished?: () => void): Promise<void> {
+    const club = controller.state.club
+    const kept = club?.challengeReplay
+    const record = kept && club!.league.challenges.find((c) => c.seq === kept.seq)
+    if (!kept || !record) {
+      toast(V2T.replayNotKept)
+      onFinished?.()
+      return
+    }
+    if (viewer || viewerLoading || closed) return
+    const expected = { userSide: kept.replay.setup.userSide, runsFor: record.runsFor, runsAgainst: record.runsAgainst, won: record.won, innings: record.innings }
+    const snapshot = structuredClone(kept.replay)
+    viewerLoading = true
+    let finished = false
+    const finish = () => {
+      if (finished) return
+      finished = true
+      onFinished?.()
+    }
+    try {
+      const mod = await import('./replayView')
+      if (closed) return
+      viewer = mod.openMatchViewer({
+        mode: 'challenge',
+        replay: snapshot,
+        expected,
+        title: `${V2T.challengeTitle}・${V2T.vs(record.opponentName)}`,
+        createStage: opts.replayStage,
+        timeScale: opts.replayTimeScale,
+        onFinished: finish,
+        onClose: () => {
+          viewer = null
+          finish()
+        },
+      })
+    } catch {
+      toast(V2T.replayLoadFailed)
+      finish()
+    } finally {
+      viewerLoading = false
+    }
   }
 
   async function claimWithToast(): Promise<void> {
@@ -236,14 +296,9 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
         renderDashboard(state, controller, {
           claim: () => void claimWithToast(),
           refresh: () => void controller.settle('manual'),
-          openReport: (m) => openMatchReport(m, state.club!, watchMatch),
-          watchLatest: latestWatchable(state)
-            ? () => {
-                // 按下時用最新的球團：如果最近一場已經換了，就看新的那一場
-                const m = latestWatchable(controller.state)
-                if (m) void watchMatch(m)
-              }
-            : null,
+          openReport: (m) => openMatchReport(m, state.club!),
+          watchLive: () => void watchLive(),
+          liveCard,
           allReports: () => show('reports'),
           recruit: () => openRecruit(controller, () => show('lineup')),
           lineup: () => show('lineup'),
@@ -260,7 +315,7 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     } else if (tab === 'tactics') {
       tactics ??= createTacticsView(controller)
       main.replaceChildren(tactics.render(state))
-    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!, watchMatch)))
+    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!)))
 
     if (state.notice) {
       toast(state.notice)
@@ -269,11 +324,17 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     if (state.challengeResult && state.challengeResult.challenge.seq !== shownChallenge) {
       shownChallenge = state.challengeResult.challenge.seq
       const result = state.challengeResult
-      const canWatch = result.club.challengeReplay?.seq === result.challenge.seq
-      challengeResultModal(state.challengeResult, () => {
-        shownChallenge = null
-        controller.dismissChallengeResult()
-      }, canWatch ? () => void watchChallenge() : undefined)
+      const reveal = () => {
+        if (closed) return
+        challengeResultModal(result, () => {
+          shownChallenge = null
+          controller.dismissChallengeResult()
+        })
+      }
+      // 結果已經確定並存檔；先問要不要看比賽過程（不先揭曉），不想看就直接看結果
+      if (result.club.challengeReplay?.seq === result.challenge.seq && !result.duplicate) {
+        challengeStartModal(result, () => void watchChallenge(reveal), reveal)
+      } else reveal()
     }
     if (state.welcome && state.welcome.key !== shownWelcome) {
       shownWelcome = state.welcome.key
@@ -365,7 +426,7 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
   function tick(): void {
     if (closed) return
     const due = controller.due()
-    updateCountdown(main, due, controller.state)
+    updateCountdown(main, due, controller.state, liveCard())
     if (due && due.matches > 0 && !controller.state.settling && controller.state.canWrite) void controller.settle('tick')
   }
 

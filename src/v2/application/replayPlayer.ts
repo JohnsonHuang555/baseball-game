@@ -1,6 +1,7 @@
-// 觀戰重播（Read-only Replay）：把已經存檔的 MatchReplay 轉成逐步的時間軸，再由播放器依序交給畫面播放。
+// 比賽時間軸：把一場比賽（MatchReplay）轉成逐格的事件與狀態，給觀戰畫面播放。
+// 直播（livePlayer.ts，依真實時間）與晉級挑戰賽的觀看（這裡的 ReplayPlayer，可以暫停、調速度、直接看結果）共用。
 //
-// - 不碰 DOM、不碰存檔、不碰球團：輸入是開啟觀戰時複製的一份 MatchReplay，輸出只有時間軸與播放狀態。
+// - 不碰 DOM、不碰存檔、不碰球團：輸入是一份複製的 MatchReplay，輸出只有時間軸與播放狀態。
 // - 時間軸用 V1 的 Game 照「setup + commands」逐步重現（跟 sim/game.ts 的 replay() 同一套規則），
 //   但連 issue() 本身產生的事件（換投、代打、故意四壞）也一起收集，畫面才能如實播出。
 // - 開啟時一次算完整場：同一份 Replay 每次的時間軸都相同，跳到結束、重新播放只是移動位置，不重新模擬。
@@ -227,6 +228,8 @@ export interface FrameContext {
   signal: AbortSignal
   /** 這一格開始前的狀態 */
   before: ReplayState
+  /** 直播：這一格的動畫要在幾毫秒內播完（依剩餘時間縮放）；沒有就照 speed 播 */
+  budgetMs?: number
 }
 
 /** 畫面這一側：播放一格動畫、直接顯示某個狀態（跳轉、暫停中斷後） */

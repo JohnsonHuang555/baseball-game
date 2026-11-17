@@ -1,15 +1,18 @@
 // @vitest-environment happy-dom
-// Phase 5B：觀戰入口、播放控制、跳到結束、返回、錯誤處理、資料不受影響、快速開關
+// Phase 5B：首頁「目前比賽」、直播觀戰（中途加入、暫停只停畫面、同步、比賽結束、下一場）、歷史 Box Score、晉級挑戰的觀看
 import { afterEach, describe, expect, it } from 'vitest'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, HOUR, ManualClock, tab } from '../testkit'
+import { FakeLockManager, MINUTE, ManualClock, T0, tab } from '../testkit'
 import { createClubSafely } from '../application/clubLifecycle'
-import { settleDue } from '../application/settlementService'
-import type { ClubSave, SettledMatch } from '../domain/club'
-import { RETENTION_CONFIG } from '../domain/config'
-import { PROMOTION_CONFIG } from '../domain/leagueConfig'
+import { upgrade } from '../application/economyService'
 import { challengeNextLeague, planChallenge } from '../application/leagueService'
+import { currentLiveMatch, liveTimeline } from '../application/liveMatch'
+import type { LiveClock } from '../application/livePlayer'
 import { runMatch } from '../application/matchRunner'
+import { settleDue } from '../application/settlementService'
+import type { ClubSave } from '../domain/club'
+import { stableJson } from '../domain/fingerprint'
+import { PROMOTION_CONFIG } from '../domain/leagueConfig'
 import { openV2, type V2App } from './app'
 import type { ReplayStage } from './replayView'
 import { V2T } from './strings'
@@ -27,14 +30,17 @@ const flush = async (times = 30) => {
 const $ = <T extends Element = HTMLElement>(sel: string) => document.querySelector<T & HTMLElement>(sel)
 const $$ = (sel: string) => [...document.querySelectorAll<HTMLElement>(sel)]
 const text = (sel: string) => $(sel)?.textContent ?? ''
-/** 等觀戰畫面出現（第一次要動態載入模組） */
+const otherTabWrote = () => window.dispatchEvent(Object.assign(new Event('storage'), { key: CLUB_STORAGE_KEY, newValue: null }))
+const club = (storage: MemoryStorage) => JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!) as ClubSave
+
 async function untilOverlay(): Promise<void> {
   for (let i = 0; i < 100 && !document.querySelector('.v2-replay-overlay'); i++) await flush(5)
 }
-const otherTabWrote = () => window.dispatchEvent(Object.assign(new Event('storage'), { key: CLUB_STORAGE_KEY, newValue: null }))
+const screen = () => $('.v2-replay')!
+const position = () => Number(screen().dataset.position!.split('/')[0])
 
-/** 測試用球場：動畫立即完成，記錄還在進行中的動畫數（取消後歸零） */
-function fakeStage(stats: { active: number; cancels: number; created: number }): () => ReplayStage {
+/** 測試用球場：動畫立即完成，記錄還在進行中的動畫數 */
+function fakeStage(stats: { active: number; created: number }): () => ReplayStage {
   return () => {
     stats.created++
     let alignment: ReplayStage['alignment'] = 'normal'
@@ -50,7 +56,7 @@ function fakeStage(stats: { active: number; cancels: number; created: number }):
       pitch: anim,
       play: anim,
       run: anim,
-      cancel: () => void stats.cancels++,
+      cancel: () => undefined,
       resize: () => undefined,
       get alignment() {
         return alignment
@@ -59,165 +65,175 @@ function fakeStage(stats: { active: number; cancels: number; created: number }):
   }
 }
 
-async function mountWithMatches(hours = 1, timeScale = 0) {
+/** 虛擬時鐘：直播的等待會推進時間（不用真的等 5 分鐘）；gate.stopAt 設定時，時間停在那裡等測試推進 */
+function virtualLive(clock: ManualClock, gate: { stopAt?: number } = {}): LiveClock {
+  return {
+    now: () => clock.now(),
+    async sleep(ms, signal) {
+      const abort = () => Object.assign(new Error('aborted'), { name: 'AbortError' })
+      if (signal.aborted) throw abort()
+      const target = clock.now() + Math.max(0, ms)
+      if (gate.stopAt !== undefined && target > gate.stopAt) {
+        clock.set(Math.max(clock.now(), gate.stopAt))
+        await new Promise((r) => setTimeout(r, 5))
+      } else {
+        clock.set(target)
+        await new Promise((r) => setTimeout(r, 0))
+      }
+      if (signal.aborted) throw abort()
+    },
+  }
+}
+
+/** 建立球團並打到 12 分鐘（第 0、1 場打完，第 2 場 10:00 開打、15:00 結束）；預設時間停在 12:00 */
+async function mountAt12() {
   const storage = new MemoryStorage()
-  const clock = new ManualClock()
+  const clock = new ManualClock(T0)
   const locks = new FakeLockManager()
   const deps = tab(storage, clock, locks)
-  await createClubSafely(deps, { clubName: '觀戰隊', clubSeed: 31, clubId: 'club-watch' })
-  clock.advance(hours * HOUR)
+  await createClubSafely(deps, { clubName: '直播隊', clubSeed: 2468, clubId: 'club-live-ui' })
+  const c = deps.store.loadClub()!
+  const rich = { funds: 5_000_000, experience: 500_000 }
+  deps.store.saveClub({ ...c, economy: { ...c.economy, assets: rich, earned: rich } }, c.revision)
+  clock.set(T0 + 12 * MINUTE)
   await settleDue(deps)
-  const stats = { active: 0, cancels: 0, created: 0 }
+  const stats = { active: 0, created: 0 }
+  const gate: { stopAt?: number } = { stopAt: T0 + 12 * MINUTE }
   const root = document.createElement('div')
   document.body.append(root)
-  app = openV2(root, () => undefined, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'watch-tab', replayStage: fakeStage(stats), replayTimeScale: timeScale })
+  app = openV2(root, () => undefined, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'live-tab', replayStage: fakeStage(stats), replayTimeScale: 0, liveClock: virtualLive(clock, gate) })
   await flush()
-  return { storage, clock, locks, deps, stats }
+  return { storage, clock, locks, deps, stats, gate }
 }
 
-const club = (storage: MemoryStorage) => JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!) as ClubSave
-const lastMatch = (storage: MemoryStorage) => club(storage).recentMatches.at(-1) as SettledMatch
-
-async function openLatestFromReports() {
-  $<HTMLButtonElement>('[data-tab="reports"]')!.click()
-  $$('.v2-match')[0].click()
-  $<HTMLButtonElement>('[data-action="watch"]')!.click()
-  await untilOverlay()
+async function untilEnded(): Promise<void> {
+  for (let i = 0; i < 800 && screen().dataset.status !== 'ended'; i++) await flush(3)
 }
 
-describe('觀戰入口', () => {
-  it('戰報：有完整重播的場次有「觀看比賽」，舊場次說明完整重播已不再保留', async () => {
-    await mountWithMatches()
-    $<HTMLButtonElement>('[data-tab="reports"]')!.click()
-    const items = $$('.v2-match')
-    expect(items.length).toBe(12)
-    items[0].click()
-    expect($('[data-action="watch"]')).not.toBeNull()
-    expect($('.v2-replay-missing')).toBeNull()
-    $<HTMLButtonElement>('.v2-modal-close')!.click()
-    items[RETENTION_CONFIG.replays].click()
-    expect($('[data-action="watch"]')).toBeNull()
-    expect(text('.v2-replay-missing')).toBe(V2T.replayNotKept)
-  })
-
-  it('首頁：有最近比賽就能「觀看最近比賽」；還沒有比賽時沒有按鈕', async () => {
-    await mountWithMatches()
-    const btn = $<HTMLButtonElement>('[data-action="watch-latest"]')!
-    expect(btn.textContent).toBe(V2T.watchLatest)
-    expect(btn.disabled).toBe(false)
-    btn.click()
-    await untilOverlay()
-    expect($('.v2-replay-overlay')).not.toBeNull()
-    expect(text('.v2-replay-title')).toContain(V2T.matchNo(12))
+describe('首頁「目前比賽」', () => {
+  it('顯示進行中那一場：我方、對手、比分、局數、出局、剩餘時間，跟直播用同一份時間軸；沒有「觀看最近比賽」', async () => {
+    const { storage, clock } = await mountAt12()
+    expect($('[data-live-card]')).not.toBeNull()
+    const info = currentLiveMatch(club(storage), clock.now())
+    expect(info.matchIndex).toBe(2)
+    const { timeline, schedule } = liveTimeline(info.plan)
+    const pos = schedule.positionAt(clock.now() - info.startsAt)
+    const s = pos === 0 ? timeline.initial : timeline.frames[pos - 1].after
+    expect(text('[data-live-score="us"]')).toBe(String(s.score[timeline.userSide]))
+    expect($('[data-live-inning]')!.dataset.liveInning).toBe(`${s.inning}${s.half}`)
+    expect($('[data-live-outs]')!.dataset.liveOuts).toBe(String(s.outs))
+    expect(Number($('[data-live-remain]')!.dataset.liveRemain)).toBe(180)
+    expect(text('[data-action="watch-live"]')).toBe(V2T.liveWatch)
+    expect($('[data-action="watch-latest"]')).toBeNull()
   })
 })
 
-describe('觀戰畫面', () => {
-  it('播放 → 暫停 → 4× → 繼續 → 跳到結束：比分跟戰報一致；返回後還在戰報分頁、戰報對話框還在', async () => {
-    const { storage, stats } = await mountWithMatches(1, 1)
-    const m = lastMatch(storage)
-    await openLatestFromReports()
-    const screen = $('.v2-replay')!
-    expect(screen.dataset.status).toBe('playing')
-    // 有在畫球場動畫（投球、打擊）
-    expect(stats.created).toBe(1)
-    const toggle = $<HTMLButtonElement>('[data-action="replay-toggle"]')!
-    expect(toggle.textContent).toBe(V2T.replayPause)
-    toggle.click()
-    expect(screen.dataset.status).toBe('paused')
-    const paused = screen.dataset.position
+describe('直播觀戰', () => {
+  it('中途加入：直接是目前的進度，不是從第一球開始；暫停只停畫面，繼續時同步到當下進度', async () => {
+    const { clock, gate, storage } = await mountAt12()
+    $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
+    await untilOverlay()
+    await flush()
+    expect(screen().dataset.status).toBe('live')
+    const info = currentLiveMatch(club(storage), clock.now())
+    const { schedule } = liveTimeline(info.plan)
+    // 已經播完的格數：目前那一格（可能剛好播完）
+    expect(position() - schedule.positionAt(2 * MINUTE)).toBeGreaterThanOrEqual(0)
+    expect(position() - schedule.positionAt(2 * MINUTE)).toBeLessThanOrEqual(1)
+    expect(position()).toBeGreaterThan(10)
+    // 暫停：比賽時間照走（推進 1 分鐘），畫面不動
+    $<HTMLButtonElement>('[data-action="live-toggle"]')!.click()
+    expect(screen().dataset.status).toBe('paused')
+    expect($('.v2-live-paused')!.hidden).toBe(false)
+    const paused = position()
+    gate.stopAt = T0 + 13 * MINUTE
+    clock.set(T0 + 13 * MINUTE)
     await flush(10)
-    expect(screen.dataset.position).toBe(paused)
-    $<HTMLButtonElement>('[data-speed="4"]')!.click()
-    expect($('[data-speed="4"]')!.getAttribute('aria-pressed')).toBe('true')
-    toggle.click()
-    expect(screen.dataset.status).toBe('playing')
-    $<HTMLButtonElement>('[data-action="replay-skip"]')!.click()
-    expect(screen.dataset.status).toBe('completed')
-    expect(text('[data-score="us"]')).toBe(String(m.result.runsFor))
-    expect(text('[data-score="them"]')).toBe(String(m.result.runsAgainst))
+    expect(position()).toBe(paused)
+    // 繼續：跳到 13:00 的進度（不補播中間錯過的球）
+    $<HTMLButtonElement>('[data-action="live-toggle"]')!.click()
+    await flush(10)
+    expect(screen().dataset.status).toBe('live')
+    expect(position() - schedule.positionAt(3 * MINUTE)).toBeGreaterThanOrEqual(0)
+    expect(position() - schedule.positionAt(3 * MINUTE)).toBeLessThanOrEqual(1)
+    expect(position()).toBeGreaterThan(paused + 5)
+  })
+
+  it('一直看到比賽結束：顯示最終比分；結算後的戰報比分跟直播一樣；可以接著看下一場', async () => {
+    const { storage, gate } = await mountAt12()
+    $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
+    await untilOverlay()
+    gate.stopAt = undefined
+    await untilEnded()
+    expect(screen().dataset.status).toBe('ended')
+    const us = text('[data-score="us"]')
+    const them = text('[data-score="them"]')
     expect($('.v2-replay-final')!.hidden).toBe(false)
-    expect(text('.v2-replay-verdict')).toBe(m.result.won ? V2T.win : V2T.loss)
-    expect(stats.cancels).toBeGreaterThan(0)
-    $<HTMLButtonElement>('[data-action="replay-back"]')!.click()
-    await flush()
-    expect($('.v2-replay-overlay')).toBeNull()
-    expect($('[data-tab="reports"]')!.getAttribute('aria-current')).toBe('true')
-    expect($('.v2-report')).not.toBeNull()
+    // 獎勵還沒發：要等結算（下一步「觀看下一場」會先結算）
+    expect(club(storage).recentMatches.some((x) => x.matchIndex === 2)).toBe(false)
+    $<HTMLButtonElement>('[data-action="live-next"]')!.click()
+    await flush(20)
+    const m = club(storage).recentMatches.find((x) => x.matchIndex === 2)!
+    expect(String(m.result.runsFor)).toBe(us)
+    expect(String(m.result.runsAgainst)).toBe(them)
+    expect(text('.v2-replay-title')).toContain(V2T.matchNo(4))
   })
 
-  it('全部播完（不跳過）：比分、出局數照模擬更新，最後跟戰報一致', async () => {
-    const { storage } = await mountWithMatches(1, 0)
-    const m = lastMatch(storage)
-    $<HTMLButtonElement>('[data-action="watch-latest"]')!.click()
-    await untilOverlay()
-    for (let i = 0; i < 400 && $('.v2-replay')?.dataset.status !== 'completed'; i++) await flush(5)
-    expect($('.v2-replay')!.dataset.status).toBe('completed')
-    expect(text('[data-score="us"]')).toBe(String(m.result.runsFor))
-    expect(text('[data-score="them"]')).toBe(String(m.result.runsAgainst))
-    expect($$('.v2-replay-log li').length).toBeGreaterThan(5)
-    expect($<HTMLButtonElement>('[data-action="replay-toggle"]')!.textContent).toBe(V2T.replayAgain)
-  })
-
-  it('觀戰不寫入任何東西：完整播放、重播、跳過之後，存檔一個字都沒變', async () => {
-    const { storage } = await mountWithMatches(1, 0)
+  it('觀戰本身不寫入任何東西：看到一半離開，存檔一個字都沒變；比賽照樣在時間到時結算', async () => {
+    const { storage, deps, clock } = await mountAt12()
     const before = storage.getItem(CLUB_STORAGE_KEY)
-    const fields = (c: ClubSave) => ({ ...c })
-    $<HTMLButtonElement>('[data-action="watch-latest"]')!.click()
+    $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
     await untilOverlay()
-    for (let i = 0; i < 400 && $('.v2-replay')?.dataset.status !== 'completed'; i++) await flush(5)
-    $<HTMLButtonElement>('[data-action="replay-restart"]')!.click()
-    await flush(5)
-    $<HTMLButtonElement>('[data-action="replay-skip"]')!.click()
+    await flush(10)
     $<HTMLButtonElement>('[data-action="replay-back"]')!.click()
-    await flush()
-    expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(before)
-    const after = club(storage)
-    const b = JSON.parse(before!) as ClubSave
-    for (const k of ['schemaVersion', 'revision', 'players', 'roster', 'economy', 'idle', 'league', 'record', 'recentMatches', 'replays'] as const) {
-      expect(fields(after)[k]).toEqual(fields(b)[k])
-    }
-  })
-
-  it('觀戰中背景結算擠掉了這場的重播：已經開啟的畫面照樣播完；存檔的變化跟「沒有觀戰、只結算」完全相同', async () => {
-    const { storage, clock, deps } = await mountWithMatches(1, 1)
-    // 對照組：同一份存檔、同樣的時間，只結算不觀戰
-    const control = new MemoryStorage()
-    control.setItem(CLUB_STORAGE_KEY, storage.getItem(CLUB_STORAGE_KEY)!)
-    const controlDeps = tab(control, clock, new FakeLockManager())
-    const m = lastMatch(storage)
-    $<HTMLButtonElement>('[data-action="watch-latest"]')!.click()
-    await untilOverlay()
-    clock.advance(HOUR)
-    await settleDue(deps)
-    await settleDue(controlDeps)
-    expect(club(storage).replays.some((r) => r.matchId === m.matchId)).toBe(false)
-    $<HTMLButtonElement>('[data-action="replay-skip"]')!.click()
-    expect(text('[data-score="us"]')).toBe(String(m.result.runsFor))
-    expect(text('[data-score="them"]')).toBe(String(m.result.runsAgainst))
-    expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(control.getItem(CLUB_STORAGE_KEY))
-  })
-
-  it('觀戰畫面裡沒有任何球員操作或領取按鈕；空白鍵控制播放，Esc 返回，關閉後還原原本的按鍵', async () => {
-    await mountWithMatches(1, 1)
-    $<HTMLButtonElement>('[data-action="watch-latest"]')!.click()
-    await untilOverlay()
-    const overlay = $('.v2-replay-overlay')!
-    expect(overlay.querySelectorAll('.v2-claim, .v2-upgrade-btn, [data-action="release"], [data-action="recruit"], [data-action="challenge"]')).toHaveLength(0)
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))
-    expect($('.v2-replay')!.dataset.status).toBe('paused')
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await flush()
     expect($('.v2-replay-overlay')).toBeNull()
     expect($('.v2-dashboard')).not.toBeNull()
+    expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(before)
+    clock.set(T0 + 15 * MINUTE)
+    expect((await settleDue(deps)).settled.map((m) => m.matchIndex)).toEqual([2])
   })
 
-  it('快速開關觀戰 10 次：不留下任何觀戰畫面、播放迴圈或進行中的動畫', async () => {
-    const { stats } = await mountWithMatches(1, 1)
+  it('觀戰中升級球員：進行中的比賽不受影響（直播與結算都是開賽時的陣容）', async () => {
+    const { storage, deps, gate } = await mountAt12()
+    const plan = currentLiveMatch(club(storage), T0 + 12 * MINUTE).plan
+    $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
+    await untilOverlay()
+    const id = club(storage).roster.lineup[0].playerId
+    for (let lv = 1; lv < 8; lv++) await upgrade(deps, { opSeq: club(storage).economy.nextOpSeq, playerId: id, expectedLevel: lv })
+    otherTabWrote()
+    expect(stableJson(club(storage).liveMatch!.plan)).toBe(stableJson(plan))
+    gate.stopAt = undefined
+    await untilEnded()
+    const us = text('[data-score="us"]')
+    $<HTMLButtonElement>('[data-action="live-next"]')!.click()
+    await flush(20)
+    const settled = club(storage)
+    expect(String(settled.recentMatches.find((x) => x.matchIndex === 2)!.result.runsFor)).toBe(us)
+    const rep = settled.replays.find((r) => r.matchId === plan.matchId)!.replay
+    expect(stableJson(rep.setup)).toBe(stableJson(plan.setup))
+  })
+
+  it('沒有重播、跳到結束、調速度；空白鍵暫停，Esc 離開；觀戰畫面沒有球員操作或領取按鈕', async () => {
+    await mountAt12()
+    $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
+    await untilOverlay()
+    const overlay = $('.v2-replay-overlay')!
+    expect(overlay.querySelectorAll('[data-speed], [data-action="replay-restart"], [data-action="replay-skip"]')).toHaveLength(0)
+    expect(overlay.querySelectorAll('.v2-claim, .v2-upgrade-btn, [data-action="release"], [data-action="recruit"], [data-action="challenge"]')).toHaveLength(0)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))
+    expect(screen().dataset.status).toBe('paused')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flush()
+    expect($('.v2-replay-overlay')).toBeNull()
+  })
+
+  it('快速開關觀戰 10 次、離開 V2：不留下觀戰畫面、播放迴圈或進行中的動畫', async () => {
+    const { stats } = await mountAt12()
     for (let i = 0; i < 10; i++) {
-      $<HTMLButtonElement>('[data-action="watch-latest"]')!.click()
-      $<HTMLButtonElement>('[data-action="watch-latest"]')!.click()
-      await flush(3)
+      $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
+      $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
+      await untilOverlay()
       expect($$('.v2-replay-overlay')).toHaveLength(1)
       $<HTMLButtonElement>('[data-action="replay-back"]')!.click()
       await flush(3)
@@ -226,38 +242,34 @@ describe('觀戰畫面', () => {
     expect(stats.created).toBe(10)
     await flush(10)
     expect(stats.active).toBe(0)
-  })
-
-  it('離開 V2：開著的觀戰畫面一起關掉', async () => {
-    await mountWithMatches(1, 1)
-    $<HTMLButtonElement>('[data-action="watch-latest"]')!.click()
+    $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
     await untilOverlay()
     app!.close()
     app = null
     expect($('.v2-replay-overlay')).toBeNull()
   })
+})
 
-  it('壞掉或不支援的重播：顯示可以理解的錯誤，可以返回，V2 照常運作、存檔不變', async () => {
-    const { storage, deps } = await mountWithMatches()
-    const c = deps.store.loadClub()!
-    const replays = c.replays.map((r, i) => (i === c.replays.length - 1 ? { ...r, replay: { ...r.replay, rulesVersion: 99, setup: { ...r.replay.setup, rules: 99 } } } : r))
-    deps.store.saveClub({ ...c, replays }, c.revision)
-    otherTabWrote()
-    await flush()
-    const before = storage.getItem(CLUB_STORAGE_KEY)
-    $<HTMLButtonElement>('[data-action="watch-latest"]')!.click()
-    await untilOverlay()
-    expect(text('.v2-replay-error h3')).toBe(V2T.replayErrorTitle)
-    expect(text('.v2-replay-error')).toContain(V2T.replayErrorText('unsupported-version'))
-    $<HTMLButtonElement>('[data-action="replay-back"]')!.click()
-    await flush()
-    expect($('.v2-replay-overlay')).toBeNull()
-    expect($('.v2-dashboard')).not.toBeNull()
-    expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(before)
+describe('歷史戰報', () => {
+  it('每場都有 Box Score：日期、聯盟、比分、各局比分、安打、打者與投手成績、收益；說明保留範圍；沒有觀看入口', async () => {
+    const { storage } = await mountAt12()
+    $<HTMLButtonElement>('[data-tab="reports"]')!.click()
+    expect(text('.v2-hint')).toContain('最近 50 場')
+    $$('.v2-match')[1].click()
+    const m = club(storage).recentMatches[0]
+    expect($('.v2-report-meta')!.dataset.league).toBe('0')
+    expect(text('.v2-report-meta')).toContain('新秀聯盟')
+    expect($$('.v2-linescore tr')).toHaveLength(3)
+    const totals = $$('.v2-linescore tr.ours .total').map((x) => x.textContent)
+    expect(totals[0]).toBe(String(m.result.runsFor))
+    expect(totals[1]).toBe(String(m.box!.hits[m.result.userSide]))
+    expect($$('.v2-box li').length).toBe(m.box!.batters.length + m.box!.pitchers.length)
+    expect(text('.v2-report')).toContain(V2T.earned(m.earnedFunds, m.earnedExperience))
+    expect($('[data-action="watch"]')).toBeNull()
   })
 })
 
-describe('晉級挑戰的觀戰', () => {
+describe('晉級挑戰的觀看', () => {
   const eligible = (c: ClubSave): ClubSave => {
     const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
     return { ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, idle: { ...c.idle, nextMatchIndex: n } }
@@ -279,59 +291,76 @@ describe('晉級挑戰的觀戰', () => {
     await createClubSafely(deps, { clubName: '挑戰觀戰隊', clubSeed: await seedFor(want), clubId: 'club-cw' })
     const c = deps.store.loadClub()!
     deps.store.saveClub(eligible(c), c.revision)
-    const stats = { active: 0, cancels: 0, created: 0 }
     const root = document.createElement('div')
     document.body.append(root)
-    app = openV2(root, () => undefined, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'cw-tab', replayStage: fakeStage(stats), replayTimeScale: 0 })
+    app = openV2(root, () => undefined, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'cw-tab', replayStage: fakeStage({ active: 0, created: 0 }), replayTimeScale: 0 })
     await flush()
     return { storage, clock, locks, deps }
   }
 
   for (const want of [true, false]) {
-    it(`挑戰${want ? '成功' : '失敗'}：結果對話框可以「觀看挑戰過程」，比分跟挑戰結果一致；觀看不改聯盟進度與獎勵`, async () => {
+    it(`挑戰${want ? '成功' : '失敗'}：先問要不要看過程（不先揭曉）→ 看完才顯示結果；比分跟挑戰紀錄一致；觀看不改任何東西`, async () => {
       const { storage } = await mountEligible(want)
       $<HTMLButtonElement>('[data-action="challenge"]')!.click()
       await flush()
-      const verdict = text('.v2-challenge-verdict')
-      expect(verdict).toBe(want ? V2T.challengeWin : V2T.challengeLose)
-      const saved = club(storage)
-      const record = saved.league.challenges.at(-1)!
+      expect($('.v2-challenge-start')).not.toBeNull()
+      expect($('.v2-challenge-verdict')).toBeNull()
       const before = storage.getItem(CLUB_STORAGE_KEY)
+      const record = club(storage).league.challenges.at(-1)!
       $<HTMLButtonElement>('[data-action="watch-challenge"]')!.click()
       await untilOverlay()
+      expect($('.v2-challenge-verdict')).toBeNull()
       $<HTMLButtonElement>('[data-action="replay-skip"]')!.click()
+      await flush()
       expect(text('[data-score="us"]')).toBe(String(record.runsFor))
       expect(text('[data-score="them"]')).toBe(String(record.runsAgainst))
-      expect(text('.v2-replay-verdict')).toBe(record.won ? V2T.win : V2T.loss)
+      expect(text('.v2-challenge-verdict')).toBe(want ? V2T.challengeWin : V2T.challengeLose)
       $<HTMLButtonElement>('[data-action="replay-back"]')!.click()
       await flush()
-      // 回到挑戰結果對話框；存檔一個字都沒變（沒有重新挑戰、沒有重新發獎）
-      expect($('.v2-challenge-result')).not.toBeNull()
+      expect($$('.v2-challenge-result')).toHaveLength(1)
       expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(before)
     })
   }
 
-  it('重送同一個挑戰請求、重新整理：Replay 還是同一場，首頁可以「觀看上次晉級挑戰」', async () => {
-    const { storage, deps, clock, locks } = await mountEligible(true)
+  it('不想看：關掉提問直接看結果；看到一半離開也會顯示結果，結果不會消失', async () => {
+    const { storage } = await mountEligible(true)
     $<HTMLButtonElement>('[data-action="challenge"]')!.click()
     await flush()
     $<HTMLButtonElement>('.v2-modal-close')!.click()
+    await flush()
+    expect(text('.v2-challenge-verdict')).toBe(V2T.challengeWin)
+    expect(club(storage).league.tier).toBe(1)
+  })
+
+  it('看到一半離開：顯示結果', async () => {
+    await mountEligible(false)
+    $<HTMLButtonElement>('[data-action="challenge"]')!.click()
+    await flush()
+    $<HTMLButtonElement>('[data-action="watch-challenge"]')!.click()
+    await untilOverlay()
+    $<HTMLButtonElement>('[data-action="replay-back"]')!.click()
+    await flush()
+    expect(text('.v2-challenge-verdict')).toBe(V2T.challengeLose)
+  })
+
+  it('重送同一個請求被拒絕、挑戰途中重新整理：結果已經保存，首頁可以「觀看上次晉級挑戰」', async () => {
+    const { storage, deps, clock, locks } = await mountEligible(true)
+    $<HTMLButtonElement>('[data-action="challenge"]')!.click()
     await flush()
     const first = club(storage).challengeReplay
     const dup = await challengeNextLeague(deps, { fromTier: 0, challengeSeq: 0, requestId: 'other' }).catch((e) => e)
     expect(dup.code).toBe('stale-request')
     expect(club(storage).challengeReplay).toEqual(first)
-    // 重新整理：重新開一次 V2
     app!.close()
     document.body.replaceChildren()
     const root = document.createElement('div')
     document.body.append(root)
-    app = openV2(root, () => undefined, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'cw-tab-2', replayStage: fakeStage({ active: 0, cancels: 0, created: 0 }), replayTimeScale: 0 })
+    app = openV2(root, () => undefined, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'cw-tab-2', replayStage: fakeStage({ active: 0, created: 0 }), replayTimeScale: 0 })
     await flush()
+    expect(club(storage).league.tier).toBe(1)
     $<HTMLButtonElement>('[data-action="watch-last-challenge"]')!.click()
     await untilOverlay()
     $<HTMLButtonElement>('[data-action="replay-skip"]')!.click()
-    const record = club(storage).league.challenges.at(-1)!
-    expect(text('[data-score="us"]')).toBe(String(record.runsFor))
+    expect(text('[data-score="us"]')).toBe(String(club(storage).league.challenges.at(-1)!.runsFor))
   })
 })

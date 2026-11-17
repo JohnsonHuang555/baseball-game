@@ -30,3 +30,30 @@ export function challengeResultModal(out: ChallengeOutcome, onClose: () => void,
   }
   return v2Modal(V2T.challengeTitle, body, onClose)
 }
+
+/**
+ * 挑戰賽開打：結果已經確定並存檔，先不揭曉，讓玩家選要觀看比賽過程，或直接看結果。
+ * 關掉這個對話框（Esc、點外面）等於直接看結果，結果不會消失
+ */
+export function challengeStartModal(out: ChallengeOutcome, watch: () => void, reveal: () => void): () => void {
+  const body = el('div', 'v2-challenge-start')
+  body.append(
+    el('p', 'v2-challenge-line', V2T.challengeStartLine(leagueOf(out.challenge.toTier).name)),
+    el('p', 'v2-match-sub', V2T.challengeOpponent(out.challenge.opponentName)),
+    el('p', 'v2-hint', V2T.challengeStartHint),
+  )
+  let chosen = false
+  const watchBtn = el('button', 'btn-yellow btn-big v2-watch-btn', V2T.watchChallenge)
+  watchBtn.type = 'button'
+  watchBtn.dataset.action = 'watch-challenge'
+  body.append(watchBtn)
+  const close = v2Modal(V2T.challengeTitle, body, () => {
+    if (!chosen) reveal()
+  }, V2T.challengeShowResult)
+  watchBtn.onclick = () => {
+    chosen = true
+    close()
+    watch()
+  }
+  return close
+}
