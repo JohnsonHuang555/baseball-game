@@ -16,6 +16,9 @@ export class ManualClock implements Clock {
   advance(ms: number): void {
     this.t += ms
   }
+  set(t: number): void {
+    this.t = t
+  }
 }
 
 /** 模擬瀏覽器的 navigator.locks：同一個實例代表同一個來源，所有「分頁」共用 */

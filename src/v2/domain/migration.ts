@@ -2,6 +2,8 @@
 // - 3 → 4：陣容裡內嵌的球員搬進永久名單（players），陣容只存 ID，加上等級、支出帳務
 // - 4 → 5：加上聯盟進度（league）；其他欄位一個字都不動
 // - 5 → 6：加上最近一次晉級挑戰的 Replay（challengeReplay），舊存檔沒有挑戰 Replay，一律是 null；其他欄位一個字都不動
+// - 6 → 7：加上進行中比賽的固定計畫（liveMatch = null）；還保留完整 Replay 的近期比賽，用 Replay 確定性重算出 Box Score，
+//   其他舊比賽維持只有摘要（不猜數據）。比賽、獎勵、游標、錨點都不動
 // 遷移是純函式、確定性（不讀時間、不抽亂數）：同一份舊存檔不管遷移幾次、在哪個分頁遷移，結果都一模一樣。
 // 舊版本串接各段升到目前版本，中間版本不單獨驗證，只驗證最後的結果
 import type { ClubSave } from './club'
@@ -11,6 +13,9 @@ import { PROMOTION_CONFIG } from './leagueConfig'
 import { validateClubV3, type ClubSaveV3 } from './legacyV3'
 import type { ClubSaveV4 } from './legacyV4'
 import type { ClubSaveV5 } from './legacyV5'
+import type { ClubSaveV6 } from './legacyV6'
+import { replay as replayGame } from '../../sim/game'
+import { boxScoreOf } from './boxScore'
 import { isObj } from './validation'
 
 export class MigrationError extends Error {
@@ -18,7 +23,7 @@ export class MigrationError extends Error {
 }
 
 /** 可以遷移的舊版本 */
-export const MIGRATABLE_VERSIONS = [3, 4, 5] as const
+export const MIGRATABLE_VERSIONS = [3, 4, 5, 6] as const
 export type MigratableVersion = (typeof MIGRATABLE_VERSIONS)[number]
 
 /** 讀進來的存檔需要遷移嗎：只看 schemaVersion */
@@ -26,7 +31,7 @@ export function needsMigration(value: unknown): boolean {
   return sourceVersion(value) !== null
 }
 
-/** 舊存檔的版本（3、4 或 5）；不是可遷移的舊版本就是 null */
+/** 舊存檔的版本（3～6）；不是可遷移的舊版本就是 null */
 export function sourceVersion(value: unknown): MigratableVersion | null {
   if (!isObj(value)) return null
   return (MIGRATABLE_VERSIONS as readonly unknown[]).includes(value.schemaVersion) ? (value.schemaVersion as MigratableVersion) : null
@@ -40,8 +45,11 @@ export function migrateToLatest(value: unknown): ClubSave {
   const origin = { schemaVersion: version, revision: original.revision }
   try {
     // 中間版本沒有單獨驗證：缺欄位時這裡可能丟 TypeError，一樣當成遷移失敗
-    const v5 = version === 5 ? (value as ClubSaveV5) : toV5(version === 3 ? migrateV3ToV4(value) : (value as ClubSaveV4))
-    return validateClub(toV6(v5, origin))
+    const v6 =
+      version === 6
+        ? (value as ClubSaveV6)
+        : toV6(version === 5 ? (value as ClubSaveV5) : toV5(version === 3 ? migrateV3ToV4(value) : (value as ClubSaveV4)))
+    return validateClub(toV7(v6, origin))
   } catch (e) {
     if (e instanceof MigrationError) throw e
     throw new MigrationError(`遷移後的存檔驗證失敗：${(e as Error).message}`, { cause: e })
@@ -102,13 +110,41 @@ function toV5(v4: ClubSaveV4): ClubSaveV5 {
   return { ...rest, schemaVersion: 5, league: seededLeague(v4) }
 }
 
-/**
- * V5 → V6：只加上 challengeReplay（null），其他欄位照搬（深拷貝）。
- * revision 接著原始存檔加 1（從儲存的角度只是一次寫入，3 → 6 也是 +1），migratedFrom 記原始版本
- */
-function toV6(v5: ClubSaveV5, origin: { schemaVersion: MigratableVersion; revision: number }): ClubSave {
+/** V5 → V6：只加上 challengeReplay（null），其他欄位照搬（深拷貝） */
+function toV6(v5: ClubSaveV5): ClubSaveV6 {
   const { migratedFrom: _old, ...rest } = structuredClone(v5)
-  return { ...rest, schemaVersion: CLUB_SCHEMA_VERSION, challengeReplay: null, migratedFrom: origin, revision: origin.revision + 1 }
+  return { ...rest, schemaVersion: 6, challengeReplay: null }
+}
+
+/**
+ * V6 → V7：加上 liveMatch（null）；還保留完整 Replay 的近期比賽補上 Box Score（用 V1 的 replay() 確定性重算，算不出來就不補）。
+ * revision 接著原始存檔加 1（從儲存的角度只是一次寫入），migratedFrom 記原始版本
+ */
+function toV7(v6: ClubSaveV6, origin: { schemaVersion: MigratableVersion; revision: number }): ClubSave {
+  const { migratedFrom: _old, ...rest } = structuredClone(v6)
+  const kept = new Map(rest.replays.map((r) => [r.matchId, r.replay]))
+  const recentMatches = rest.recentMatches.map((m) => {
+    const rep = kept.get(m.matchId)
+    if (!rep || m.box) return m
+    try {
+      const game = replayGame(structuredClone(rep.setup), rep.commands)
+      const players = (['home', 'away'] as const).flatMap((side) =>
+        [...game.rosterIds(side)].flatMap((id) => {
+          const p = game.player(id)
+          const line = game.box[id]
+          return p && line ? [{ playerId: id, name: p.name, side, role: p.role, line }] : []
+        }),
+      )
+      // 重算的比分一定要跟戰報一致，否則不補（不放不可信的數據）
+      const side = rep.setup.userSide
+      const other = side === 'home' ? 'away' : 'home'
+      if (game.score[side] !== m.result.runsFor || game.score[other] !== m.result.runsAgainst) return m
+      return { ...m, box: boxScoreOf({ linescore: game.linescore, hits: game.hits, errors: game.errors, players }, side) }
+    } catch {
+      return m
+    }
+  })
+  return { ...rest, recentMatches, schemaVersion: CLUB_SCHEMA_VERSION, liveMatch: null, migratedFrom: origin, revision: origin.revision + 1 }
 }
 
 function seededLeague(v4: ClubSaveV4): LeagueState {

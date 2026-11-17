@@ -285,21 +285,22 @@ describe('領取收益', () => {
 })
 
 describe('陣容與戰術', () => {
-  it('修改前到期的比賽用舊陣容，新陣容從下一場生效', async () => {
+  it('修改前到期的比賽與進行中那一場用舊陣容，新陣容從下一場生效', async () => {
     const { c, clock } = await readyClub()
     const oldStarter = rosterOf(c.state.club!).lineup[0].player.id
     clock.advance(17 * MINUTE)
     const roster = substitute(rosterOf(c.state.club!), 0, 0)
     const res = await c.saveRoster(roster, c.settingsVersions()!.roster)
     expect(res.ok).toBe(true)
-    expect(res.message).toBe(V2T.settingsSaved(4))
+    expect(res.message).toBe(V2T.settingsSaved(5))
     const club = c.state.club!
     expect(club.idle.nextMatchIndex).toBe(3)
-    expect(club.strategy.effectiveFromMatch).toBe(3)
+    expect(club.strategy.effectiveFromMatch).toBe(4)
     const ourLineup = (r: (typeof club.replays)[number]) => r.replay.setup[r.replay.setup.userSide].roster.lineup.map((s) => s.player.id)
     for (const r of club.replays) expect(ourLineup(r)).toContain(oldStarter)
-    clock.advance(5 * MINUTE)
+    clock.advance(10 * MINUTE)
     await c.settle('manual')
+    expect(ourLineup(c.state.club!.replays.at(-2)!)).toContain(oldStarter)
     expect(ourLineup(c.state.club!.replays.at(-1)!)).not.toContain(oldStarter)
   })
 

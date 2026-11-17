@@ -256,7 +256,7 @@ describe('晉級挑戰', () => {
     expect(load(deps).league.nextChallengeSeq).toBe(1)
   })
 
-  it('挑戰前先用舊聯盟結算到期的比賽；晉級後的下一場才是新聯盟', async () => {
+  it('挑戰前先用舊聯盟結算到期的比賽；進行中那一場固定在舊聯盟（收益照舊聯盟、不算進新聯盟戰績）；下一場才是新聯盟', async () => {
     const { deps, clock } = await setupWithChallenge(true)
     clock.advance(HOUR)
     const out = await challengeNextLeague(deps, { challengeSeq: 0, fromTier: 0 }).catch((e) => e)
@@ -265,10 +265,17 @@ describe('晉級挑戰', () => {
     expect(c.recentMatches.slice(-12).every((m) => m.result.leagueTier === 0)).toBe(true)
     expect(c.idle.nextMatchIndex).toBe(Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches) + 12)
     if (!(out instanceof Error)) expect(out.settledMatches).toBe(12)
+    const tier = c.league.tier
+    expect(c.liveMatch?.matchIndex).toBe(c.idle.nextMatchIndex)
+    expect(c.liveMatch?.plan.leagueTier).toBe(0)
     clock.advance(HOUR)
     await settleDue(deps)
-    const tier = load(deps).league.tier
-    expect(load(deps).recentMatches.slice(-12).every((m) => m.result.leagueTier === tier)).toBe(true)
+    const after = load(deps)
+    const last = after.recentMatches.slice(-12)
+    expect(last[0].result.leagueTier).toBe(0)
+    expect(last.slice(1).every((m) => m.result.leagueTier === tier)).toBe(true)
+    // 晉級的話：新聯盟的戰績只算之後的 11 場
+    if (tier === 1) expect(after.league.matches).toBe(11)
   })
 
   it('確定性：同一個序號的挑戰賽永遠是同一場；跟一般比賽的種子分開', async () => {

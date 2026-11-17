@@ -118,14 +118,17 @@ describe('升級', () => {
     const after = load(deps)
     expect(after.replays).toEqual(replaysBefore)
     expect(after.recentMatches).toEqual(before.recentMatches)
-    // 下一場的計畫：我方第一棒是 Lv.10 的能力
-    const plan = planMatch(after, after.idle.nextMatchIndex)
+    // 進行中那一場已經固定（升級前的能力）；下一場才用 Lv.10 的能力
+    expect(after.liveMatch?.matchIndex).toBe(after.idle.nextMatchIndex)
+    const plan = planMatch(after, after.idle.nextMatchIndex + 1)
     const ours = plan.setup[plan.userSide].roster.lineup[0].player
     expect(ours.ratings).toEqual(leveled(base, 10).ratings)
     expect(ours.ratings).not.toEqual(base.ratings)
-    // 實際打下一場：replay 裡也是新能力
-    clock.advance(5 * MINUTE)
+    // 實際打完：進行中那一場是舊能力，下一場的 replay 裡是新能力
+    clock.advance(10 * MINUTE)
     const report = await settleDue(deps)
+    const inProgress = report.club.replays.at(-2)!.replay
+    expect(inProgress.setup[inProgress.setup.userSide].roster.lineup[0].player.ratings).toEqual(base.ratings)
     const rep = report.club.replays.at(-1)!.replay
     expect(rep.setup[rep.setup.userSide].roster.lineup[0].player.ratings).toEqual(leveled(base, 10).ratings)
   })
@@ -304,7 +307,8 @@ describe('招募', () => {
     const saved = load(deps)
     expect(saved.roster.lineup[8].playerId).toBe(out.op.playerId)
     expect(reserves(saved).map((p) => p.id)).toEqual([c.roster.lineup[8].playerId])
-    clock.advance(5 * MINUTE)
+    // 進行中那一場已經固定；下一場才有他
+    clock.advance(10 * MINUTE)
     const report = await settleDue(deps)
     const rep = report.club.replays.at(-1)!.replay
     expect(rep.setup[rep.setup.userSide].roster.lineup[8].player.id).toBe(out.op.playerId)

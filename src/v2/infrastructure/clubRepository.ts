@@ -12,7 +12,7 @@ import { ClubValidationError, newClub, validateClub, type ClubSave, type Persist
 import { MigrationError, migrateToLatest, needsMigration, sourceVersion, type MigratableVersion } from '../domain/migration'
 
 /**
- * V2 球團存檔的 key。名稱裡的 v3 是第一版存檔的版本號，現在存的是 schemaVersion 6：
+ * V2 球團存檔的 key。名稱裡的 v3 是第一版存檔的版本號，現在存的是 schemaVersion 7：
  * 每次升版都原地升級、沿用同一個 key，讓還開著舊版程式的分頁讀到新版本會停止寫入（見 ADR-0010、ADR-0011、ADR-0012）
  */
 export const CLUB_STORAGE_KEY = 'dice-baseball.club.v3'
@@ -20,7 +20,8 @@ export const CLUB_STORAGE_KEY = 'dice-baseball.club.v3'
 export const CLUB_BACKUP_KEY_V3 = 'dice-baseball.club.v3.backup-schema3'
 export const CLUB_BACKUP_KEY_V4 = 'dice-baseball.club.v3.backup-schema4'
 export const CLUB_BACKUP_KEY_V5 = 'dice-baseball.club.v3.backup-schema5'
-const BACKUP_KEYS: Record<MigratableVersion, string> = { 3: CLUB_BACKUP_KEY_V3, 4: CLUB_BACKUP_KEY_V4, 5: CLUB_BACKUP_KEY_V5 }
+export const CLUB_BACKUP_KEY_V6 = 'dice-baseball.club.v3.backup-schema6'
+const BACKUP_KEYS: Record<MigratableVersion, string> = { 3: CLUB_BACKUP_KEY_V3, 4: CLUB_BACKUP_KEY_V4, 5: CLUB_BACKUP_KEY_V5, 6: CLUB_BACKUP_KEY_V6 }
 export const CLUB_LOCK_NAME = 'dice-baseball.club.v3.settlement'
 
 /** Storage 的最小子集，localStorage 與記憶體版都符合 */
@@ -68,7 +69,7 @@ export type ClubSaveErrorCode =
   | 'already-exists'
   /** 這個分頁已經不是可寫分頁（沒有 Web Locks 時的單一可寫分頁限制） */
   | 'read-only'
-  /** 存檔是舊格式（schemaVersion 3、4 或 5），要先遷移才能使用 */
+  /** 存檔是舊格式（schemaVersion 3～6），要先遷移才能使用 */
   | 'needs-migration'
   /** 舊格式遷移失敗：原本的存檔沒有被改動 */
   | 'migration-failed'
@@ -153,13 +154,13 @@ export class ClubRepository implements ClubStore {
   }
 
   /**
-   * 把舊格式（schemaVersion 3、4 或 5）的存檔升級到目前格式，回傳升級後的球團；沒有存檔回傳 null。
+   * 把舊格式（schemaVersion 3～6）的存檔升級到目前格式，回傳升級後的球團；沒有存檔回傳 null。
    * 呼叫端要在 ClubLock 裡呼叫（application 的 openClubSafely）。步驟：
    * 1. 讀主存檔的原始文字；已經是目前格式（別的分頁剛遷移完）就直接回傳
    * 2. 在記憶體裡遷移（純函式），失敗丟 migration-failed，什麼都不寫
    * 3. 碰備份之前，再讀一次主存檔：跟第 1 步不同（別的分頁已經遷移、或舊版分頁又存了一次）就丟 conflict，
    *    備份、主存檔都不寫。所以競爭中較晚的那一方，永遠不會覆寫已經存在、對應到真正遷移結果的備份
-   * 4. 把原始文字逐字寫進來源版本的備份 key（backup-schema3 / 4 / 5），再讀回來確認一字不差；
+   * 4. 把原始文字逐字寫進來源版本的備份 key（backup-schema3 / 4 / 5 / 6），再讀回來確認一字不差；
    *    寫入失敗丟 write-failed，主存檔不動。備份 key 已經有「別的」內容（例如重設後的另一個球團、更早的遷移）
    *    就不覆寫，改寫到 `<備份 key>.r<revision>`，所以有價值的舊備份不會被蓋掉
    * 5. 寫主存檔前最後再讀一次主存檔，還是第 1 步的原始文字才寫入升級後的存檔

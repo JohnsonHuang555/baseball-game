@@ -21,6 +21,7 @@ import { eligibility, leagueOf, type ChallengeRecord } from '../domain/league'
 import { MAX_TIER, PROMOTION_CONFIG } from '../domain/leagueConfig'
 import { buildPlan, runBatch, type MatchOutcome, type MatchPlan } from './batchRunner'
 import { SettlementError, settleDueUnsaved, type SettlementDeps } from './settlementService'
+import { freezeLiveMatch } from './liveMatch'
 
 export type LeagueErrorCode = 'bad-request' | 'stale-request' | 'not-eligible' | 'max-tier'
 
@@ -201,7 +202,8 @@ export function challengeNextLeague(deps: SettlementDeps, req: ChallengeRequest)
       saveSettled()
       throw new SettlementError('simulation-failed', '挑戰賽模擬失敗，沒有晉級，可以再試一次', undefined, { cause: run.error })
     }
-    const applied = applyChallenge(settledClub, req, run.outcomes[0], now)
+    // 進行中那一場已經用晉級前的聯盟開打：先固定，新聯盟從下一場開始
+    const applied = applyChallenge(freezeLiveMatch(settledClub), req, run.outcomes[0], now)
     return { club: deps.store.saveClub(applied.club, club.revision), challenge: applied.challenge, duplicate: false, settledMatches }
   })
 }

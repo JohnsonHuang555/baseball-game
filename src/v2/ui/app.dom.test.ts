@@ -150,7 +150,8 @@ describe('V2 畫面', () => {
     await flush()
     const after = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
     expect(after.roster.lineup[0].playerId).toBe(before.bench[0])
-    expect(after.strategy.effectiveFromMatch).toBe(0)
+    // 第 1 場已經在進行中（開賽時的陣容固定），新陣容從第 2 場開始
+    expect(after.strategy.effectiveFromMatch).toBe(1)
   })
 
   it('戰術：選「積極」、關掉觸擊，儲存成合法參數', async () => {

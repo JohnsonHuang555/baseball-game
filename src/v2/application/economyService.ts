@@ -19,6 +19,7 @@ import { SPEND_LOG_LIMIT } from '../domain/progressionConfig'
 import { recruitCandidate, recruitCost, rosterFull, type RecruitRole } from '../domain/recruitment'
 import { assignedIds, recordOf } from '../domain/roster'
 import { SettlementError, settleDueUnsaved, type SettlementDeps } from './settlementService'
+import { freezeLiveMatch } from './liveMatch'
 
 export type EconomyErrorCode =
   | 'bad-request'
@@ -169,7 +170,8 @@ async function spendSafely(deps: SettlementDeps, apply: (club: ClubSave, now: nu
     }
     let out: SpendOutcome
     try {
-      out = apply(next.club, now)
+      // 先固定進行中那一場（用修改前的能力與名單）：升級、招募、釋出都從下一場才生效
+      out = apply(freezeLiveMatch(next.club), now)
     } catch (e) {
       if (!(e instanceof EconomyError) || !hasSettled) throw e
       // 支出被拒絕：只存結算（沒有扣款、沒有改球員資料）。寫入失敗會丟 ClubSaveError，蓋過這個 EconomyError

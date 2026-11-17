@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import fixture from './__fixtures__/club-v3-phase3.json'
 import fixtureV4 from './__fixtures__/club-v4-phase4.json'
 import fixtureV5 from './__fixtures__/club-v5-phase5.json'
+import fixtureV6 from './__fixtures__/club-v6-phase5b.json'
 import { CLUB_SCHEMA_VERSION, economyViolations, validateClub } from './club'
 import { eligibility } from './league'
 import { validateClubV3 } from './legacyV3'
@@ -10,11 +11,14 @@ import { MigrationError, migrateToLatest, migrateV3ToV4, needsMigration, sourceV
 import { reserves, resolveRoster } from './roster'
 
 /** Phase 3 的程式實際產生的 V3 存檔（36 場、領取過一次、換過陣容與戰術） */
+/** 遷移會替還保留完整 Replay 的比賽補上 Box Score；比較其他欄位時先拿掉 */
+const withoutBox = <T extends { recentMatches: { box?: unknown }[] }>(c: T): T => ({ ...c, recentMatches: c.recentMatches.map(({ box: _b, ...m }) => m) })
+
 const v3 = () => structuredClone(fixture) as unknown as ReturnType<typeof validateClubV3>
 /** Phase 4 的程式實際產生的 V4 存檔（114 場、升級過、招募過一位預備球員、多次領取） */
 const v4 = () => structuredClone(fixtureV4) as unknown as Record<string, unknown> & typeof fixtureV4
 
-describe('V3 → V6 遷移（經過 V4、V5）', () => {
+describe('V3 → V7 遷移（經過 V4、V5、V6）', () => {
   it('fixture 是合法的 V3 存檔', () => {
     expect(needsMigration(v3())).toBe(true)
     expect(sourceVersion(v3())).toBe(3)
@@ -43,7 +47,7 @@ describe('V3 → V6 遷移（經過 V4、V5）', () => {
     expect(club.record).toEqual(old.record)
     expect(club.idle).toEqual(old.idle)
     expect(club.strategy).toEqual(old.strategy)
-    expect(club.recentMatches).toEqual(old.recentMatches)
+    expect(withoutBox(club).recentMatches).toEqual(old.recentMatches)
     expect(club.replays).toEqual(old.replays)
     expect([club.clubId, club.clubName, club.clubSeed, club.createdAt]).toEqual([old.clubId, old.clubName, old.clubSeed, old.createdAt])
     expect(club.revision).toBe(old.revision + 1)
@@ -69,17 +73,18 @@ describe('V3 → V6 遷移（經過 V4、V5）', () => {
   })
 })
 
-describe('V4 → V6 遷移（經過 V5）', () => {
+describe('V4 → V7 遷移（經過 V5、V6）', () => {
   it('fixture 是 Phase 4 的 V4 存檔', () => {
     expect(sourceVersion(v4())).toBe(4)
     expect(needsMigration({ ...v4(), schemaVersion: CLUB_SCHEMA_VERSION })).toBe(false)
   })
 
-  it('除了 league、challengeReplay、schemaVersion、revision、migratedFrom 以外，每個欄位都一模一樣', () => {
+  it('除了 league、challengeReplay、liveMatch、Box Score、schemaVersion、revision、migratedFrom 以外，每個欄位都一模一樣', () => {
     const old = v4()
     const club = migrateToLatest(old)
-    const { schemaVersion, league, revision, migratedFrom, challengeReplay, ...rest } = club
+    const { schemaVersion, league, revision, migratedFrom, challengeReplay, liveMatch, ...rest } = withoutBox(club)
     expect(challengeReplay).toBeNull()
+    expect(liveMatch).toBeNull()
     const { schemaVersion: _s, revision: oldRevision, migratedFrom: _m, ...oldRest } = old as typeof old & { migratedFrom?: unknown }
     expect(rest).toEqual(oldRest)
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
@@ -123,17 +128,18 @@ describe('V4 → V6 遷移（經過 V5）', () => {
 /** Phase 5A 的程式實際產生的 V5 存檔（324 場、招募 2 次、釋出 1 次、挑戰 2 次都失敗、30 筆支出紀錄） */
 const v5 = () => structuredClone(fixtureV5) as unknown as Record<string, unknown> & typeof fixtureV5
 
-describe('V5 → V6 遷移', () => {
+describe('V5 → V7 遷移（經過 V6）', () => {
   it('fixture 是 Phase 5A 的 V5 存檔', () => {
     expect(sourceVersion(v5())).toBe(5)
   })
 
-  it('只加上 challengeReplay = null；其他每個欄位都一模一樣（聯盟、挑戰紀錄、支出、游標、錨點）', () => {
+  it('只加上 challengeReplay、liveMatch = null 與 Box Score；其他每個欄位都一模一樣（聯盟、挑戰紀錄、支出、游標、錨點）', () => {
     const old = v5()
     const club = migrateToLatest(old)
-    const { schemaVersion, revision, migratedFrom, challengeReplay, ...rest } = club
+    const { schemaVersion, revision, migratedFrom, challengeReplay, liveMatch, ...rest } = withoutBox(club)
     const { schemaVersion: _s, revision: oldRevision, ...oldRest } = old
     expect(rest).toEqual(oldRest)
+    expect(liveMatch).toBeNull()
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(challengeReplay).toBeNull()
     expect(revision).toBe(oldRevision + 1)
@@ -151,5 +157,52 @@ describe('V5 → V6 遷移', () => {
     expect(JSON.stringify(old)).toBe(before)
     expect(() => migrateToLatest({ ...v5(), league: { ...v5().league, tier: 9 } })).toThrow(MigrationError)
     expect(() => migrateToLatest({ schemaVersion: 5 })).toThrow(MigrationError)
+  })
+})
+
+/** PR #9 草稿（觀看歷史 Replay 的版本）實際產生的 V6 存檔：150 場、招募過、升級過、晉級過一次（有挑戰 Replay） */
+const v6 = () => structuredClone(fixtureV6) as unknown as Record<string, unknown> & typeof fixtureV6
+
+describe('V6 → V7 遷移', () => {
+  it('只加上 liveMatch = null 與 Box Score；挑戰 Replay、聯盟、經濟、游標、錨點全部照舊', () => {
+    const old = v6()
+    expect(sourceVersion(old)).toBe(6)
+    const club = migrateToLatest(old)
+    const { schemaVersion, revision, migratedFrom, liveMatch, ...rest } = withoutBox(club)
+    const { schemaVersion: _s, revision: oldRevision, ...oldRest } = old
+    expect(rest).toEqual(oldRest)
+    expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
+    expect(liveMatch).toBeNull()
+    expect(revision).toBe(oldRevision + 1)
+    expect(migratedFrom).toEqual({ schemaVersion: 6, revision: oldRevision })
+    expect(club.challengeReplay).toEqual(old.challengeReplay)
+  })
+
+  it('還保留完整 Replay 的場次補上 Box Score（各局加總等於比分）；其他舊場次維持只有摘要', () => {
+    const old = v6()
+    const club = migrateToLatest(old)
+    const kept = new Set(old.replays.map((r) => r.matchId))
+    for (const m of club.recentMatches) {
+      if (!kept.has(m.matchId)) {
+        expect(m.box).toBeUndefined()
+        continue
+      }
+      const box = m.box!
+      const side = m.result.userSide as 'home' | 'away'
+      const other = side === 'home' ? 'away' : 'home'
+      const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
+      expect(sum(box.linescore[side])).toBe(m.result.runsFor)
+      expect(sum(box.linescore[other])).toBe(m.result.runsAgainst)
+      expect(box.batters.length).toBeGreaterThanOrEqual(9)
+      expect(box.pitchers.length).toBeGreaterThanOrEqual(1)
+    }
+    expect(club.recentMatches.filter((m) => m.box)).toHaveLength(kept.size)
+  })
+
+  it('確定性、不改輸入', () => {
+    const old = v6()
+    const before = JSON.stringify(old)
+    expect(migrateToLatest(old)).toEqual(migrateToLatest(v6()))
+    expect(JSON.stringify(old)).toBe(before)
   })
 })

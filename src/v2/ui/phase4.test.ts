@@ -59,8 +59,8 @@ describe('完整遊玩流程', () => {
     const now = c.state.club!
     const draft = swapWithReserve({ roster: resolveRoster(now), reserves: reserves(now) }, { kind: 'lineup', index: 8 }, reserves(now).findIndex((p) => p.id === newId))
     expect((await c.saveRoster(draft.roster, c.settingsVersions()!.roster)).ok).toBe(true)
-    // 8. 再進行自動比賽
-    clock.advance(5 * MINUTE)
+    // 8. 再進行自動比賽（進行中那一場已經固定，要到下一場才有新設定）
+    clock.advance(10 * MINUTE)
     await c.settle('tick')
     // 9. 新球員與升級後的能力都在剛打完的比賽裡
     const rep = c.state.club!.replays.at(-1)!.replay

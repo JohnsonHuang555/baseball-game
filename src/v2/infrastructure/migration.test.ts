@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import fixture from '../domain/__fixtures__/club-v3-phase3.json'
 import fixtureV4 from '../domain/__fixtures__/club-v4-phase4.json'
 import fixtureV5 from '../domain/__fixtures__/club-v5-phase5.json'
+import fixtureV6 from '../domain/__fixtures__/club-v6-phase5b.json'
 import { openClubSafely } from '../application/clubLifecycle'
 import { claim, settleDue } from '../application/settlementService'
 import { upgrade } from '../application/economyService'
@@ -10,7 +11,7 @@ import { resolveRoster } from '../domain/roster'
 import { validateClubV3 } from '../domain/legacyV3'
 import { CLUB_SCHEMA_VERSION } from '../domain/club'
 import { FakeLockManager, HOUR, ManualClock, tab } from '../testkit'
-import { CLUB_BACKUP_KEY_V3, CLUB_BACKUP_KEY_V4, CLUB_BACKUP_KEY_V5, CLUB_STORAGE_KEY, ClubRepository, ClubSaveError, MemoryStorage, type KeyValueStorage } from './clubRepository'
+import { CLUB_BACKUP_KEY_V3, CLUB_BACKUP_KEY_V4, CLUB_BACKUP_KEY_V5, CLUB_BACKUP_KEY_V6, CLUB_STORAGE_KEY, ClubRepository, ClubSaveError, MemoryStorage, type KeyValueStorage } from './clubRepository'
 
 const RAW_V3 = JSON.stringify(fixture)
 const V1 = {
@@ -336,7 +337,7 @@ describe('V4 → V5 存檔遷移', () => {
   })
 })
 
-describe('V5 → V6 存檔遷移', () => {
+describe('V5 → V7 存檔遷移', () => {
   const RAW_V5 = JSON.stringify(fixtureV5)
 
   it('打開球團時自動遷移：原始文字備份到 backup-schema5，既有的 schema3、schema4 備份不受影響，進度全部保留', async () => {
@@ -350,6 +351,7 @@ describe('V5 → V6 存檔遷移', () => {
     expect(value.migrated).toBe(true)
     expect(club.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(club.challengeReplay).toBeNull()
+    expect(club.liveMatch).toBeNull()
     expect(storage.getItem(CLUB_BACKUP_KEY_V5)).toBe(RAW_V5)
     expect(storage.getItem(CLUB_BACKUP_KEY_V3)).toBe(RAW_V3)
     expect(storage.getItem(CLUB_BACKUP_KEY_V4)).toBe(JSON.stringify(fixtureV4))
@@ -392,6 +394,40 @@ describe('V5 → V6 存檔遷移', () => {
       expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(RAW_V5)
       storage.failKey = null
       expect((await openClubSafely(deps)).value.club!.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
+    }
+  })
+})
+
+describe('V6（PR #9 草稿）→ V7 存檔遷移', () => {
+  const RAW_V6 = JSON.stringify(fixtureV6)
+
+  it('自動遷移：備份到 backup-schema6，挑戰 Replay、進度全部保留；之後的比賽正常結算、不重算舊比賽', async () => {
+    const storage = new MemoryStorage()
+    storage.setItem(CLUB_STORAGE_KEY, RAW_V6)
+    const clock = new ManualClock(fixtureV6.idle.anchorMs)
+    const deps = tab(storage, clock, new FakeLockManager())
+    const { value } = await openClubSafely(deps)
+    const club = value.club!
+    expect(value.migrated).toBe(true)
+    expect(club.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
+    expect(storage.getItem(CLUB_BACKUP_KEY_V6)).toBe(RAW_V6)
+    expect(club.challengeReplay).toEqual(fixtureV6.challengeReplay)
+    expect(club.league).toEqual(fixtureV6.league)
+    expect(club.economy).toEqual(fixtureV6.economy)
+    expect((await settleDue(deps)).settled).toHaveLength(0)
+    clock.advance(HOUR)
+    const report = await settleDue(deps)
+    expect(report.settled[0].matchIndex).toBe(fixtureV6.idle.nextMatchIndex)
+    expect(report.settled.every((m) => m.box && m.playedAt)).toBe(true)
+  })
+
+  it('多個分頁同時打開 V6：只遷移一次', async () => {
+    for (const locks of [new FakeLockManager(), undefined]) {
+      const storage = new SpyStorage()
+      storage.setItem(CLUB_STORAGE_KEY, RAW_V6)
+      storage.writes = []
+      await Promise.allSettled([0, 1, 2].map(() => openClubSafely(tab(storage, new ManualClock(), locks))))
+      expect(storage.writes.filter((k) => k === CLUB_STORAGE_KEY)).toHaveLength(1)
     }
   })
 })

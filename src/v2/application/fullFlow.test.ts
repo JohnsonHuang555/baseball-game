@@ -63,11 +63,12 @@ describe('Phase 5 完整流程', () => {
     expect(afterPromotion.league.tier).toBe(1)
     expect(afterPromotion.league.matches).toBe(0)
 
-    // 對手變強：之後的比賽都是業餘聯盟，收益用業餘聯盟的倍率
+    // 對手變強：晉級時進行中那一場照新秀聯盟打完，之後的比賽都是業餘聯盟，收益用業餘聯盟的倍率
     clock.advance(HOUR)
     const next = await settleDue(d)
-    expect(next.settled.every((m) => m.result.leagueTier === 1)).toBe(true)
     expect(next.settled[0].matchIndex).toBe(afterPromotion.idle.nextMatchIndex)
+    expect(next.settled[0].result.leagueTier).toBe(0)
+    expect(next.settled.slice(1).every((m) => m.result.leagueTier === 1)).toBe(true)
     await claim(d, load().economy.nextClaimSeq)
 
     // 名單滿 → 釋出預備球員 → 再招募（新球員編號沒用過）

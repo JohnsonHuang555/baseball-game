@@ -266,14 +266,16 @@ describe('結算服務', () => {
 })
 
 describe('換陣容、戰術', () => {
-  it('到期的比賽用舊設定打完，新設定從下一場開始生效，已結算的比賽不變', async () => {
+  it('到期的比賽用舊設定打完，進行中那一場固定用舊設定，新設定從下一場開始生效，已結算的比賽不變', async () => {
     const { deps, clock } = createIn()
     clock.advance(17 * MINUTE)
     const before = deps.store.loadClub()!
     const newRoster = substitute(resolveRoster(before), 0, 0)
     const saved = await updateSettings(deps, { roster: toAssignment(newRoster) })
     expect(saved.idle.nextMatchIndex).toBe(3)
-    expect(saved.strategy.effectiveFromMatch).toBe(3)
+    // 第 3 場（第 4 場比賽）已經在 15 分鐘時開打：固定用舊陣容；新陣容從第 4 場開始
+    expect(saved.liveMatch?.matchIndex).toBe(3)
+    expect(saved.strategy.effectiveFromMatch).toBe(4)
     expect(saved.roster).toEqual(toAssignment(newRoster))
     // 前 3 場的 replay 用的是舊陣容（第一棒還是原本的人）
     const oldId = before.roster.lineup[0].playerId
@@ -281,8 +283,12 @@ describe('換陣容、戰術', () => {
       const ours = replay.setup[replay.setup.userSide]
       expect(ours.roster.lineup[0].player.id).toBe(oldId)
     }
-    clock.advance(3 * MINUTE)
+    clock.advance(8 * MINUTE)
     const next = await settleDue(deps)
+    expect(next.settled.map((m) => m.matchIndex)).toEqual([3, 4])
+    const live = next.club.replays.at(-2)!.replay
+    expect(live.setup[live.setup.userSide].roster.lineup[0].player.id).toBe(oldId)
+    expect(next.club.liveMatch).toBeNull()
     const replay = next.club.replays.at(-1)!.replay
     expect(replay.setup[replay.setup.userSide].roster.lineup[0].player.id).toBe(newRoster.lineup[0].player.id)
     expect(newRoster.lineup[0].player.id).not.toBe(oldId)
