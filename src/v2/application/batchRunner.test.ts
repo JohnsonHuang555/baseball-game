@@ -2,14 +2,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateRoster } from '../../sim/generate'
 import { Rng } from '../../sim/rng'
-import { deriveSeed, newClub, type ClubSaveV3 } from '../domain/club'
+import { deriveSeed, newClub, type ClubSave } from '../domain/club'
 import { T0 } from '../testkit'
 import { BatchResumeError, planMatch, planMatches, runBatch, yieldToMain, type MatchOutcome } from './batchRunner'
 import { runMatch } from './matchRunner'
 import { applySettingsChange } from './settlementService'
+import { substitute } from '../domain/lineup'
+import { resolveRoster, toAssignment } from '../domain/roster'
 import { RULES_VERSION } from '../../sim/game'
 
-function club(seed = 7): ClubSaveV3 {
+function club(seed = 7): ClubSave {
   return newClub({ clubId: 'club-a', clubName: '測試球團', clubSeed: seed, roster: generateRoster(new Rng(seed)), now: T0 })
 }
 
@@ -31,8 +33,10 @@ describe('比賽計畫', () => {
     const c = club()
     const plan = planMatch(c, 3)
     const before = JSON.stringify(plan)
-    c.roster.lineup[0].player.ratings.contact = 99
-    c.roster.lineup[0].player.name = '改名'
+    const first = c.players.find((r) => r.player.id === c.roster.lineup[0].playerId)!
+    ;(first.player.ratings as { contact: number }).contact = 99
+    first.player.name = '改名'
+    first.level = 20
     c.strategy.coach.params = { stealMin: 0 }
     expect(JSON.stringify(plan)).toBe(before)
   })
@@ -110,7 +114,7 @@ describe('批次執行', () => {
 
 describe('接續時拒絕舊結果', () => {
   /** 中斷在第 5 場，回傳舊結果 */
-  async function interrupted(c: ClubSaveV3) {
+  async function interrupted(c: ClubSave) {
     const controller = new AbortController()
     const run = await runBatch(planMatches(c, 0, 10), { yieldControl: null, signal: controller.signal, onProgress: (d) => d === 5 && controller.abort() })
     expect(run.outcomes).toHaveLength(5)
@@ -120,9 +124,8 @@ describe('接續時拒絕舊結果', () => {
   it('陣容改了之後，用新計畫接續舊結果：拒絕', async () => {
     const c = club()
     const old = await interrupted(c)
-    const roster = structuredClone(c.roster)
-    roster.lineup[0].player.ratings.power = 10
-    const changed = applySettingsChange(c, { roster })
+    // 板凳換上第一棒：只有陣容不同
+    const changed = applySettingsChange(c, { roster: toAssignment(substitute(resolveRoster(c), 0, 0)) })
     // 種子、場次、matchId 都一樣，只有陣容不同
     expect(planMatch(changed, 0).seed).toBe(old[0].plan.seed)
     const error = await runBatch(planMatches(changed, 0, 10), { yieldControl: null, completed: old }).catch((e) => e)

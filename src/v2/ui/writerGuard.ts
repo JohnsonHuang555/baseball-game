@@ -105,5 +105,9 @@ export function guardStore(store: ClubAdminStore, guard: WriterGuard): ClubAdmin
       check()
       store.resetClub()
     },
+    migrateClub: () => {
+      check()
+      return store.migrateClub()
+    },
   }
 }

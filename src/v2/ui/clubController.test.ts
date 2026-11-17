@@ -5,6 +5,7 @@ import { Rng } from '../../sim/rng'
 import type { MatchPlan } from '../application/batchRunner'
 import { runMatch } from '../application/matchRunner'
 import { substitute } from '../domain/lineup'
+import { resolveRoster as rosterOf, toAssignment } from '../domain/roster'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
 import { FakeLockManager, FlakyStorage, HOUR, MINUTE, ManualClock, tab } from '../testkit'
 import { ClubController } from './clubController'
@@ -59,7 +60,7 @@ describe('建立球團', () => {
     expect(res.ok).toBe(true)
     expect(c.state.status.kind).toBe('ready')
     expect(c.state.club!.clubName).toBe('台北貓熊隊')
-    expect(c.state.club!.roster.lineup).toHaveLength(9)
+    expect(rosterOf(c.state.club!).lineup).toHaveLength(9)
   })
 
   it('名稱不能空、不能太長', async () => {
@@ -286,9 +287,9 @@ describe('領取收益', () => {
 describe('陣容與戰術', () => {
   it('修改前到期的比賽用舊陣容，新陣容從下一場生效', async () => {
     const { c, clock } = await readyClub()
-    const oldStarter = c.state.club!.roster.lineup[0].player.id
+    const oldStarter = rosterOf(c.state.club!).lineup[0].player.id
     clock.advance(17 * MINUTE)
-    const roster = substitute(c.state.club!.roster, 0, 0)
+    const roster = substitute(rosterOf(c.state.club!), 0, 0)
     const res = await c.saveRoster(roster, c.settingsVersions()!.roster)
     expect(res.ok).toBe(true)
     expect(res.message).toBe(V2T.settingsSaved(4))
@@ -304,11 +305,11 @@ describe('陣容與戰術', () => {
 
   it('不合法的陣容不能儲存', async () => {
     const { c } = await readyClub()
-    const r = c.state.club!.roster
+    const r = rosterOf(c.state.club!)
     const bad = { ...r, lineup: r.lineup.map((s, i) => (i === 1 ? { ...s, position: r.lineup[0].position } : s)) }
     const res = await c.saveRoster(bad, c.settingsVersions()!.roster)
     expect(res.ok).toBe(false)
-    expect(c.state.club!.roster).toEqual(r)
+    expect(rosterOf(c.state.club!)).toEqual(r)
     const other = generateRoster(new Rng(1))
     expect((await c.saveRoster({ ...r, bench: [other.lineup[0].player, r.lineup[0].player] }, c.settingsVersions()!.roster)).ok).toBe(false)
   })
@@ -431,17 +432,17 @@ describe('舊草稿不能覆蓋其他分頁的設定', () => {
     const { a, b } = await twoTabs()
     // 1、2：A 根據目前的陣容開始編輯，記下草稿的版本
     const baseA = a.c.settingsVersions()!.roster
-    const draftA = substitute(a.c.state.club!.roster, 0, 0)
+    const draftA = substitute(rosterOf(a.c.state.club!), 0, 0)
     // 3：B 修改並儲存
-    const draftB = substitute(b.c.state.club!.roster, 1, 1)
+    const draftB = substitute(rosterOf(b.c.state.club!), 1, 1)
     expect((await b.c.saveRoster(draftB, b.c.settingsVersions()!.roster)).ok).toBe(true)
     // 4：A 存舊草稿 → 拒絕
     const res = await a.c.saveRoster(draftA, baseA)
     expect(res).toEqual({ ok: false, conflict: true, message: V2T.settingsConflict })
-    expect(b.deps.store.loadClub()!.roster).toEqual(draftB)
+    expect(b.deps.store.loadClub()!.roster).toEqual(toAssignment(draftB))
     // A 的畫面已經換成最新的存檔，可以根據最新陣容重新編輯
-    expect(a.c.state.club!.roster).toEqual(draftB)
-    const retry = substitute(a.c.state.club!.roster, 0, 0)
+    expect(a.c.state.club!.roster).toEqual(toAssignment(draftB))
+    const retry = substitute(rosterOf(a.c.state.club!), 0, 0)
     expect((await a.c.saveRoster(retry, a.c.settingsVersions()!.roster)).ok).toBe(true)
   })
 
@@ -458,17 +459,17 @@ describe('舊草稿不能覆蓋其他分頁的設定', () => {
     const { a, b } = await twoTabs()
     const baseA = a.c.settingsVersions()!.roster
     expect((await b.c.saveTactics({ baserunning: 'aggressive', latePlatoon: true, sacBunt: true }, b.c.settingsVersions()!.coach)).ok).toBe(true)
-    const draftA = substitute(a.c.state.club!.roster, 0, 0)
+    const draftA = substitute(rosterOf(a.c.state.club!), 0, 0)
     expect((await a.c.saveRoster(draftA, baseA)).ok).toBe(true)
     const saved = a.deps.store.loadClub()!
-    expect(saved.roster).toEqual(draftA)
+    expect(saved.roster).toEqual(toAssignment(draftA))
     expect(saved.strategy.coach.params!.stealMin).toBe(0.65)
   })
 
   it('兩個分頁同時儲存同一個版本的草稿：只有一個成功，另一個收到衝突', async () => {
     const { a, b } = await twoTabs()
     const base = a.c.settingsVersions()!.roster
-    const [ra, rb] = await Promise.all([a.c.saveRoster(substitute(a.c.state.club!.roster, 0, 0), base), b.c.saveRoster(substitute(b.c.state.club!.roster, 2, 1), base)])
+    const [ra, rb] = await Promise.all([a.c.saveRoster(substitute(rosterOf(a.c.state.club!), 0, 0), base), b.c.saveRoster(substitute(rosterOf(b.c.state.club!), 2, 1), base)])
     expect([ra.ok, rb.ok].filter(Boolean)).toHaveLength(1)
     expect([ra.conflict, rb.conflict].filter(Boolean)).toHaveLength(1)
   })

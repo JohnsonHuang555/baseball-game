@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { generateRoster } from '../../sim/generate'
-import { Rng } from '../../sim/rng'
-import { economyViolations, matchIdFor, type ClubSaveV3 } from '../domain/club'
+import { economyViolations, matchIdFor, type ClubSave } from '../domain/club'
+import { substitute } from '../domain/lineup'
+import { resolveRoster, toAssignment } from '../domain/roster'
 import { ClubSaveError, MemoryStorage } from '../infrastructure/clubRepository'
 import { FlakyStorage, HOUR, MINUTE, ManualClock, T0, tab } from '../testkit'
 import { planMatches, runBatch, type MatchPlan } from './batchRunner'
@@ -15,7 +15,7 @@ function createIn(storage = new MemoryStorage(), clock = new ManualClock()) {
   return { storage, clock, deps, club }
 }
 
-const withoutRevision = (c: ClubSaveV3) => ({ ...c, revision: 0 })
+const withoutRevision = (c: ClubSave) => ({ ...c, revision: 0 })
 
 describe('冪等結算（純函式）', () => {
   it('同一個 matchId 重複提交 10 次，戰績與收益只增加一次', async () => {
@@ -27,7 +27,7 @@ describe('冪等結算（純函式）', () => {
     expect(c.idle.nextMatchIndex).toBe(1)
     expect(c.recentMatches).toHaveLength(1)
     expect(c.economy.unclaimed).toEqual({ funds: c.recentMatches[0].earnedFunds, experience: c.recentMatches[0].earnedExperience })
-    expect(c.economy.lifetime).toEqual(c.economy.unclaimed)
+    expect(c.economy.earned).toEqual(c.economy.unclaimed)
   })
 
   it('不修改輸入的球團', async () => {
@@ -88,7 +88,7 @@ describe('領取收益', () => {
     const c = deps.store.loadClub()!
     expect(c.economy.assets.funds).toBe(earned)
     expect(c.economy.unclaimed).toEqual({ funds: 0, experience: 0 })
-    expect(c.economy.lifetime.funds).toBe(earned)
+    expect(c.economy.earned.funds).toBe(earned)
     expect(c.economy.nextClaimSeq).toBe(2)
   })
 
@@ -269,21 +269,23 @@ describe('換陣容、戰術', () => {
   it('到期的比賽用舊設定打完，新設定從下一場開始生效，已結算的比賽不變', async () => {
     const { deps, clock } = createIn()
     clock.advance(17 * MINUTE)
-    const newRoster = generateRoster(new Rng(424242))
-    const saved = await updateSettings(deps, { roster: newRoster })
+    const before = deps.store.loadClub()!
+    const newRoster = substitute(resolveRoster(before), 0, 0)
+    const saved = await updateSettings(deps, { roster: toAssignment(newRoster) })
     expect(saved.idle.nextMatchIndex).toBe(3)
     expect(saved.strategy.effectiveFromMatch).toBe(3)
-    expect(saved.roster).toEqual(newRoster)
-    // 前 3 場的 replay 用的是舊陣容
-    const oldId = createIn().club.roster.starter.id
+    expect(saved.roster).toEqual(toAssignment(newRoster))
+    // 前 3 場的 replay 用的是舊陣容（第一棒還是原本的人）
+    const oldId = before.roster.lineup[0].playerId
     for (const { replay } of saved.replays) {
       const ours = replay.setup[replay.setup.userSide]
-      expect(ours.roster.starter.id).toBe(oldId)
+      expect(ours.roster.lineup[0].player.id).toBe(oldId)
     }
     clock.advance(3 * MINUTE)
     const next = await settleDue(deps)
     const replay = next.club.replays.at(-1)!.replay
-    expect(replay.setup[replay.setup.userSide].roster.starter.id).toBe(newRoster.starter.id)
+    expect(replay.setup[replay.setup.userSide].roster.lineup[0].player.id).toBe(newRoster.lineup[0].player.id)
+    expect(newRoster.lineup[0].player.id).not.toBe(oldId)
   })
 })
 

@@ -8,9 +8,9 @@ import {
   SEED_SALT,
   deriveSeed,
   matchIdFor,
-  type ClubSaveV3,
+  type ClubSave,
   type MatchSummary,
-  type PersistentRoster,
+  type RosterAssignment,
   type Resources,
   type SettledMatch,
   type SummaryHighlight,
@@ -18,7 +18,8 @@ import {
 } from '../domain/club'
 import { RETENTION_CONFIG } from '../domain/config'
 import { settingsVersions, type SettingsVersions } from '../domain/fingerprint'
-import { assertValidLineup } from '../domain/lineup'
+import { LineupError, lineupIssues } from '../domain/lineup'
+import { assignmentIssues, resolveRoster } from '../domain/roster'
 import { rewardFor } from '../domain/rewards'
 import { coachParamIssues } from '../domain/tactics'
 import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome } from './batchRunner'
@@ -28,8 +29,8 @@ import { advanceAnchor, dueMatches, type Clock, type DueMatches } from './idleEn
 
 /** 存檔的讀寫。saveClub 要確認存檔目前的 revision 還是 expectedRevision，存進去的 revision 加 1 */
 export interface ClubStore {
-  loadClub(): ClubSaveV3 | null
-  saveClub(club: ClubSaveV3, expectedRevision: number): ClubSaveV3
+  loadClub(): ClubSave | null
+  saveClub(club: ClubSave, expectedRevision: number): ClubSave
 }
 
 /** 結算互斥。crossTab 是 false 代表只能保證同一個分頁內不會同時結算 */
@@ -91,7 +92,7 @@ export function summarize(outcome: MatchOutcome): MatchSummary {
 }
 
 export interface SettleOutcome {
-  club: ClubSaveV3
+  club: ClubSave
   /** 這次新結算的場次 */
   settled: SettledMatch[]
   /** 之前已經結算過、這次略過的場次數 */
@@ -102,7 +103,7 @@ export interface SettleOutcome {
  * 把打完的比賽記進球團：戰績、未領取收益、近期比賽、replay，游標往前推。
  * 已結算的場次略過（重送 10 次也只算一次）；跳號或跟球團的種子對不起來就報錯，整批都不算
  */
-export function settleOutcomes(club: ClubSaveV3, outcomes: readonly MatchOutcome[], now: number): SettleOutcome {
+export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[], now: number): SettleOutcome {
   const next = structuredClone(club)
   const settled: SettledMatch[] = []
   let duplicates = 0
@@ -138,7 +139,7 @@ export function settleOutcomes(club: ClubSaveV3, outcomes: readonly MatchOutcome
     r.runsFor += summary.runsFor
     r.runsAgainst += summary.runsAgainst
     addTo(next.economy.unclaimed, reward)
-    addTo(next.economy.lifetime, reward)
+    addTo(next.economy.earned, reward)
     next.idle.nextMatchIndex++
     replays.push({ matchId: plan.matchId, replay: structuredClone(result.replay) })
   }
@@ -151,14 +152,14 @@ export function settleOutcomes(club: ClubSaveV3, outcomes: readonly MatchOutcome
 }
 
 /** 放置結算：記進比賽之後，時間錨點依實際新結算的場數推進（規則見 idleEngine.ts） */
-export function settleIdle(club: ClubSaveV3, outcomes: readonly MatchOutcome[], now: number): SettleOutcome {
+export function settleIdle(club: ClubSave, outcomes: readonly MatchOutcome[], now: number): SettleOutcome {
   const applied = settleOutcomes(club, outcomes, now)
   applied.club.idle.anchorMs = advanceAnchor(club.idle.anchorMs, now, applied.settled.length)
   return applied
 }
 
 export interface ClaimOutcome {
-  club: ClubSaveV3
+  club: ClubSave
   /** 這次（或重送時，原本那次）領到的數量 */
   claimed: Resources
   /** 這個序號之前已經處理過，這次沒有入帳 */
@@ -170,7 +171,7 @@ export interface ClaimOutcome {
  * 請求帶上讀到的 economy.nextClaimSeq：等於目前序號才入帳，序號加 1；比目前小代表已經處理過（重送、別的分頁先領了），
  * 不入帳；比目前大代表請求來自不存在的未來狀態，直接拒絕
  */
-export function claimRewards(club: ClubSaveV3, claimSeq: number): ClaimOutcome {
+export function claimRewards(club: ClubSave, claimSeq: number): ClaimOutcome {
   if (!Number.isSafeInteger(claimSeq) || claimSeq < 0) throw new RangeError(`領取序號不合法：${claimSeq}`)
   const { economy } = club
   if (claimSeq < economy.nextClaimSeq) {
@@ -190,7 +191,8 @@ export function claimRewards(club: ClubSaveV3, claimSeq: number): ClaimOutcome {
 }
 
 export interface SettingsChange {
-  roster?: PersistentRoster
+  /** 新的陣容配置（只有球員編號）；球員一定要在永久名單裡 */
+  roster?: RosterAssignment
   coach?: TeamStrategies['coach']
 }
 
@@ -198,9 +200,15 @@ export interface SettingsChange {
  * 換陣容、戰術：從下一場還沒結算的比賽開始生效。
  * 呼叫前應該先把已經到時間的比賽結算掉（服務層的 updateSettings 會做），否則那些場次也會用新設定
  */
-export function applySettingsChange(club: ClubSaveV3, change: SettingsChange): ClubSaveV3 {
+export function applySettingsChange(club: ClubSave, change: SettingsChange): ClubSave {
   // 先驗證再動手：不合法的陣容、戰術參數不會進到存檔
-  if (change.roster) assertValidLineup(change.roster)
+  if (change.roster) {
+    const candidate = { players: club.players, roster: change.roster }
+    const issues = assignmentIssues(candidate)
+    if (issues.length) throw new LineupError(issues)
+    const lineup = lineupIssues(resolveRoster(candidate))
+    if (lineup.length) throw new LineupError(lineup)
+  }
   if (change.coach) {
     if (change.coach.style !== 'balanced') throw new RangeError(`不支援的戰術風格：${change.coach.style}`)
     const issues = coachParamIssues(change.coach.params ?? {})
@@ -235,19 +243,19 @@ export interface SettlementReport {
   settled: SettledMatch[]
   summary: BatchSummary
   /** 存好的球團（沒有新結算時是讀到的那一份） */
-  club: ClubSaveV3
+  club: ClubSave
   /** 這次的互斥有沒有跨分頁保證 */
   crossTab: boolean
 }
 
-function loadOrThrow(store: ClubStore): ClubSaveV3 {
+function loadOrThrow(store: ClubStore): ClubSave {
   const club = store.loadClub()
   if (!club) throw new SettlementError('no-club', '還沒有球團存檔')
   return club
 }
 
-/** 打完到期的比賽並存檔，不存檔、只回傳新的球團與批次結果 */
-async function settleDueUnsaved(club: ClubSaveV3, now: number, deps: SettlementDeps, signal?: AbortSignal): Promise<{ next: SettleOutcome; due: DueMatches; batch: BatchRun }> {
+/** 打完到期的比賽，不存檔，只回傳新的球團與批次結果（升級、招募、換設定在同一次存檔前先呼叫） */
+export async function settleDueUnsaved(club: ClubSave, now: number, deps: SettlementDeps, signal?: AbortSignal): Promise<{ next: SettleOutcome; due: DueMatches; batch: BatchRun }> {
   const due = dueMatches(club.idle, now)
   const plans = planMatches(club, club.idle.nextMatchIndex, due.matches)
   const batch = await runBatch(plans, { ...deps.batch, signal })
@@ -291,7 +299,7 @@ export function claim(deps: Pick<SettlementDeps, 'store' | 'lock'>, claimSeq: nu
  * expected 是草稿建立時的設定版本：在鎖內跟存檔目前的版本比，不一致（別的分頁已經改過）就丟 settings-conflict，
  * 不會用舊草稿覆蓋別人的修改。只比這次要改的那一項（改陣容時不管戰術有沒有被改）
  */
-export function updateSettings(deps: SettlementDeps, change: SettingsChange, expected: Partial<SettingsVersions> = {}): Promise<ClubSaveV3> {
+export function updateSettings(deps: SettlementDeps, change: SettingsChange, expected: Partial<SettingsVersions> = {}): Promise<ClubSave> {
   return deps.lock.run(async () => {
     const club = loadOrThrow(deps.store)
     const current = settingsVersions(club)

@@ -928,3 +928,172 @@
   background: #fff;
   border: 2px dashed var(--lilac);
 }
+
+/* ---- Phase 4：養成、招募 ---- */
+.v2-player-item {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.v2-player-item .v2-player {
+  flex: 1;
+  min-width: 0;
+}
+.v2-develop {
+  flex: none;
+  width: 52px;
+  border-radius: 14px;
+  border: 2px solid var(--ink);
+  background: var(--yellow);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 2px 0 var(--ink);
+}
+.v2-level {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--indigo);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 11px;
+  line-height: 18px;
+}
+.v2-level.big {
+  font-size: 15px;
+  line-height: 24px;
+  padding: 0 10px;
+}
+.v2-head-actions {
+  display: flex;
+  gap: 6px;
+}
+.v2-growth {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.v2-growth .v2-power,
+.v2-growth .v2-hint {
+  grid-column: 1 / -1;
+}
+.v2-power {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-power-label {
+  font-size: 18px;
+  font-weight: 900;
+}
+.v2-power-value {
+  font-family: var(--font-display);
+  font-size: 22px;
+}
+.v2-growth-btn {
+  height: auto;
+  min-height: 50px;
+  padding: 6px 10px;
+  font-size: 14px;
+  line-height: 1.3;
+  flex-wrap: wrap;
+}
+.v2-short,
+.short {
+  color: var(--v2-loss);
+}
+.v2-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-detail-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+}
+.v2-rating-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 800;
+}
+.v2-rating-table th,
+.v2-rating-table td {
+  padding: 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+.v2-rating-table th:first-child {
+  text-align: left;
+}
+.v2-rating-table td.current {
+  background: #fff6cf;
+}
+.v2-rating-table td.current .grade {
+  margin-right: 4px;
+}
+.v2-num {
+  font-family: var(--font-display);
+  font-size: 14px;
+}
+.v2-diff {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.v2-diff.up {
+  color: var(--v2-win);
+}
+.v2-upgrade {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-cost {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  font-weight: 800;
+}
+.v2-cost-label {
+  font-weight: 900;
+}
+.v2-cost-item.short {
+  color: var(--v2-loss);
+}
+.v2-upgrade-btn {
+  height: 52px;
+}
+.v2-recruit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.v2-recruit-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 900;
+}
+.v2-recruit-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.v2-recruit-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  animation: modal-pop 0.25s cubic-bezier(0.2, 1.4, 0.4, 1);
+}

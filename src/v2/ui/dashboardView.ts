@@ -1,7 +1,14 @@
 // 球團首頁：球團資訊、自動比賽進度（倒數）、未領取收益、最近比賽
 import { el } from '../../ui/playerCard'
 import type { DueMatches } from '../application/idleEngine'
-import type { SettledMatch } from '../domain/club'
+import { overall } from '../../sim/generate'
+import { gradeBadge } from '../../ui/grades'
+import { canAfford } from '../application/economyService'
+import type { ClubSave, SettledMatch } from '../domain/club'
+import { upgradeCost } from '../domain/progression'
+import { RECRUIT_CONFIG } from '../domain/progressionConfig'
+import { recruitCost, rosterFull } from '../domain/recruitment'
+import { assignedIds, resolveRoster } from '../domain/roster'
 import type { ClubController, ControllerState } from './clubController'
 import { V2T } from './strings'
 
@@ -10,6 +17,24 @@ export interface DashboardActions {
   refresh: () => void
   openReport: (m: SettledMatch) => void
   allReports: () => void
+  recruit: () => void
+  lineup: () => void
+}
+
+/** 上場 14 人（先發、板凳、投手）的平均能力，含養成 */
+export function teamPower(club: ClubSave): number {
+  const r = resolveRoster(club)
+  const players = [...r.lineup.map((s) => s.player), ...r.bench, r.starter, ...r.relievers]
+  return players.reduce((sum, p) => sum + overall(p), 0) / players.length
+}
+
+/** 上場球員裡，現在的資產就付得起下一級的人數 */
+export function upgradeableCount(club: ClubSave): number {
+  const active = assignedIds(club.roster)
+  return club.players.filter((r) => active.has(r.player.id)).filter((r) => {
+    const cost = upgradeCost(r.level)
+    return cost !== null && canAfford(club, cost)
+  }).length
 }
 
 const RECENT_ON_HOME = 8
@@ -32,6 +57,25 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
     stat(V2T.experience, fmt(club.economy.assets.experience), 'exp'),
   )
   info.append(stats)
+
+  // 球隊戰力、養成與招募的提示
+  const growth = el('section', 'v2-card v2-growth')
+  const power = teamPower(club)
+  const powerBox = el('div', 'v2-power')
+  powerBox.append(el('span', 'v2-power-label', V2T.teamPower), gradeBadge(power, 'md'), el('span', 'v2-power-value', power.toFixed(2)))
+  const upgradeable = upgradeableCount(club)
+  const lineupBtn = el('button', upgradeable ? 'btn-yellow v2-growth-btn' : 'btn-white v2-growth-btn', upgradeable ? V2T.upgradeReady(upgradeable) : V2T.upgradeNone)
+  lineupBtn.type = 'button'
+  lineupBtn.dataset.action = 'lineup'
+  lineupBtn.onclick = actions.lineup
+  const cost = recruitCost(club.recruitment.count)
+  const full = rosterFull(club)
+  const recruitBtn = el('button', 'btn-white v2-growth-btn', full ? V2T.rosterFull : `${V2T.recruitEntry}・${V2T.recruitCost(cost.funds)}`)
+  recruitBtn.type = 'button'
+  recruitBtn.dataset.action = 'recruit'
+  if (!full && club.economy.assets.funds < cost.funds) recruitBtn.append(el('span', 'v2-short', `（${V2T.notEnoughFunds}）`))
+  recruitBtn.onclick = actions.recruit
+  growth.append(powerBox, el('p', 'v2-hint', `${V2T.teamPowerHint}・${V2T.rosterCount(club.players.length, RECRUIT_CONFIG.maxPlayers)}`), lineupBtn, recruitBtn)
 
   // B. 自動比賽進度
   const progress = el('section', 'v2-card v2-progress')
@@ -85,7 +129,7 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
   if (!list.length) recent.append(el('p', 'v2-empty', V2T.noMatches))
   else recent.append(matchList(list, actions.openReport))
 
-  page.append(info, progress, rewards, recent)
+  page.append(info, growth, progress, rewards, recent)
   updateCountdown(page, controller.due(), state)
   return page
 }

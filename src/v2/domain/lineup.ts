@@ -1,8 +1,8 @@
 // V2 陣容：合法性檢查與玩家能做的基本調整。
 // 交換的細節重用 V1 的 swapSlots / swapPositions（隊長離開先發會自動清掉），這裡只負責檢查與 V2 的操作名稱
 import { bestArrangement, type Arrangement } from '../../sim/arrange'
-import { swapPositions, swapSlots } from '../../sim/setup'
-import { POSITIONS, type Roster } from '../../sim/types'
+import { getSlot, setSlot, swapPositions, swapSlots, type Slot } from '../../sim/setup'
+import { POSITIONS, type Player, type Roster } from '../../sim/types'
 
 export class LineupError extends Error {
   override name = 'LineupError'
@@ -70,4 +70,29 @@ export function autoArrange(roster: Roster): Arrangement | null {
 
 function checkIndex(length: number, i: number): void {
   if (!Number.isInteger(i) || i < 0 || i >= length) throw new RangeError(`位置不存在：${i}`)
+}
+
+// ---- 預備名單（Phase 4）----
+
+/** 陣容草稿：上場的配置（養成後的球員物件）加上預備名單 */
+export interface LineupDraft {
+  roster: Roster
+  reserves: Player[]
+}
+
+/** 陣容上的位置，或預備名單的第幾位 */
+export type DraftSlot = Slot | { kind: 'reserve'; index: number }
+
+/**
+ * 預備名單的球員跟陣容上的某一格交換：打者可以換先發（接手守位與棒次）或板凳，投手可以換先發投手或後援。
+ * 被換下的人回到預備名單同一個位置，所以不會有人消失或重複
+ */
+export function swapWithReserve(draft: LineupDraft, slot: Slot, reserveIndex: number): LineupDraft {
+  checkIndex(draft.reserves.length, reserveIndex)
+  const incoming = draft.reserves[reserveIndex]
+  const wantsPitcher = slot.kind === 'starter' || slot.kind === 'reliever'
+  if ((incoming.role === 'pitcher') !== wantsPitcher) throw new RangeError(wantsPitcher ? '這個位置只能放投手' : '這個位置只能放打者')
+  const outgoing = getSlot(draft.roster, slot)
+  const reserves = draft.reserves.map((p, i) => (i === reserveIndex ? outgoing : p))
+  return { roster: setSlot(draft.roster, slot, incoming), reserves }
 }
