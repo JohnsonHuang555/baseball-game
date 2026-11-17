@@ -1,7 +1,7 @@
-// V2 球團存檔（schemaVersion 7）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度、
-// 進行中比賽的固定計畫、近期比賽（含 Box Score）與最近一次晉級挑戰的 Replay。
+// V2 球團存檔（schemaVersion 8）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度、
+// 進行中比賽的固定計畫、近期比賽（含 Box Score）、最近一次晉級挑戰的 Replay 與新手任務的旗標。
 // 不沿用 V1 的 Tournament：錦標賽是一輪一輪的 roguelike，V2 的球團要一直存在、一直累積。
-// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → 5 → 6 → 7）見 migration.ts
+// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → 5 → 6 → 7 → 8）見 migration.ts
 import type { Side } from '../../sim/game'
 import type { Player, Position, Roster } from '../../sim/types'
 import type { CoachParams, CoachStyle } from '../application/autoCoach'
@@ -10,6 +10,7 @@ import type { MatchReplay } from '../application/matchRunner'
 import { lineupIssues } from './lineup'
 import { leagueViolations, newLeagueState, type LeagueState } from './league'
 import { MAX_TIER } from './leagueConfig'
+import { newOnboarding, type OnboardingState } from './onboarding'
 import { MAX_LEVEL, RECRUIT_CONFIG, SPEND_LOG_LIMIT } from './progressionConfig'
 import { resolveRoster } from './roster'
 import { coachParamIssues } from './tactics'
@@ -17,7 +18,7 @@ import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, v
 
 export { ClubValidationError, type ClubValidationCode } from './validation'
 
-export const CLUB_SCHEMA_VERSION = 7
+export const CLUB_SCHEMA_VERSION = 8
 
 /**
  * 換算好的陣容：先發、板凳、投手都是完整的球員物件（養成後的能力），也就是模擬引擎吃的 Roster。
@@ -182,7 +183,7 @@ export interface ChallengeReplay {
   replay: MatchReplay
 }
 
-export interface ClubSaveV7 {
+export interface ClubSaveV8 {
   schemaVersion: typeof CLUB_SCHEMA_VERSION
   clubId: string
   clubName: string
@@ -208,14 +209,16 @@ export interface ClubSaveV7 {
   challengeReplay: ChallengeReplay | null
   /** 進行中那一場的固定計畫（schemaVersion 7 起）；沒有被固定時是 null，代表用目前的球團算出來的計畫就是開賽時的計畫 */
   liveMatch: LiveMatch | null
+  /** 新手任務裡推導不出來的部分（schemaVersion 8 起），見 onboarding.ts */
+  onboarding: OnboardingState
   /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄；從 3 升上來時是 3） */
-  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6; revision: number }
+  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7; revision: number }
   /** 每存一次加 1：用來發現別的分頁已經改過存檔 */
   revision: number
 }
 
 /** 目前格式的球團存檔 */
-export type ClubSave = ClubSaveV7
+export type ClubSave = ClubSaveV8
 
 export interface NewClubInput {
   clubId: string
@@ -263,6 +266,7 @@ export function newClub(input: NewClubInput): ClubSave {
     replays: [],
     challengeReplay: null,
     liveMatch: null,
+    onboarding: newOnboarding(),
     revision: 0,
   }
 }
@@ -351,6 +355,8 @@ export function validateClub(value: unknown): ClubSave {
   validateLeague(obj(value, 'league'))
   validateChallengeReplay(value.challengeReplay, obj(value, 'league'))
   validateLiveMatch(value.liveMatch, obj(value, 'idle'), value.clubId as string)
+  const onboarding = obj(value, 'onboarding')
+  for (const key of ['watchedLive', 'claimedRewards', 'lineupChanged', 'collapsed']) if (typeof onboarding[key] !== 'boolean') throw invalid(`onboarding.${key}`, '必須是 true 或 false')
   arr(value, 'recentMatches').forEach((m, i) => {
     const path = `recentMatches[${i}]`
     const match = m as Obj

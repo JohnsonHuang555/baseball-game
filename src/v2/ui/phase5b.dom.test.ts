@@ -233,9 +233,10 @@ describe('直播觀戰', () => {
     expect(text('.v2-replay-title')).toContain(V2T.matchNo(4))
   })
 
-  it('觀戰本身不寫入任何東西：看到一半離開，存檔一個字都沒變；比賽照樣在時間到時結算', async () => {
+  it('觀戰只會記一次新手任務旗標，其他一個字都沒變；第二次觀戰完全不寫入；比賽照樣在時間到時結算', async () => {
     const { storage, deps, clock } = await mountAt12()
-    const before = storage.getItem(CLUB_STORAGE_KEY)
+    const before = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
+    expect(before.onboarding.watchedLive).toBe(false)
     $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
     await untilOverlay()
     await flush(10)
@@ -243,7 +244,19 @@ describe('直播觀戰', () => {
     await flush()
     expect($('.v2-replay-overlay')).toBeNull()
     expect($('.v2-dashboard')).not.toBeNull()
-    expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(before)
+    const after = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
+    // 只有 onboarding.watchedLive 與 revision 改變（liveMatch、比賽、經濟都沒動）
+    expect({ ...after, onboarding: before.onboarding, revision: before.revision }).toEqual(before)
+    expect(after.onboarding).toEqual({ ...before.onboarding, watchedLive: true })
+    expect(after.revision).toBe(before.revision + 1)
+    expect($('[data-task="watch"]')!.dataset.done).toBe('true')
+    const once = storage.getItem(CLUB_STORAGE_KEY)
+    $<HTMLButtonElement>('[data-action="watch-live"]')!.click()
+    await untilOverlay()
+    await flush(10)
+    $<HTMLButtonElement>('[data-action="replay-back"]')!.click()
+    await flush()
+    expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(once)
     clock.set(T0 + 15 * MINUTE)
     expect((await settleDue(deps)).settled.map((m) => m.matchIndex)).toEqual([2])
   })

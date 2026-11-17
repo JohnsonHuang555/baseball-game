@@ -60,7 +60,7 @@ describe('V2 畫面', () => {
     // 剛建立：沒有比賽、沒有收益
     expect(text('.v2-recent .v2-empty')).toBe(V2T.noMatches)
     expect($<HTMLButtonElement>('.v2-claim')!.disabled).toBe(true)
-    expect(text('[data-countdown]')).toBe('5:00')
+    expect(text('[data-live-remain]')).toContain('5:00')
   })
 
   it('連續送出建立表單只會建立一份球團', async () => {

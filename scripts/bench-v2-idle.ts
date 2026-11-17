@@ -170,3 +170,20 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   console.log(`固定進行中比賽的計畫：每次 ${ms(tFreeze)}，存檔多 ${(liveBytes / 1024).toFixed(1)} KB（只在比賽進行中修改球團時才有，結算後清掉）`)
   console.log(`建立直播時間軸（模擬＋逐格狀態）每場 ${ms(tLive)}（平均 ${(frames / 20).toFixed(0)} 格）`)
 }
+
+// ---- Phase 6A：首頁每次重繪都會算一次「目前建議」與新手任務 ----
+{
+  const { suggestNextAction } = await import('../src/v2/application/guidance')
+  const { onboardingProgress } = await import('../src/v2/domain/onboarding')
+  const storage = new MemoryStorage()
+  const repo = new ClubRepository(storage)
+  const club = repo.createClub({ clubName: '引導', clubSeed: 6, clubId: 'guide-bench', now: T0 })
+  const rich = { ...club, economy: { ...club.economy, assets: { funds: 1e7, experience: 1e6 } } }
+  const t = performance.now()
+  for (let i = 0; i < 1000; i++) {
+    suggestNextAction(rich, { canWrite: true })
+    onboardingProgress(rich)
+  }
+  const bytes = JSON.stringify(club.onboarding).length
+  console.log(`\n目前建議＋新手任務（首頁每次重繪）：每次 ${ms((performance.now() - t) / 1000)}；新手任務旗標在存檔裡 ${bytes} bytes`)
+}

@@ -107,7 +107,7 @@ describe('聯盟卡片', () => {
     expect(text('.v2-challenge-result')).toContain(V2T.challengeNextLose(PROMOTION_CONFIG.retryAfterMatches))
     $<HTMLButtonElement>('.v2-modal-close')!.click()
     await flush()
-    expect(text('.v2-league-need')).toContain(V2T.leagueRetry(PROMOTION_CONFIG.retryAfterMatches))
+    expect(text('.v2-league-need')).toContain(V2T.leagueCooldownLine(PROMOTION_CONFIG.retryAfterMatches))
   })
 })
 

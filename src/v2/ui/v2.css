@@ -201,40 +201,6 @@
   grid-column: span 3;
 }
 
-/* ---- 自動比賽：比分板風格的倒數 ---- */
-.v2-scoreboard {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: 16px;
-  background: var(--ink);
-  color: #fff;
-  border: 3px solid #000;
-}
-.v2-board-label {
-  font-size: 14px;
-  font-weight: 900;
-  color: var(--lilac);
-}
-.v2-countdown {
-  font-family: var(--font-display);
-  font-size: 34px;
-  color: var(--yellow);
-  letter-spacing: 1px;
-  font-variant-numeric: tabular-nums;
-}
-.v2-progress-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 14px;
-  font-weight: 900;
-}
-.v2-refresh {
-  height: 46px;
-}
-
 /* ---- 未領取收益 ---- */
 .v2-reward-amounts {
   display: grid;
@@ -911,9 +877,15 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .v2-dashboard .v2-club,
+  .v2-dashboard .v2-live-card,
+  .v2-dashboard .v2-next,
+  .v2-dashboard .v2-onboard,
+  .v2-dashboard .v2-rewards,
   .v2-dashboard .v2-recent {
     grid-column: 1 / -1;
+  }
+  .v2-dashboard {
+    align-items: start;
   }
 }
 
@@ -1595,4 +1567,342 @@
 }
 .v2-replay-controls [hidden] {
   display: none;
+}
+
+/* ---- Phase 6A：首頁層級、目前建議、新手任務、養成預覽、聯盟目標 ---- */
+/* 次要區塊的視覺權重較輕：只有「目前比賽」與「目前建議」用粗框與深陰影 */
+.v2-dashboard .v2-growth,
+.v2-dashboard .v2-league,
+.v2-dashboard .v2-rewards,
+.v2-dashboard .v2-recent,
+.v2-dashboard .v2-onboard {
+  border-width: 2px;
+  box-shadow: 0 3px 0 var(--ink);
+}
+.v2-dashboard .v2-card-title {
+  font-size: 17px;
+}
+.v2-live-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  line-height: 1.5;
+}
+.v2-live-how {
+  flex: 1 1 100%;
+}
+.v2-live-played {
+  font-weight: 900;
+  color: var(--ink-soft);
+}
+.v2-live-due:empty {
+  display: none;
+}
+.v2-live-due {
+  color: var(--indigo);
+  font-weight: 900;
+}
+
+.v2-next {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.v2-next.act {
+  background: #fff6cf;
+  border-color: var(--ink);
+}
+.v2-next.calm {
+  border-width: 2px;
+  box-shadow: 0 3px 0 var(--ink);
+}
+.v2-next-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-next-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--indigo);
+  letter-spacing: 1px;
+}
+.v2-next-title {
+  font-size: 17px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+.v2-next-why,
+.v2-next-goal {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+.v2-next-goal {
+  color: var(--ink-soft);
+}
+.v2-next-btn {
+  flex: none;
+  height: 48px;
+  padding: 0 14px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+@media (max-width: 420px) {
+  .v2-next {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .v2-next-btn {
+    width: 100%;
+  }
+  .v2-next .v2-next-link {
+    align-self: flex-start;
+    padding: 0;
+  }
+}
+
+.v2-onboard-count {
+  margin-left: 8px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--indigo);
+}
+.v2-onboard-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.v2-onboard-fill {
+  display: block;
+  height: 100%;
+  background: var(--v2-win);
+  transition: width 0.3s;
+}
+.v2-onboard.collapsed {
+  gap: 6px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.v2-onboard-done {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+.v2-onboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-task {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fff;
+  border: 2px solid var(--line);
+}
+.v2-task.done {
+  background: transparent;
+  border-color: transparent;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.v2-task-mark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--lilac);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 900;
+  color: #fff;
+}
+.v2-task.done .v2-task-mark {
+  background: var(--v2-win);
+  border-color: var(--v2-win);
+}
+.v2-task-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.v2-task-title {
+  font-size: 15px;
+  font-weight: 900;
+}
+.v2-task.done .v2-task-title {
+  font-weight: 700;
+  color: var(--ink-faint);
+}
+.v2-task-hint {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+.v2-task-go {
+  height: 38px;
+  padding: 0 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.v2-task-tag {
+  flex: none;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--indigo);
+  white-space: nowrap;
+}
+
+.v2-growth .v2-card-head,
+.v2-growth .v2-stats {
+  grid-column: 1 / -1;
+}
+.v2-growth .v2-stats {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.v2-growth .v2-stat {
+  grid-column: span 2;
+  padding: 6px 4px;
+}
+.v2-growth .v2-stat.funds,
+.v2-growth .v2-stat.exp {
+  grid-column: span 3;
+}
+.v2-growth .v2-stat-value {
+  font-size: 20px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.v2-rewards.empty .v2-reward-value {
+  color: var(--ink-faint);
+}
+.v2-rewards .v2-claim {
+  height: 48px;
+}
+.v2-rewards:not(.empty) .v2-claim:not(:disabled) {
+  background: var(--yellow);
+}
+.v2-reward-value {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.v2-league.ready {
+  border-color: var(--ink);
+  background: #fff6cf;
+}
+.v2-league-ready {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--v2-win);
+}
+.v2-league .v2-section-title {
+  margin-top: 2px;
+}
+.v2-pulse {
+  animation: v2-pulse 1.2s ease-out 2;
+}
+@keyframes v2-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 210, 63, 0.9);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(255, 210, 63, 0);
+  }
+}
+
+.v2-upgrade-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 2px solid var(--line);
+}
+.v2-preview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.v2-preview-title {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink-faint);
+}
+.v2-preview-levels {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+.v2-preview-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-preview-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+}
+.v2-preview-name {
+  flex: 1;
+}
+.v2-preview-val {
+  font-variant-numeric: tabular-nums;
+}
+.v2-preview-overall {
+  margin-top: 2px;
+  padding-top: 4px;
+  border-top: 2px dashed var(--line);
+}
+.v2-upgrade-done {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #e5f8ec;
+  border: 2px solid var(--v2-win);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+.v2-upgrade-done strong {
+  font-size: 15px;
+}
+.v2-upgrade-gains {
+  color: var(--v2-win);
+}
+.v2-next-link {
+  flex: none;
+  align-self: center;
+  white-space: nowrap;
 }
