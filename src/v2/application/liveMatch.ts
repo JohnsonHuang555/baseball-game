@@ -59,30 +59,60 @@ export function currentLiveMatch(club: ClubSave, now: number): LiveMatchInfo {
 }
 
 // ---- 逐格事件 ↔ 比賽時間 ----
+//
+// 每一格分成兩段（Phase 6B，見 ADR-0014）：
+// - 懸念（prelude）：投手準備、投球飛向本壘、盜壘起跑、換投公告。不揭露這一格的結果，排在這一格正式提交「之前」。
+// - 揭曉（reveal）：投球結果、擊球軌跡、跑壘、大字、得分、追平／逆轉／再見。排在這一格正式提交「之後」。
+// 所以第 i 格的時間段 [startOf(i), endOf(i)) 裡播的是「第 i − 1 格的揭曉」＋「第 i 格的懸念」，
+// endOf(i) 是第 i 格的正式提交時間（球剛好在這一刻到達本壘）。最後一格的揭曉在比賽結束時間（endsAt）之後，
+// 跟最終勝負一起演出。時間段的長度依這兩段的權重分配，總長仍然是 durationMs
 
-/** 一格事件在畫面上大概要播多久（相對權重，跟 V1 的動畫節奏同比例） */
-export function frameWeight(events: readonly GameEvent[]): number {
+/** 一格裡「揭曉前」的動畫大概要多久（相對權重，跟 V1 的動畫節奏同比例） */
+export function preludeWeight(events: readonly GameEvent[]): number {
   let w = 0
   for (const e of events) {
-    if (e.type === 'pitch') w += e.result === 'inPlay' ? 0.6 : 0.9
-    else if (e.type === 'play') w += 1.45 + (e.ball?.distance ?? 0) * 0.0026 + (e.kind === 'homeRun' ? 1.4 : e.kind === 'strikeout' ? 0.5 : 0)
-    else if (e.type === 'steal') w += 1.45
-    else if (e.type === 'halfInningEnd') w += 0.9
+    if (e.type === 'pitch') w += 0.6
+    else if (e.type === 'steal') w += 0.5
     else if (e.type === 'substitution') w += 0.8
   }
-  return Math.max(0.3, w)
+  return w
+}
+
+/** 一格裡「揭曉後」的動畫大概要多久（相對權重） */
+export function revealWeight(events: readonly GameEvent[]): number {
+  let w = 0
+  for (const e of events) {
+    if (e.type === 'pitch') w += e.result === 'inPlay' ? 0 : 0.3
+    else if (e.type === 'play') w += 1.45 + (e.ball?.distance ?? 0) * 0.0026 + (e.kind === 'homeRun' ? 1.4 : e.kind === 'strikeout' ? 0.5 : 0)
+    else if (e.type === 'steal') w += 0.95
+    else if (e.type === 'halfInningEnd') w += 0.9
+  }
+  return w
+}
+
+/** 一格事件在畫面上大概要播多久（懸念＋揭曉） */
+export function frameWeight(events: readonly GameEvent[]): number {
+  return Math.max(0.3, preludeWeight(events) + revealWeight(events))
 }
 
 /** 把一場比賽的每一格對應到 [0, durationMs) 的時間段 */
 export class LiveSchedule {
-  /** 第 i 格的結束時間（相對開賽，毫秒） */
+  /** 第 i 格的結束時間＝正式提交時間（相對開賽，毫秒） */
   readonly ends: number[]
+  /** 第 i 個時間段裡，第 i − 1 格的揭曉佔的比例（0～1） */
+  private readonly shares: number[]
 
   constructor(
     readonly frames: readonly ReplayFrame[],
     readonly durationMs: number = MATCH_INTERVAL_MS,
   ) {
-    const weights = frames.map((f) => frameWeight(f.events))
+    const pre = frames.map((f) => preludeWeight(f.events))
+    const post = frames.map((f) => revealWeight(f.events))
+    const weights = frames.map((_, i) => Math.max(0.3, pre[i] + (i > 0 ? post[i - 1] : 0)))
+    this.shares = frames.map((_, i) => {
+      const r = i > 0 ? post[i - 1] : 0
+      return r + pre[i] > 0 ? r / (r + pre[i]) : 0
+    })
     const total = weights.reduce((a, b) => a + b, 0)
     let acc = 0
     this.ends = weights.map((w) => {
@@ -90,6 +120,11 @@ export class LiveSchedule {
       return Math.round((acc / total) * durationMs)
     })
     if (this.ends.length) this.ends[this.ends.length - 1] = durationMs
+  }
+
+  /** 第 i 個時間段開頭，留給第 i − 1 格揭曉的比例 */
+  revealShare(i: number): number {
+    return this.shares[i] ?? 0
   }
 
   startOf(i: number): number {

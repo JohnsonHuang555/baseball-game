@@ -43,10 +43,14 @@ function clock(t: number) {
 
 function presenter() {
   const p = {
+    /** 演過懸念的格（Phase 6B 起每一格分懸念、揭曉兩段） */
     played: [] as number[],
+    /** 演過揭曉的格 */
+    revealed: [] as number[],
     shown: [] as number[],
-    async playFrame(frame: { index: number }) {
-      p.played.push(frame.index)
+    async playFrame(frame: { index: number }, ctx?: FrameContext) {
+      if (ctx?.phase === 'reveal') p.revealed.push(frame.index)
+      else p.played.push(frame.index)
     },
     show(_s: unknown, position: number) {
       p.shown.push(position)
@@ -109,6 +113,8 @@ describe('LivePlayer', () => {
     expect(player.view.status).toBe('ended')
     expect(player.view.state).toEqual(s.timeline.final)
     expect(p.played).toEqual(s.timeline.frames.map((f) => f.index))
+    // 每一格的揭曉都演一次（最後一格在 endsAt 之後）
+    expect(p.revealed).toEqual(s.timeline.frames.map((f) => f.index))
     expect(c.t).toBe(s.endsAt)
   })
 
