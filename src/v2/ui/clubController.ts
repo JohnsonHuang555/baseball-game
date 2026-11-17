@@ -7,7 +7,8 @@
 // - revision 衝突：重新讀取最新存檔並提示，不會靜默覆蓋
 // - 不支援 Web Locks 時，只有可寫分頁能寫入（WriterGuard），唯讀分頁的寫入一律拒絕
 import { createClubSafely, openClubSafely, resetClubSafely } from '../application/clubLifecycle'
-import { EconomyError, recruit, upgrade, type SpendOutcome } from '../application/economyService'
+import { EconomyError, recruit, release, upgrade, type SpendOutcome } from '../application/economyService'
+import { LeagueError, challengeNextLeague, type ChallengeOutcome } from '../application/leagueService'
 import { dueMatches, type DueMatches } from '../application/idleEngine'
 import { SettlementError, claim, settleDue, updateSettings, type SettlementReport } from '../application/settlementService'
 import type { ClubSave, PersistentRoster, SummaryHighlight } from '../domain/club'
@@ -51,8 +52,12 @@ export interface ControllerState {
   settling: boolean
   claiming: boolean
   saving: boolean
-  /** 正在升級或招募 */
+  /** 正在升級、招募或釋出 */
   spending: boolean
+  /** 正在打晉級挑戰賽 */
+  challenging: boolean
+  /** 最近一次挑戰的結果（畫面顯示結果對話框後清掉） */
+  challengeResult: ChallengeOutcome | null
   /** 可以重試的錯誤（結算、領取失敗） */
   error: { message: string; retry?: RetryAction } | null
   /** 一次性的提示（顯示後由畫面清掉） */
@@ -84,6 +89,7 @@ export class ClubController {
   private settleFlight: Promise<void> | null = null
   private claimFlight: Promise<ActionResult> | null = null
   private spendFlight: Promise<SpendResult> | null = null
+  private challengeFlight: Promise<ActionResult> | null = null
   private createFlight: Promise<ActionResult> | null = null
   private abort: AbortController | null = null
   private disposed = false
@@ -112,6 +118,8 @@ export class ClubController {
       claiming: false,
       saving: false,
       spending: false,
+      challenging: false,
+      challengeResult: null,
       error: null,
       notice: null,
       welcome: null,
@@ -353,6 +361,57 @@ export class ClubController {
     return this.spend((opSeq) => recruit(this.deps, { opSeq, role }), (out) => V2T.recruited(recordOf(out.club, out.op.playerId)?.player.name ?? ''))
   }
 
+  /**
+   * 釋出一位預備球員（不可復原、不退款）。用最新存檔的陣容判斷：別的分頁剛把他排進陣容會被拒絕。
+   * 畫面必須先讓玩家二次確認才呼叫
+   */
+  release(playerId: string): Promise<SpendResult> {
+    const name = (this.current.club && recordOf(this.current.club, playerId)?.player.name) ?? ''
+    return this.spend((opSeq) => release(this.deps, { opSeq, playerId }), () => V2T.released(name))
+  }
+
+  /**
+   * 挑戰下一級聯盟。expected 是按鈕「畫面顯示時」的聯盟與挑戰序號：不從最新存檔重新取值，
+   * 所以別的分頁已經晉級或挑戰過時，服務會在鎖內拒絕（stale-request），畫面重新載入，不會挑戰到玩家沒預期的聯盟。
+   * 每次呼叫產生一個 requestId；連點只會送一次（single flight）。結果放在 state.challengeResult，畫面顯示後呼叫 dismissChallengeResult
+   */
+  challenge(expected: { fromTier: number; challengeSeq: number }): Promise<ActionResult> {
+    if (this.challengeFlight) return this.challengeFlight
+    if (!this.guard.canWrite()) return Promise.resolve({ ok: false, message: V2T.readOnly })
+    this.challengeFlight = (async (): Promise<ActionResult> => {
+      this.set({ challenging: true, error: null })
+      try {
+        const out = await challengeNextLeague(this.deps, { challengeSeq: expected.challengeSeq, fromTier: expected.fromTier, requestId: newRequestId() })
+        if (this.disposed) return { ok: true }
+        this.set({ club: out.club, challengeResult: out })
+        return { ok: true }
+      } catch (e) {
+        if (this.disposed) return { ok: false }
+        if (e instanceof LeagueError) {
+          if (e.settled) this.set({ club: e.settled.club })
+          if (e.code === 'stale-request') {
+            this.reload()
+            return { ok: false, message: V2T.challengeStale }
+          }
+          return { ok: false, message: e.code === 'not-eligible' ? V2T.challengeNotReady : e.message }
+        }
+        if (e instanceof SettlementError && e.code === 'simulation-failed') {
+          this.reload()
+          return { ok: false, message: V2T.challengeFailedToRun }
+        }
+        return { ok: false, message: this.handleError(e) }
+      } finally {
+        this.challengeFlight = null
+        if (!this.disposed) this.set({ challenging: false })
+      }
+    })()
+    return this.challengeFlight
+  }
+
+  dismissChallengeResult(): void {
+    if (this.current.challengeResult) this.set({ challengeResult: null })
+  }
+
   private spend(run: (opSeq: number) => Promise<SpendOutcome>, success: (out: SpendOutcome) => string): Promise<SpendResult> {
     if (this.spendFlight) return this.spendFlight
     if (!this.guard.canWrite()) return Promise.resolve({ ok: false, message: V2T.readOnly })
@@ -374,7 +433,7 @@ export class ClubController {
           // 支出被拒絕，但到期的比賽已經結算存檔：畫面換成存好的球團
           if (e.settled) this.set({ club: e.settled.club })
           // 畫面資料過期：讀進最新的，讓玩家看清楚再操作
-          if (e.code === 'stale-request' || e.code === 'level-mismatch') this.reload()
+          if (e.code === 'stale-request' || e.code === 'level-mismatch' || e.code === 'not-reserve') this.reload()
           return { ok: false, message: e.message }
         }
         return { ok: false, message: this.handleError(e) }
@@ -492,6 +551,12 @@ export class ClubController {
     this.current = { ...this.current, ...patch }
     for (const l of this.listeners) l(this.current)
   }
+}
+
+/** 一次挑戰操作的識別碼：只用來分辨重送與不同的請求，不需要密碼學強度 */
+function newRequestId(): string {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto
+  return c?.randomUUID ? c.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
 function brokenStatus(e: unknown): V2Status {

@@ -1,4 +1,4 @@
-// 經濟支出：升級球員、招募球員共用同一套支出機制。
+// 經濟支出與名單操作：升級球員、招募球員、釋出球員共用同一套操作序號（釋出的成本是 0、不退款）。
 //
 // 冪等：每個請求帶上讀到的 economy.nextOpSeq 與請求內容。
 // - 序號等於目前值：檢查、扣款、改球員資料，序號加 1
@@ -17,10 +17,19 @@ import type { ClubSave, PlayerRecord, Resources, SpendRecord } from '../domain/c
 import { MAX_LEVEL, upgradeCost } from '../domain/progression'
 import { SPEND_LOG_LIMIT } from '../domain/progressionConfig'
 import { recruitCandidate, recruitCost, rosterFull, type RecruitRole } from '../domain/recruitment'
-import { recordOf } from '../domain/roster'
+import { assignedIds, recordOf } from '../domain/roster'
 import { SettlementError, settleDueUnsaved, type SettlementDeps } from './settlementService'
 
-export type EconomyErrorCode = 'bad-request' | 'stale-request' | 'no-player' | 'level-mismatch' | 'max-level' | 'insufficient' | 'roster-full'
+export type EconomyErrorCode =
+  | 'bad-request'
+  | 'stale-request'
+  | 'no-player'
+  | 'level-mismatch'
+  | 'max-level'
+  | 'insufficient'
+  | 'roster-full'
+  /** 要釋出的球員目前在先發、板凳或投手名單上（例如別的分頁剛把他排進陣容） */
+  | 'not-reserve'
 
 export class EconomyError extends Error {
   override name = 'EconomyError'
@@ -48,6 +57,11 @@ export interface UpgradeRequest {
 export interface RecruitRequest {
   opSeq: number
   role: RecruitRole
+}
+
+export interface ReleaseRequest {
+  opSeq: number
+  playerId: string
 }
 
 export interface SpendOutcome {
@@ -118,6 +132,26 @@ export function recruitPlayer(club: ClubSave, req: RecruitRequest, now: number):
   return { ...out, duplicate: false }
 }
 
+/**
+ * 釋出一位預備球員：從永久名單移除，不退款、不換資源。先發、板凳、先發投手、後援都不能直接釋出（要先在陣容裡換下來）。
+ * 用的是存檔裡最新的陣容判斷，所以別的分頁剛把他排進陣容，這裡會拒絕。
+ * 陣容只會引用已上場的球員，所以移除預備球員不會留下懸空的引用；replay 與戰報存的是當時的完整資料，不依賴目前名單
+ */
+export function releasePlayer(club: ClubSave, req: ReleaseRequest, now: number): SpendOutcome {
+  if (typeof req.playerId !== 'string' || !req.playerId) throw new EconomyError('bad-request', '要釋出的球員不合法')
+  const requestKey = `release:${req.playerId}`
+  const dup = checkSeq(club, req.opSeq, requestKey)
+  if (dup) return { club, op: dup, duplicate: true }
+  const record = recordOf(club, req.playerId)
+  if (!record) throw new EconomyError('no-player', `球員不存在：${req.playerId}`)
+  if (assignedIds(club.roster).has(req.playerId)) {
+    throw new EconomyError('not-reserve', `${record.player.name} 目前在陣容裡，請先在陣容中換下來，才能釋出`)
+  }
+  const out = spend(club, { kind: 'release', playerId: req.playerId, cost: { funds: 0, experience: 0 }, at: now, requestKey })
+  out.club.players = out.club.players.filter((r) => r.player.id !== req.playerId)
+  return { ...out, duplicate: false }
+}
+
 // ---- 服務（上鎖、先結算、一次存檔） ----
 
 async function spendSafely(deps: SettlementDeps, apply: (club: ClubSave, now: number) => SpendOutcome): Promise<SpendOutcome> {
@@ -156,4 +190,9 @@ export function upgrade(deps: SettlementDeps, req: UpgradeRequest): Promise<Spen
 /** 招募球員（冪等）：先結算到期的比賽，再招募，一次存檔 */
 export function recruit(deps: SettlementDeps, req: RecruitRequest): Promise<SpendOutcome> {
   return spendSafely(deps, (club, now) => recruitPlayer(club, req, now))
+}
+
+/** 釋出預備球員（冪等）：先結算到期的比賽，再釋出，一次存檔 */
+export function release(deps: SettlementDeps, req: ReleaseRequest): Promise<SpendOutcome> {
+  return spendSafely(deps, (club, now) => releasePlayer(club, req, now))
 }

@@ -1,4 +1,5 @@
 // 球員詳情：名稱、流派、特性、等級，以及每項能力的「原始 → 目前（比賽實際使用）→ 下一級」、升級成本與升級按鈕。
+// 預備球員另外有「釋出球員」：按下後要再確認一次才會釋出（不可復原、不退款）。
 // 打開時跟著 controller 的狀態更新（升級、其他分頁改了都會重畫），關閉時取消訂閱
 import { gradeBadge } from '../../ui/grades'
 import { el } from '../../ui/playerCard'
@@ -7,7 +8,7 @@ import { archetypeChip } from '../../ui/synergyUi'
 import { pitchChip, toast, traitList } from '../../ui/visual'
 import { canAfford } from '../application/economyService'
 import { MAX_LEVEL, leveled, upgradeCost } from '../domain/progression'
-import { recordOf } from '../domain/roster'
+import { assignedIds, recordOf } from '../domain/roster'
 import type { ClubController, ControllerState } from './clubController'
 import { v2Modal } from './reportView'
 import { V2T } from './strings'
@@ -17,6 +18,9 @@ const fmt = (x: number) => x.toLocaleString('zh-Hant')
 
 export function openPlayerDetail(controller: ClubController, playerId: string): () => void {
   const body = el('div', 'v2-player-detail')
+  /** 已經按過「釋出球員」、正在等第二次確認 */
+  let confirming = false
+  let close: () => void = () => {}
   const draw = (state: ControllerState) => {
     const club = state.club
     const record = club ? recordOf(club, playerId) : undefined
@@ -87,9 +91,54 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
     }
     costBox.append(button)
     body.replaceChildren(head, table, costBox, el('p', 'v2-hint', V2T.progressionNote), traitList(base))
+
+    // 釋出：只有預備名單的球員；用存檔裡最新的陣容判斷，按下後還會在鎖內再檢查一次
+    const isReserve = !assignedIds(club.roster).has(playerId)
+    const releaseBox = el('div', 'v2-release')
+    if (!isReserve) {
+      confirming = false
+      releaseBox.append(el('p', 'v2-hint', V2T.releaseOnlyReserve))
+    } else if (!confirming) {
+      const b = el('button', 'btn-white v2-release-btn', V2T.releaseButton)
+      b.type = 'button'
+      b.dataset.action = 'release'
+      b.disabled = state.spending || !state.canWrite
+      b.onclick = () => {
+        confirming = true
+        draw(controller.state)
+      }
+      releaseBox.append(b)
+    } else {
+      const confirmBox = el('div', 'v2-release-confirm')
+      confirmBox.setAttribute('role', 'alertdialog')
+      const yes = el('button', 'btn-danger v2-release-yes', state.spending ? V2T.releasing : V2T.releaseYes)
+      yes.type = 'button'
+      yes.dataset.action = 'release-confirm'
+      yes.disabled = state.spending || !state.canWrite
+      yes.onclick = async () => {
+        yes.disabled = true
+        const res = await controller.release(playerId)
+        if (res.message) toast(res.message)
+        confirming = false
+        if (res.ok) close()
+        else draw(controller.state)
+      }
+      const no = el('button', 'btn-white v2-release-no', V2T.releaseCancel)
+      no.type = 'button'
+      no.onclick = () => {
+        confirming = false
+        draw(controller.state)
+      }
+      const row = el('div', 'v2-release-row')
+      row.append(no, yes)
+      confirmBox.append(el('p', 'v2-release-warn', V2T.releaseConfirm), row)
+      releaseBox.append(confirmBox)
+    }
+    body.append(releaseBox)
     if (record.level >= MAX_LEVEL) body.classList.add('max')
   }
   draw(controller.state)
   const unsubscribe = controller.subscribe(draw)
-  return v2Modal(V2T.playerTitle, body, unsubscribe)
+  close = v2Modal(V2T.playerTitle, body, unsubscribe)
+  return close
 }

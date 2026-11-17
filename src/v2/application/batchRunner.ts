@@ -7,6 +7,7 @@ import { Rng } from '../../sim/rng'
 import { RULES_VERSION, type GameSetup, type Side } from '../../sim/game'
 import { SEED_SALT, deriveSeed, matchIdFor, userSideFor, type ClubSave } from '../domain/club'
 import { BATCH_CONFIG } from '../domain/config'
+import { leagueOf } from '../domain/league'
 import { resolveRoster } from '../domain/roster'
 import { stableJson } from '../domain/fingerprint'
 import { runMatch, type MatchAi, type MatchResult } from './matchRunner'
@@ -18,6 +19,8 @@ export interface MatchPlan {
   seed: number
   userSide: Side
   opponentName: string
+  /** 這場所屬的聯盟階級：決定對手強度與收益倍率。結算時要跟球團目前的聯盟一致 */
+  leagueTier: number
   /** 規則版本寫明在 setup 裡，接續舊結果時要比對 */
   setup: GameSetup & { rules: number }
   ai: MatchAi
@@ -28,22 +31,44 @@ export interface MatchOutcome {
   result: MatchResult
 }
 
-/** 第 matchIndex 場的計畫：種子、對手、主客場都只由球團種子與場次序號決定 */
+/**
+ * 第 matchIndex 場的計畫：種子、對手、主客場只由球團種子與場次序號決定，對手強度由球團「目前」的聯盟決定。
+ * 聯盟只會在晉級挑戰時改變，而挑戰一定先把到期的比賽結算完，所以到期的比賽一定用晉級前的聯盟
+ */
 export function planMatch(club: ClubSave, matchIndex: number): MatchPlan {
   if (!Number.isSafeInteger(matchIndex) || matchIndex < 0) throw new RangeError(`場次序號不合法：${matchIndex}`)
   const seed = deriveSeed(club.clubSeed, matchIndex, SEED_SALT.match)
   const userSide = userSideFor(matchIndex)
-  const opponent = generateTeam(new Rng(deriveSeed(club.clubSeed, matchIndex, SEED_SALT.opponent)))
+  const leagueTier = club.league.tier
+  return buildPlan(club, {
+    matchId: matchIdFor(club, matchIndex),
+    matchIndex,
+    seed,
+    userSide,
+    leagueTier,
+    opponentSeed: deriveSeed(club.clubSeed, matchIndex, SEED_SALT.opponent),
+    opponentMean: leagueOf(leagueTier).opponentMean,
+  })
+}
+
+/** 比賽計畫的共用部分（一般比賽與晉級挑戰賽）：對手由給定的種子與強度產生，我方快照目前的陣容與戰術 */
+export function buildPlan(
+  club: ClubSave,
+  p: { matchId: string; matchIndex: number; seed: number; userSide: Side; leagueTier: number; opponentSeed: number; opponentMean: number },
+): MatchPlan {
+  const { userSide, seed } = p
+  const opponent = generateTeam(new Rng(p.opponentSeed), p.opponentMean)
   // 快照：把配置換算成「這一刻」養成後能力的完整陣容（深拷貝），之後升級、換人都不影響這一場
   const ours = equippedTeam({ name: club.clubName, roster: structuredClone(resolveRoster(club)) })
   const coach = structuredClone(club.strategy.coach)
   const otherSide: Side = userSide === 'home' ? 'away' : 'home'
   return {
-    matchId: matchIdFor(club, matchIndex),
-    matchIndex,
+    matchId: p.matchId,
+    matchIndex: p.matchIndex,
     seed,
     userSide,
     opponentName: opponent.name,
+    leagueTier: p.leagueTier,
     setup: { home: userSide === 'home' ? ours : opponent, away: userSide === 'away' ? ours : opponent, seed, userSide, rules: RULES_VERSION },
     ai: { [userSide]: { kind: 'autoCoach', style: coach.style, params: coach.params }, [otherSide]: { kind: 'builtin' } } as MatchAi,
   }

@@ -18,17 +18,26 @@ export function rosterFull(club: Pick<ClubSave, 'players'>): boolean {
   return club.players.length >= RECRUIT_CONFIG.maxPlayers
 }
 
+/** 第 index 次招募的球員編號前綴：招募次數只增不減，所以這個前綴永遠不會被第二位球員用到 */
+export function recruitIdPrefix(index: number): string {
+  return `r${index}-`
+}
+
 /**
- * 這一次招募會得到的球員（Lv.1）。用既有的球員產生器；編號跟現有球員撞到時，用同一個亂數來源繼續產生下一位，
- * 結果仍然是確定性的。不用名單長度當編號，所以重新整理、遷移、之後刪除球員都不會撞號
+ * 這一次招募會得到的球員（Lv.1）。用既有的球員產生器，編號改成「r<招募次數>-<產生器的編號>」：
+ * 招募次數只增不減（釋出球員也不會減），所以就算原本的球員被釋出，歷史上用過的編號也不會再被分配給另一位球員
+ * （replay、戰報、支出紀錄裡的編號永遠只指向同一個人）。結果只由球團種子與招募次數決定，仍然是確定性的。
+ * 編號在產生之後才換，能力、流派、打擊方向這些由產生器編號推導的屬性都已經存進球員資料，不受影響
  */
 export function recruitCandidate(club: Pick<ClubSave, 'clubSeed' | 'players' | 'recruitment'>, role: RecruitRole): Player {
   const salt = role === 'batter' ? 0 : 0x9e3779b9
   const rng = new Rng((deriveSeed(club.clubSeed, club.recruitment.count, SEED_SALT.recruit) ^ salt) >>> 0)
   const taken = new Set(club.players.map((r) => r.player.id))
+  const prefix = recruitIdPrefix(club.recruitment.count)
   for (let i = 0; i < 100; i++) {
     const p = role === 'batter' ? generateBatter(rng, RECRUIT_CONFIG.mean) : generatePitcher(rng, RECRUIT_CONFIG.mean)
-    if (!taken.has(p.id)) return p
+    const player = { ...p, id: prefix + p.id }
+    if (!taken.has(player.id)) return player
   }
   throw new Error('無法產生不重複的球員編號')
 }

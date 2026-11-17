@@ -20,6 +20,7 @@ import { RETENTION_CONFIG } from '../domain/config'
 import { settingsVersions, type SettingsVersions } from '../domain/fingerprint'
 import { LineupError, lineupIssues } from '../domain/lineup'
 import { assignmentIssues, resolveRoster } from '../domain/roster'
+import { leagueOf, recordLeagueResult } from '../domain/league'
 import { rewardFor } from '../domain/rewards'
 import { coachParamIssues } from '../domain/tactics'
 import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome } from './batchRunner'
@@ -88,6 +89,7 @@ export function summarize(outcome: MatchOutcome): MatchSummary {
     highlights,
     rulesVersion: result.replay.rulesVersion,
     coachVersion: result.replay.coachVersion,
+    leagueTier: plan.leagueTier,
   }
 }
 
@@ -121,8 +123,12 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
     if (plan.matchId !== matchIdFor(club, plan.matchIndex) || plan.seed !== deriveSeed(club.clubSeed, plan.matchIndex, SEED_SALT.match)) {
       throw new SettlementError('mismatch', `比賽 ${plan.matchId} 不屬於這個球團或種子不符`)
     }
+    // 不同聯盟的結果（例如晉級前算好、晉級後才送來）不能記進來：對手強度與收益倍率都不對
+    if (plan.leagueTier !== next.league.tier) {
+      throw new SettlementError('mismatch', `比賽 ${plan.matchId} 是${leagueOf(plan.leagueTier).name}的比賽，球團目前在${leagueOf(next.league.tier).name}`)
+    }
     const summary = summarize(outcome)
-    const reward = rewardFor(summary.won, summary.runsFor)
+    const reward = rewardFor(summary.won, summary.runsFor, leagueOf(plan.leagueTier).rewardMultiplier)
     const match: SettledMatch = {
       matchId: plan.matchId,
       matchIndex: plan.matchIndex,
@@ -138,6 +144,7 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
     else r.losses++
     r.runsFor += summary.runsFor
     r.runsAgainst += summary.runsAgainst
+    next.league = recordLeagueResult(next.league, summary.won)
     addTo(next.economy.unclaimed, reward)
     addTo(next.economy.earned, reward)
     next.idle.nextMatchIndex++
