@@ -62,6 +62,8 @@ export class PitchCam {
   private readonly ctx: CanvasRenderingContext2D
   private readonly label: HTMLElement
   private hideTimer = 0
+  /** 每次 cancel() 加 1：進行中的投球動畫看到代號變了就立刻結束 */
+  private generation = 0
 
   constructor() {
     this.root = el('div', 'pitch-cam')
@@ -73,8 +75,16 @@ export class PitchCam {
   }
 
   /** 播一球：回傳時球剛好進到本壘 */
+  /** 取消進行中的投球動畫並收起小窗（V2 觀戰暫停、跳過、關閉時用；V1 不呼叫） */
+  cancel(): void {
+    this.generation++
+    window.clearTimeout(this.hideTimer)
+    this.root.classList.remove('show')
+  }
+
   play(pitch: PitchType, pitcher: Pitcher, result: PitchResult, ms: number): Promise<void> {
     window.clearTimeout(this.hideTimer)
+    const gen = this.generation
     this.label.textContent = `${T.pitchNames[pitch]} ${pitchSpeed(pitch, pitcher)} km/h`
     this.root.classList.add('show')
     const w = this.root.clientWidth
@@ -93,6 +103,7 @@ export class PitchCam {
     return new Promise((resolve) => {
       const begin = performance.now()
       const tick = (now: number) => {
+        if (gen !== this.generation) return resolve()
         const t = ms <= 0 ? 1 : Math.max(0, Math.min(1, (now - begin) / ms))
         const p = pitchPoint(pitch, pitcher.throws, start, end, t, w)
         trail.push(p)

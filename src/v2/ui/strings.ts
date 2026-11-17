@@ -123,7 +123,7 @@ export const V2T = {
   tacticsEffective: '新戰術將從下一場比賽開始生效。',
 
   reportsTitle: '戰報',
-  reportsHint: '保留最近 50 場的摘要；最近 3 場另外保有完整紀錄，可以看每局比分與個人成績',
+  reportsHint: '只保留最近 50 場的戰報（每局比分、個人成績、精彩事件與收益），更早的比賽不再保留',
   reportTitle: (no: number) => `戰報・第 ${n(no)} 場`,
   finalScore: '最終比分',
   rewards: '獲得獎勵',
@@ -132,7 +132,7 @@ export const V2T = {
   linescore: '每局比分',
   topPerformers: '我方打擊',
   pitching: '我方投手',
-  noReplay: '這場只保留摘要（完整紀錄只留最近 3 場）',
+  noBoxScore: '這場是存檔升級前結算的比賽，只保留比分、精彩事件與收益（沒有每局比分與個人成績）',
   settledAt: '結算時間',
   close: '關閉',
 
@@ -237,4 +237,47 @@ export const V2T = {
   releaseOnlyReserve: '只有預備名單的球員可以釋出；先發、板凳與投手要先在陣容中換下來',
   releasing: '釋出中…',
   released: (name: string) => `已釋出 ${name}`,
+
+  // 觀戰（Phase 5B）
+  replayNotKept: '這場挑戰賽的比賽過程已不再保留（只保留最近一次挑戰）',
+  replayBack: '返回',
+  replayPlay: '播放',
+  replayPause: '暫停',
+  replaySpeed: '播放速度',
+  replayBatter: '打者',
+  replayPitcher: '投手',
+  replayReady: '比賽即將開始',
+  replayFinalShort: '終',
+  replayFinalLine: (won: boolean, innings: number) => `比賽結束・${innings > 9 ? `延長 ${innings} 局・` : ''}${won ? '勝利' : '落敗'}`,
+  replayErrorTitle: '無法播放這場比賽',
+  replayErrorText: (code: 'corrupt' | 'unsupported-version' | 'mismatch') =>
+    code === 'unsupported-version'
+      ? '這場比賽是用不同版本的規則打的，目前的程式無法重播。戰報與戰績不受影響。'
+      : code === 'mismatch'
+        ? '重播的結果跟戰報對不起來，為了避免顯示錯誤的內容，不播放這場比賽。戰報與戰績不受影響。'
+        : '這場比賽的重播資料不完整或已損壞。戰報與戰績不受影響。',
+  replayLoadFailed: '觀戰畫面載入失敗，請再試一次',
+  watchChallenge: '觀看挑戰過程',
+  challengeShowResult: '直接看結果',
+  challengeStartLine: (league: string) => `挑戰「${league}」的晉級挑戰賽已經打完`,
+  challengeStartHint: '結果已經確定並保存（重新整理或離開都不會消失）。要觀看比賽過程，還是直接看結果？',
+  liveTitle: '比賽直播',
+  liveCardTitle: '目前比賽',
+  liveBadge: '直播中',
+  liveUpcoming: '即將開始',
+  liveEnded: '比賽結束',
+  liveNone: '目前沒有進行中的比賽',
+  liveWatch: '觀看比賽',
+  liveLeave: '離開',
+  livePause: '暫停畫面',
+  liveResume: '繼續觀看（同步到目前進度）',
+  livePaused: '畫面已暫停',
+  livePausedHint: '比賽仍在進行，繼續觀看時會跳到目前的進度',
+  liveWatchNext: '觀看下一場',
+  liveOuts: (n: number) => `${n} 出局`,
+  liveRemaining: (clock: string) => `剩餘 ${clock}`,
+  liveStartsIn: (clock: string) => `${clock} 後開始`,
+  liveSettling: '比賽結束，結算中',
+  liveEndedLine: (won: boolean, innings: number) => `比賽結束・${innings > 9 ? `延長 ${innings} 局・` : ''}${won ? '勝利' : '落敗'}（收益在結算後加到未領取）`,
+  watchLastChallenge: '觀看上次晉級挑戰',
 } as const

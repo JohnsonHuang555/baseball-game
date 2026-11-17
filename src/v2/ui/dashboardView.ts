@@ -1,5 +1,10 @@
-// 球團首頁：球團資訊、聯盟與晉級、自動比賽進度（倒數）、未領取收益、最近比賽
+// 球團首頁：目前比賽（直播入口）、球團資訊、聯盟與晉級、自動比賽進度（倒數）、未領取收益、最近比賽
 import { el } from '../../ui/playerCard'
+import type { Side } from '../../sim/game'
+import { basesSvg } from '../../ui/gameScreen'
+import { T, runnersText } from '../../ui/strings'
+import type { LiveMatchInfo } from '../application/liveMatch'
+import type { ReplayState } from '../application/replayPlayer'
 import type { DueMatches } from '../application/idleEngine'
 import { overall } from '../../sim/generate'
 import { gradeBadge } from '../../ui/grades'
@@ -18,8 +23,14 @@ export interface DashboardActions {
   refresh: () => void
   openReport: (m: SettledMatch) => void
   allReports: () => void
+  /** 觀看進行中的比賽 */
+  watchLive?: () => void
+  /** 目前比賽卡片的資料（每秒由 updateCountdown 更新） */
+  liveCard?: () => LiveCard | null
   recruit: () => void
   lineup: () => void
+  /** 觀看最近一次晉級挑戰賽；沒有保留就是 null（不顯示） */
+  watchChallenge?: (() => void) | null
   /** 帶上按鈕顯示時的聯盟與挑戰序號（不是送出當下重新讀到的值） */
   challenge: (expected: { fromTier: number; challengeSeq: number }) => void
 }
@@ -134,13 +145,28 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
   if (!list.length) recent.append(el('p', 'v2-empty', V2T.noMatches))
   else recent.append(matchList(list, actions.openReport))
 
-  page.append(info, league, growth, progress, rewards, recent)
-  updateCountdown(page, controller.due(), state)
+  // 目前比賽（直播）：每秒由 updateCountdown 更新內容
+  const live = el('section', 'v2-card v2-live-card')
+  live.dataset.liveCard = ''
+  const liveHead = el('div', 'v2-card-head')
+  const liveBadge = el('span', 'v2-live-badge live', V2T.liveBadge)
+  liveBadge.dataset.liveBadge = ''
+  liveHead.append(el('h2', 'v2-card-title', V2T.liveCardTitle), liveBadge)
+  const liveBody = el('div', 'v2-live-body')
+  liveBody.dataset.liveBody = ''
+  const watch = el('button', 'btn-yellow btn-big v2-live-watch', V2T.liveWatch)
+  watch.type = 'button'
+  watch.dataset.action = 'watch-live'
+  watch.onclick = () => actions.watchLive?.()
+  live.append(liveHead, liveBody, watch)
+
+  page.append(live, info, league, growth, progress, rewards, recent)
+  updateCountdown(page, controller.due(), state, actions.liveCard?.() ?? null)
   return page
 }
 
 /** 聯盟卡片：名稱、徽章、本聯盟戰績、最近勝率、晉級進度，以及「挑戰下一聯盟」或還差哪些條件 */
-export function leagueCard(state: ControllerState, actions: Pick<DashboardActions, 'challenge'>): HTMLElement {
+export function leagueCard(state: ControllerState, actions: Pick<DashboardActions, 'challenge' | 'watchChallenge'>): HTMLElement {
   const club = state.club!
   const { league } = club
   const def = leagueOf(league.tier)
@@ -161,6 +187,13 @@ export function leagueCard(state: ControllerState, actions: Pick<DashboardAction
     el('span', 'v2-hint', V2T.leagueHint(def.rewardMultiplier)),
   )
   card.append(head, lines)
+  if (actions.watchChallenge) {
+    const watch = el('button', 'v2-link v2-watch-challenge', V2T.watchLastChallenge)
+    watch.type = 'button'
+    watch.dataset.action = 'watch-last-challenge'
+    watch.onclick = actions.watchChallenge
+    card.append(watch)
+  }
   if (e.atMaxTier) return card
 
   // 進度條：場數與勝率兩個條件裡，比較落後的那個
@@ -207,7 +240,61 @@ export function leagueCard(state: ControllerState, actions: Pick<DashboardAction
 }
 
 /** 每秒更新倒數與「可結算」場數：只改文字，不重畫整個畫面 */
-export function updateCountdown(scope: HTMLElement, due: DueMatches | null, state: ControllerState): void {
+/** 目前比賽卡片需要的資料（application/liveMatch.ts 推算） */
+export interface LiveCard {
+  info: LiveMatchInfo
+  state: ReplayState
+  userSide: Side
+  teamNames: Record<Side, string>
+  now: number
+}
+
+/** 目前比賽卡片：我方、對手、比分、局數、出局、壘上、剩餘時間；跟直播畫面用同一份時間軸 */
+export function renderLiveCard(card: HTMLElement, live: LiveCard | null): void {
+  const body = card.querySelector<HTMLElement>('[data-live-body]')
+  const badge = card.querySelector<HTMLElement>('[data-live-badge]')
+  if (!body) return
+  if (!live) {
+    body.replaceChildren(el('p', 'v2-empty', V2T.liveNone))
+    return
+  }
+  const { state: s, info, userSide, teamNames, now } = live
+  const other: Side = userSide === 'home' ? 'away' : 'home'
+  const upcoming = now < info.startsAt
+  if (badge) {
+    badge.textContent = upcoming ? V2T.liveUpcoming : V2T.liveBadge
+    badge.className = `v2-live-badge ${upcoming ? 'waiting' : 'live'}`
+  }
+  const teams = el('div', 'v2-live-teams')
+  const team = (side: Side) => {
+    const row = el('div', `v2-live-team ${side === userSide ? 'ours' : ''}`)
+    const sc = el('span', 'v2-live-score', String(s.score[side]))
+    sc.dataset.liveScore = side === userSide ? 'us' : 'them'
+    row.append(el('span', 'v2-live-name', teamNames[side]), sc)
+    return row
+  }
+  teams.append(team(userSide), team(other))
+  const meta = el('div', 'v2-live-meta')
+  const inning = el('span', 'v2-live-inning', upcoming ? V2T.matchNo(info.matchIndex + 1) : `${s.inning} ${s.half === 'top' ? T.halfTop : T.halfBottom}`)
+  inning.dataset.liveInning = `${s.inning}${s.half}`
+  const outs = el('span', 'v2-live-outs', V2T.liveOuts(s.outs))
+  outs.dataset.liveOuts = String(s.outs)
+  const bases = el('span', 'v2-live-bases')
+  bases.innerHTML = basesSvg(s.bases.map(Boolean))
+  bases.setAttribute('role', 'img')
+  bases.setAttribute('aria-label', runnersText(s.bases.map(Boolean)))
+  const left = Math.max(0, upcoming ? info.startsAt - now : info.endsAt - now)
+  const secs = Math.ceil(left / 1000)
+  const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
+  const remain = el('span', 'v2-live-remain', upcoming ? V2T.liveStartsIn(clock) : V2T.liveRemaining(clock))
+  remain.dataset.liveRemain = String(secs)
+  meta.append(inning, outs, bases, remain)
+  body.replaceChildren(teams, meta)
+}
+
+export function updateCountdown(scope: HTMLElement, due: DueMatches | null, state: ControllerState, live: LiveCard | null = null): void {
+  const card = scope.querySelector<HTMLElement>('[data-live-card]')
+  if (card) renderLiveCard(card, live)
   const countdown = scope.querySelector<HTMLElement>('[data-countdown]')
   const label = scope.querySelector<HTMLElement>('[data-board-label]')
   const dueEl = scope.querySelector<HTMLElement>('[data-due]')

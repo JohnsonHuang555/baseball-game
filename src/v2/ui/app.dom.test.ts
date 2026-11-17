@@ -125,11 +125,12 @@ describe('V2 畫面', () => {
     $$('.v2-match')[0].click()
     expect($('.v2-report')).not.toBeNull()
     expect($('.v2-linescore')).not.toBeNull()
-    // 第 1 場只剩摘要（replay 只留最近 3 場）
+    // 每一場都有結算時存下的 Box Score（不再只有最近 3 場），沒有「觀看比賽」入口
     $<HTMLButtonElement>('.v2-modal-close')!.click()
     $$('.v2-match')[3].click()
-    expect($('.v2-linescore')).toBeNull()
-    expect(text('.v2-report')).toContain(V2T.noReplay)
+    expect($('.v2-linescore')).not.toBeNull()
+    expect($$('.v2-box li').length).toBeGreaterThan(9)
+    expect($('[data-action="watch"]')).toBeNull()
   })
 
   it('陣容：點先發再點板凳換人，儲存後從下一場生效；不儲存可以還原', async () => {
@@ -150,7 +151,8 @@ describe('V2 畫面', () => {
     await flush()
     const after = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
     expect(after.roster.lineup[0].playerId).toBe(before.bench[0])
-    expect(after.strategy.effectiveFromMatch).toBe(0)
+    // 第 1 場已經在進行中（開賽時的陣容固定），新陣容從第 2 場開始
+    expect(after.strategy.effectiveFromMatch).toBe(1)
   })
 
   it('戰術：選「積極」、關掉觸擊，儲存成合法參數', async () => {

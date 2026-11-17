@@ -80,6 +80,8 @@ export class FieldRenderer {
   /** 圓點外圈：我方白圈、對手深色圈，色弱也分得出兩隊 */
   fieldingStroke = '#FFFFFF'
   battingStroke = '#141633'
+  /** 每次 cancel() 加 1：舊的補間動畫看到代號變了就立刻結束、不再繪製 */
+  private generation = 0
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d')!
@@ -298,10 +300,22 @@ export class FieldRenderer {
     c.globalAlpha = 1
   }
 
+  /**
+   * 取消所有進行中的動畫（V2 觀戰暫停、跳過、關閉時用）：補間在下一幀直接結束，不再改畫面也不再繪製。
+   * V1 比賽畫面不會呼叫，行為不變
+   */
+  cancel(): void {
+    this.generation++
+    this.ball = null
+    this.trail = []
+  }
+
   private tween(ms: number, fn: (t: number) => void): Promise<void> {
+    const gen = this.generation
     return new Promise((resolve) => {
       const start = performance.now()
       const tick = (now: number) => {
+        if (gen !== this.generation) return resolve()
         // 瀏覽器給的幀時間戳記可能比 start 還早一點，進度要夾在 0～1，
         // 否則跑者動畫會用負數去查路徑而出錯，整場比賽就卡住
         const t = ms <= 0 ? 1 : Math.max(0, Math.min(1, (now - start) / ms))

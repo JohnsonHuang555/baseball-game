@@ -9,6 +9,7 @@ import { FakeLockManager, FlakyStorage, HOUR, ManualClock, tab } from '../testki
 import { planMatch, planMatches, runBatch } from './batchRunner'
 import { createClubSafely } from './clubLifecycle'
 import { LeagueError, applyChallenge, challengeNextLeague, planChallenge } from './leagueService'
+import { buildTimeline } from './replayPlayer'
 import { runMatch } from './matchRunner'
 import { SettlementError, claim, settleDue, settleOutcomes } from './settlementService'
 
@@ -192,6 +193,28 @@ describe('晉級挑戰', () => {
     }
   })
 
+  it('挑戰賽的 Replay：成功、失敗都存最近一場；重送不會改變；可以重現同樣的比分，而且不影響聯盟進度', async () => {
+    for (const want of [true, false]) {
+      const { deps } = await setupWithChallenge(want)
+      const out = await challengeNextLeague(deps, { fromTier: 0, challengeSeq: 0, requestId: 'r1' })
+      const c = load(deps)
+      expect(c.challengeReplay).toMatchObject({ seq: 0, matchId: 'club-league#c0' })
+      const t = buildTimeline(c.challengeReplay!.replay, {
+        userSide: c.challengeReplay!.replay.setup.userSide,
+        runsFor: out.challenge.runsFor,
+        runsAgainst: out.challenge.runsAgainst,
+        won: out.challenge.won,
+        innings: out.challenge.innings,
+      })
+      expect(t.final.over).toBe(true)
+      const again = await challengeNextLeague(deps, { fromTier: 0, challengeSeq: 0, requestId: 'r1' })
+      expect(again.duplicate).toBe(true)
+      expect(load(deps)).toEqual(c)
+      // 觀看（重建時間軸）不改任何東西
+      expect(load(deps).league).toEqual(c.league)
+    }
+  })
+
   it('過期畫面：分頁 B 已經晉級，分頁 A 拿著新秀聯盟的舊畫面挑戰 → 拒絕，不會開始「業餘 → 挑戰者」', async () => {
     for (const locks of [new FakeLockManager(), null]) {
       const { deps, storage } = await setupWithChallenge(true)
@@ -233,7 +256,7 @@ describe('晉級挑戰', () => {
     expect(load(deps).league.nextChallengeSeq).toBe(1)
   })
 
-  it('挑戰前先用舊聯盟結算到期的比賽；晉級後的下一場才是新聯盟', async () => {
+  it('挑戰前先用舊聯盟結算到期的比賽；進行中那一場固定在舊聯盟（收益照舊聯盟、不算進新聯盟戰績）；下一場才是新聯盟', async () => {
     const { deps, clock } = await setupWithChallenge(true)
     clock.advance(HOUR)
     const out = await challengeNextLeague(deps, { challengeSeq: 0, fromTier: 0 }).catch((e) => e)
@@ -242,10 +265,17 @@ describe('晉級挑戰', () => {
     expect(c.recentMatches.slice(-12).every((m) => m.result.leagueTier === 0)).toBe(true)
     expect(c.idle.nextMatchIndex).toBe(Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches) + 12)
     if (!(out instanceof Error)) expect(out.settledMatches).toBe(12)
+    const tier = c.league.tier
+    expect(c.liveMatch?.matchIndex).toBe(c.idle.nextMatchIndex)
+    expect(c.liveMatch?.plan.leagueTier).toBe(0)
     clock.advance(HOUR)
     await settleDue(deps)
-    const tier = load(deps).league.tier
-    expect(load(deps).recentMatches.slice(-12).every((m) => m.result.leagueTier === tier)).toBe(true)
+    const after = load(deps)
+    const last = after.recentMatches.slice(-12)
+    expect(last[0].result.leagueTier).toBe(0)
+    expect(last.slice(1).every((m) => m.result.leagueTier === tier)).toBe(true)
+    // 晉級的話：新聯盟的戰績只算之後的 11 場
+    if (tier === 1) expect(after.league.matches).toBe(11)
   })
 
   it('確定性：同一個序號的挑戰賽永遠是同一場；跟一般比賽的種子分開', async () => {

@@ -22,9 +22,12 @@ import { LineupError, lineupIssues } from '../domain/lineup'
 import { assignmentIssues, resolveRoster } from '../domain/roster'
 import { leagueOf, recordLeagueResult } from '../domain/league'
 import { rewardFor } from '../domain/rewards'
+import { boxScoreOf } from '../domain/boxScore'
+import { stableJson } from '../domain/fingerprint'
 import { coachParamIssues } from '../domain/tactics'
 import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome } from './batchRunner'
-import { advanceAnchor, dueMatches, type Clock, type DueMatches } from './idleEngine'
+import { MATCH_INTERVAL_MS, MAX_OFFLINE_MS, advanceAnchor, dueMatches, type Clock, type DueMatches } from './idleEngine'
+import { freezeLiveMatch } from './liveMatch'
 
 // ---- 對外依賴（由 infrastructure 實作，測試換成記憶體版） ----
 
@@ -105,7 +108,7 @@ export interface SettleOutcome {
  * 把打完的比賽記進球團：戰績、未領取收益、近期比賽、replay，游標往前推。
  * 已結算的場次略過（重送 10 次也只算一次）；跳號或跟球團的種子對不起來就報錯，整批都不算
  */
-export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[], now: number): SettleOutcome {
+export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[], now: number, playedAt: (matchIndex: number) => number = () => now): SettleOutcome {
   const next = structuredClone(club)
   const settled: SettledMatch[] = []
   let duplicates = 0
@@ -123,8 +126,14 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
     if (plan.matchId !== matchIdFor(club, plan.matchIndex) || plan.seed !== deriveSeed(club.clubSeed, plan.matchIndex, SEED_SALT.match)) {
       throw new SettlementError('mismatch', `比賽 ${plan.matchId} 不屬於這個球團或種子不符`)
     }
-    // 不同聯盟的結果（例如晉級前算好、晉級後才送來）不能記進來：對手強度與收益倍率都不對
-    if (plan.leagueTier !== next.league.tier) {
+    // 已經固定的進行中比賽：一定要用固定的那份計畫（跟開賽時相同），不能換成別的
+    const frozen = club.liveMatch?.matchIndex === plan.matchIndex ? club.liveMatch.plan : null
+    if (frozen && stableJson(frozen) !== stableJson(plan)) {
+      throw new SettlementError('mismatch', `比賽 ${plan.matchId} 已經用固定的計畫開打，收到的結果不是那份計畫`)
+    }
+    // 不同聯盟的結果（例如晉級前算好、晉級後才送來）不能記進來：對手強度與收益倍率都不對。
+    // 例外是已經固定的進行中比賽：它在晉級前就開打了，照開賽時的聯盟計算
+    if (plan.leagueTier !== next.league.tier && !frozen) {
       throw new SettlementError('mismatch', `比賽 ${plan.matchId} 是${leagueOf(plan.leagueTier).name}的比賽，球團目前在${leagueOf(next.league.tier).name}`)
     }
     const summary = summarize(outcome)
@@ -137,6 +146,8 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
       earnedFunds: reward.funds,
       earnedExperience: reward.experience,
       settledAt: now,
+      playedAt: playedAt(plan.matchIndex),
+      box: boxScoreOf(result, plan.userSide),
     }
     settled.push(match)
     const r = next.record
@@ -144,10 +155,12 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
     else r.losses++
     r.runsFor += summary.runsFor
     r.runsAgainst += summary.runsAgainst
-    next.league = recordLeagueResult(next.league, summary.won)
+    // 晉級前就開打的比賽不算進新聯盟的戰績（收益照開賽時的聯盟）
+    if (plan.leagueTier === next.league.tier) next.league = recordLeagueResult(next.league, summary.won)
     addTo(next.economy.unclaimed, reward)
     addTo(next.economy.earned, reward)
     next.idle.nextMatchIndex++
+    if (next.liveMatch && next.liveMatch.matchIndex < next.idle.nextMatchIndex) next.liveMatch = null
     replays.push({ matchId: plan.matchId, replay: structuredClone(result.replay) })
   }
   if (settled.length > 0) {
@@ -160,7 +173,10 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
 
 /** 放置結算：記進比賽之後，時間錨點依實際新結算的場數推進（規則見 idleEngine.ts） */
 export function settleIdle(club: ClubSave, outcomes: readonly MatchOutcome[], now: number): SettleOutcome {
-  const applied = settleOutcomes(club, outcomes, now)
+  // 第 i 場的預定結束時間：跟錨點的推進規則相同（超過 8 小時的部分捨棄）
+  const floor = now < club.idle.anchorMs ? club.idle.anchorMs : Math.max(club.idle.anchorMs, now - MAX_OFFLINE_MS)
+  const first = club.idle.nextMatchIndex
+  const applied = settleOutcomes(club, outcomes, now, (index) => floor + (index - first + 1) * MATCH_INTERVAL_MS)
   applied.club.idle.anchorMs = advanceAnchor(club.idle.anchorMs, now, applied.settled.length)
   return applied
 }
@@ -204,8 +220,9 @@ export interface SettingsChange {
 }
 
 /**
- * 換陣容、戰術：從下一場還沒結算的比賽開始生效。
- * 呼叫前應該先把已經到時間的比賽結算掉（服務層的 updateSettings 會做），否則那些場次也會用新設定
+ * 換陣容、戰術：從下一場還沒開始的比賽開始生效。
+ * 呼叫前應該先把已經到時間的比賽結算掉、並固定進行中那一場（服務層的 updateSettings 會做），
+ * 否則那些場次也會用新設定
  */
 export function applySettingsChange(club: ClubSave, change: SettingsChange): ClubSave {
   // 先驗證再動手：不合法的陣容、戰術參數不會進到存檔
@@ -224,7 +241,8 @@ export function applySettingsChange(club: ClubSave, change: SettingsChange): Clu
   const next = structuredClone(club)
   if (change.roster) next.roster = structuredClone(change.roster)
   if (change.coach) next.strategy.coach = structuredClone(change.coach)
-  next.strategy.effectiveFromMatch = next.idle.nextMatchIndex
+  // 進行中那一場已經固定：新設定從下一場開始
+  next.strategy.effectiveFromMatch = next.idle.nextMatchIndex + (next.liveMatch?.matchIndex === next.idle.nextMatchIndex ? 1 : 0)
   return next
 }
 
@@ -265,6 +283,8 @@ function loadOrThrow(store: ClubStore): ClubSave {
 export async function settleDueUnsaved(club: ClubSave, now: number, deps: SettlementDeps, signal?: AbortSignal): Promise<{ next: SettleOutcome; due: DueMatches; batch: BatchRun }> {
   const due = dueMatches(club.idle, now)
   const plans = planMatches(club, club.idle.nextMatchIndex, due.matches)
+  // 已經固定的那一場用固定的計畫（開賽時的陣容、戰術、等級、聯盟）
+  if (plans.length && club.liveMatch?.matchIndex === plans[0].matchIndex) plans[0] = structuredClone(club.liveMatch.plan)
   const batch = await runBatch(plans, { ...deps.batch, signal })
   // 只記打完的前綴；錨點也只推進這幾場，剩下的下次接著打
   return { next: settleIdle(club, batch.outcomes, now), due, batch }
@@ -319,6 +339,7 @@ export function updateSettings(deps: SettlementDeps, change: SettingsChange, exp
     if (batch.status !== 'completed') {
       throw new SettlementError('simulation-failed', `換設定前的結算沒有完成：${batch.failedMatchId ?? batch.status}`, undefined, { cause: batch.error })
     }
-    return deps.store.saveClub(applySettingsChange(next.club, change), club.revision)
+    // 先固定進行中那一場（用修改前的設定），新設定從下一場開始
+    return deps.store.saveClub(applySettingsChange(freezeLiveMatch(next.club), change), club.revision)
   })
 }

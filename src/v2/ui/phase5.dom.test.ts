@@ -81,6 +81,10 @@ describe('聯盟卡片', () => {
     btn.click()
     btn.click()
     await flush()
+    // 結果已經確定，先問要不要看過程；選「直接看結果」
+    expect($('.v2-challenge-start')).not.toBeNull()
+    $<HTMLButtonElement>('.v2-modal-close')!.click()
+    await flush()
     expect(text('.v2-challenge-verdict')).toBe(V2T.challengeWin)
     expect(text('.v2-challenge-result')).toContain(V2T.challengePromoted(LEAGUES[1].name))
     expect(text('.v2-challenge-result')).toContain(V2T.challengeReward(LEAGUES[1].promotionReward.funds, LEAGUES[1].promotionReward.experience))
@@ -96,6 +100,8 @@ describe('聯盟卡片', () => {
   it('挑戰失敗：結果對話框顯示失敗與建議，首頁顯示要再打幾場', async () => {
     await mountClub(await seedFor(false), eligible)
     $<HTMLButtonElement>('[data-action="challenge"]')!.click()
+    await flush()
+    $<HTMLButtonElement>('.v2-modal-close')!.click()
     await flush()
     expect(text('.v2-challenge-verdict')).toBe(V2T.challengeLose)
     expect(text('.v2-challenge-result')).toContain(V2T.challengeNextLose(PROMOTION_CONFIG.retryAfterMatches))

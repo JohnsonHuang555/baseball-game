@@ -1,0 +1,4883 @@
+{
+  "schemaVersion": 5,
+  "clubId": "club-phase5-fixture",
+  "clubName": "第五期測試隊",
+  "clubSeed": 5050,
+  "createdAt": 1793491200000,
+  "players": [
+    {
+      "player": {
+        "id": "pf4hz0mn7hyov",
+        "name": "曾子軒",
+        "role": "batter",
+        "ratings": {
+          "contact": 6,
+          "power": 7,
+          "speed": 4,
+          "fielding": 1
+        },
+        "traits": [
+          "baserunner",
+          "errorProne"
+        ],
+        "tendency": "even",
+        "bats": "R",
+        "primary": "LF",
+        "archetype": "power"
+      },
+      "level": 4,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "pquh6jxo4g5we",
+        "name": "中村翔太",
+        "role": "batter",
+        "ratings": {
+          "contact": 6,
+          "power": 4,
+          "speed": 6,
+          "fielding": 6
+        },
+        "traits": [
+          "baserunner",
+          "bunter"
+        ],
+        "tendency": "left",
+        "bats": "R",
+        "primary": "C",
+        "archetype": "skill"
+      },
+      "level": 4,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "pn612ch6gd60",
+        "name": "木村陽翔",
+        "role": "batter",
+        "ratings": {
+          "contact": 5,
+          "power": 6,
+          "speed": 6,
+          "fielding": 4
+        },
+        "traits": [],
+        "tendency": "right",
+        "bats": "R",
+        "primary": "RF",
+        "archetype": "power"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "pne1l7au0pi92",
+        "name": "Kyle Young",
+        "role": "batter",
+        "ratings": {
+          "contact": 5,
+          "power": 5,
+          "speed": 6,
+          "fielding": 6
+        },
+        "traits": [
+          "lineDrive",
+          "stealer",
+          "clutchBad"
+        ],
+        "tendency": "right",
+        "bats": "L",
+        "primary": "2B",
+        "archetype": "speed"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "p6txb9fuiglow",
+        "name": "Chris Johnson",
+        "role": "batter",
+        "ratings": {
+          "contact": 4,
+          "power": 5,
+          "speed": 6,
+          "fielding": 4
+        },
+        "traits": [],
+        "tendency": "left",
+        "bats": "R",
+        "primary": "CF",
+        "archetype": "speed"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "p1c0868o2x73d",
+        "name": "Carlos Miller",
+        "role": "batter",
+        "ratings": {
+          "contact": 4,
+          "power": 5,
+          "speed": 4,
+          "fielding": 7
+        },
+        "traits": [
+          "baserunner",
+          "freeSwinger"
+        ],
+        "tendency": "right",
+        "bats": "L",
+        "primary": "SS",
+        "archetype": "defense"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "p25t10tqdn3i4",
+        "name": "洪冠宇",
+        "role": "batter",
+        "ratings": {
+          "contact": 5,
+          "power": 3,
+          "speed": 3,
+          "fielding": 8
+        },
+        "traits": [
+          "eye"
+        ],
+        "tendency": "left",
+        "bats": "S",
+        "primary": "1B",
+        "archetype": "defense"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "pev9du0kotfdx",
+        "name": "木村直樹",
+        "role": "batter",
+        "ratings": {
+          "contact": 5,
+          "power": 1,
+          "speed": 6,
+          "fielding": 6
+        },
+        "traits": [
+          "lineDrive",
+          "freeSwinger"
+        ],
+        "tendency": "right",
+        "bats": "L",
+        "primary": "RF",
+        "archetype": "speed"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "po0ck5iii4l24",
+        "name": "黃柏翰",
+        "role": "batter",
+        "ratings": {
+          "contact": 3,
+          "power": 6,
+          "speed": 2,
+          "fielding": 7
+        },
+        "traits": [
+          "slugger"
+        ],
+        "tendency": "left",
+        "bats": "R",
+        "primary": "3B",
+        "archetype": "defense"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "p33hsodtg9eg8",
+        "name": "陳育成",
+        "role": "batter",
+        "ratings": {
+          "contact": 5,
+          "power": 8,
+          "speed": 4,
+          "fielding": 5
+        },
+        "traits": [
+          "goodGlove"
+        ],
+        "tendency": "right",
+        "bats": "R",
+        "primary": "1B",
+        "archetype": "power"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "pm248zvg3ent2",
+        "name": "Ryan Brown",
+        "role": "batter",
+        "ratings": {
+          "contact": 7,
+          "power": 7,
+          "speed": 7,
+          "fielding": 4
+        },
+        "traits": [
+          "clutch"
+        ],
+        "tendency": "left",
+        "bats": "L",
+        "primary": "1B",
+        "archetype": "power"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "pou5bm0dsl0gc",
+        "name": "鄭建宏",
+        "role": "pitcher",
+        "ratings": {
+          "stuff": 4,
+          "control": 3,
+          "stamina": 8
+        },
+        "traits": [
+          "strikeoutArtist"
+        ],
+        "throws": "R"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "pt3qcn3o74tbp",
+        "name": "劉俊傑",
+        "role": "pitcher",
+        "ratings": {
+          "stuff": 3,
+          "control": 5,
+          "stamina": 5
+        },
+        "traits": [
+          "strikeoutArtist",
+          "lowStamina"
+        ],
+        "throws": "R"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "pscxryxal8ept",
+        "name": "Luis Miller",
+        "role": "pitcher",
+        "ratings": {
+          "stuff": 8,
+          "control": 4,
+          "stamina": 6
+        },
+        "traits": [
+          "groundballer"
+        ],
+        "throws": "R"
+      },
+      "level": 3,
+      "origin": "founding",
+      "joinedAtMatch": 0
+    },
+    {
+      "player": {
+        "id": "r1-pe29it1ij5fnk",
+        "name": "小林和也",
+        "role": "pitcher",
+        "ratings": {
+          "stuff": 5,
+          "control": 5,
+          "stamina": 7
+        },
+        "traits": [
+          "escapeArtist",
+          "homerProne"
+        ],
+        "throws": "R"
+      },
+      "level": 1,
+      "origin": "recruit",
+      "joinedAtMatch": 120
+    }
+  ],
+  "roster": {
+    "lineup": [
+      {
+        "playerId": "pf4hz0mn7hyov",
+        "position": "LF"
+      },
+      {
+        "playerId": "pquh6jxo4g5we",
+        "position": "C"
+      },
+      {
+        "playerId": "pn612ch6gd60",
+        "position": "RF"
+      },
+      {
+        "playerId": "pne1l7au0pi92",
+        "position": "2B"
+      },
+      {
+        "playerId": "p6txb9fuiglow",
+        "position": "CF"
+      },
+      {
+        "playerId": "p1c0868o2x73d",
+        "position": "SS"
+      },
+      {
+        "playerId": "p25t10tqdn3i4",
+        "position": "1B"
+      },
+      {
+        "playerId": "pev9du0kotfdx",
+        "position": "DH"
+      },
+      {
+        "playerId": "po0ck5iii4l24",
+        "position": "3B"
+      }
+    ],
+    "bench": [
+      "p33hsodtg9eg8",
+      "pm248zvg3ent2"
+    ],
+    "starter": "pou5bm0dsl0gc",
+    "relievers": [
+      "pt3qcn3o74tbp",
+      "pscxryxal8ept"
+    ],
+    "captain": "pn612ch6gd60"
+  },
+  "recruitment": {
+    "count": 2
+  },
+  "league": {
+    "tier": 0,
+    "matches": 324,
+    "wins": 168,
+    "losses": 156,
+    "recent": "LLLLLWWLLLWLWWLWWLLWLLWWWWWWLWLWWLLWLLWWLWWWWWLWWLLLLWLWWLWW",
+    "promotions": 0,
+    "highestTier": 0,
+    "nextChallengeSeq": 2,
+    "challengeReadyAt": 324,
+    "challenges": [
+      {
+        "seq": 0,
+        "fromTier": 0,
+        "toTier": 1,
+        "won": false,
+        "runsFor": 4,
+        "runsAgainst": 6,
+        "opponentName": "高雄白狼",
+        "innings": 9,
+        "at": 1793570400000,
+        "matchIndexAt": 264,
+        "reward": {
+          "funds": 0,
+          "experience": 0
+        },
+        "requestKey": "challenge:0:fx-10"
+      },
+      {
+        "seq": 1,
+        "fromTier": 0,
+        "toTier": 1,
+        "won": false,
+        "runsFor": 6,
+        "runsAgainst": 8,
+        "opponentName": "波士頓飛鷹",
+        "innings": 9,
+        "at": 1793584800000,
+        "matchIndexAt": 312,
+        "reward": {
+          "funds": 0,
+          "experience": 0
+        },
+        "requestKey": "challenge:0:fx-12"
+      }
+    ],
+    "rewardedTiers": []
+  },
+  "strategy": {
+    "coach": {
+      "style": "balanced"
+    },
+    "effectiveFromMatch": 0
+  },
+  "economy": {
+    "assets": {
+      "funds": 695,
+      "experience": 854
+    },
+    "unclaimed": {
+      "funds": 1140,
+      "experience": 120
+    },
+    "earned": {
+      "funds": 28955,
+      "experience": 3264
+    },
+    "spent": {
+      "funds": 27120,
+      "experience": 2290
+    },
+    "nextClaimSeq": 13,
+    "lastClaim": {
+      "seq": 12,
+      "claimed": {
+        "funds": 2405,
+        "experience": 256
+      }
+    },
+    "nextOpSeq": 33,
+    "recentOps": [
+      {
+        "kind": "upgrade",
+        "playerId": "pf4hz0mn7hyov",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:pf4hz0mn7hyov:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 3
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pquh6jxo4g5we",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:pquh6jxo4g5we:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 4
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pn612ch6gd60",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:pn612ch6gd60:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 5
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pne1l7au0pi92",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:pne1l7au0pi92:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 6
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "p6txb9fuiglow",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:p6txb9fuiglow:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 7
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "p1c0868o2x73d",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:p1c0868o2x73d:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 8
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "p25t10tqdn3i4",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:p25t10tqdn3i4:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 9
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pev9du0kotfdx",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:pev9du0kotfdx:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 10
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "po0ck5iii4l24",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:po0ck5iii4l24:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 11
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "p33hsodtg9eg8",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:p33hsodtg9eg8:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 12
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pm248zvg3ent2",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793534400000,
+        "requestKey": "upgrade:pm248zvg3ent2:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 13
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pou5bm0dsl0gc",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793541600000,
+        "requestKey": "upgrade:pou5bm0dsl0gc:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 14
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pt3qcn3o74tbp",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793541600000,
+        "requestKey": "upgrade:pt3qcn3o74tbp:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 15
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pscxryxal8ept",
+        "cost": {
+          "funds": 320,
+          "experience": 40
+        },
+        "at": 1793541600000,
+        "requestKey": "upgrade:pscxryxal8ept:1",
+        "fromLevel": 1,
+        "toLevel": 2,
+        "seq": 16
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pf4hz0mn7hyov",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793541600000,
+        "requestKey": "upgrade:pf4hz0mn7hyov:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 17
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pquh6jxo4g5we",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793548800000,
+        "requestKey": "upgrade:pquh6jxo4g5we:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 18
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pn612ch6gd60",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793548800000,
+        "requestKey": "upgrade:pn612ch6gd60:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 19
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pne1l7au0pi92",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793548800000,
+        "requestKey": "upgrade:pne1l7au0pi92:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 20
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "p6txb9fuiglow",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793556000000,
+        "requestKey": "upgrade:p6txb9fuiglow:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 21
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "p1c0868o2x73d",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793556000000,
+        "requestKey": "upgrade:p1c0868o2x73d:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 22
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "p25t10tqdn3i4",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793563200000,
+        "requestKey": "upgrade:p25t10tqdn3i4:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 23
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pev9du0kotfdx",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793563200000,
+        "requestKey": "upgrade:pev9du0kotfdx:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 24
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "po0ck5iii4l24",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793563200000,
+        "requestKey": "upgrade:po0ck5iii4l24:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 25
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "p33hsodtg9eg8",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793570400000,
+        "requestKey": "upgrade:p33hsodtg9eg8:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 26
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pm248zvg3ent2",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793570400000,
+        "requestKey": "upgrade:pm248zvg3ent2:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 27
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pou5bm0dsl0gc",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793570400000,
+        "requestKey": "upgrade:pou5bm0dsl0gc:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 28
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pt3qcn3o74tbp",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793577600000,
+        "requestKey": "upgrade:pt3qcn3o74tbp:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 29
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pscxryxal8ept",
+        "cost": {
+          "funds": 800,
+          "experience": 100
+        },
+        "at": 1793577600000,
+        "requestKey": "upgrade:pscxryxal8ept:2",
+        "fromLevel": 2,
+        "toLevel": 3,
+        "seq": 30
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pf4hz0mn7hyov",
+        "cost": {
+          "funds": 1320,
+          "experience": 165
+        },
+        "at": 1793584800000,
+        "requestKey": "upgrade:pf4hz0mn7hyov:3",
+        "fromLevel": 3,
+        "toLevel": 4,
+        "seq": 31
+      },
+      {
+        "kind": "upgrade",
+        "playerId": "pquh6jxo4g5we",
+        "cost": {
+          "funds": 1320,
+          "experience": 165
+        },
+        "at": 1793584800000,
+        "requestKey": "upgrade:pquh6jxo4g5we:3",
+        "fromLevel": 3,
+        "toLevel": 4,
+        "seq": 32
+      }
+    ]
+  },
+  "idle": {
+    "anchorMs": 1793588400000,
+    "nextMatchIndex": 324,
+    "lastSettledAt": 1793588400000
+  },
+  "record": {
+    "wins": 168,
+    "losses": 156,
+    "runsFor": 1195,
+    "runsAgainst": 1148
+  },
+  "recentMatches": [
+    {
+      "matchId": "club-phase5-fixture#274",
+      "matchIndex": 274,
+      "seed": 3565522108,
+      "result": {
+        "userSide": "home",
+        "opponentName": "橫濱白狼",
+        "runsFor": 12,
+        "runsAgainst": 5,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 4,
+            "half": "top",
+            "playerId": "pfmbbconsusay",
+            "playerName": "佐藤誠",
+            "runs": 4,
+            "ours": false
+          },
+          {
+            "kind": "clutchHit",
+            "inning": 5,
+            "half": "bottom",
+            "playerId": "pne1l7au0pi92",
+            "playerName": "Kyle Young",
+            "runs": 3,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 5,
+            "half": "bottom",
+            "playerId": "p6txb9fuiglow",
+            "playerName": "Chris Johnson",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 150,
+      "earnedExperience": 12,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#275",
+      "matchIndex": 275,
+      "seed": 3107474512,
+      "result": {
+        "userSide": "away",
+        "opponentName": "西雅圖鐵騎",
+        "runsFor": 1,
+        "runsAgainst": 5,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 2,
+            "half": "bottom",
+            "playerId": "pvrqtg8j5rs2z",
+            "playerName": "Chris Martinez",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 3,
+            "half": "bottom",
+            "playerId": "pq1rdbvurhfbr",
+            "playerName": "山本直樹",
+            "runs": 1,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "bottom",
+            "playerId": "pimb16rackxcr",
+            "playerName": "木村拓海",
+            "runs": 1,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 45,
+      "earnedExperience": 8,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#276",
+      "matchIndex": 276,
+      "seed": 2502852929,
+      "result": {
+        "userSide": "home",
+        "opponentName": "橫濱金龍",
+        "runsFor": 4,
+        "runsAgainst": 3,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 5,
+            "half": "bottom",
+            "playerId": "pf4hz0mn7hyov",
+            "playerName": "曾子軒",
+            "runs": 3,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 120,
+      "earnedExperience": 12,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#277",
+      "matchIndex": 277,
+      "seed": 2810415016,
+      "result": {
+        "userSide": "away",
+        "opponentName": "西雅圖狂鯊",
+        "runsFor": 7,
+        "runsAgainst": 5,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 2,
+            "half": "bottom",
+            "playerId": "pkpv0lwsewxpu",
+            "playerName": "Josh Johnson",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 5,
+            "half": "bottom",
+            "playerId": "pvleyils6aerz",
+            "playerName": "伊藤直樹",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 8,
+            "half": "top",
+            "playerId": "p33hsodtg9eg8",
+            "playerName": "陳育成",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 135,
+      "earnedExperience": 12,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#278",
+      "matchIndex": 278,
+      "seed": 2227615911,
+      "result": {
+        "userSide": "home",
+        "opponentName": "花蓮雷霆",
+        "runsFor": 0,
+        "runsAgainst": 2,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 9,
+            "half": "top",
+            "playerId": "p7w6kexoyk0yu",
+            "playerName": "中村陽翔",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 40,
+      "earnedExperience": 8,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#279",
+      "matchIndex": 279,
+      "seed": 2520186671,
+      "result": {
+        "userSide": "away",
+        "opponentName": "台中雷霆",
+        "runsFor": 3,
+        "runsAgainst": 0,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 6,
+            "half": "top",
+            "playerId": "pn612ch6gd60",
+            "playerName": "木村陽翔",
+            "runs": 1,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 115,
+      "earnedExperience": 12,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#280",
+      "matchIndex": 280,
+      "seed": 2776561985,
+      "result": {
+        "userSide": "home",
+        "opponentName": "波士頓火焰",
+        "runsFor": 4,
+        "runsAgainst": 2,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 5,
+            "half": "bottom",
+            "playerId": "po0ck5iii4l24",
+            "playerName": "黃柏翰",
+            "runs": 1,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 8,
+            "half": "bottom",
+            "playerId": "pquh6jxo4g5we",
+            "playerName": "中村翔太",
+            "runs": 1,
+            "ours": true
+          },
+          {
+            "kind": "clutchHit",
+            "inning": 9,
+            "half": "top",
+            "playerId": "p6mfvr7hxen3y",
+            "playerName": "劉俊傑",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 120,
+      "earnedExperience": 12,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#281",
+      "matchIndex": 281,
+      "seed": 1599774226,
+      "result": {
+        "userSide": "away",
+        "opponentName": "芝加哥鐵騎",
+        "runsFor": 2,
+        "runsAgainst": 4,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 8,
+            "half": "bottom",
+            "playerId": "pewsbxxgs2isz",
+            "playerName": "佐藤亮",
+            "runs": 3,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 50,
+      "earnedExperience": 8,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#282",
+      "matchIndex": 282,
+      "seed": 2041636741,
+      "result": {
+        "userSide": "home",
+        "opponentName": "大阪海盜",
+        "runsFor": 1,
+        "runsAgainst": 2,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "top",
+            "playerId": "pumu6m1aygpug",
+            "playerName": "Sam Miller",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 45,
+      "earnedExperience": 8,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#283",
+      "matchIndex": 283,
+      "seed": 3456831049,
+      "result": {
+        "userSide": "away",
+        "opponentName": "休士頓雷霆",
+        "runsFor": 10,
+        "runsAgainst": 3,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "bottom",
+            "playerId": "pjqe3qff9ytcw",
+            "playerName": "郭宗翰",
+            "runs": 1,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 2,
+            "half": "top",
+            "playerId": "p1c0868o2x73d",
+            "playerName": "Carlos Miller",
+            "runs": 2,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 6,
+            "half": "bottom",
+            "playerId": "ppb26llk2kn7s",
+            "playerName": "Jake Garcia",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 150,
+      "earnedExperience": 12,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#284",
+      "matchIndex": 284,
+      "seed": 4100540156,
+      "result": {
+        "userSide": "home",
+        "opponentName": "仙台狂鯊",
+        "runsFor": 0,
+        "runsAgainst": 1,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 8,
+            "half": "top",
+            "playerId": "ptda0sft9yh4g",
+            "playerName": "木村陽翔",
+            "runs": 1,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 40,
+      "earnedExperience": 8,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#285",
+      "matchIndex": 285,
+      "seed": 234234279,
+      "result": {
+        "userSide": "away",
+        "opponentName": "波士頓火焰",
+        "runsFor": 2,
+        "runsAgainst": 4,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "clutchHit",
+            "inning": 5,
+            "half": "bottom",
+            "playerId": "p66hyknneugnn",
+            "playerName": "Sam Davis",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 6,
+            "half": "top",
+            "playerId": "pn612ch6gd60",
+            "playerName": "木村陽翔",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 50,
+      "earnedExperience": 8,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#286",
+      "matchIndex": 286,
+      "seed": 1245591929,
+      "result": {
+        "userSide": "home",
+        "opponentName": "台北流星",
+        "runsFor": 5,
+        "runsAgainst": 4,
+        "won": true,
+        "innings": 10,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 6,
+            "half": "bottom",
+            "playerId": "pf4hz0mn7hyov",
+            "playerName": "曾子軒",
+            "runs": 1,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 9,
+            "half": "top",
+            "playerId": "p4ysufhh1xei8",
+            "playerName": "加藤大輝",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "walkOff",
+            "inning": 10,
+            "half": "bottom",
+            "playerId": "pn612ch6gd60",
+            "playerName": "木村陽翔",
+            "runs": 1,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 125,
+      "earnedExperience": 12,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#287",
+      "matchIndex": 287,
+      "seed": 4082184232,
+      "result": {
+        "userSide": "away",
+        "opponentName": "台北火焰",
+        "runsFor": 3,
+        "runsAgainst": 0,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "top",
+            "playerId": "pn612ch6gd60",
+            "playerName": "木村陽翔",
+            "runs": 2,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 8,
+            "half": "top",
+            "playerId": "pne1l7au0pi92",
+            "playerName": "Kyle Young",
+            "runs": 1,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 115,
+      "earnedExperience": 12,
+      "settledAt": 1793577600000
+    },
+    {
+      "matchId": "club-phase5-fixture#288",
+      "matchIndex": 288,
+      "seed": 3819064618,
+      "result": {
+        "userSide": "home",
+        "opponentName": "休士頓雄獅",
+        "runsFor": 2,
+        "runsAgainst": 1,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 4,
+            "half": "bottom",
+            "playerId": "p6txb9fuiglow",
+            "playerName": "Chris Johnson",
+            "runs": 1,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 110,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#289",
+      "matchIndex": 289,
+      "seed": 2689511705,
+      "result": {
+        "userSide": "away",
+        "opponentName": "大阪鐵騎",
+        "runsFor": 2,
+        "runsAgainst": 0,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "top",
+            "playerId": "pm248zvg3ent2",
+            "playerName": "Ryan Brown",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 110,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#290",
+      "matchIndex": 290,
+      "seed": 4190552608,
+      "result": {
+        "userSide": "home",
+        "opponentName": "台中白狼",
+        "runsFor": 5,
+        "runsAgainst": 3,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 6,
+            "half": "bottom",
+            "playerId": "p6txb9fuiglow",
+            "playerName": "Chris Johnson",
+            "runs": 2,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "bottom",
+            "playerId": "pquh6jxo4g5we",
+            "playerName": "中村翔太",
+            "runs": 1,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 125,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#291",
+      "matchIndex": 291,
+      "seed": 3703492429,
+      "result": {
+        "userSide": "away",
+        "opponentName": "東京白狼",
+        "runsFor": 7,
+        "runsAgainst": 6,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "top",
+            "playerId": "p6txb9fuiglow",
+            "playerName": "Chris Johnson",
+            "runs": 1,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "bottom",
+            "playerId": "p1uyc3gjz4dtc",
+            "playerName": "山本直樹",
+            "runs": 3,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 6,
+            "half": "bottom",
+            "playerId": "pqqe03j97vgmv",
+            "playerName": "吳士豪",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 135,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#292",
+      "matchIndex": 292,
+      "seed": 2918130857,
+      "result": {
+        "userSide": "home",
+        "opponentName": "休士頓白狼",
+        "runsFor": 5,
+        "runsAgainst": 6,
+        "won": false,
+        "innings": 11,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "top",
+            "playerId": "psqyvw8eno6ld",
+            "playerName": "Kyle Clark",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 10,
+            "half": "top",
+            "playerId": "psqyvw8eno6ld",
+            "playerName": "Kyle Clark",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 65,
+      "earnedExperience": 8,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#293",
+      "matchIndex": 293,
+      "seed": 4185991857,
+      "result": {
+        "userSide": "away",
+        "opponentName": "台中雷霆",
+        "runsFor": 2,
+        "runsAgainst": 0,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "top",
+            "playerId": "pm248zvg3ent2",
+            "playerName": "Ryan Brown",
+            "runs": 1,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 110,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#294",
+      "matchIndex": 294,
+      "seed": 2868503460,
+      "result": {
+        "userSide": "home",
+        "opponentName": "橫濱白狼",
+        "runsFor": 2,
+        "runsAgainst": 7,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "clutchHit",
+            "inning": 2,
+            "half": "top",
+            "playerId": "p6147k0pa1v89",
+            "playerName": "松本翔太",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 5,
+            "half": "top",
+            "playerId": "pxle81krrxr0p",
+            "playerName": "黃建宏",
+            "runs": 1,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 50,
+      "earnedExperience": 8,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#295",
+      "matchIndex": 295,
+      "seed": 1617765623,
+      "result": {
+        "userSide": "away",
+        "opponentName": "大阪金龍",
+        "runsFor": 6,
+        "runsAgainst": 2,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "clutchHit",
+            "inning": 3,
+            "half": "bottom",
+            "playerId": "p7xt124vd7cuk",
+            "playerName": "Tyler Smith",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 4,
+            "half": "top",
+            "playerId": "pf4hz0mn7hyov",
+            "playerName": "曾子軒",
+            "runs": 3,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 4,
+            "half": "top",
+            "playerId": "pquh6jxo4g5we",
+            "playerName": "中村翔太",
+            "runs": 1,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 130,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#296",
+      "matchIndex": 296,
+      "seed": 4151854321,
+      "result": {
+        "userSide": "home",
+        "opponentName": "台北雷霆",
+        "runsFor": 3,
+        "runsAgainst": 1,
+        "won": true,
+        "innings": 12,
+        "highlights": [
+          {
+            "kind": "clutchHit",
+            "inning": 12,
+            "half": "bottom",
+            "playerId": "pm248zvg3ent2",
+            "playerName": "Ryan Brown",
+            "runs": 2,
+            "ours": true
+          },
+          {
+            "kind": "walkOff",
+            "inning": 12,
+            "half": "bottom",
+            "playerId": "pm248zvg3ent2",
+            "playerName": "Ryan Brown",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 115,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#297",
+      "matchIndex": 297,
+      "seed": 2978710590,
+      "result": {
+        "userSide": "away",
+        "opponentName": "台北火焰",
+        "runsFor": 9,
+        "runsAgainst": 10,
+        "won": false,
+        "innings": 11,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "top",
+            "playerId": "p25t10tqdn3i4",
+            "playerName": "洪冠宇",
+            "runs": 3,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 11,
+            "half": "top",
+            "playerId": "po0ck5iii4l24",
+            "playerName": "黃柏翰",
+            "runs": 2,
+            "ours": true
+          },
+          {
+            "kind": "walkOff",
+            "inning": 11,
+            "half": "bottom",
+            "playerId": "pw2o3491gnxfp",
+            "playerName": "王品睿",
+            "runs": 3,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 85,
+      "earnedExperience": 8,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#298",
+      "matchIndex": 298,
+      "seed": 2071200250,
+      "result": {
+        "userSide": "home",
+        "opponentName": "大阪流星",
+        "runsFor": 2,
+        "runsAgainst": 4,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 4,
+            "half": "bottom",
+            "playerId": "pn612ch6gd60",
+            "playerName": "木村陽翔",
+            "runs": 1,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 50,
+      "earnedExperience": 8,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#299",
+      "matchIndex": 299,
+      "seed": 1928968099,
+      "result": {
+        "userSide": "away",
+        "opponentName": "台中狂鯊",
+        "runsFor": 6,
+        "runsAgainst": 2,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "top",
+            "playerId": "pf4hz0mn7hyov",
+            "playerName": "曾子軒",
+            "runs": 1,
+            "ours": true
+          },
+          {
+            "kind": "clutchHit",
+            "inning": 5,
+            "half": "top",
+            "playerId": "p25t10tqdn3i4",
+            "playerName": "洪冠宇",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 130,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#300",
+      "matchIndex": 300,
+      "seed": 2554837572,
+      "result": {
+        "userSide": "home",
+        "opponentName": "東京飛鷹",
+        "runsFor": 3,
+        "runsAgainst": 4,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 2,
+            "half": "top",
+            "playerId": "p34xj1n64vwe6",
+            "playerName": "渡邊誠",
+            "runs": 3,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 55,
+      "earnedExperience": 8,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#301",
+      "matchIndex": 301,
+      "seed": 3945752998,
+      "result": {
+        "userSide": "away",
+        "opponentName": "西雅圖雄獅",
+        "runsFor": 0,
+        "runsAgainst": 1,
+        "won": false,
+        "innings": 9,
+        "highlights": [],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 40,
+      "earnedExperience": 8,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#302",
+      "matchIndex": 302,
+      "seed": 3490608652,
+      "result": {
+        "userSide": "home",
+        "opponentName": "東京猛虎",
+        "runsFor": 7,
+        "runsAgainst": 3,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 8,
+            "half": "bottom",
+            "playerId": "pf4hz0mn7hyov",
+            "playerName": "曾子軒",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 135,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#303",
+      "matchIndex": 303,
+      "seed": 4233649208,
+      "result": {
+        "userSide": "away",
+        "opponentName": "波士頓雷霆",
+        "runsFor": 5,
+        "runsAgainst": 4,
+        "won": true,
+        "innings": 14,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "top",
+            "playerId": "pm248zvg3ent2",
+            "playerName": "Ryan Brown",
+            "runs": 1,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 9,
+            "half": "bottom",
+            "playerId": "pidlozotclid6",
+            "playerName": "田中拓海",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 125,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#304",
+      "matchIndex": 304,
+      "seed": 1133546980,
+      "result": {
+        "userSide": "home",
+        "opponentName": "高雄海盜",
+        "runsFor": 0,
+        "runsAgainst": 2,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 6,
+            "half": "top",
+            "playerId": "ple7mn9ckvokr",
+            "playerName": "Ryan Lopez",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 40,
+      "earnedExperience": 8,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#305",
+      "matchIndex": 305,
+      "seed": 1012375643,
+      "result": {
+        "userSide": "away",
+        "opponentName": "高雄鐵騎",
+        "runsFor": 4,
+        "runsAgainst": 3,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "clutchHit",
+            "inning": 1,
+            "half": "bottom",
+            "playerId": "pqh8lh1eiirey",
+            "playerName": "松本隼人",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 5,
+            "half": "top",
+            "playerId": "pquh6jxo4g5we",
+            "playerName": "中村翔太",
+            "runs": 3,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 120,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#306",
+      "matchIndex": 306,
+      "seed": 2461827047,
+      "result": {
+        "userSide": "home",
+        "opponentName": "台北金龍",
+        "runsFor": 8,
+        "runsAgainst": 5,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 2,
+            "half": "top",
+            "playerId": "p2efwss7ezv3u",
+            "playerName": "謝彥廷",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "clutchHit",
+            "inning": 4,
+            "half": "bottom",
+            "playerId": "p6txb9fuiglow",
+            "playerName": "Chris Johnson",
+            "runs": 3,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "bottom",
+            "playerId": "pn612ch6gd60",
+            "playerName": "木村陽翔",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 140,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#307",
+      "matchIndex": 307,
+      "seed": 502570245,
+      "result": {
+        "userSide": "away",
+        "opponentName": "花蓮流星",
+        "runsFor": 6,
+        "runsAgainst": 2,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "top",
+            "playerId": "pm248zvg3ent2",
+            "playerName": "Ryan Brown",
+            "runs": 3,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "top",
+            "playerId": "pf4hz0mn7hyov",
+            "playerName": "曾子軒",
+            "runs": 1,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 8,
+            "half": "bottom",
+            "playerId": "pwhsh57ru0asl",
+            "playerName": "山田隼人",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 130,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#308",
+      "matchIndex": 308,
+      "seed": 3659614661,
+      "result": {
+        "userSide": "home",
+        "opponentName": "東京雄獅",
+        "runsFor": 1,
+        "runsAgainst": 0,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "bottom",
+            "playerId": "pf4hz0mn7hyov",
+            "playerName": "曾子軒",
+            "runs": 1,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 105,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#309",
+      "matchIndex": 309,
+      "seed": 781925721,
+      "result": {
+        "userSide": "away",
+        "opponentName": "大阪鐵騎",
+        "runsFor": 2,
+        "runsAgainst": 0,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "clutchHit",
+            "inning": 9,
+            "half": "top",
+            "playerId": "pquh6jxo4g5we",
+            "playerName": "中村翔太",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 110,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#310",
+      "matchIndex": 310,
+      "seed": 256395625,
+      "result": {
+        "userSide": "home",
+        "opponentName": "台中飛鷹",
+        "runsFor": 3,
+        "runsAgainst": 7,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "top",
+            "playerId": "pmzkgpnlbpqb2",
+            "playerName": "Sam Clark",
+            "runs": 1,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 4,
+            "half": "bottom",
+            "playerId": "pne1l7au0pi92",
+            "playerName": "Kyle Young",
+            "runs": 1,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 5,
+            "half": "top",
+            "playerId": "puhpnbeuc878l",
+            "playerName": "松本拓海",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 55,
+      "earnedExperience": 8,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#311",
+      "matchIndex": 311,
+      "seed": 3842675736,
+      "result": {
+        "userSide": "away",
+        "opponentName": "大阪鐵騎",
+        "runsFor": 7,
+        "runsAgainst": 3,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 3,
+            "half": "top",
+            "playerId": "p6txb9fuiglow",
+            "playerName": "Chris Johnson",
+            "runs": 3,
+            "ours": true
+          },
+          {
+            "kind": "clutchHit",
+            "inning": 3,
+            "half": "bottom",
+            "playerId": "p9tkbcm5ga7nb",
+            "playerName": "山田蓮",
+            "runs": 3,
+            "ours": false
+          },
+          {
+            "kind": "clutchHit",
+            "inning": 8,
+            "half": "top",
+            "playerId": "pne1l7au0pi92",
+            "playerName": "Kyle Young",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 135,
+      "earnedExperience": 12,
+      "settledAt": 1793584800000
+    },
+    {
+      "matchId": "club-phase5-fixture#312",
+      "matchIndex": 312,
+      "seed": 819670296,
+      "result": {
+        "userSide": "home",
+        "opponentName": "波士頓白狼",
+        "runsFor": 8,
+        "runsAgainst": 0,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "clutchHit",
+            "inning": 4,
+            "half": "bottom",
+            "playerId": "pn612ch6gd60",
+            "playerName": "木村陽翔",
+            "runs": 2,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "bottom",
+            "playerId": "po0ck5iii4l24",
+            "playerName": "黃柏翰",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 140,
+      "earnedExperience": 12,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#313",
+      "matchIndex": 313,
+      "seed": 3683852759,
+      "result": {
+        "userSide": "away",
+        "opponentName": "西雅圖飛鷹",
+        "runsFor": 5,
+        "runsAgainst": 6,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 3,
+            "half": "top",
+            "playerId": "pquh6jxo4g5we",
+            "playerName": "中村翔太",
+            "runs": 3,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 4,
+            "half": "bottom",
+            "playerId": "pqrujc7psmc3o",
+            "playerName": "陳威廷",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 8,
+            "half": "bottom",
+            "playerId": "p5rnnorvs5pf0",
+            "playerName": "Jake Smith",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 65,
+      "earnedExperience": 8,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#314",
+      "matchIndex": 314,
+      "seed": 3233153363,
+      "result": {
+        "userSide": "home",
+        "opponentName": "休士頓白狼",
+        "runsFor": 6,
+        "runsAgainst": 8,
+        "won": false,
+        "innings": 13,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "bottom",
+            "playerId": "pf4hz0mn7hyov",
+            "playerName": "曾子軒",
+            "runs": 1,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "top",
+            "playerId": "pgwru9l7vkazu",
+            "playerName": "伊藤蓮",
+            "runs": 1,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 13,
+            "half": "top",
+            "playerId": "pgwru9l7vkazu",
+            "playerName": "伊藤蓮",
+            "runs": 3,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 70,
+      "earnedExperience": 8,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#315",
+      "matchIndex": 315,
+      "seed": 49065774,
+      "result": {
+        "userSide": "away",
+        "opponentName": "花蓮火焰",
+        "runsFor": 5,
+        "runsAgainst": 9,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "bottom",
+            "playerId": "pgjsxf4rnh0j1",
+            "playerName": "小林隼人",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 3,
+            "half": "top",
+            "playerId": "pne1l7au0pi92",
+            "playerName": "Kyle Young",
+            "runs": 2,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 3,
+            "half": "bottom",
+            "playerId": "pkz7f2up65khs",
+            "playerName": "鈴木拓海",
+            "runs": 4,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 65,
+      "earnedExperience": 8,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#316",
+      "matchIndex": 316,
+      "seed": 3374236566,
+      "result": {
+        "userSide": "home",
+        "opponentName": "東京鐵騎",
+        "runsFor": 2,
+        "runsAgainst": 3,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 2,
+            "half": "top",
+            "playerId": "p88sf8ju93mv",
+            "playerName": "山田大輝",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 50,
+      "earnedExperience": 8,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#317",
+      "matchIndex": 317,
+      "seed": 1008004632,
+      "result": {
+        "userSide": "away",
+        "opponentName": "高雄狂鯊",
+        "runsFor": 4,
+        "runsAgainst": 2,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "clutchHit",
+            "inning": 1,
+            "half": "top",
+            "playerId": "p1c0868o2x73d",
+            "playerName": "Carlos Miller",
+            "runs": 2,
+            "ours": true
+          },
+          {
+            "kind": "clutchHit",
+            "inning": 2,
+            "half": "bottom",
+            "playerId": "p5wqqpu3ibdz7",
+            "playerName": "井上翔太",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 120,
+      "earnedExperience": 12,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#318",
+      "matchIndex": 318,
+      "seed": 2988625816,
+      "result": {
+        "userSide": "home",
+        "opponentName": "芝加哥火焰",
+        "runsFor": 2,
+        "runsAgainst": 4,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "top",
+            "playerId": "pqtvpn9l1u7ch",
+            "playerName": "山本蓮",
+            "runs": 1,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 5,
+            "half": "bottom",
+            "playerId": "pf4hz0mn7hyov",
+            "playerName": "曾子軒",
+            "runs": 1,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 7,
+            "half": "top",
+            "playerId": "p2bht0a4fhv06",
+            "playerName": "山田拓海",
+            "runs": 2,
+            "ours": false
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 50,
+      "earnedExperience": 8,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#319",
+      "matchIndex": 319,
+      "seed": 2054869638,
+      "result": {
+        "userSide": "away",
+        "opponentName": "橫濱流星",
+        "runsFor": 6,
+        "runsAgainst": 0,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 1,
+            "half": "top",
+            "playerId": "pne1l7au0pi92",
+            "playerName": "Kyle Young",
+            "runs": 2,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 2,
+            "half": "top",
+            "playerId": "po0ck5iii4l24",
+            "playerName": "黃柏翰",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 130,
+      "earnedExperience": 12,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#320",
+      "matchIndex": 320,
+      "seed": 2222291551,
+      "result": {
+        "userSide": "home",
+        "opponentName": "台北海盜",
+        "runsFor": 4,
+        "runsAgainst": 0,
+        "won": true,
+        "innings": 9,
+        "highlights": [],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 120,
+      "earnedExperience": 12,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#321",
+      "matchIndex": 321,
+      "seed": 490521996,
+      "result": {
+        "userSide": "away",
+        "opponentName": "西雅圖猛虎",
+        "runsFor": 4,
+        "runsAgainst": 5,
+        "won": false,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 2,
+            "half": "bottom",
+            "playerId": "pgm8tl8cyj6xd",
+            "playerName": "加藤蓮",
+            "runs": 1,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 6,
+            "half": "bottom",
+            "playerId": "pgm8tl8cyj6xd",
+            "playerName": "加藤蓮",
+            "runs": 3,
+            "ours": false
+          },
+          {
+            "kind": "homeRun",
+            "inning": 9,
+            "half": "top",
+            "playerId": "pm248zvg3ent2",
+            "playerName": "Ryan Brown",
+            "runs": 1,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 60,
+      "earnedExperience": 8,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#322",
+      "matchIndex": 322,
+      "seed": 589797276,
+      "result": {
+        "userSide": "home",
+        "opponentName": "休士頓火焰",
+        "runsFor": 7,
+        "runsAgainst": 4,
+        "won": true,
+        "innings": 9,
+        "highlights": [
+          {
+            "kind": "homeRun",
+            "inning": 3,
+            "half": "top",
+            "playerId": "pd7wgfpwzg57e",
+            "playerName": "張俊傑",
+            "runs": 1,
+            "ours": false
+          },
+          {
+            "kind": "clutchHit",
+            "inning": 6,
+            "half": "bottom",
+            "playerId": "pne1l7au0pi92",
+            "playerName": "Kyle Young",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 135,
+      "earnedExperience": 12,
+      "settledAt": 1793588400000
+    },
+    {
+      "matchId": "club-phase5-fixture#323",
+      "matchIndex": 323,
+      "seed": 176798407,
+      "result": {
+        "userSide": "away",
+        "opponentName": "仙台狂鯊",
+        "runsFor": 7,
+        "runsAgainst": 5,
+        "won": true,
+        "innings": 10,
+        "highlights": [
+          {
+            "kind": "clutchHit",
+            "inning": 8,
+            "half": "bottom",
+            "playerId": "p6sljytxgt7t",
+            "playerName": "Carlos Young",
+            "runs": 2,
+            "ours": false
+          },
+          {
+            "kind": "clutchHit",
+            "inning": 9,
+            "half": "top",
+            "playerId": "p1c0868o2x73d",
+            "playerName": "Carlos Miller",
+            "runs": 2,
+            "ours": true
+          },
+          {
+            "kind": "homeRun",
+            "inning": 10,
+            "half": "top",
+            "playerId": "pf4hz0mn7hyov",
+            "playerName": "曾子軒",
+            "runs": 2,
+            "ours": true
+          }
+        ],
+        "rulesVersion": 9,
+        "coachVersion": 1,
+        "leagueTier": 0
+      },
+      "earnedFunds": 135,
+      "earnedExperience": 12,
+      "settledAt": 1793588400000
+    }
+  ],
+  "replays": [
+    {
+      "matchId": "club-phase5-fixture#321",
+      "replay": {
+        "setup": {
+          "home": {
+            "name": "西雅圖猛虎",
+            "roster": {
+              "captain": "pvafpx8n34un1",
+              "lineup": [
+                {
+                  "position": "1B",
+                  "player": {
+                    "id": "pvafpx8n34un1",
+                    "name": "洪俊傑",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5,
+                      "power": 7,
+                      "speed": 6,
+                      "fielding": 5
+                    },
+                    "traits": [
+                      "eye"
+                    ],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "1B",
+                    "archetype": "power"
+                  }
+                },
+                {
+                  "position": "LF",
+                  "player": {
+                    "id": "pifgoplq2ybxu",
+                    "name": "Luis Brown",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 6,
+                      "power": 5,
+                      "speed": 5,
+                      "fielding": 6
+                    },
+                    "traits": [
+                      "lineDrive",
+                      "clutchBad"
+                    ],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "LF",
+                    "archetype": "skill"
+                  }
+                },
+                {
+                  "position": "DH",
+                  "player": {
+                    "id": "pqwazjzo5302x",
+                    "name": "中村陽翔",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 7,
+                      "power": 4,
+                      "speed": 3,
+                      "fielding": 5
+                    },
+                    "traits": [
+                      "bunter",
+                      "errorProne"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "2B",
+                    "archetype": "skill"
+                  }
+                },
+                {
+                  "position": "2B",
+                  "player": {
+                    "id": "pfbr0uxobk3y9",
+                    "name": "陳柏翰",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 6,
+                      "power": 3,
+                      "speed": 5,
+                      "fielding": 6
+                    },
+                    "traits": [
+                      "bunter",
+                      "eye"
+                    ],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "2B",
+                    "archetype": "skill"
+                  }
+                },
+                {
+                  "position": "3B",
+                  "player": {
+                    "id": "pgm8tl8cyj6xd",
+                    "name": "加藤蓮",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4,
+                      "power": 7,
+                      "speed": 5,
+                      "fielding": 7
+                    },
+                    "traits": [
+                      "bunter"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "3B",
+                    "archetype": "power"
+                  }
+                },
+                {
+                  "position": "RF",
+                  "player": {
+                    "id": "pvauliwc1y9rm",
+                    "name": "吳士豪",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4,
+                      "power": 6,
+                      "speed": 4,
+                      "fielding": 5
+                    },
+                    "traits": [
+                      "clutchBad"
+                    ],
+                    "tendency": "even",
+                    "bats": "L",
+                    "primary": "RF",
+                    "archetype": "power"
+                  }
+                },
+                {
+                  "position": "C",
+                  "player": {
+                    "id": "pbzs0ty5u9cfm",
+                    "name": "田中直樹",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4,
+                      "power": 4,
+                      "speed": 7,
+                      "fielding": 7
+                    },
+                    "traits": [
+                      "errorProne"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "C",
+                    "archetype": "defense"
+                  }
+                },
+                {
+                  "position": "CF",
+                  "player": {
+                    "id": "pojj9knp1adn4",
+                    "name": "渡邊蓮",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5,
+                      "power": 4,
+                      "speed": 3,
+                      "fielding": 7
+                    },
+                    "traits": [
+                      "lineDrive"
+                    ],
+                    "tendency": "left",
+                    "bats": "S",
+                    "primary": "CF",
+                    "archetype": "defense"
+                  }
+                },
+                {
+                  "position": "SS",
+                  "player": {
+                    "id": "pxxdzx9e90mh",
+                    "name": "井上亮",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 3,
+                      "power": 5,
+                      "speed": 4,
+                      "fielding": 6
+                    },
+                    "traits": [
+                      "eye",
+                      "freeSwinger"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "SS",
+                    "archetype": "defense"
+                  }
+                }
+              ],
+              "bench": [
+                {
+                  "id": "pp0lfnrlmlt27",
+                  "name": "Sam Brown",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 7,
+                    "power": 5,
+                    "speed": 5,
+                    "fielding": 4
+                  },
+                  "traits": [
+                    "clutchBad"
+                  ],
+                  "tendency": "even",
+                  "bats": "R",
+                  "primary": "2B",
+                  "archetype": "skill"
+                },
+                {
+                  "id": "pnv3he3l6u80p",
+                  "name": "陳建宏",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 5,
+                    "power": 4,
+                    "speed": 6,
+                    "fielding": 6
+                  },
+                  "traits": [],
+                  "tendency": "even",
+                  "bats": "R",
+                  "primary": "SS",
+                  "archetype": "defense"
+                }
+              ],
+              "starter": {
+                "id": "p9qg2z8vd5s6r",
+                "name": "王建宏",
+                "role": "pitcher",
+                "ratings": {
+                  "stuff": 4,
+                  "control": 7,
+                  "stamina": 4
+                },
+                "traits": [
+                  "groundballer"
+                ],
+                "throws": "L"
+              },
+              "relievers": [
+                {
+                  "id": "pporoy2vpma4o",
+                  "name": "Tyler Wilson",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 7,
+                    "control": 5,
+                    "stamina": 6
+                  },
+                  "traits": [
+                    "wild"
+                  ],
+                  "throws": "R"
+                },
+                {
+                  "id": "ppqhriqthr41u",
+                  "name": "小林拓海",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 6,
+                    "control": 5,
+                    "stamina": 5
+                  },
+                  "traits": [
+                    "escapeArtist"
+                  ],
+                  "throws": "L"
+                }
+              ]
+            }
+          },
+          "away": {
+            "name": "第五期測試隊",
+            "roster": {
+              "lineup": [
+                {
+                  "player": {
+                    "id": "pf4hz0mn7hyov",
+                    "name": "曾子軒",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 6.4,
+                      "power": 7.66,
+                      "speed": 4.3,
+                      "fielding": 1.2
+                    },
+                    "traits": [
+                      "baserunner",
+                      "errorProne"
+                    ],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "LF",
+                    "archetype": "power"
+                  },
+                  "position": "LF"
+                },
+                {
+                  "player": {
+                    "id": "pquh6jxo4g5we",
+                    "name": "中村翔太",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 6.66,
+                      "power": 4.2,
+                      "speed": 6.4,
+                      "fielding": 6.3
+                    },
+                    "traits": [
+                      "baserunner",
+                      "bunter"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "C",
+                    "archetype": "skill"
+                  },
+                  "position": "C"
+                },
+                {
+                  "player": {
+                    "id": "pn612ch6gd60",
+                    "name": "木村陽翔",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.23,
+                      "power": 6.52,
+                      "speed": 6.31,
+                      "fielding": 4.16
+                    },
+                    "traits": [],
+                    "tendency": "right",
+                    "bats": "R",
+                    "primary": "RF",
+                    "archetype": "power"
+                  },
+                  "position": "RF"
+                },
+                {
+                  "player": {
+                    "id": "pne1l7au0pi92",
+                    "name": "Kyle Young",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.23,
+                      "power": 5.16,
+                      "speed": 6.52,
+                      "fielding": 6.31
+                    },
+                    "traits": [
+                      "lineDrive",
+                      "stealer",
+                      "clutchBad"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "2B",
+                    "archetype": "speed"
+                  },
+                  "position": "2B"
+                },
+                {
+                  "player": {
+                    "id": "p6txb9fuiglow",
+                    "name": "Chris Johnson",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4.23,
+                      "power": 5.31,
+                      "speed": 6.52,
+                      "fielding": 4.16
+                    },
+                    "traits": [],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "CF",
+                    "archetype": "speed"
+                  },
+                  "position": "CF"
+                },
+                {
+                  "player": {
+                    "id": "p1c0868o2x73d",
+                    "name": "Carlos Miller",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4.23,
+                      "power": 5.31,
+                      "speed": 4.16,
+                      "fielding": 7.52
+                    },
+                    "traits": [
+                      "baserunner",
+                      "freeSwinger"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "SS",
+                    "archetype": "defense"
+                  },
+                  "position": "SS"
+                },
+                {
+                  "player": {
+                    "id": "p25t10tqdn3i4",
+                    "name": "洪冠宇",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.31,
+                      "power": 3.23,
+                      "speed": 3.16,
+                      "fielding": 8.52
+                    },
+                    "traits": [
+                      "eye"
+                    ],
+                    "tendency": "left",
+                    "bats": "S",
+                    "primary": "1B",
+                    "archetype": "defense"
+                  },
+                  "position": "1B"
+                },
+                {
+                  "player": {
+                    "id": "pev9du0kotfdx",
+                    "name": "木村直樹",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.23,
+                      "power": 1.16,
+                      "speed": 6.52,
+                      "fielding": 6.31
+                    },
+                    "traits": [
+                      "lineDrive",
+                      "freeSwinger"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "RF",
+                    "archetype": "speed"
+                  },
+                  "position": "DH"
+                },
+                {
+                  "player": {
+                    "id": "po0ck5iii4l24",
+                    "name": "黃柏翰",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 3.23,
+                      "power": 6.31,
+                      "speed": 2.16,
+                      "fielding": 7.52
+                    },
+                    "traits": [
+                      "slugger"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "3B",
+                    "archetype": "defense"
+                  },
+                  "position": "3B"
+                }
+              ],
+              "bench": [
+                {
+                  "id": "p33hsodtg9eg8",
+                  "name": "陳育成",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 5.31,
+                    "power": 8.52,
+                    "speed": 4.16,
+                    "fielding": 5.23
+                  },
+                  "traits": [
+                    "goodGlove"
+                  ],
+                  "tendency": "right",
+                  "bats": "R",
+                  "primary": "1B",
+                  "archetype": "power"
+                },
+                {
+                  "id": "pm248zvg3ent2",
+                  "name": "Ryan Brown",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 7.31,
+                    "power": 7.52,
+                    "speed": 7.23,
+                    "fielding": 4.16
+                  },
+                  "traits": [
+                    "clutch"
+                  ],
+                  "tendency": "left",
+                  "bats": "L",
+                  "primary": "1B",
+                  "archetype": "power"
+                }
+              ],
+              "starter": {
+                "id": "pou5bm0dsl0gc",
+                "name": "鄭建宏",
+                "role": "pitcher",
+                "ratings": {
+                  "stuff": 4.52,
+                  "control": 3.36,
+                  "stamina": 8.21
+                },
+                "traits": [
+                  "strikeoutArtist"
+                ],
+                "throws": "R"
+              },
+              "relievers": [
+                {
+                  "id": "pt3qcn3o74tbp",
+                  "name": "劉俊傑",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 3.36,
+                    "control": 5.52,
+                    "stamina": 5.21
+                  },
+                  "traits": [
+                    "strikeoutArtist",
+                    "lowStamina"
+                  ],
+                  "throws": "R"
+                },
+                {
+                  "id": "pscxryxal8ept",
+                  "name": "Luis Miller",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 8.52,
+                    "control": 4.36,
+                    "stamina": 6.21
+                  },
+                  "traits": [
+                    "groundballer"
+                  ],
+                  "throws": "R"
+                }
+              ],
+              "captain": "pn612ch6gd60"
+            }
+          },
+          "seed": 490521996,
+          "userSide": "away",
+          "rules": 9
+        },
+        "commands": [
+          {
+            "stepIndex": 18,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 40,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 78,
+            "tactic": {
+              "type": "steal",
+              "from": 1
+            }
+          },
+          {
+            "stepIndex": 87,
+            "tactic": {
+              "type": "steal",
+              "from": 2
+            }
+          },
+          {
+            "stepIndex": 96,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 101,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 154,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 156,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 160,
+            "tactic": {
+              "type": "pinchHit",
+              "benchIndex": 0
+            }
+          },
+          {
+            "stepIndex": 162,
+            "tactic": {
+              "type": "pinchHit",
+              "benchIndex": 0
+            }
+          },
+          {
+            "stepIndex": 205,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          }
+        ],
+        "ai": {
+          "away": {
+            "kind": "autoCoach",
+            "style": "balanced"
+          },
+          "home": {
+            "kind": "builtin"
+          }
+        },
+        "rulesVersion": 9,
+        "coachVersion": 1
+      }
+    },
+    {
+      "matchId": "club-phase5-fixture#322",
+      "replay": {
+        "setup": {
+          "home": {
+            "name": "第五期測試隊",
+            "roster": {
+              "lineup": [
+                {
+                  "player": {
+                    "id": "pf4hz0mn7hyov",
+                    "name": "曾子軒",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 6.4,
+                      "power": 7.66,
+                      "speed": 4.3,
+                      "fielding": 1.2
+                    },
+                    "traits": [
+                      "baserunner",
+                      "errorProne"
+                    ],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "LF",
+                    "archetype": "power"
+                  },
+                  "position": "LF"
+                },
+                {
+                  "player": {
+                    "id": "pquh6jxo4g5we",
+                    "name": "中村翔太",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 6.66,
+                      "power": 4.2,
+                      "speed": 6.4,
+                      "fielding": 6.3
+                    },
+                    "traits": [
+                      "baserunner",
+                      "bunter"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "C",
+                    "archetype": "skill"
+                  },
+                  "position": "C"
+                },
+                {
+                  "player": {
+                    "id": "pn612ch6gd60",
+                    "name": "木村陽翔",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.23,
+                      "power": 6.52,
+                      "speed": 6.31,
+                      "fielding": 4.16
+                    },
+                    "traits": [],
+                    "tendency": "right",
+                    "bats": "R",
+                    "primary": "RF",
+                    "archetype": "power"
+                  },
+                  "position": "RF"
+                },
+                {
+                  "player": {
+                    "id": "pne1l7au0pi92",
+                    "name": "Kyle Young",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.23,
+                      "power": 5.16,
+                      "speed": 6.52,
+                      "fielding": 6.31
+                    },
+                    "traits": [
+                      "lineDrive",
+                      "stealer",
+                      "clutchBad"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "2B",
+                    "archetype": "speed"
+                  },
+                  "position": "2B"
+                },
+                {
+                  "player": {
+                    "id": "p6txb9fuiglow",
+                    "name": "Chris Johnson",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4.23,
+                      "power": 5.31,
+                      "speed": 6.52,
+                      "fielding": 4.16
+                    },
+                    "traits": [],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "CF",
+                    "archetype": "speed"
+                  },
+                  "position": "CF"
+                },
+                {
+                  "player": {
+                    "id": "p1c0868o2x73d",
+                    "name": "Carlos Miller",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4.23,
+                      "power": 5.31,
+                      "speed": 4.16,
+                      "fielding": 7.52
+                    },
+                    "traits": [
+                      "baserunner",
+                      "freeSwinger"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "SS",
+                    "archetype": "defense"
+                  },
+                  "position": "SS"
+                },
+                {
+                  "player": {
+                    "id": "p25t10tqdn3i4",
+                    "name": "洪冠宇",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.31,
+                      "power": 3.23,
+                      "speed": 3.16,
+                      "fielding": 8.52
+                    },
+                    "traits": [
+                      "eye"
+                    ],
+                    "tendency": "left",
+                    "bats": "S",
+                    "primary": "1B",
+                    "archetype": "defense"
+                  },
+                  "position": "1B"
+                },
+                {
+                  "player": {
+                    "id": "pev9du0kotfdx",
+                    "name": "木村直樹",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.23,
+                      "power": 1.16,
+                      "speed": 6.52,
+                      "fielding": 6.31
+                    },
+                    "traits": [
+                      "lineDrive",
+                      "freeSwinger"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "RF",
+                    "archetype": "speed"
+                  },
+                  "position": "DH"
+                },
+                {
+                  "player": {
+                    "id": "po0ck5iii4l24",
+                    "name": "黃柏翰",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 3.23,
+                      "power": 6.31,
+                      "speed": 2.16,
+                      "fielding": 7.52
+                    },
+                    "traits": [
+                      "slugger"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "3B",
+                    "archetype": "defense"
+                  },
+                  "position": "3B"
+                }
+              ],
+              "bench": [
+                {
+                  "id": "p33hsodtg9eg8",
+                  "name": "陳育成",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 5.31,
+                    "power": 8.52,
+                    "speed": 4.16,
+                    "fielding": 5.23
+                  },
+                  "traits": [
+                    "goodGlove"
+                  ],
+                  "tendency": "right",
+                  "bats": "R",
+                  "primary": "1B",
+                  "archetype": "power"
+                },
+                {
+                  "id": "pm248zvg3ent2",
+                  "name": "Ryan Brown",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 7.31,
+                    "power": 7.52,
+                    "speed": 7.23,
+                    "fielding": 4.16
+                  },
+                  "traits": [
+                    "clutch"
+                  ],
+                  "tendency": "left",
+                  "bats": "L",
+                  "primary": "1B",
+                  "archetype": "power"
+                }
+              ],
+              "starter": {
+                "id": "pou5bm0dsl0gc",
+                "name": "鄭建宏",
+                "role": "pitcher",
+                "ratings": {
+                  "stuff": 4.52,
+                  "control": 3.36,
+                  "stamina": 8.21
+                },
+                "traits": [
+                  "strikeoutArtist"
+                ],
+                "throws": "R"
+              },
+              "relievers": [
+                {
+                  "id": "pt3qcn3o74tbp",
+                  "name": "劉俊傑",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 3.36,
+                    "control": 5.52,
+                    "stamina": 5.21
+                  },
+                  "traits": [
+                    "strikeoutArtist",
+                    "lowStamina"
+                  ],
+                  "throws": "R"
+                },
+                {
+                  "id": "pscxryxal8ept",
+                  "name": "Luis Miller",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 8.52,
+                    "control": 4.36,
+                    "stamina": 6.21
+                  },
+                  "traits": [
+                    "groundballer"
+                  ],
+                  "throws": "R"
+                }
+              ],
+              "captain": "pn612ch6gd60"
+            }
+          },
+          "away": {
+            "name": "休士頓火焰",
+            "roster": {
+              "captain": "pja8y7npl1d0k",
+              "lineup": [
+                {
+                  "position": "SS",
+                  "player": {
+                    "id": "pja8y7npl1d0k",
+                    "name": "山田隼人",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 8,
+                      "power": 4,
+                      "speed": 7,
+                      "fielding": 4
+                    },
+                    "traits": [
+                      "baserunner"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "SS",
+                    "archetype": "skill"
+                  }
+                },
+                {
+                  "position": "RF",
+                  "player": {
+                    "id": "p479hhw1907u",
+                    "name": "Matt Smith",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5,
+                      "power": 9,
+                      "speed": 7,
+                      "fielding": 4
+                    },
+                    "traits": [
+                      "baserunner",
+                      "goodGlove"
+                    ],
+                    "tendency": "even",
+                    "bats": "L",
+                    "primary": "RF",
+                    "archetype": "power"
+                  }
+                },
+                {
+                  "position": "C",
+                  "player": {
+                    "id": "phfd2ayciwrnw",
+                    "name": "Matt Young",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 7,
+                      "power": 4,
+                      "speed": 4,
+                      "fielding": 9
+                    },
+                    "traits": [
+                      "stealer"
+                    ],
+                    "tendency": "right",
+                    "bats": "R",
+                    "primary": "C",
+                    "archetype": "defense"
+                  }
+                },
+                {
+                  "position": "DH",
+                  "player": {
+                    "id": "pqt0pja3dl5lj",
+                    "name": "郭志明",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5,
+                      "power": 8,
+                      "speed": 4,
+                      "fielding": 6
+                    },
+                    "traits": [
+                      "eye"
+                    ],
+                    "tendency": "left",
+                    "bats": "L",
+                    "primary": "LF",
+                    "archetype": "power"
+                  }
+                },
+                {
+                  "position": "CF",
+                  "player": {
+                    "id": "pmcixanm5bmow",
+                    "name": "田中大輝",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5,
+                      "power": 5,
+                      "speed": 3,
+                      "fielding": 6
+                    },
+                    "traits": [
+                      "baserunner"
+                    ],
+                    "tendency": "even",
+                    "bats": "L",
+                    "primary": "CF",
+                    "archetype": "defense"
+                  }
+                },
+                {
+                  "position": "LF",
+                  "player": {
+                    "id": "pe9fcdatpc67e",
+                    "name": "加藤亮",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4,
+                      "power": 4,
+                      "speed": 7,
+                      "fielding": 5
+                    },
+                    "traits": [],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "LF",
+                    "archetype": "speed"
+                  }
+                },
+                {
+                  "position": "2B",
+                  "player": {
+                    "id": "pd7wgfpwzg57e",
+                    "name": "張俊傑",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5,
+                      "power": 3,
+                      "speed": 4,
+                      "fielding": 5
+                    },
+                    "traits": [
+                      "goodGlove",
+                      "clutchBad"
+                    ],
+                    "tendency": "left",
+                    "bats": "S",
+                    "primary": "2B",
+                    "archetype": "skill"
+                  }
+                },
+                {
+                  "position": "1B",
+                  "player": {
+                    "id": "pq5dbru15eivk",
+                    "name": "Luis Clark",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 3,
+                      "power": 5,
+                      "speed": 5,
+                      "fielding": 5
+                    },
+                    "traits": [
+                      "clutchBad"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "1B",
+                    "archetype": "power"
+                  }
+                },
+                {
+                  "position": "3B",
+                  "player": {
+                    "id": "pb19ivwllmsd9",
+                    "name": "Mike Young",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 3,
+                      "power": 4,
+                      "speed": 4,
+                      "fielding": 5
+                    },
+                    "traits": [
+                      "stealer"
+                    ],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "3B",
+                    "archetype": "defense"
+                  }
+                }
+              ],
+              "bench": [
+                {
+                  "id": "py2d52m5rpdw2",
+                  "name": "山本隼人",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 5,
+                    "power": 3,
+                    "speed": 6,
+                    "fielding": 5
+                  },
+                  "traits": [],
+                  "tendency": "even",
+                  "bats": "R",
+                  "primary": "RF",
+                  "archetype": "speed"
+                },
+                {
+                  "id": "popwhplku0591",
+                  "name": "Ryan Garcia",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 5,
+                    "power": 7,
+                    "speed": 4,
+                    "fielding": 4
+                  },
+                  "traits": [
+                    "freeSwinger"
+                  ],
+                  "tendency": "left",
+                  "bats": "R",
+                  "primary": "RF",
+                  "archetype": "power"
+                }
+              ],
+              "starter": {
+                "id": "pauv4cqefqgbg",
+                "name": "劉冠宇",
+                "role": "pitcher",
+                "ratings": {
+                  "stuff": 4,
+                  "control": 2,
+                  "stamina": 4
+                },
+                "traits": [
+                  "escapeArtist"
+                ],
+                "throws": "L"
+              },
+              "relievers": [
+                {
+                  "id": "p1ra54o2r7t44",
+                  "name": "小林悠斗",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 3,
+                    "control": 5,
+                    "stamina": 4
+                  },
+                  "traits": [
+                    "escapeArtist"
+                  ],
+                  "throws": "R"
+                },
+                {
+                  "id": "pyujh4b7wqjge",
+                  "name": "陳柏翰",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 5,
+                    "control": 6,
+                    "stamina": 6
+                  },
+                  "traits": [
+                    "groundballer"
+                  ],
+                  "throws": "L"
+                }
+              ]
+            }
+          },
+          "seed": 589797276,
+          "userSide": "home",
+          "rules": 9
+        },
+        "commands": [
+          {
+            "stepIndex": 0,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 7,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftRight"
+            }
+          },
+          {
+            "stepIndex": 22,
+            "tactic": {
+              "type": "steal",
+              "from": 1
+            }
+          },
+          {
+            "stepIndex": 29,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 71,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 89,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftRight"
+            }
+          },
+          {
+            "stepIndex": 92,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 149,
+            "tactic": {
+              "type": "steal",
+              "from": 1
+            }
+          },
+          {
+            "stepIndex": 156,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 167,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftRight"
+            }
+          },
+          {
+            "stepIndex": 168,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 232,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 251,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftRight"
+            }
+          },
+          {
+            "stepIndex": 256,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 266,
+            "tactic": {
+              "type": "changePitcher",
+              "relieverIndex": 1
+            }
+          },
+          {
+            "stepIndex": 272,
+            "tactic": {
+              "type": "pinchHit",
+              "benchIndex": 1
+            }
+          },
+          {
+            "stepIndex": 288,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 298,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftRight"
+            }
+          }
+        ],
+        "ai": {
+          "home": {
+            "kind": "autoCoach",
+            "style": "balanced"
+          },
+          "away": {
+            "kind": "builtin"
+          }
+        },
+        "rulesVersion": 9,
+        "coachVersion": 1
+      }
+    },
+    {
+      "matchId": "club-phase5-fixture#323",
+      "replay": {
+        "setup": {
+          "home": {
+            "name": "仙台狂鯊",
+            "roster": {
+              "captain": "prj9j8nx7ia7h",
+              "lineup": [
+                {
+                  "position": "2B",
+                  "player": {
+                    "id": "pchewur41vjtk",
+                    "name": "Jake Miller",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 8,
+                      "power": 5,
+                      "speed": 7,
+                      "fielding": 4
+                    },
+                    "traits": [
+                      "baserunner"
+                    ],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "2B",
+                    "archetype": "skill"
+                  }
+                },
+                {
+                  "position": "SS",
+                  "player": {
+                    "id": "p6sljytxgt7t",
+                    "name": "Carlos Young",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 8,
+                      "power": 5,
+                      "speed": 3,
+                      "fielding": 4
+                    },
+                    "traits": [],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "SS",
+                    "archetype": "skill"
+                  }
+                },
+                {
+                  "position": "RF",
+                  "player": {
+                    "id": "psgja24bqccqu",
+                    "name": "Josh Young",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 7,
+                      "power": 5,
+                      "speed": 5,
+                      "fielding": 1
+                    },
+                    "traits": [],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "RF",
+                    "archetype": "skill"
+                  }
+                },
+                {
+                  "position": "C",
+                  "player": {
+                    "id": "prj9j8nx7ia7h",
+                    "name": "田中直樹",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5,
+                      "power": 3,
+                      "speed": 6,
+                      "fielding": 4
+                    },
+                    "traits": [
+                      "clutch",
+                      "lineDrive"
+                    ],
+                    "tendency": "left",
+                    "bats": "L",
+                    "primary": "C",
+                    "archetype": "speed"
+                  }
+                },
+                {
+                  "position": "CF",
+                  "player": {
+                    "id": "pofvrp3lgqrsc",
+                    "name": "楊承翰",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5,
+                      "power": 3,
+                      "speed": 6,
+                      "fielding": 4
+                    },
+                    "traits": [
+                      "bunter"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "CF",
+                    "archetype": "speed"
+                  }
+                },
+                {
+                  "position": "3B",
+                  "player": {
+                    "id": "px4q0agfyvxt4",
+                    "name": "曾俊傑",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4,
+                      "power": 6,
+                      "speed": 3,
+                      "fielding": 3
+                    },
+                    "traits": [
+                      "clutchBad"
+                    ],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "3B",
+                    "archetype": "power"
+                  }
+                },
+                {
+                  "position": "1B",
+                  "player": {
+                    "id": "p5lzvs5yst3v0",
+                    "name": "Carlos Martinez",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4,
+                      "power": 5,
+                      "speed": 3,
+                      "fielding": 4
+                    },
+                    "traits": [
+                      "errorProne"
+                    ],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "1B",
+                    "archetype": "power"
+                  }
+                },
+                {
+                  "position": "DH",
+                  "player": {
+                    "id": "ps5g6p71i0l9l",
+                    "name": "木村蓮",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4,
+                      "power": 4,
+                      "speed": 5,
+                      "fielding": 7
+                    },
+                    "traits": [],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "LF",
+                    "archetype": "defense"
+                  }
+                },
+                {
+                  "position": "LF",
+                  "player": {
+                    "id": "pgvw1yibuxwgg",
+                    "name": "山本亮",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4,
+                      "power": 3,
+                      "speed": 3,
+                      "fielding": 7
+                    },
+                    "traits": [
+                      "lineDrive"
+                    ],
+                    "tendency": "right",
+                    "bats": "R",
+                    "primary": "LF",
+                    "archetype": "defense"
+                  }
+                }
+              ],
+              "bench": [
+                {
+                  "id": "pxrm7zp55drgd",
+                  "name": "Derek Davis",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 7,
+                    "power": 7,
+                    "speed": 10,
+                    "fielding": 5
+                  },
+                  "traits": [
+                    "errorProne"
+                  ],
+                  "tendency": "even",
+                  "bats": "L",
+                  "primary": "C",
+                  "archetype": "speed"
+                },
+                {
+                  "id": "p1dg4i2hi38qd",
+                  "name": "山本亮",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 5,
+                    "power": 7,
+                    "speed": 4,
+                    "fielding": 6
+                  },
+                  "traits": [],
+                  "tendency": "even",
+                  "bats": "R",
+                  "primary": "LF",
+                  "archetype": "power"
+                }
+              ],
+              "starter": {
+                "id": "p9p9kgjpvakfi",
+                "name": "郭育成",
+                "role": "pitcher",
+                "ratings": {
+                  "stuff": 4,
+                  "control": 4,
+                  "stamina": 4
+                },
+                "traits": [
+                  "groundballer"
+                ],
+                "throws": "L"
+              },
+              "relievers": [
+                {
+                  "id": "p8rai0mk6b0xg",
+                  "name": "郭承翰",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 4,
+                    "control": 3,
+                    "stamina": 5
+                  },
+                  "traits": [
+                    "strikeoutArtist"
+                  ],
+                  "throws": "L"
+                },
+                {
+                  "id": "p449gz4s0echx",
+                  "name": "伊藤和也",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 2,
+                    "control": 4,
+                    "stamina": 4
+                  },
+                  "traits": [
+                    "groundballer",
+                    "wild"
+                  ],
+                  "throws": "R"
+                }
+              ]
+            }
+          },
+          "away": {
+            "name": "第五期測試隊",
+            "roster": {
+              "lineup": [
+                {
+                  "player": {
+                    "id": "pf4hz0mn7hyov",
+                    "name": "曾子軒",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 6.4,
+                      "power": 7.66,
+                      "speed": 4.3,
+                      "fielding": 1.2
+                    },
+                    "traits": [
+                      "baserunner",
+                      "errorProne"
+                    ],
+                    "tendency": "even",
+                    "bats": "R",
+                    "primary": "LF",
+                    "archetype": "power"
+                  },
+                  "position": "LF"
+                },
+                {
+                  "player": {
+                    "id": "pquh6jxo4g5we",
+                    "name": "中村翔太",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 6.66,
+                      "power": 4.2,
+                      "speed": 6.4,
+                      "fielding": 6.3
+                    },
+                    "traits": [
+                      "baserunner",
+                      "bunter"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "C",
+                    "archetype": "skill"
+                  },
+                  "position": "C"
+                },
+                {
+                  "player": {
+                    "id": "pn612ch6gd60",
+                    "name": "木村陽翔",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.23,
+                      "power": 6.52,
+                      "speed": 6.31,
+                      "fielding": 4.16
+                    },
+                    "traits": [],
+                    "tendency": "right",
+                    "bats": "R",
+                    "primary": "RF",
+                    "archetype": "power"
+                  },
+                  "position": "RF"
+                },
+                {
+                  "player": {
+                    "id": "pne1l7au0pi92",
+                    "name": "Kyle Young",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.23,
+                      "power": 5.16,
+                      "speed": 6.52,
+                      "fielding": 6.31
+                    },
+                    "traits": [
+                      "lineDrive",
+                      "stealer",
+                      "clutchBad"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "2B",
+                    "archetype": "speed"
+                  },
+                  "position": "2B"
+                },
+                {
+                  "player": {
+                    "id": "p6txb9fuiglow",
+                    "name": "Chris Johnson",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4.23,
+                      "power": 5.31,
+                      "speed": 6.52,
+                      "fielding": 4.16
+                    },
+                    "traits": [],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "CF",
+                    "archetype": "speed"
+                  },
+                  "position": "CF"
+                },
+                {
+                  "player": {
+                    "id": "p1c0868o2x73d",
+                    "name": "Carlos Miller",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 4.23,
+                      "power": 5.31,
+                      "speed": 4.16,
+                      "fielding": 7.52
+                    },
+                    "traits": [
+                      "baserunner",
+                      "freeSwinger"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "SS",
+                    "archetype": "defense"
+                  },
+                  "position": "SS"
+                },
+                {
+                  "player": {
+                    "id": "p25t10tqdn3i4",
+                    "name": "洪冠宇",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.31,
+                      "power": 3.23,
+                      "speed": 3.16,
+                      "fielding": 8.52
+                    },
+                    "traits": [
+                      "eye"
+                    ],
+                    "tendency": "left",
+                    "bats": "S",
+                    "primary": "1B",
+                    "archetype": "defense"
+                  },
+                  "position": "1B"
+                },
+                {
+                  "player": {
+                    "id": "pev9du0kotfdx",
+                    "name": "木村直樹",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 5.23,
+                      "power": 1.16,
+                      "speed": 6.52,
+                      "fielding": 6.31
+                    },
+                    "traits": [
+                      "lineDrive",
+                      "freeSwinger"
+                    ],
+                    "tendency": "right",
+                    "bats": "L",
+                    "primary": "RF",
+                    "archetype": "speed"
+                  },
+                  "position": "DH"
+                },
+                {
+                  "player": {
+                    "id": "po0ck5iii4l24",
+                    "name": "黃柏翰",
+                    "role": "batter",
+                    "ratings": {
+                      "contact": 3.23,
+                      "power": 6.31,
+                      "speed": 2.16,
+                      "fielding": 7.52
+                    },
+                    "traits": [
+                      "slugger"
+                    ],
+                    "tendency": "left",
+                    "bats": "R",
+                    "primary": "3B",
+                    "archetype": "defense"
+                  },
+                  "position": "3B"
+                }
+              ],
+              "bench": [
+                {
+                  "id": "p33hsodtg9eg8",
+                  "name": "陳育成",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 5.31,
+                    "power": 8.52,
+                    "speed": 4.16,
+                    "fielding": 5.23
+                  },
+                  "traits": [
+                    "goodGlove"
+                  ],
+                  "tendency": "right",
+                  "bats": "R",
+                  "primary": "1B",
+                  "archetype": "power"
+                },
+                {
+                  "id": "pm248zvg3ent2",
+                  "name": "Ryan Brown",
+                  "role": "batter",
+                  "ratings": {
+                    "contact": 7.31,
+                    "power": 7.52,
+                    "speed": 7.23,
+                    "fielding": 4.16
+                  },
+                  "traits": [
+                    "clutch"
+                  ],
+                  "tendency": "left",
+                  "bats": "L",
+                  "primary": "1B",
+                  "archetype": "power"
+                }
+              ],
+              "starter": {
+                "id": "pou5bm0dsl0gc",
+                "name": "鄭建宏",
+                "role": "pitcher",
+                "ratings": {
+                  "stuff": 4.52,
+                  "control": 3.36,
+                  "stamina": 8.21
+                },
+                "traits": [
+                  "strikeoutArtist"
+                ],
+                "throws": "R"
+              },
+              "relievers": [
+                {
+                  "id": "pt3qcn3o74tbp",
+                  "name": "劉俊傑",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 3.36,
+                    "control": 5.52,
+                    "stamina": 5.21
+                  },
+                  "traits": [
+                    "strikeoutArtist",
+                    "lowStamina"
+                  ],
+                  "throws": "R"
+                },
+                {
+                  "id": "pscxryxal8ept",
+                  "name": "Luis Miller",
+                  "role": "pitcher",
+                  "ratings": {
+                    "stuff": 8.52,
+                    "control": 4.36,
+                    "stamina": 6.21
+                  },
+                  "traits": [
+                    "groundballer"
+                  ],
+                  "throws": "R"
+                }
+              ],
+              "captain": "pn612ch6gd60"
+            }
+          },
+          "seed": 176798407,
+          "userSide": "away",
+          "rules": 9
+        },
+        "commands": [
+          {
+            "stepIndex": 12,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftRight"
+            }
+          },
+          {
+            "stepIndex": 13,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 24,
+            "tactic": {
+              "type": "steal",
+              "from": 1
+            }
+          },
+          {
+            "stepIndex": 27,
+            "tactic": {
+              "type": "steal",
+              "from": 2
+            }
+          },
+          {
+            "stepIndex": 83,
+            "tactic": {
+              "type": "steal",
+              "from": 1
+            }
+          },
+          {
+            "stepIndex": 97,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftRight"
+            }
+          },
+          {
+            "stepIndex": 103,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 180,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftRight"
+            }
+          },
+          {
+            "stepIndex": 186,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 194,
+            "tactic": {
+              "type": "pinchHit",
+              "benchIndex": 0
+            }
+          },
+          {
+            "stepIndex": 232,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftRight"
+            }
+          },
+          {
+            "stepIndex": 233,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          },
+          {
+            "stepIndex": 288,
+            "tactic": {
+              "type": "changePitcher",
+              "relieverIndex": 1
+            }
+          },
+          {
+            "stepIndex": 297,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftRight"
+            }
+          },
+          {
+            "stepIndex": 306,
+            "tactic": {
+              "type": "bunt"
+            }
+          },
+          {
+            "stepIndex": 323,
+            "tactic": {
+              "type": "alignment",
+              "alignment": "shiftLeft"
+            }
+          }
+        ],
+        "ai": {
+          "away": {
+            "kind": "autoCoach",
+            "style": "balanced"
+          },
+          "home": {
+            "kind": "builtin"
+          }
+        },
+        "rulesVersion": 9,
+        "coachVersion": 1
+      }
+    }
+  ],
+  "revision": 62
+}

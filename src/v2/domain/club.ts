@@ -1,9 +1,11 @@
-// V2 球團存檔（schemaVersion 5）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度與近期比賽。
+// V2 球團存檔（schemaVersion 7）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度、
+// 進行中比賽的固定計畫、近期比賽（含 Box Score）與最近一次晉級挑戰的 Replay。
 // 不沿用 V1 的 Tournament：錦標賽是一輪一輪的 roguelike，V2 的球團要一直存在、一直累積。
-// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → 5）見 migration.ts
+// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → 5 → 6 → 7）見 migration.ts
 import type { Side } from '../../sim/game'
 import type { Player, Position, Roster } from '../../sim/types'
 import type { CoachParams, CoachStyle } from '../application/autoCoach'
+import type { MatchPlan } from '../application/batchRunner'
 import type { MatchReplay } from '../application/matchRunner'
 import { lineupIssues } from './lineup'
 import { leagueViolations, newLeagueState, type LeagueState } from './league'
@@ -15,7 +17,7 @@ import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, v
 
 export { ClubValidationError, type ClubValidationCode } from './validation'
 
-export const CLUB_SCHEMA_VERSION = 5
+export const CLUB_SCHEMA_VERSION = 7
 
 /**
  * 換算好的陣容：先發、板凳、投手都是完整的球員物件（養成後的能力），也就是模擬引擎吃的 Roster。
@@ -133,6 +135,21 @@ export interface MatchSummary {
   leagueTier?: number
 }
 
+/** Box Score 的打者成績（我方，依出場順序）：[名字, 打席, 安打, 全壘打, 打點, 被三振]，用陣列省空間 */
+export type BoxBatter = [name: string, pa: number, hits: number, hr: number, rbi: number, so: number]
+
+/** Box Score 的投手成績（我方）：[名字, 抓到的出局數, 失分, 三振] */
+export type BoxPitcher = [name: string, outs: number, runs: number, k: number]
+
+/** 結算時存下的精簡數據：看歷史戰報不需要重新模擬（schemaVersion 7 起） */
+export interface BoxScore {
+  linescore: Record<Side, number[]>
+  hits: Record<Side, number>
+  errors: Record<Side, number>
+  batters: BoxBatter[]
+  pitchers: BoxPitcher[]
+}
+
 /** 一場已結算的比賽 */
 export interface SettledMatch {
   matchId: string
@@ -142,9 +159,30 @@ export interface SettledMatch {
   earnedFunds: number
   earnedExperience: number
   settledAt: number
+  /** 預定結束時間（比賽日期）；schemaVersion 7 以前的比賽沒有 */
+  playedAt?: number
+  /** Box Score；schemaVersion 7 以前、而且沒有保留完整 Replay 的比賽沒有 */
+  box?: BoxScore
 }
 
-export interface ClubSaveV5 {
+/**
+ * 進行中那一場比賽的固定計畫：任何會改變球團的操作（換設定、升級、招募、釋出、晉級），
+ * 都會先用「修改前」的狀態把這一場的計畫存下來，所以已經開始的比賽不受之後的修改影響。
+ * 結算這一場時用這份計畫，結算完就清掉（見 application/liveMatch.ts）
+ */
+export interface LiveMatch {
+  matchIndex: number
+  plan: MatchPlan
+}
+
+/** 最近一次晉級挑戰賽的完整 Replay（只留一場）：seq 一定是最近一次挑戰的序號 */
+export interface ChallengeReplay {
+  seq: number
+  matchId: string
+  replay: MatchReplay
+}
+
+export interface ClubSaveV7 {
   schemaVersion: typeof CLUB_SCHEMA_VERSION
   clubId: string
   clubName: string
@@ -166,14 +204,18 @@ export interface ClubSaveV5 {
   recentMatches: SettledMatch[]
   /** 最近幾場的完整 replay，最多 RETENTION_CONFIG.replays 份 */
   replays: { matchId: string; replay: MatchReplay }[]
+  /** 最近一次晉級挑戰賽的完整 Replay（schemaVersion 6 起）；還沒挑戰過、或遷移前挑戰的都是 null */
+  challengeReplay: ChallengeReplay | null
+  /** 進行中那一場的固定計畫（schemaVersion 7 起）；沒有被固定時是 null，代表用目前的球團算出來的計畫就是開賽時的計畫 */
+  liveMatch: LiveMatch | null
   /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄；從 3 升上來時是 3） */
-  migratedFrom?: { schemaVersion: 3 | 4; revision: number }
+  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6; revision: number }
   /** 每存一次加 1：用來發現別的分頁已經改過存檔 */
   revision: number
 }
 
 /** 目前格式的球團存檔 */
-export type ClubSave = ClubSaveV5
+export type ClubSave = ClubSaveV7
 
 export interface NewClubInput {
   clubId: string
@@ -219,6 +261,8 @@ export function newClub(input: NewClubInput): ClubSave {
     record: { wins: 0, losses: 0, runsFor: 0, runsAgainst: 0 },
     recentMatches: [],
     replays: [],
+    challengeReplay: null,
+    liveMatch: null,
     revision: 0,
   }
 }
@@ -305,6 +349,14 @@ export function validateClub(value: unknown): ClubSave {
   int(strategy, 'effectiveFromMatch', 'strategy')
   validateEconomy(obj(value, 'economy'))
   validateLeague(obj(value, 'league'))
+  validateChallengeReplay(value.challengeReplay, obj(value, 'league'))
+  validateLiveMatch(value.liveMatch, obj(value, 'idle'), value.clubId as string)
+  arr(value, 'recentMatches').forEach((m, i) => {
+    const path = `recentMatches[${i}]`
+    const match = m as Obj
+    if (match.playedAt !== undefined) num(match, 'playedAt', path)
+    if (match.box !== undefined) validateBox(match.box, `${path}.box`)
+  })
   const idle = obj(value, 'idle')
   num(idle, 'anchorMs', 'idle')
   int(idle, 'nextMatchIndex', 'idle')
@@ -349,6 +401,46 @@ function validateAssignment(value: Obj): void {
   }
   const issues = lineupIssues(resolved)
   if (issues.length) throw invalid('roster', issues.join('；'))
+}
+
+function validateLiveMatch(value: unknown, idle: Obj, clubId: string): void {
+  if (value === null) return
+  if (!isObj(value)) throw invalid('liveMatch', '必須是 null 或物件')
+  int(value, 'matchIndex', 'liveMatch')
+  const plan = obj(value, 'plan', 'liveMatch')
+  str(plan, 'matchId', 'liveMatch.plan')
+  int(plan, 'matchIndex', 'liveMatch.plan')
+  int(plan, 'leagueTier', 'liveMatch.plan')
+  if (!isObj(plan.setup) || !isObj(plan.ai)) throw invalid('liveMatch.plan', '格式不對')
+  // 結算後就清掉：固定的一定是還沒結算的那一場
+  if (value.matchIndex !== idle.nextMatchIndex || plan.matchIndex !== value.matchIndex) throw invalid('liveMatch.matchIndex', '不是進行中的那一場')
+  if (plan.matchId !== `${clubId}#${value.matchIndex}`) throw invalid('liveMatch.plan.matchId', '不屬於這個球團')
+}
+
+function validateBox(value: unknown, path: string): void {
+  if (!isObj(value)) throw invalid(path, '格式不對')
+  const ls = obj(value, 'linescore', path)
+  for (const side of ['home', 'away']) if (!Array.isArray(ls[side]) || !(ls[side] as unknown[]).every((x) => Number.isInteger(x))) throw invalid(`${path}.linescore`, '格式不對')
+  for (const key of ['hits', 'errors']) {
+    const t = obj(value, key, path)
+    int(t, 'home', `${path}.${key}`)
+    int(t, 'away', `${path}.${key}`)
+  }
+  for (const [key, len] of [['batters', 6], ['pitchers', 4]] as const) {
+    arr(value, key, path).forEach((x, i) => {
+      if (!Array.isArray(x) || x.length !== len || typeof x[0] !== 'string' || !x.slice(1).every((n) => Number.isInteger(n))) throw invalid(`${path}.${key}[${i}]`, '格式不對')
+    })
+  }
+}
+
+function validateChallengeReplay(value: unknown, league: Obj): void {
+  if (value === null) return
+  if (!isObj(value)) throw invalid('challengeReplay', '必須是 null 或物件')
+  int(value, 'seq', 'challengeReplay')
+  str(value, 'matchId', 'challengeReplay')
+  if (!isObj(value.replay) || !isObj(value.replay.setup) || !Array.isArray(value.replay.commands)) throw invalid('challengeReplay.replay', '格式不對')
+  // 只保留最近一次挑戰
+  if (value.seq !== (league.nextChallengeSeq as number) - 1) throw invalid('challengeReplay.seq', '不是最近一次挑戰')
 }
 
 function validateLeague(league: Obj): void {
