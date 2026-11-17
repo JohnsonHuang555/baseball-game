@@ -6,12 +6,15 @@
 // - dispose 之後，還在跑的 async 操作完成時不會再更新畫面；進行中的結算用 AbortSignal 中斷（已打完的場次照樣存檔）
 // - revision 衝突：重新讀取最新存檔並提示，不會靜默覆蓋
 // - 不支援 Web Locks 時，只有可寫分頁能寫入（WriterGuard），唯讀分頁的寫入一律拒絕
-import { createClubSafely, resetClubSafely } from '../application/clubLifecycle'
+import { createClubSafely, openClubSafely, resetClubSafely } from '../application/clubLifecycle'
+import { EconomyError, recruit, upgrade, type SpendOutcome } from '../application/economyService'
 import { dueMatches, type DueMatches } from '../application/idleEngine'
 import { SettlementError, claim, settleDue, updateSettings, type SettlementReport } from '../application/settlementService'
-import type { ClubSaveV3, PersistentRoster, SummaryHighlight } from '../domain/club'
+import type { ClubSave, PersistentRoster, SummaryHighlight } from '../domain/club'
 import { settingsVersions } from '../domain/fingerprint'
 import { LineupError, lineupIssues } from '../domain/lineup'
+import type { RecruitRole } from '../domain/recruitment'
+import { recordOf, toAssignment } from '../domain/roster'
 import { toCoachParams, type TacticSettings } from '../domain/tactics'
 import { ClubSaveError } from '../infrastructure/clubRepository'
 import type { V2Deps } from '../infrastructure/composition'
@@ -24,7 +27,7 @@ export type V2Status =
   | { kind: 'no-club' }
   | { kind: 'ready' }
   /** 存檔壞掉、版本不相容或瀏覽器儲存不能用：不能繼續，也不會清掉存檔 */
-  | { kind: 'broken'; reason: 'invalid' | 'unsupported-version' | 'storage-unavailable'; message: string }
+  | { kind: 'broken'; reason: 'invalid' | 'unsupported-version' | 'storage-unavailable' | 'migration-failed' | 'migration-blocked'; message: string }
 
 /** 離開期間完成的比賽摘要 */
 export interface WelcomeSummary {
@@ -41,13 +44,15 @@ export type RetryAction = 'settle' | 'claim'
 
 export interface ControllerState {
   status: V2Status
-  club: ClubSaveV3 | null
+  club: ClubSave | null
   creating: boolean
   /** 建立球團失敗的原因（重繪表單時要一直顯示，直到下一次嘗試） */
   createError: string | null
   settling: boolean
   claiming: boolean
   saving: boolean
+  /** 正在升級或招募 */
+  spending: boolean
   /** 可以重試的錯誤（結算、領取失敗） */
   error: { message: string; retry?: RetryAction } | null
   /** 一次性的提示（顯示後由畫面清掉） */
@@ -56,6 +61,11 @@ export interface ControllerState {
   canWrite: boolean
   /** 互斥有沒有跨分頁保證；沒有時用 WriterGuard 限制單一可寫分頁 */
   crossTab: boolean
+}
+
+/** 升級、招募的結果；成功時附上存好的那一筆支出 */
+export interface SpendResult extends ActionResult {
+  outcome?: SpendOutcome
 }
 
 export type SettleTrigger = 'enter' | 'resume' | 'manual' | 'tick'
@@ -73,6 +83,7 @@ export class ClubController {
   private readonly listeners = new Set<(s: ControllerState) => void>()
   private settleFlight: Promise<void> | null = null
   private claimFlight: Promise<ActionResult> | null = null
+  private spendFlight: Promise<SpendResult> | null = null
   private createFlight: Promise<ActionResult> | null = null
   private abort: AbortController | null = null
   private disposed = false
@@ -100,6 +111,7 @@ export class ClubController {
       settling: false,
       claiming: false,
       saving: false,
+      spending: false,
       error: null,
       notice: null,
       welcome: null,
@@ -125,9 +137,19 @@ export class ClubController {
     return () => this.listeners.delete(listener)
   }
 
-  /** 進入 V2：讀取存檔，有球團就結算到期的比賽 */
+  /** 進入 V2：讀取存檔（舊格式就在鎖內升級），有球團就結算到期的比賽 */
   async start(): Promise<void> {
-    this.reload()
+    if (this.disposed) return
+    try {
+      const { value } = await openClubSafely(this.deps)
+      if (this.disposed) return
+      this.set({ club: value.club, status: value.club ? { kind: 'ready' } : { kind: 'no-club' }, ...(value.migrated ? { notice: V2T.migrated } : {}) })
+    } catch (e) {
+      if (this.disposed) return
+      // 沒有 Web Locks 時被別的分頁搶先遷移：重新讀取就是新格式
+      if (e instanceof ClubSaveError && e.code === 'conflict') this.reload()
+      else this.set({ club: null, status: brokenStatus(e) })
+    }
     if (this.current.status.kind === 'ready') await this.settle('enter')
   }
 
@@ -138,6 +160,11 @@ export class ClubController {
       const club = this.deps.store.loadClub()
       this.set({ club, status: club ? { kind: 'ready' } : { kind: 'no-club' } })
     } catch (e) {
+      // 存檔還是舊格式（例如唯讀分頁沒辦法遷移）：交給 start 在鎖內遷移
+      if (e instanceof ClubSaveError && e.code === 'needs-migration' && this.guard.canWrite()) {
+        void this.start()
+        return
+      }
       this.set({ club: null, status: brokenStatus(e) })
     }
   }
@@ -306,7 +333,57 @@ export class ClubController {
   saveRoster(roster: PersistentRoster, baseVersion: string): Promise<ActionResult> {
     const issues = lineupIssues(roster)
     if (issues.length) return Promise.resolve({ ok: false, message: issues.join('；') })
-    return this.saveSettings({ roster }, { roster: baseVersion })
+    // 存檔只存球員編號：等級、能力以永久名單為準，畫面上的草稿不會蓋掉別人剛升的級
+    return this.saveSettings({ roster: toAssignment(roster) }, { roster: baseVersion })
+  }
+
+  /**
+   * 升級球員一級。expectedLevel 是畫面上看到的等級：別的分頁剛升過就拒絕，不會一次升兩級。
+   * 操作序號取自最新存檔；連點只會送一次
+   */
+  upgrade(playerId: string, expectedLevel: number): Promise<SpendResult> {
+    return this.spend((opSeq) => upgrade(this.deps, { opSeq, playerId, expectedLevel }), (out) => {
+      const name = recordOf(out.club, playerId)?.player.name ?? ''
+      return V2T.upgraded(name, out.op.toLevel ?? expectedLevel + 1)
+    })
+  }
+
+  /** 招募一位打者或投手：加入預備名單，不會自動上場 */
+  recruit(role: RecruitRole): Promise<SpendResult> {
+    return this.spend((opSeq) => recruit(this.deps, { opSeq, role }), (out) => V2T.recruited(recordOf(out.club, out.op.playerId)?.player.name ?? ''))
+  }
+
+  private spend(run: (opSeq: number) => Promise<SpendOutcome>, success: (out: SpendOutcome) => string): Promise<SpendResult> {
+    if (this.spendFlight) return this.spendFlight
+    if (!this.guard.canWrite()) return Promise.resolve({ ok: false, message: V2T.readOnly })
+    this.spendFlight = (async (): Promise<SpendResult> => {
+      this.set({ spending: true, error: null })
+      try {
+        const latest = this.deps.store.loadClub()
+        if (!latest) {
+          this.reload()
+          return { ok: false, message: V2T.noClubAnymore }
+        }
+        const out = await run(latest.economy.nextOpSeq)
+        if (this.disposed) return { ok: true, outcome: out }
+        this.set({ club: out.club })
+        return { ok: true, outcome: out, message: success(out) }
+      } catch (e) {
+        if (this.disposed) return { ok: false }
+        if (e instanceof EconomyError) {
+          // 支出被拒絕，但到期的比賽已經結算存檔：畫面換成存好的球團
+          if (e.settled) this.set({ club: e.settled.club })
+          // 畫面資料過期：讀進最新的，讓玩家看清楚再操作
+          if (e.code === 'stale-request' || e.code === 'level-mismatch') this.reload()
+          return { ok: false, message: e.message }
+        }
+        return { ok: false, message: this.handleError(e) }
+      } finally {
+        this.spendFlight = null
+        if (!this.disposed) this.set({ spending: false })
+      }
+    })()
+    return this.spendFlight
   }
 
   /** 儲存戰術；baseVersion 是草稿建立時的戰術版本 */
@@ -419,6 +496,8 @@ export class ClubController {
 
 function brokenStatus(e: unknown): V2Status {
   if (e instanceof ClubSaveError) {
+    if (e.code === 'migration-failed') return { kind: 'broken', reason: 'migration-failed', message: `${V2T.migrationFailed}（${e.message}）` }
+    if (e.code === 'read-only' || e.code === 'needs-migration') return { kind: 'broken', reason: 'migration-blocked', message: V2T.migrationBlocked }
     if (e.code === 'unsupported-version') return { kind: 'broken', reason: 'unsupported-version', message: V2T.unsupportedVersion }
     if (e.code === 'storage-unavailable') return { kind: 'broken', reason: 'storage-unavailable', message: V2T.storageUnavailable }
     if (e.code === 'invalid-json' || e.code === 'invalid-schema') return { kind: 'broken', reason: 'invalid', message: V2T.corruptSave }

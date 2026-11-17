@@ -1,5 +1,5 @@
 // 內容指紋：用來比對兩份資料是不是同一份（物件 key 排序後比，從存檔讀回來的資料也能比）
-import type { ClubSaveV3 } from './club'
+import type { ClubSave } from './club'
 
 /** 跟 JSON.stringify 一樣（略過 undefined），但物件的 key 排序 */
 export function stableJson(value: unknown): string {
@@ -31,6 +31,6 @@ export interface SettingsVersions {
   coach: string
 }
 
-export function settingsVersions(club: Pick<ClubSaveV3, 'roster' | 'strategy'>): SettingsVersions {
+export function settingsVersions(club: Pick<ClubSave, 'roster' | 'strategy'>): SettingsVersions {
   return { roster: hash(stableJson(club.roster)), coach: hash(stableJson(club.strategy.coach)) }
 }

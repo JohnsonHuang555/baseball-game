@@ -5,8 +5,9 @@ import { generateTeam } from '../../sim/generate'
 import { equippedTeam } from '../../sim/items'
 import { Rng } from '../../sim/rng'
 import { RULES_VERSION, type GameSetup, type Side } from '../../sim/game'
-import { SEED_SALT, deriveSeed, matchIdFor, userSideFor, type ClubSaveV3 } from '../domain/club'
+import { SEED_SALT, deriveSeed, matchIdFor, userSideFor, type ClubSave } from '../domain/club'
 import { BATCH_CONFIG } from '../domain/config'
+import { resolveRoster } from '../domain/roster'
 import { stableJson } from '../domain/fingerprint'
 import { runMatch, type MatchAi, type MatchResult } from './matchRunner'
 
@@ -28,13 +29,13 @@ export interface MatchOutcome {
 }
 
 /** 第 matchIndex 場的計畫：種子、對手、主客場都只由球團種子與場次序號決定 */
-export function planMatch(club: ClubSaveV3, matchIndex: number): MatchPlan {
+export function planMatch(club: ClubSave, matchIndex: number): MatchPlan {
   if (!Number.isSafeInteger(matchIndex) || matchIndex < 0) throw new RangeError(`場次序號不合法：${matchIndex}`)
   const seed = deriveSeed(club.clubSeed, matchIndex, SEED_SALT.match)
   const userSide = userSideFor(matchIndex)
   const opponent = generateTeam(new Rng(deriveSeed(club.clubSeed, matchIndex, SEED_SALT.opponent)))
-  // 快照：深拷貝陣容與戰術
-  const ours = equippedTeam({ name: club.clubName, roster: structuredClone(club.roster) })
+  // 快照：把配置換算成「這一刻」養成後能力的完整陣容（深拷貝），之後升級、換人都不影響這一場
+  const ours = equippedTeam({ name: club.clubName, roster: structuredClone(resolveRoster(club)) })
   const coach = structuredClone(club.strategy.coach)
   const otherSide: Side = userSide === 'home' ? 'away' : 'home'
   return {
@@ -49,7 +50,7 @@ export function planMatch(club: ClubSaveV3, matchIndex: number): MatchPlan {
 }
 
 /** 從第 from 場開始的 count 場計畫 */
-export function planMatches(club: ClubSaveV3, from: number, count: number): MatchPlan[] {
+export function planMatches(club: ClubSave, from: number, count: number): MatchPlan[] {
   return Array.from({ length: Math.max(0, count) }, (_, i) => planMatch(club, from + i))
 }
 

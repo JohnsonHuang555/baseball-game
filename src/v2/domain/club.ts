@@ -1,17 +1,45 @@
-// V2 球團存檔（schemaVersion 3）：球團、球員、戰術、經濟、放置進度與近期比賽。
+// V2 球團存檔（schemaVersion 4）：球團、永久球員名單、陣容配置、戰術、經濟、放置進度與近期比賽。
 // 不沿用 V1 的 Tournament：錦標賽是一輪一輪的 roguelike，V2 的球團要一直存在、一直累積。
-// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態
+// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移見 migration.ts
 import type { Side } from '../../sim/game'
-import type { Roster } from '../../sim/types'
+import type { Player, Position, Roster } from '../../sim/types'
 import type { CoachParams, CoachStyle } from '../application/autoCoach'
 import type { MatchReplay } from '../application/matchRunner'
 import { lineupIssues } from './lineup'
+import { MAX_LEVEL, RECRUIT_CONFIG, SPEND_LOG_LIMIT } from './progressionConfig'
+import { resolveRoster } from './roster'
 import { coachParamIssues } from './tactics'
+import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, validateMatches, type Obj } from './validation'
 
-export const CLUB_SCHEMA_VERSION = 3
+export { ClubValidationError, type ClubValidationCode } from './validation'
 
-/** 球員與陣容：Phase 2 不做養成，直接沿用模擬用的名單結構（9 先發、板凳、先發投手、後援） */
+export const CLUB_SCHEMA_VERSION = 4
+
+/**
+ * 換算好的陣容：先發、板凳、投手都是完整的球員物件（養成後的能力），也就是模擬引擎吃的 Roster。
+ * 畫面編輯陣容、比賽開打前的快照都用這個；存檔裡存的是只有球員 ID 的 RosterAssignment
+ */
 export type PersistentRoster = Roster
+
+/** 陣容配置：只存球員 ID。不在配置裡的球員是預備名單 */
+export interface RosterAssignment {
+  lineup: { playerId: string; position: Position }[]
+  bench: string[]
+  starter: string
+  relievers: string[]
+  captain?: string
+}
+
+export type PlayerOrigin = 'founding' | 'recruit' | 'migrated'
+
+/** 永久球員資料：原始能力（Lv.1）、等級。養成後的能力由 progression.ts 算出來，不另外存 */
+export interface PlayerRecord {
+  player: Player
+  level: number
+  origin: PlayerOrigin
+  /** 加入時是第幾場比賽（結算游標） */
+  joinedAtMatch: number
+}
 
 /** 球團的戰術設定；effectiveFromMatch 是這份設定從第幾場開始生效 */
 export interface TeamStrategies {
@@ -24,15 +52,30 @@ export interface Resources {
   experience: number
 }
 
+/** 一筆支出（升級、招募）：原因、對象、金額、時間，以及用來辨識重送的請求內容 */
+export interface SpendRecord {
+  seq: number
+  kind: 'upgrade' | 'recruit'
+  playerId: string
+  cost: Resources
+  at: number
+  /** 請求內容（序號以外）：同一個序號重送時比對，確認是同一個請求 */
+  requestKey: string
+  fromLevel?: number
+  toLevel?: number
+  recruitIndex?: number
+}
+
 /**
- * 經濟：三筆分開記，避免「結算一次、領取一次」被算成兩次。
- * unclaimed：已結算、還沒領取；assets：已領取、算進球團資產；lifetime：總共賺過多少。
- * Phase 2 沒有支出，所以不變量是 assets + unclaimed = lifetime（見 economyViolations；Phase 3 加支出的調整見 ADR-0008）
+ * 經濟：unclaimed（已結算、還沒領取）、assets（已領取、可以花的）、earned（累計所有收入）、spent（累計所有支出）。
+ * 不變量：assets + unclaimed + spent = earned（資金、經驗分開算，見 economyViolations）。
+ * 之後如果有免費獎勵，算進 earned；退款也算收入（earned），spent 只增不減
  */
 export interface EconomyState {
   assets: Resources
   unclaimed: Resources
-  lifetime: Resources
+  earned: Resources
+  spent: Resources
   /**
    * 領取序號：下一次領取必須帶這個號碼，成功後加 1。號碼比它小的請求一律當作已處理，
    * 所以不管過了多久、領了幾次，舊請求重送都不會再入帳；存檔只多一個整數
@@ -40,6 +83,10 @@ export interface EconomyState {
   nextClaimSeq: number
   /** 上一次成功的領取：重送同一個請求時回傳當時領到的數字 */
   lastClaim: { seq: number; claimed: Resources } | null
+  /** 支出序號：升級、招募共用。用法跟 nextClaimSeq 一樣，比目前小的請求不會再生效 */
+  nextOpSeq: number
+  /** 最近的支出（最多 SPEND_LOG_LIMIT 筆，最後一筆一定是 nextOpSeq − 1）；累計在 spent */
+  recentOps: SpendRecord[]
 }
 
 /** 放置進度：anchorMs 之前的時間已經換成比賽；nextMatchIndex 是結算游標，比它小的場次都已結算 */
@@ -93,14 +140,18 @@ export interface SettledMatch {
   settledAt: number
 }
 
-export interface ClubSaveV3 {
+export interface ClubSaveV4 {
   schemaVersion: typeof CLUB_SCHEMA_VERSION
   clubId: string
   clubName: string
-  /** 球團種子：每一場的種子、對手都由它和場次序號推導 */
+  /** 球團種子：每一場的種子、對手、每一次招募都由它推導 */
   clubSeed: number
   createdAt: number
-  roster: PersistentRoster
+  /** 永久球員名單：ID 唯一、不會被覆蓋 */
+  players: PlayerRecord[]
+  roster: RosterAssignment
+  /** 已招募的次數：第幾次招募的亂數、成本都由它決定 */
+  recruitment: { count: number }
   strategy: TeamStrategies
   economy: EconomyState
   idle: IdleState
@@ -109,9 +160,14 @@ export interface ClubSaveV3 {
   recentMatches: SettledMatch[]
   /** 最近幾場的完整 replay，最多 RETENTION_CONFIG.replays 份 */
   replays: { matchId: string; replay: MatchReplay }[]
+  /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄） */
+  migratedFrom?: { schemaVersion: 3; revision: number }
   /** 每存一次加 1：用來發現別的分頁已經改過存檔 */
   revision: number
 }
+
+/** 目前格式的球團存檔 */
+export type ClubSave = ClubSaveV4
 
 export interface NewClubInput {
   clubId: string
@@ -123,17 +179,35 @@ export interface NewClubInput {
 
 const zero = (): Resources => ({ funds: 0, experience: 0 })
 
+/** 由完整陣容拆成永久球員名單（Lv.1）與只有 ID 的配置 */
+export function splitRoster(roster: Roster, origin: PlayerOrigin, joinedAtMatch = 0): { players: PlayerRecord[]; roster: RosterAssignment } {
+  const all: Player[] = [...roster.lineup.map((s) => s.player), ...roster.bench, roster.starter, ...roster.relievers]
+  return {
+    players: all.map((p) => ({ player: structuredClone(p), level: 1, origin, joinedAtMatch })),
+    roster: {
+      lineup: roster.lineup.map((s) => ({ playerId: s.player.id, position: s.position })),
+      bench: roster.bench.map((p) => p.id),
+      starter: roster.starter.id,
+      relievers: roster.relievers.map((p) => p.id),
+      ...(roster.captain ? { captain: roster.captain } : {}),
+    },
+  }
+}
+
 /** 新球團：時間錨點就是建立的時間，第一場在 5 分鐘後打完 */
-export function newClub(input: NewClubInput): ClubSaveV3 {
+export function newClub(input: NewClubInput): ClubSave {
+  const { players, roster } = splitRoster(input.roster, 'founding')
   return {
     schemaVersion: CLUB_SCHEMA_VERSION,
     clubId: input.clubId,
     clubName: input.clubName,
     clubSeed: input.clubSeed >>> 0,
     createdAt: input.now,
-    roster: structuredClone(input.roster),
+    players,
+    roster,
+    recruitment: { count: 0 },
     strategy: { coach: { style: 'balanced' }, effectiveFromMatch: 0 },
-    economy: { assets: zero(), unclaimed: zero(), lifetime: zero(), nextClaimSeq: 0, lastClaim: null },
+    economy: { assets: zero(), unclaimed: zero(), earned: zero(), spent: zero(), nextClaimSeq: 0, lastClaim: null, nextOpSeq: 0, recentOps: [] },
     idle: { anchorMs: input.now, nextMatchIndex: 0, lastSettledAt: null },
     record: { wins: 0, losses: 0, runsFor: 0, runsAgainst: 0 },
     recentMatches: [],
@@ -143,12 +217,12 @@ export function newClub(input: NewClubInput): ClubSaveV3 {
 }
 
 /** 每一場比賽的唯一編號 */
-export function matchIdFor(club: Pick<ClubSaveV3, 'clubId'>, matchIndex: number): string {
+export function matchIdFor(club: Pick<ClubSave, 'clubId'>, matchIndex: number): string {
   return `${club.clubId}#${matchIndex}`
 }
 
 /** 用途區分：同一場的比賽種子和對手種子不能相同 */
-export const SEED_SALT = { match: 0, opponent: 1 } as const
+export const SEED_SALT = { match: 0, opponent: 1, recruit: 2 } as const
 
 /** 由球團種子與場次序號穩定推導出 32 位元種子（不靠任何亂數狀態，第幾場永遠是同一個種子） */
 export function deriveSeed(clubSeed: number, matchIndex: number, salt = 0): number {
@@ -176,37 +250,29 @@ export function userSideFor(matchIndex: number): Side {
 
 /**
  * 經濟的不變量，回傳違反的項目（空陣列代表正常）：
- * 1. 每筆都 ≥ 0；2. assets + unclaimed = lifetime（Phase 2 沒有支出）；
- * 3. lastClaim 一定是上一個序號（nextClaimSeq − 1），還沒領過時 nextClaimSeq 是 0
+ * 1. 每筆都 ≥ 0；2. assets + unclaimed + spent = earned（資金、經驗分開）；
+ * 3. lastClaim 一定是上一個領取序號；4. 最近一筆支出一定是上一個支出序號，支出紀錄的序號遞增
  */
 export function economyViolations(e: EconomyState): string[] {
   const out: string[] = []
   for (const k of ['funds', 'experience'] as const) {
-    if (e.assets[k] < 0 || e.unclaimed[k] < 0 || e.lifetime[k] < 0) out.push(`${k} 出現負數`)
-    if (e.assets[k] + e.unclaimed[k] !== e.lifetime[k]) out.push(`${k}：資產 ${e.assets[k]} + 未領取 ${e.unclaimed[k]} ≠ 總收益 ${e.lifetime[k]}`)
+    if (e.assets[k] < 0 || e.unclaimed[k] < 0 || e.earned[k] < 0 || e.spent[k] < 0) out.push(`${k} 出現負數`)
+    if (e.assets[k] + e.unclaimed[k] + e.spent[k] !== e.earned[k]) {
+      out.push(`${k}：資產 ${e.assets[k]} + 未領取 ${e.unclaimed[k]} + 支出 ${e.spent[k]} ≠ 總收入 ${e.earned[k]}`)
+    }
   }
   if (e.lastClaim === null ? e.nextClaimSeq !== 0 : e.lastClaim.seq !== e.nextClaimSeq - 1) out.push('領取序號與上一次領取對不起來')
+  const last = e.recentOps.at(-1)
+  if (last === undefined ? e.nextOpSeq !== 0 : last.seq !== e.nextOpSeq - 1) out.push('支出序號與最近一筆支出對不起來')
+  if (e.recentOps.some((op, i) => i > 0 && op.seq <= e.recentOps[i - 1].seq)) out.push('支出紀錄的序號沒有遞增')
+  if (e.recentOps.length > SPEND_LOG_LIMIT) out.push('支出紀錄超過保留上限')
   return out
 }
 
 // ---- 驗證 ----
 
-export type ClubValidationCode = 'unsupported-version' | 'invalid-schema'
-
-export class ClubValidationError extends Error {
-  override name = 'ClubValidationError'
-  constructor(
-    readonly code: ClubValidationCode,
-    message: string,
-  ) {
-    super(message)
-  }
-}
-
-type Obj = Record<string, unknown>
-
-/** 檢查讀進來的資料是不是合法的 V3 存檔；不合法就丟 ClubValidationError，說明哪個欄位錯 */
-export function validateClub(value: unknown): ClubSaveV3 {
+/** 檢查讀進來的資料是不是合法的 V4 存檔；不合法就丟 ClubValidationError，說明哪個欄位錯 */
+export function validateClub(value: unknown): ClubSave {
   if (!isObj(value)) throw invalid('$', '不是物件')
   if (value.schemaVersion !== CLUB_SCHEMA_VERSION) {
     const v = value.schemaVersion
@@ -218,9 +284,10 @@ export function validateClub(value: unknown): ClubSaveV3 {
   int(value, 'clubSeed')
   num(value, 'createdAt')
   int(value, 'revision')
-  validateRoster(obj(value, 'roster'), 'roster')
-  const rosterIssues = lineupIssues(value.roster as unknown as PersistentRoster)
-  if (rosterIssues.length) throw invalid('roster', rosterIssues.join('；'))
+  validatePlayers(value)
+  const recruitment = obj(value, 'recruitment')
+  int(recruitment, 'count', 'recruitment')
+  validateAssignment(value)
   const strategy = obj(value, 'strategy')
   const coach = obj(strategy, 'coach', 'strategy')
   if (coach.style !== 'balanced') throw invalid('strategy.coach.style', '不支援的戰術風格')
@@ -228,8 +295,55 @@ export function validateClub(value: unknown): ClubSaveV3 {
   const paramIssues = coach.params === undefined ? [] : coachParamIssues(coach.params as Partial<CoachParams>)
   if (paramIssues.length) throw invalid('strategy.coach.params', paramIssues.join('；'))
   int(strategy, 'effectiveFromMatch', 'strategy')
-  const economy = obj(value, 'economy')
-  for (const key of ['assets', 'unclaimed', 'lifetime']) {
+  validateEconomy(obj(value, 'economy'))
+  const idle = obj(value, 'idle')
+  num(idle, 'anchorMs', 'idle')
+  int(idle, 'nextMatchIndex', 'idle')
+  if (idle.lastSettledAt !== null) num(idle, 'lastSettledAt', 'idle')
+  const record = obj(value, 'record')
+  for (const key of ['wins', 'losses', 'runsFor', 'runsAgainst']) int(record, key, 'record')
+  validateMatches(value)
+  return value as unknown as ClubSave
+}
+
+function validatePlayers(value: Obj): void {
+  const list = arr(value, 'players')
+  if (list.length > RECRUIT_CONFIG.maxPlayers) throw invalid('players', `最多 ${RECRUIT_CONFIG.maxPlayers} 人`)
+  const ids = new Set<string>()
+  list.forEach((r, i) => {
+    const path = `players[${i}]`
+    if (!isObj(r) || !isObj(r.player)) throw invalid(path, '格式不對')
+    const role = r.player.role === 'pitcher' ? 'pitcher' : 'batter'
+    player(r.player, role, `${path}.player`)
+    if (!Number.isInteger(r.level) || (r.level as number) < 1 || (r.level as number) > MAX_LEVEL) throw invalid(`${path}.level`, `必須是 1～${MAX_LEVEL} 的整數`)
+    if (r.origin !== 'founding' && r.origin !== 'recruit' && r.origin !== 'migrated') throw invalid(`${path}.origin`, '不認識的來源')
+    int(r, 'joinedAtMatch', path)
+    const id = r.player.id as string
+    if (ids.has(id)) throw invalid(`${path}.player.id`, `球員編號重複：${id}`)
+    ids.add(id)
+  })
+}
+
+function validateAssignment(value: Obj): void {
+  const roster = obj(value, 'roster')
+  const lineup = arr(roster, 'lineup', 'roster')
+  lineup.forEach((s, i) => {
+    if (!isObj(s) || typeof s.playerId !== 'string' || typeof s.position !== 'string') throw invalid(`roster.lineup[${i}]`, '格式不對')
+  })
+  for (const key of ['bench', 'relievers']) if (!arr(roster, key, 'roster').every((x) => typeof x === 'string')) throw invalid(`roster.${key}`, '必須是球員編號')
+  str(roster, 'starter', 'roster')
+  let resolved: Roster
+  try {
+    resolved = resolveRoster(value as unknown as ClubSave)
+  } catch (e) {
+    throw invalid('roster', (e as Error).message)
+  }
+  const issues = lineupIssues(resolved)
+  if (issues.length) throw invalid('roster', issues.join('；'))
+}
+
+function validateEconomy(economy: Obj): void {
+  for (const key of ['assets', 'unclaimed', 'earned', 'spent']) {
     const r = obj(economy, key, 'economy')
     num(r, 'funds', `economy.${key}`)
     num(r, 'experience', `economy.${key}`)
@@ -242,74 +356,18 @@ export function validateClub(value: unknown): ClubSaveV3 {
     num(claimed, 'funds', 'economy.lastClaim.claimed')
     num(claimed, 'experience', 'economy.lastClaim.claimed')
   }
+  int(economy, 'nextOpSeq', 'economy')
+  arr(economy, 'recentOps', 'economy').forEach((op, i) => {
+    const path = `economy.recentOps[${i}]`
+    if (!isObj(op) || (op.kind !== 'upgrade' && op.kind !== 'recruit')) throw invalid(path, '格式不對')
+    int(op, 'seq', path)
+    str(op, 'playerId', path)
+    str(op, 'requestKey', path)
+    num(op, 'at', path)
+    const cost = obj(op, 'cost', path)
+    num(cost, 'funds', `${path}.cost`)
+    num(cost, 'experience', `${path}.cost`)
+  })
   const violations = economyViolations(economy as unknown as EconomyState)
   if (violations.length > 0) throw invalid('economy', `帳務對不起來：${violations.join('；')}`)
-  const idle = obj(value, 'idle')
-  num(idle, 'anchorMs', 'idle')
-  int(idle, 'nextMatchIndex', 'idle')
-  if (idle.lastSettledAt !== null) num(idle, 'lastSettledAt', 'idle')
-  const record = obj(value, 'record')
-  for (const key of ['wins', 'losses', 'runsFor', 'runsAgainst']) int(record, key, 'record')
-  arr(value, 'recentMatches').forEach((m, i) => {
-    const path = `recentMatches[${i}]`
-    if (!isObj(m)) throw invalid(path, '不是物件')
-    str(m, 'matchId', path)
-    int(m, 'matchIndex', path)
-    int(m, 'seed', path)
-    num(m, 'earnedFunds', path)
-    num(m, 'earnedExperience', path)
-    num(m, 'settledAt', path)
-    const r = obj(m, 'result', path)
-    int(r, 'runsFor', `${path}.result`)
-    int(r, 'runsAgainst', `${path}.result`)
-    arr(r, 'highlights', `${path}.result`)
-  })
-  arr(value, 'replays').forEach((r, i) => {
-    if (!isObj(r) || typeof r.matchId !== 'string' || !isObj(r.replay)) throw invalid(`replays[${i}]`, '格式不對')
-  })
-  return value as unknown as ClubSaveV3
-}
-
-function validateRoster(roster: Obj, path: string): void {
-  const lineup = arr(roster, 'lineup', path)
-  if (lineup.length !== 9) throw invalid(`${path}.lineup`, '先發必須是 9 人')
-  lineup.forEach((s, i) => {
-    if (!isObj(s) || typeof s.position !== 'string') throw invalid(`${path}.lineup[${i}]`, '格式不對')
-    player(s.player, 'batter', `${path}.lineup[${i}].player`)
-  })
-  arr(roster, 'bench', path).forEach((p, i) => player(p, 'batter', `${path}.bench[${i}]`))
-  player(roster.starter, 'pitcher', `${path}.starter`)
-  arr(roster, 'relievers', path).forEach((p, i) => player(p, 'pitcher', `${path}.relievers[${i}]`))
-}
-
-function player(p: unknown, role: 'batter' | 'pitcher', path: string): void {
-  if (!isObj(p) || p.role !== role || typeof p.id !== 'string' || typeof p.name !== 'string' || !isObj(p.ratings) || !Array.isArray(p.traits)) {
-    throw invalid(path, `不是合法的${role === 'batter' ? '打者' : '投手'}`)
-  }
-}
-
-const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v)
-const invalid = (path: string, why: string) => new ClubValidationError('invalid-schema', `存檔格式錯誤：${path} ${why}`)
-const at = (parent: string | undefined, key: string) => (parent ? `${parent}.${key}` : key)
-
-function obj(o: Obj, key: string, parent?: string): Obj {
-  const v = o[key]
-  if (!isObj(v)) throw invalid(at(parent, key), '必須是物件')
-  return v
-}
-function arr(o: Obj, key: string, parent?: string): unknown[] {
-  const v = o[key]
-  if (!Array.isArray(v)) throw invalid(at(parent, key), '必須是陣列')
-  return v
-}
-function str(o: Obj, key: string, parent?: string): void {
-  if (typeof o[key] !== 'string' || o[key] === '') throw invalid(at(parent, key), '必須是非空字串')
-}
-function num(o: Obj, key: string, parent?: string): void {
-  const v = o[key]
-  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) throw invalid(at(parent, key), '必須是 0 以上的數字')
-}
-function int(o: Obj, key: string, parent?: string): void {
-  const v = o[key]
-  if (!Number.isSafeInteger(v) || (v as number) < 0) throw invalid(at(parent, key), '必須是 0 以上的整數')
 }

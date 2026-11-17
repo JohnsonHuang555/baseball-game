@@ -3,7 +3,7 @@
 import { replay } from '../../sim/game'
 import { setKeys } from '../../ui/keys'
 import { el } from '../../ui/playerCard'
-import type { ClubSaveV3, SettledMatch, SummaryHighlight } from '../domain/club'
+import type { ClubSave, SettledMatch, SummaryHighlight } from '../domain/club'
 import type { ControllerState, WelcomeSummary } from './clubController'
 import { matchList } from './dashboardView'
 import { V2T } from './strings'
@@ -25,7 +25,7 @@ export function highlightText(h: SummaryHighlight): string {
 }
 
 /** 單場戰報 */
-export function openMatchReport(m: SettledMatch, club: ClubSaveV3): () => void {
+export function openMatchReport(m: SettledMatch, club: ClubSave): () => void {
   const r = m.result
   const body = el('div', 'v2-report')
   const score = el('div', `v2-report-score ${r.won ? 'won' : 'lost'}`)
@@ -53,7 +53,7 @@ export function openMatchReport(m: SettledMatch, club: ClubSaveV3): () => void {
 }
 
 /** 用保存的 replay 重播一次，拿每局比分與個人成績；重播失敗就只顯示摘要 */
-function replayDetails(rep: ClubSaveV3['replays'][number]['replay']): HTMLElement[] {
+function replayDetails(rep: ClubSave['replays'][number]['replay']): HTMLElement[] {
   let game
   try {
     game = replay(rep.setup, rep.commands)

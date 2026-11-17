@@ -5,6 +5,7 @@ import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepositor
 import { FakeLockManager, FlakyStorage, HOUR, ManualClock, tab } from '../testkit'
 import { updateSettings } from '../application/settlementService'
 import { substitute } from '../domain/lineup'
+import { resolveRoster, toAssignment } from '../domain/roster'
 import { openV2, type V2App } from './app'
 import { v1Label, v2EntryButton } from './entry'
 import { V2T } from './strings'
@@ -34,7 +35,7 @@ function otherTabWrote(): void {
 }
 
 const $ = <T extends Element = HTMLElement>(sel: string) => document.querySelector<T & HTMLElement>(sel)
-const $$ = (sel: string) => [...document.querySelectorAll<HTMLElement>(sel)]
+const $$ = <T extends HTMLElement = HTMLElement>(sel: string) => [...document.querySelectorAll<T>(sel)]
 const text = (sel: string) => $(sel)?.textContent ?? ''
 
 async function createClub(name = '測試貓熊隊') {
@@ -148,7 +149,7 @@ describe('V2 畫面', () => {
     $<HTMLButtonElement>('.v2-savebar .btn-yellow')!.click()
     await flush()
     const after = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
-    expect(after.roster.lineup[0].player.id).toBe(before.bench[0].id)
+    expect(after.roster.lineup[0].playerId).toBe(before.bench[0])
     expect(after.strategy.effectiveFromMatch).toBe(0)
   })
 
@@ -210,8 +211,8 @@ describe('Code review 修正', () => {
     // 別的分頁改了陣容並儲存
     const other = tab(storage, clock, locks)
     const club = other.store.loadClub()!
-    const theirs = substitute(club.roster, 3, 1)
-    await updateSettings(other, { roster: theirs })
+    const theirs = substitute(resolveRoster(club), 3, 1)
+    await updateSettings(other, { roster: toAssignment(theirs) })
     otherTabWrote()
     await flush()
     expect(text('.v2-savebar-status')).toBe(V2T.draftStale)
@@ -219,7 +220,7 @@ describe('Code review 修正', () => {
     // 草稿沒有消失
     expect($$('.v2-player')[0].querySelector('.v2-player-name')!.textContent).toBe(myDraftFirst)
     // 存檔是別的分頁的版本
-    expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).roster).toEqual(theirs)
+    expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).roster).toEqual(toAssignment(theirs))
     $<HTMLButtonElement>('.v2-savebar .btn-white')!.click()
     expect(text('.v2-savebar-status')).toBe(V2T.lineupEffective)
     expect($$('.v2-player')[3].querySelector('.v2-player-name')!.textContent).toContain(theirs.lineup[3].player.name)
@@ -252,6 +253,73 @@ describe('Code review 修正', () => {
     await flush(2)
     expect(exited()).toBe(0)
     expect($('.v2-tactics')).not.toBeNull()
+  })
+})
+
+describe('Phase 4：養成與招募', () => {
+  /** 建好球團並給一筆資產（同時算進收入，帳才對得起來） */
+  async function richClub(funds = 100_000, experience = 10_000) {
+    const ctx = mount()
+    await flush()
+    await createClub()
+    const deps = tab(ctx.storage, ctx.clock, ctx.locks)
+    const club = deps.store.loadClub()!
+    deps.store.saveClub({ ...club, economy: { ...club.economy, assets: { funds, experience }, earned: { funds, experience } } }, club.revision)
+    otherTabWrote()
+    await flush()
+    return ctx
+  }
+
+  it('首頁顯示球隊戰力、可升級提示與招募入口', async () => {
+    await richClub()
+    expect(text('.v2-power-label')).toBe(V2T.teamPower)
+    expect(text('[data-action="lineup"]')).toBe(V2T.upgradeReady(14))
+    expect(text('[data-action="recruit"]')).toContain(V2T.recruitEntry)
+  })
+
+  it('陣容的「養成」打開球員詳情：顯示原始、目前、下一級與成本；升級後畫面與存檔一起更新', async () => {
+    const { storage } = await richClub()
+    $<HTMLButtonElement>('[data-tab="lineup"]')!.click()
+    const develop = $$('.v2-develop')[0]
+    const id = develop.dataset.player!
+    develop.click()
+    expect($('.v2-player-detail')).not.toBeNull()
+    expect(text('.v2-detail-name .v2-level')).toBe('Lv.1')
+    expect($$('.v2-rating-table tr[data-rating]')).toHaveLength(4)
+    expect(text('.v2-player-detail')).toContain(V2T.upgradeCostLabel)
+    $<HTMLButtonElement>('.v2-upgrade-btn')!.click()
+    await flush()
+    expect(text('.v2-detail-name .v2-level')).toBe('Lv.2')
+    const saved = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
+    expect(saved.players.find((r: { player: { id: string } }) => r.player.id === id).level).toBe(2)
+    // 關掉之後，陣容列表上的等級也更新了
+    $<HTMLButtonElement>('.v2-modal-close')!.click()
+    await flush()
+    expect($$('.v2-player-name .v2-level')[0].textContent).toBe('Lv.2')
+  })
+
+  it('從首頁招募：顯示成本與人數，招募後出現球員卡片、預備名單多一人、可以前往陣容', async () => {
+    const { storage } = await richClub()
+    $<HTMLButtonElement>('[data-action="recruit"]')!.click()
+    expect(text('.v2-recruit-count')).toBe(V2T.rosterCount(14, 30))
+    $<HTMLButtonElement>('.v2-recruit [data-role="pitcher"]')!.click()
+    await flush()
+    expect($('.v2-recruit-card')).not.toBeNull()
+    expect(text('.v2-recruit-count')).toBe(V2T.rosterCount(15, 30))
+    const saved = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
+    expect(saved.players).toHaveLength(15)
+    $<HTMLButtonElement>('.v2-recruit-card .btn-white')!.click()
+    await flush()
+    expect($('.v2-modal')).toBeNull()
+    expect($$('.v2-reserves .v2-player')).toHaveLength(1)
+  })
+
+  it('資金不足：招募按鈕停用、不扣款', async () => {
+    const { storage } = await richClub(100, 0)
+    $<HTMLButtonElement>('[data-action="recruit"]')!.click()
+    expect($$<HTMLButtonElement>('.v2-recruit [data-role]').every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
+    expect(text('.v2-recruit')).toContain(V2T.notEnoughFunds)
+    expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).economy.spent.funds).toBe(0)
   })
 })
 

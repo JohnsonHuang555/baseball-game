@@ -8,9 +8,16 @@
 import { generateRoster } from '../../sim/generate'
 import { Rng } from '../../sim/rng'
 import type { ClubLock, ClubStore } from '../application/settlementService'
-import { ClubValidationError, newClub, validateClub, type ClubSaveV3, type PersistentRoster } from '../domain/club'
+import { ClubValidationError, newClub, validateClub, type ClubSave, type PersistentRoster } from '../domain/club'
+import { MigrationError, migrateV3ToV4, needsMigration } from '../domain/migration'
 
+/**
+ * V2 球團存檔的 key。名稱裡的 v3 是第一版存檔的版本號，現在存的是 schemaVersion 4：
+ * 從 3 升到 4 時原地升級、沿用同一個 key，讓還開著舊版程式的分頁讀到 4 會停止寫入（見 ADR-0010）
+ */
 export const CLUB_STORAGE_KEY = 'dice-baseball.club.v3'
+/** 遷移前的 schemaVersion 3 原始文字（逐字備份，遷移後不再寫入，也不會自動還原） */
+export const CLUB_BACKUP_KEY_V3 = 'dice-baseball.club.v3.backup-schema3'
 export const CLUB_LOCK_NAME = 'dice-baseball.club.v3.settlement'
 
 /** Storage 的最小子集，localStorage 與記憶體版都符合 */
@@ -58,6 +65,10 @@ export type ClubSaveErrorCode =
   | 'already-exists'
   /** 這個分頁已經不是可寫分頁（沒有 Web Locks 時的單一可寫分頁限制） */
   | 'read-only'
+  /** 存檔是舊格式（schemaVersion 3），要先遷移才能使用 */
+  | 'needs-migration'
+  /** 舊格式遷移失敗：原本的存檔沒有被改動 */
+  | 'migration-failed'
 
 export class ClubSaveError extends Error {
   override name = 'ClubSaveError'
@@ -86,7 +97,7 @@ export class ClubRepository implements ClubStore {
   ) {}
 
   /** 讀取存檔：沒有存檔回傳 null；壞掉、版本不相容都丟 ClubSaveError，不會默默當成沒有存檔（避免被新球團蓋掉） */
-  loadClub(): ClubSaveV3 | null {
+  loadClub(): ClubSave | null {
     const raw = this.read()
     if (raw === null) return null
     let parsed: unknown
@@ -95,6 +106,7 @@ export class ClubRepository implements ClubStore {
     } catch (cause) {
       throw new ClubSaveError('invalid-json', '球團存檔不是合法的 JSON', { cause })
     }
+    if (needsMigration(parsed)) throw new ClubSaveError('needs-migration', '球團存檔是舊格式，需要先升級')
     try {
       return validateClub(parsed)
     } catch (cause) {
@@ -107,13 +119,13 @@ export class ClubRepository implements ClubStore {
    * 存檔：先重新讀取，確認存檔的 revision 還是 expectedRevision（新球團是 null，代表必須還沒有存檔），
    * 寫入的 revision 加 1。寫入失敗（容量不足、被停用）丟 write-failed，呼叫端不能當作成功
    */
-  saveClub(club: ClubSaveV3, expectedRevision: number | null): ClubSaveV3 {
+  saveClub(club: ClubSave, expectedRevision: number | null): ClubSave {
     validateClub(club)
     const current = this.peekRevision()
     if (current !== expectedRevision) {
       throw new ClubSaveError('conflict', `存檔已經被其他地方更新（預期版本 ${expectedRevision}，目前 ${current}），請重新讀取`)
     }
-    const next: ClubSaveV3 = { ...club, revision: (expectedRevision ?? -1) + 1 }
+    const next: ClubSave = { ...club, revision: (expectedRevision ?? -1) + 1 }
     const storage = this.requireStorage()
     try {
       storage.setItem(this.key, JSON.stringify(next))
@@ -124,7 +136,7 @@ export class ClubRepository implements ClubStore {
   }
 
   /** 建立新球團；已經有存檔（包含壞掉的存檔）就丟 already-exists，要先 resetClub */
-  createClub(input: CreateClubInput): ClubSaveV3 {
+  createClub(input: CreateClubInput): ClubSave {
     if (this.read() !== null) throw new ClubSaveError('already-exists', '已經有球團存檔')
     const clubSeed = (input.clubSeed ?? randomUint32()) >>> 0
     const club = newClub({
@@ -137,7 +149,67 @@ export class ClubRepository implements ClubStore {
     return this.saveClub(club, null)
   }
 
-  /** 刪掉 V2 球團存檔（只動自己的 key） */
+  /**
+   * 把舊格式（schemaVersion 3）的存檔升級到目前格式，回傳升級後的球團；沒有存檔回傳 null。
+   * 呼叫端要在 ClubLock 裡呼叫（application 的 openClubSafely）。步驟：
+   * 1. 讀主存檔的原始文字；已經是目前格式（別的分頁剛遷移完）就直接回傳
+   * 2. 在記憶體裡遷移（純函式），失敗丟 migration-failed，什麼都不寫
+   * 3. 碰備份之前，再讀一次主存檔：跟第 1 步不同（別的分頁已經遷移、或舊版分頁又存了一次）就丟 conflict，
+   *    備份、主存檔都不寫。所以競爭中較晚的那一方，永遠不會覆寫已經存在、對應到真正遷移結果的備份
+   * 4. 把原始文字逐字寫進備份 key，再讀回來確認一字不差；寫入失敗丟 write-failed，主存檔不動
+   * 5. 寫主存檔前最後再讀一次主存檔，還是第 1 步的原始文字才寫入升級後的存檔
+   * 備份永遠是「這一次被遷移的那份 V3」：只有第 3、5 步都確認主存檔還是它，才會寫備份與主存檔。
+   * 限制：localStorage 沒有交易，第 5 步的「確認」和「寫入」之間仍有極短的空檔。有 Web Locks 時所有 V2 分頁都在鎖裡
+   * 排隊，不會有這種競爭；沒有 Web Locks 時（或還開著不認得鎖的舊版分頁）不保證原子性——萬一發生，
+   * 主存檔會是升級後的格式（舊版分頁讀到會停止寫入），備份是遷移當下讀到的 V3，那次空檔內被覆蓋的進度會遺失
+   */
+  migrateClub(): ClubSave | null {
+    const raw = this.read()
+    if (raw === null) return null
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch (cause) {
+      throw new ClubSaveError('invalid-json', '球團存檔不是合法的 JSON', { cause })
+    }
+    if (!needsMigration(parsed)) return this.loadClub()
+    let migrated: ClubSave
+    try {
+      migrated = migrateV3ToV4(parsed)
+    } catch (cause) {
+      const message = cause instanceof MigrationError ? cause.message : String(cause)
+      throw new ClubSaveError('migration-failed', `球團存檔升級失敗，原本的存檔沒有被改動：${message}`, { cause })
+    }
+    const unchanged = () => {
+      if (this.read() !== raw) throw new ClubSaveError('conflict', '升級時存檔被其他地方改過（可能是另一個分頁），沒有寫入任何東西，請重新讀取')
+    }
+    const storage = this.requireStorage()
+    unchanged()
+    try {
+      if (storage.getItem(CLUB_BACKUP_KEY_V3) !== raw) storage.setItem(CLUB_BACKUP_KEY_V3, raw)
+    } catch (cause) {
+      throw new ClubSaveError('write-failed', '無法寫入舊存檔的備份，沒有進行升級', { cause })
+    }
+    if (this.readBackupV3() !== raw) throw new ClubSaveError('write-failed', '舊存檔的備份讀回來不一致，沒有進行升級')
+    unchanged()
+    try {
+      storage.setItem(this.key, JSON.stringify(migrated))
+    } catch (cause) {
+      throw new ClubSaveError('write-failed', '升級後的存檔寫入失敗，原本的存檔沒有被改動', { cause })
+    }
+    return migrated
+  }
+
+  /** 遷移前的 schemaVersion 3 備份原始文字（給「下載備份」用），沒有就是 null */
+  readBackupV3(): string | null {
+    try {
+      return this.storage?.getItem(CLUB_BACKUP_KEY_V3) ?? null
+    } catch {
+      return null
+    }
+  }
+
+  /** 刪掉 V2 球團存檔（只動自己的 key；遷移備份保留） */
   resetClub(): void {
     const storage = this.requireStorage()
     try {

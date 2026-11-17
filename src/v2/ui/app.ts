@@ -12,6 +12,7 @@ import { ClubController, type ControllerState } from './clubController'
 import { renderDashboard, updateCountdown } from './dashboardView'
 import { createLineupView, type LineupView } from './lineupView'
 import { openMatchReport, renderReports, welcomeModal } from './reportView'
+import { openRecruit } from './recruitView'
 import { V2T } from './strings'
 import { createTacticsView, type TacticsView } from './tacticsView'
 import { createWriterGuard, randomTabId, type StorageEventSource } from './writerGuard'
@@ -165,10 +166,12 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
           refresh: () => void controller.settle('manual'),
           openReport: (m) => openMatchReport(m, state.club!),
           allReports: () => show('reports'),
+          recruit: () => openRecruit(controller, () => show('lineup')),
+          lineup: () => show('lineup'),
         }),
       )
     } else if (tab === 'lineup') {
-      lineup ??= createLineupView(controller)
+      lineup ??= createLineupView(controller, () => show('lineup'))
       main.replaceChildren(lineup.render(state))
     } else if (tab === 'tactics') {
       tactics ??= createTacticsView(controller)

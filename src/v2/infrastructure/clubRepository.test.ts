@@ -55,7 +55,7 @@ describe('存檔讀寫', () => {
   })
 
   it('不支援的 schemaVersion：舊版、未來版本、沒有版本都明確報錯', () => {
-    for (const schemaVersion of [1, 2, 4, undefined, '3']) {
+    for (const schemaVersion of [1, 2, 5, undefined, '4']) {
       const storage = new MemoryStorage()
       const club = create(new ClubRepository(new MemoryStorage()))
       storage.setItem(CLUB_STORAGE_KEY, JSON.stringify({ ...club, schemaVersion }))
@@ -70,7 +70,11 @@ describe('存檔讀寫', () => {
       { ...club, economy: { ...club.economy, unclaimed: { funds: -1, experience: 0 } } },
       { ...club, idle: { ...club.idle, nextMatchIndex: 1.5 } },
       { ...club, roster: { ...club.roster, lineup: club.roster.lineup.slice(1) } },
-      { ...club, roster: { ...club.roster, starter: club.roster.lineup[0].player } },
+      { ...club, roster: { ...club.roster, starter: club.roster.lineup[0].playerId } },
+      { ...club, roster: { ...club.roster, bench: ['nobody', club.roster.bench[1]] } },
+      { ...club, players: [...club.players, club.players[0]] },
+      { ...club, players: club.players.map((r, i) => (i === 0 ? { ...r, level: 21 } : r)) },
+      { ...club, economy: { ...club.economy, spent: { funds: 5, experience: 0 } } },
       { ...club, recentMatches: [{ matchId: 'x' }] },
       { ...club, strategy: { coach: { style: 'yolo' }, effectiveFromMatch: 0 } },
       // 帳務對不起來：資產 + 未領取 ≠ 總收益、領取序號跟上一次領取不符
@@ -139,12 +143,12 @@ describe('跨分頁', () => {
     const club = a.store.loadClub()!
     expect(club.idle.nextMatchIndex).toBe(24)
     expect(club.record.wins + club.record.losses).toBe(24)
-    expect(club.economy.lifetime.funds).toBe(club.recentMatches.reduce((s, m) => s + m.earnedFunds, 0))
+    expect(club.economy.earned.funds).toBe(club.recentMatches.reduce((s, m) => s + m.earnedFunds, 0))
     // 兩個分頁看到同一個序號、同時領取：只入帳一次
     const seq = club.economy.nextClaimSeq
     const claims = await Promise.all([claim(a, seq), claim(b, seq)])
     expect(claims.filter((c) => !c.duplicate)).toHaveLength(1)
-    expect(a.store.loadClub()!.economy.assets.funds).toBe(club.economy.lifetime.funds)
+    expect(a.store.loadClub()!.economy.assets.funds).toBe(club.economy.earned.funds)
   })
 
   it('沒有 Web Locks（降級）：兩個分頁交錯結算時，後存的那個會被 revision 檢查擋下，不會重複發獎', async () => {

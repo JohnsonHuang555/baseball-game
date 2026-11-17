@@ -1,0 +1,95 @@
+// 球員詳情：名稱、流派、特性、等級，以及每項能力的「原始 → 目前（比賽實際使用）→ 下一級」、升級成本與升級按鈕。
+// 打開時跟著 controller 的狀態更新（升級、其他分頁改了都會重畫），關閉時取消訂閱
+import { gradeBadge } from '../../ui/grades'
+import { el } from '../../ui/playerCard'
+import { RATING_FULL } from '../../ui/strings'
+import { archetypeChip } from '../../ui/synergyUi'
+import { pitchChip, toast, traitList } from '../../ui/visual'
+import { canAfford } from '../application/economyService'
+import { MAX_LEVEL, leveled, upgradeCost } from '../domain/progression'
+import { recordOf } from '../domain/roster'
+import type { ClubController, ControllerState } from './clubController'
+import { v2Modal } from './reportView'
+import { V2T } from './strings'
+
+const fmt1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1)
+const fmt = (x: number) => x.toLocaleString('zh-Hant')
+
+export function openPlayerDetail(controller: ClubController, playerId: string): () => void {
+  const body = el('div', 'v2-player-detail')
+  const draw = (state: ControllerState) => {
+    const club = state.club
+    const record = club ? recordOf(club, playerId) : undefined
+    if (!club || !record) {
+      body.replaceChildren(el('p', 'v2-empty', V2T.noClubAnymore))
+      return
+    }
+    const base = record.player
+    const current = leveled(base, record.level)
+    const cost = upgradeCost(record.level)
+    const next = cost ? leveled(base, record.level + 1) : null
+
+    const head = el('div', 'v2-detail-head')
+    const titleLine = el('div', 'v2-detail-name')
+    titleLine.append(el('strong', '', base.name), el('span', 'v2-level big', V2T.level(record.level)))
+    const chips = el('div', 'v2-player-chips')
+    chips.append(base.role === 'batter' ? archetypeChip(base) : pitchChip(base))
+    head.append(titleLine, chips)
+
+    // 能力表：原始（Lv.1）、目前（比賽實際用的）、下一級
+    const table = el('table', 'v2-rating-table')
+    const hr = el('tr')
+    hr.append(el('th', '', ''), el('th', '', V2T.baseRating), el('th', 'current', V2T.currentRating), el('th', '', next ? V2T.nextRating : ''))
+    table.append(hr)
+    const ratingsOf = (p: typeof base) => p.ratings as unknown as Record<string, number>
+    for (const key of Object.keys(base.ratings)) {
+      const tr = el('tr')
+      tr.dataset.rating = key
+      const b = ratingsOf(base)[key]
+      const c = ratingsOf(current)[key]
+      const cur = el('td', 'current')
+      cur.append(gradeBadge(c, 'sm'), el('span', 'v2-num', fmt1(c)))
+      const nx = el('td', 'next')
+      if (next) {
+        const n = ratingsOf(next)[key]
+        const diff = Math.round((n - c) * 100) / 100
+        nx.append(el('span', 'v2-num', fmt1(n)), el('span', diff > 0 ? 'v2-diff up' : 'v2-diff', diff > 0 ? `+${diff.toFixed(2)}` : '±0'))
+      }
+      tr.append(el('th', '', RATING_FULL[key as keyof typeof RATING_FULL]), el('td', 'base', fmt1(b)), cur, nx)
+      table.append(tr)
+    }
+
+    const costBox = el('div', 'v2-upgrade')
+    const button = el('button', 'btn-yellow v2-upgrade-btn')
+    button.type = 'button'
+    if (!cost) {
+      costBox.append(el('p', 'v2-hint', V2T.maxLevel))
+      button.textContent = V2T.maxLevel
+      button.disabled = true
+    } else {
+      const affordable = canAfford(club, cost)
+      const line = el('div', 'v2-cost')
+      line.append(el('span', 'v2-cost-label', V2T.upgradeCostLabel))
+      const fundsOk = club.economy.assets.funds >= cost.funds
+      const expOk = club.economy.assets.experience >= cost.experience
+      line.append(
+        el('span', `v2-cost-item funds ${fundsOk ? '' : 'short'}`, `${V2T.funds} ${fmt(cost.funds)}（${V2T.owned} ${fmt(club.economy.assets.funds)}）`),
+        el('span', `v2-cost-item exp ${expOk ? '' : 'short'}`, `${V2T.experience} ${fmt(cost.experience)}（${V2T.owned} ${fmt(club.economy.assets.experience)}）`),
+      )
+      costBox.append(line)
+      button.textContent = state.spending ? V2T.upgrading : affordable ? V2T.upgradeButton(record.level + 1) : V2T.notEnoughResources
+      button.disabled = !affordable || state.spending || !state.canWrite
+      button.onclick = async () => {
+        button.disabled = true
+        const res = await controller.upgrade(playerId, record.level)
+        if (res.message) toast(res.message)
+      }
+    }
+    costBox.append(button)
+    body.replaceChildren(head, table, costBox, el('p', 'v2-hint', V2T.progressionNote), traitList(base))
+    if (record.level >= MAX_LEVEL) body.classList.add('max')
+  }
+  draw(controller.state)
+  const unsubscribe = controller.subscribe(draw)
+  return v2Modal(V2T.playerTitle, body, unsubscribe)
+}

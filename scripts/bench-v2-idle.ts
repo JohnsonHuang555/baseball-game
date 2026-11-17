@@ -39,3 +39,42 @@ for (const n of [1, 10, 96, 1000]) {
 
 const real = await measure(96, yieldToMain)
 console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixed(2)} ms | 模擬含讓出 ${ms(real.tSim)}`)
+
+// ---- Phase 4：滿員 30 人的存檔大小、升級與招募耗時 ----
+{
+  const { createClubSafely } = await import('../src/v2/application/clubLifecycle')
+  const { recruit, upgrade } = await import('../src/v2/application/economyService')
+  const { settleDue } = await import('../src/v2/application/settlementService')
+  const { FakeLockManager, HOUR, ManualClock, tab } = await import('../src/v2/testkit')
+  const storage = new MemoryStorage()
+  const clock = new ManualClock(T0)
+  const deps = tab(storage, clock, new FakeLockManager())
+  deps.batch.yieldControl = null
+  await createClubSafely(deps, { clubName: '滿員', clubSeed: 9, clubId: 'full' })
+  const c0 = deps.store.loadClub()!
+  const rich = { funds: 1e9, experience: 1e8 }
+  deps.store.saveClub({ ...c0, economy: { ...c0.economy, assets: rich, earned: rich } }, c0.revision)
+  let t = performance.now()
+  for (let i = 0; i < 16; i++) await recruit(deps, { opSeq: deps.store.loadClub()!.economy.nextOpSeq, role: i % 3 === 2 ? 'pitcher' : 'batter' })
+  const tRecruit = (performance.now() - t) / 16
+  t = performance.now()
+  let ups = 0
+  for (const r of deps.store.loadClub()!.players) {
+    for (let lv = 1; lv < 8; lv++) {
+      await upgrade(deps, { opSeq: deps.store.loadClub()!.economy.nextOpSeq, playerId: r.player.id, expectedLevel: lv })
+      ups++
+    }
+  }
+  const tUpgrade = (performance.now() - t) / ups
+  for (let day = 0; day < 3; day++) {
+    clock.advance(8 * HOUR)
+    await settleDue(deps)
+  }
+  clock.advance(8 * HOUR)
+  t = performance.now()
+  await settleDue(deps)
+  const tSettle = performance.now() - t
+  const size = storage.getItem(CLUB_STORAGE_KEY)!.length
+  console.log(`\n滿員 30 人（${ups} 次升級、16 次招募、${deps.store.loadClub()!.idle.nextMatchIndex} 場）`)
+  console.log(`招募每次 ${ms(tRecruit)}、升級每次 ${ms(tUpgrade)}（含讀檔、驗證、存檔）；結算 96 場 ${ms(tSettle)}；存檔大小 ${(size / 1024).toFixed(1)} KB`)
+}
