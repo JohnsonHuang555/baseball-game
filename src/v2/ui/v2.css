@@ -1593,3 +1593,6 @@
   gap: 6px;
   text-align: center;
 }
+.v2-replay-controls [hidden] {
+  display: none;
+}
