@@ -342,4 +342,10 @@ export const V2T = {
   upgradeEffectiveFrom: (no: number) => `（第 ${n(no)} 場起；進行中的比賽維持開賽時的能力）`,
   upgradeDone: (name: string, lv: number) => `升級成功！${name} 升到 Lv.${lv}`,
   ratingCapped: '上限',
+  // Phase 6C：成長回饋
+  formLast: (w: number, l: number) => `最近 10 場 ${w} 勝 ${l} 敗`,
+  formPrev: (w: number, l: number) => `前 10 場 ${w} 勝 ${l} 敗`,
+  formNote: '近期戰績也受對手、主客場與運氣影響，不一定完全由升級造成',
+  upgradeReserveTeam: '預備球員：上場後才會影響球隊戰力',
+  betterUpgrade: (name: string, lv: number, ratio: number) => `提示：同樣的經驗升 ${name}（Lv.${lv}）的能力提升約是這一級的 ${Math.floor(ratio)} 倍（等級越高，每一級提升越少、成本越高）`,
 } as const

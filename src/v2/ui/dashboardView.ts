@@ -8,7 +8,6 @@ import { T, runnersText } from '../../ui/strings'
 import type { LiveMatchInfo } from '../application/liveMatch'
 import type { ReplayState } from '../application/replayPlayer'
 import type { DueMatches } from '../application/idleEngine'
-import { overall } from '../../sim/generate'
 import { gradeBadge } from '../../ui/grades'
 import { canAfford } from '../application/economyService'
 import { nearestUpgrade, suggestNextAction, type Suggestion, type SuggestionKind } from '../application/guidance'
@@ -18,7 +17,8 @@ import { onboardingProgress, type OnboardingTaskId } from '../domain/onboarding'
 import { upgradeCost } from '../domain/progression'
 import { RECRUIT_CONFIG } from '../domain/progressionConfig'
 import { recruitCost, rosterFull } from '../domain/recruitment'
-import { assignedIds, resolveRoster } from '../domain/roster'
+import { assignedIds } from '../domain/roster'
+import { recentForm, teamPower } from '../domain/growthInfo'
 import type { ClubController, ControllerState } from './clubController'
 import { V2T } from './strings'
 
@@ -42,12 +42,7 @@ export interface DashboardActions {
   challenge: (expected: { fromTier: number; challengeSeq: number }) => void
 }
 
-/** 上場 14 人（先發、板凳、投手）的平均能力，含養成 */
-export function teamPower(club: ClubSave): number {
-  const r = resolveRoster(club)
-  const players = [...r.lineup.map((s) => s.player), ...r.bench, r.starter, ...r.relievers]
-  return players.reduce((sum, p) => sum + overall(p), 0) / players.length
-}
+export { teamPower }
 
 /** 上場球員裡，現在的資產就付得起下一級的人數 */
 export function upgradeableCount(club: ClubSave): number {
@@ -287,7 +282,18 @@ function teamSection(club: ClubSave, actions: DashboardActions): HTMLElement {
   recruitBtn.dataset.action = 'recruit'
   if (!full && club.economy.assets.funds < cost.funds) recruitBtn.append(el('span', 'v2-short', `（${V2T.notEnoughFunds}）`))
   recruitBtn.onclick = actions.recruit
-  growth.append(head, stats, powerBox, el('p', 'v2-hint', `${V2T.teamPowerHint}・${V2T.rosterCount(club.players.length, RECRUIT_CONFIG.maxPlayers)}`), lineupBtn, recruitBtn, el('p', 'v2-hint', V2T.growthHint))
+  growth.append(head, stats, powerBox, el('p', 'v2-hint', `${V2T.teamPowerHint}・${V2T.rosterCount(club.players.length, RECRUIT_CONFIG.maxPlayers)}`))
+  // 近期戰績對照：只放事實（勝敗），並說明不一定是升級造成的
+  const form = recentForm(club)
+  if (form) {
+    const box = el('div', 'v2-form')
+    box.dataset.form = ''
+    box.append(el('span', 'v2-form-item', V2T.formLast(form.last.wins, form.last.losses)))
+    if (form.previous) box.append(el('span', 'v2-form-item prev', V2T.formPrev(form.previous.wins, form.previous.losses)))
+    box.append(el('span', 'v2-hint v2-form-note', V2T.formNote))
+    growth.append(box)
+  }
+  growth.append(lineupBtn, recruitBtn, el('p', 'v2-hint', V2T.growthHint))
   return growth
 }
 

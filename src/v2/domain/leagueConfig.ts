@@ -1,5 +1,6 @@
 // V2 聯盟的可調數值：名稱、對手強度、一般比賽收益倍率、晉級條件、晉級獎勵。
-// 初版數值由 scripts/balance-v2.ts 的 30 天模擬調整過，推導見 ADR-0011
+// 初版數值由 scripts/balance-v2.ts 的 30 天模擬調整過，推導見 ADR-0011。
+// Phase 6C（ADR-0015）：對手強度每級 +0.5 → +0.4（5.0／5.4／5.8／6.2／6.6），依據見 docs/balance/v2-phase6c-report.md
 import type { Resources } from './club'
 
 export interface LeagueDef {
@@ -18,10 +19,10 @@ export interface LeagueDef {
 
 export const LEAGUES: readonly LeagueDef[] = [
   { tier: 0, name: '新秀聯盟', color: '#3FA34D', opponentMean: 5.0, rewardMultiplier: 1.0, promotionReward: { funds: 0, experience: 0 } },
-  { tier: 1, name: '業餘聯盟', color: '#2D7CFF', opponentMean: 5.5, rewardMultiplier: 1.15, promotionReward: { funds: 6_000, experience: 600 } },
-  { tier: 2, name: '挑戰者聯盟', color: '#8E44E8', opponentMean: 6.0, rewardMultiplier: 1.3, promotionReward: { funds: 12_000, experience: 1_200 } },
-  { tier: 3, name: '職業聯盟', color: '#E8573F', opponentMean: 6.5, rewardMultiplier: 1.45, promotionReward: { funds: 20_000, experience: 2_000 } },
-  { tier: 4, name: '傳奇聯盟', color: '#D4A017', opponentMean: 7.0, rewardMultiplier: 1.6, promotionReward: { funds: 32_000, experience: 3_200 } },
+  { tier: 1, name: '業餘聯盟', color: '#2D7CFF', opponentMean: 5.4, rewardMultiplier: 1.15, promotionReward: { funds: 6_000, experience: 600 } },
+  { tier: 2, name: '挑戰者聯盟', color: '#8E44E8', opponentMean: 5.8, rewardMultiplier: 1.3, promotionReward: { funds: 12_000, experience: 1_200 } },
+  { tier: 3, name: '職業聯盟', color: '#E8573F', opponentMean: 6.2, rewardMultiplier: 1.45, promotionReward: { funds: 20_000, experience: 2_000 } },
+  { tier: 4, name: '傳奇聯盟', color: '#D4A017', opponentMean: 6.6, rewardMultiplier: 1.6, promotionReward: { funds: 32_000, experience: 3_200 } },
 ]
 
 export const MAX_TIER = LEAGUES.length - 1
