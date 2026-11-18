@@ -165,6 +165,8 @@ export interface V2ModalOptions {
   footer?: HTMLElement
   /** 手機版用底部面板 */
   sheet?: boolean
+  /** 全畫面視窗（遊戲指南、聯盟之路）：蓋住整個畫面，右上是「✕ 關閉」 */
+  full?: boolean
   /** 標題列的額外內容（取代純文字標題，例如球員頭像與名字）；仍保留標題給輔助科技 */
   header?: HTMLElement
   /** 對話框的額外 class */
@@ -177,8 +179,8 @@ export interface V2ModalOptions {
 
 export function v2Modal(title: string, body: HTMLElement, onClose?: (reason: CloseReason) => void, opts: string | V2ModalOptions = {}): () => void {
   const o: V2ModalOptions = typeof opts === 'string' ? { closeLabel: opts } : opts
-  const overlay = el('div', 'modal-overlay v2-modal-overlay')
-  const box = el('section', `v2-modal${o.sheet ? ' sheet' : ''}${o.className ? ` ${o.className}` : ''}`)
+  const overlay = el('div', `modal-overlay v2-modal-overlay${o.full ? ' full' : ''}`)
+  const box = el('section', `v2-modal${o.sheet ? ' sheet' : ''}${o.full ? ' full' : ''}${o.className ? ` ${o.className}` : ''}`)
   box.setAttribute('role', 'dialog')
   box.setAttribute('aria-modal', 'true')
   const head = el('header', 'v2-modal-head')
@@ -189,6 +191,10 @@ export function v2Modal(title: string, body: HTMLElement, onClose?: (reason: Clo
   x.type = 'button'
   x.setAttribute('aria-label', V2T.close)
   x.append(icon('close', 14))
+  if (o.full) {
+    x.classList.add('labeled')
+    x.append(el('span', '', V2T.close))
+  }
   if (o.header) head.append(o.header)
   head.append(heading, x)
   const content = el('div', 'v2-modal-body')

@@ -28,6 +28,8 @@ export type IconName =
   | 'undo'
   | 'pause'
   | 'fast'
+  | 'search'
+  | 'help'
 
 const INK = '#141633'
 const C = 'currentColor'
@@ -69,6 +71,8 @@ const PATHS: Record<IconName, string> = {
   undo: line('M8.5 5 4 9.5 8.5 14') + line('M4 9.5h10a6 6 0 0 1 0 12h-3', 2.4),
   pause: fill('M6 4.5h4v15H6ZM14 4.5h4v15h-4Z'),
   fast: fill('M3 5.5v13l8.5-6.5ZM12 5.5v13l8.5-6.5Z'),
+  search: line('M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13Z') + line('M15.5 15.5 20 20', 2.8),
+  help: line('M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18Z') + line('M9.3 9.5a2.8 2.8 0 1 1 3.9 2.6c-.8.4-1.2 1-1.2 1.9v.4', 2.4) + fill('M12 16.4a1.3 1.3 0 1 0 0 2.6a1.3 1.3 0 1 0 0-2.6Z'),
 }
 
 /** 圖示的 SVG 字串（裝飾用，aria-hidden） */

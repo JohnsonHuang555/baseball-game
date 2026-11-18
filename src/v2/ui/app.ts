@@ -24,6 +24,8 @@ import { closeDialogs, refocusTopDialog } from './dialog'
 import { icon, iconSvg, type IconName } from './icons'
 import { leagueOf } from '../domain/league'
 import { createTacticsView, type TacticsView } from './tacticsView'
+import { openGuide } from './guideView'
+import { openLeagueRoad } from './leagueRoadView'
 import { createWriterGuard, randomTabId, type StorageEventSource } from './writerGuard'
 
 export type V2Tab = 'home' | 'lineup' | 'tactics' | 'reports'
@@ -90,7 +92,16 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   const subtitle = el('span', 'v2-subtitle', V2T.modeBadge)
   titles.append(title, subtitle)
   const resources = el('div', 'v2-resources')
-  header.append(titles, resources)
+  // 遊戲指南（設計稿 p7）：首頁標題列的「?」，關閉後焦點回到這顆按鈕
+  const help = el('button', 'v2-help-btn', '?')
+  help.type = 'button'
+  help.dataset.action = 'open-guide'
+  help.setAttribute('aria-label', V2T.guideOpen)
+  help.onclick = () => {
+    help.focus({ preventScroll: true })
+    openGuideFrom()
+  }
+  header.append(titles, resources, help)
   const banner = el('div', 'v2-banner-slot')
   const main = el('main', 'v2-main')
   const nav = el('nav', 'v2-nav')
@@ -100,6 +111,23 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   root.replaceChildren(screen)
   // V2 是整個網站：Escape 不會關掉 App（只有觀戰畫面、對話框各自用 Escape 關閉，關閉後還原成這裡的空設定）
   setKeys({})
+
+  function openGuideFrom(chapter?: string): void {
+    openGuide({ desk: isDesk(), owner: controller, chapter })
+  }
+
+  function openRoad(): void {
+    openLeagueRoad({
+      club: controller.state.club,
+      desk: isDesk(),
+      owner: controller,
+      actions: {
+        lineup: () => show('lineup'),
+        recruit: () => openRecruit(controller, () => show('lineup')),
+        guide: (chapter) => openGuideFrom(chapter),
+      },
+    })
+  }
 
   function show(next: V2Tab): void {
     tab = next
@@ -316,6 +344,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     renderNav(state)
     const s = state.status
     header.hidden = s.kind !== 'ready'
+    help.hidden = s.kind !== 'ready' || tab !== 'home'
     if (s.kind === 'loading') main.replaceChildren(loadingScreen())
     else if (s.kind === 'no-club') main.replaceChildren(createScreen(state))
     else if (s.kind === 'broken') main.replaceChildren(brokenScreen(s.message, s.reason))
@@ -336,6 +365,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
             }),
           watchChallenge: state.club?.challengeReplay ? () => void watchChallenge() : null,
           desk: isDesk(),
+          openRoad,
           challenge: (expected) =>
             void controller.challenge(expected).then((res) => {
               if (!closed && !res.ok && res.message) toast(res.message)
