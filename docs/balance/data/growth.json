@@ -1,0 +1,683 @@
+{
+ "mode": "growth",
+ "seeds": 100,
+ "firstSeed": 1001,
+ "batters": [
+  {
+   "level": 1,
+   "cost": {
+    "funds": 0,
+    "experience": 0
+   },
+   "overall": 5.063863636363636,
+   "gainFromLv1": 0,
+   "marginal": 0,
+   "per100Exp": 0,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0029545454545454545
+  },
+  {
+   "level": 2,
+   "cost": {
+    "funds": 320,
+    "experience": 40
+   },
+   "overall": 5.262859090908985,
+   "gainFromLv1": 0.19899545454534895,
+   "marginal": 0.19899545454534895,
+   "per100Exp": 0.4974886363633723,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0029545454545454545
+  },
+  {
+   "level": 3,
+   "cost": {
+    "funds": 800,
+    "experience": 100
+   },
+   "overall": 5.367327272727311,
+   "gainFromLv1": 0.30346363636367535,
+   "marginal": 0.1044681818183264,
+   "per100Exp": 0.1044681818183264,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0029545454545454545
+  },
+  {
+   "level": 4,
+   "cost": {
+    "funds": 1320,
+    "experience": 165
+   },
+   "overall": 5.451913636363711,
+   "gainFromLv1": 0.3880500000000753,
+   "marginal": 0.08458636363639993,
+   "per100Exp": 0.05126446280993935,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0029545454545454545
+  },
+  {
+   "level": 5,
+   "cost": {
+    "funds": 1960,
+    "experience": 245
+   },
+   "overall": 5.524029545454473,
+   "gainFromLv1": 0.4601659090908372,
+   "marginal": 0.07211590909076193,
+   "per100Exp": 0.02943506493500487,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0029545454545454545
+  },
+  {
+   "level": 6,
+   "cost": {
+    "funds": 2600,
+    "experience": 325
+   },
+   "overall": 5.588704545454627,
+   "gainFromLv1": 0.5248409090909911,
+   "marginal": 0.06467500000015391,
+   "per100Exp": 0.01990000000004736,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0029545454545454545
+  },
+  {
+   "level": 7,
+   "cost": {
+    "funds": 3280,
+    "experience": 410
+   },
+   "overall": 5.648409090909011,
+   "gainFromLv1": 0.584545454545375,
+   "marginal": 0.05970454545438386,
+   "per100Exp": 0.014562084257166796,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014090909090909091
+  },
+  {
+   "level": 8,
+   "cost": {
+    "funds": 4000,
+    "experience": 500
+   },
+   "overall": 5.704500000000126,
+   "gainFromLv1": 0.6406363636364896,
+   "marginal": 0.05609090909111458,
+   "per100Exp": 0.011218181818222917,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014090909090909091
+  },
+  {
+   "level": 9,
+   "cost": {
+    "funds": 4760,
+    "experience": 595
+   },
+   "overall": 5.758231818181717,
+   "gainFromLv1": 0.6943681818180814,
+   "marginal": 0.053731818181591784,
+   "per100Exp": 0.00903055767757845,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014090909090909091
+  },
+  {
+   "level": 10,
+   "cost": {
+    "funds": 5560,
+    "experience": 695
+   },
+   "overall": 5.8069636363636405,
+   "gainFromLv1": 0.7431000000000045,
+   "marginal": 0.04873181818192318,
+   "per100Exp": 0.007011772400276717,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014090909090909091
+  },
+  {
+   "level": 11,
+   "cost": {
+    "funds": 6400,
+    "experience": 800
+   },
+   "overall": 5.855836363636472,
+   "gainFromLv1": 0.7919727272728361,
+   "marginal": 0.04887272727283154,
+   "per100Exp": 0.0061090909091039425,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014090909090909091
+  },
+  {
+   "level": 12,
+   "cost": {
+    "funds": 7240,
+    "experience": 905
+   },
+   "overall": 5.899709090909119,
+   "gainFromLv1": 0.835845454545483,
+   "marginal": 0.043872727272646905,
+   "per100Exp": 0.0048478151682482765,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014090909090909091
+  },
+  {
+   "level": 13,
+   "cost": {
+    "funds": 8080,
+    "experience": 1010
+   },
+   "overall": 5.9460818181817565,
+   "gainFromLv1": 0.8822181818181205,
+   "marginal": 0.046372727272637526,
+   "per100Exp": 0.004591359135904706,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014090909090909091
+  },
+  {
+   "level": 14,
+   "cost": {
+    "funds": 8960,
+    "experience": 1120
+   },
+   "overall": 5.990095454545452,
+   "gainFromLv1": 0.9262318181818161,
+   "marginal": 0.044013636363695596,
+   "per100Exp": 0.003929788961044249,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014090909090909091
+  },
+  {
+   "level": 15,
+   "cost": {
+    "funds": 9880,
+    "experience": 1235
+   },
+   "overall": 6.031468181818036,
+   "gainFromLv1": 0.9676045454543996,
+   "marginal": 0.041372727272583454,
+   "per100Exp": 0.0033500184026383365,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014318181818181818
+  },
+  {
+   "level": 16,
+   "cost": {
+    "funds": 10800,
+    "experience": 1350
+   },
+   "overall": 6.070472727272877,
+   "gainFromLv1": 1.006609090909241,
+   "marginal": 0.039004545454841555,
+   "per100Exp": 0.0028892255892475228,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014318181818181818
+  },
+  {
+   "level": 17,
+   "cost": {
+    "funds": 11760,
+    "experience": 1470
+   },
+   "overall": 6.107118181818098,
+   "gainFromLv1": 1.0432545454544622,
+   "marginal": 0.03664545454522106,
+   "per100Exp": 0.002492888064300752,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014318181818181818
+  },
+  {
+   "level": 18,
+   "cost": {
+    "funds": 12720,
+    "experience": 1590
+   },
+   "overall": 6.1461227272726475,
+   "gainFromLv1": 1.0822590909090115,
+   "marginal": 0.039004545454549344,
+   "per100Exp": 0.0024531160663238583,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014318181818181818
+  },
+  {
+   "level": 19,
+   "cost": {
+    "funds": 13720,
+    "experience": 1715
+   },
+   "overall": 6.1851272727271684,
+   "gainFromLv1": 1.1212636363635324,
+   "marginal": 0.03900454545452092,
+   "per100Exp": 0.002274317519214048,
+   "zeroGainShare": 0,
+   "cappedShare": 0.014318181818181818
+  },
+  {
+   "level": 20,
+   "cost": {
+    "funds": 14720,
+    "experience": 1840
+   },
+   "overall": 6.221772727272844,
+   "gainFromLv1": 1.1579090909092082,
+   "marginal": 0.036645454545675804,
+   "per100Exp": 0.001991600790525859,
+   "zeroGainShare": 0,
+   "cappedShare": 0.05840909090909091
+  }
+ ],
+ "pitchers": [
+  {
+   "level": 1,
+   "cost": {
+    "funds": 0,
+    "experience": 0
+   },
+   "overall": 5.071111111111109,
+   "gainFromLv1": 0,
+   "marginal": 0,
+   "per100Exp": 0,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0044444444444444444
+  },
+  {
+   "level": 2,
+   "cost": {
+    "funds": 320,
+    "experience": 40
+   },
+   "overall": 5.309600000000007,
+   "gainFromLv1": 0.23848888888889785,
+   "marginal": 0.23848888888889785,
+   "per100Exp": 0.5962222222222446,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0044444444444444444
+  },
+  {
+   "level": 3,
+   "cost": {
+    "funds": 800,
+    "experience": 100
+   },
+   "overall": 5.432133333333325,
+   "gainFromLv1": 0.3610222222222159,
+   "marginal": 0.12253333333331806,
+   "per100Exp": 0.12253333333331806,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0044444444444444444
+  },
+  {
+   "level": 4,
+   "cost": {
+    "funds": 1320,
+    "experience": 165
+   },
+   "overall": 5.528177777777789,
+   "gainFromLv1": 0.4570666666666803,
+   "marginal": 0.09604444444446436,
+   "per100Exp": 0.05820875420876628,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0044444444444444444
+  },
+  {
+   "level": 5,
+   "cost": {
+    "funds": 1960,
+    "experience": 245
+   },
+   "overall": 5.6176000000000075,
+   "gainFromLv1": 0.5464888888888986,
+   "marginal": 0.0894222222222183,
+   "per100Exp": 0.03649886621315032,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0044444444444444444
+  },
+  {
+   "level": 6,
+   "cost": {
+    "funds": 2600,
+    "experience": 325
+   },
+   "overall": 5.697111111111124,
+   "gainFromLv1": 0.6260000000000154,
+   "marginal": 0.07951111111111686,
+   "per100Exp": 0.024464957264959033,
+   "zeroGainShare": 0,
+   "cappedShare": 0.0044444444444444444
+  },
+  {
+   "level": 7,
+   "cost": {
+    "funds": 3280,
+    "experience": 410
+   },
+   "overall": 5.766666666666658,
+   "gainFromLv1": 0.6955555555555488,
+   "marginal": 0.06955555555553339,
+   "per100Exp": 0.016964769647691072,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 8,
+   "cost": {
+    "funds": 4000,
+    "experience": 500
+   },
+   "overall": 5.835555555555544,
+   "gainFromLv1": 0.7644444444444352,
+   "marginal": 0.06888888888888633,
+   "per100Exp": 0.013777777777777266,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 9,
+   "cost": {
+    "funds": 4760,
+    "experience": 595
+   },
+   "overall": 5.897888888888886,
+   "gainFromLv1": 0.8267777777777772,
+   "marginal": 0.06233333333334201,
+   "per100Exp": 0.010476190476191935,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 10,
+   "cost": {
+    "funds": 5560,
+    "experience": 695
+   },
+   "overall": 5.956888888888895,
+   "gainFromLv1": 0.8857777777777862,
+   "marginal": 0.059000000000009045,
+   "per100Exp": 0.008489208633094826,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 11,
+   "cost": {
+    "funds": 6400,
+    "experience": 800
+   },
+   "overall": 6.012666666666657,
+   "gainFromLv1": 0.9415555555555484,
+   "marginal": 0.05577777777776216,
+   "per100Exp": 0.00697222222222027,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 12,
+   "cost": {
+    "funds": 7240,
+    "experience": 905
+   },
+   "overall": 6.071777777777772,
+   "gainFromLv1": 1.000666666666663,
+   "marginal": 0.05911111111111467,
+   "per100Exp": 0.006531614487415985,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 13,
+   "cost": {
+    "funds": 8080,
+    "experience": 1010
+   },
+   "overall": 6.124222222222229,
+   "gainFromLv1": 1.0531111111111198,
+   "marginal": 0.05244444444445673,
+   "per100Exp": 0.005192519251926409,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 14,
+   "cost": {
+    "funds": 8960,
+    "experience": 1120
+   },
+   "overall": 6.173444444444434,
+   "gainFromLv1": 1.1023333333333252,
+   "marginal": 0.0492222222222054,
+   "per100Exp": 0.004394841269839768,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 15,
+   "cost": {
+    "funds": 9880,
+    "experience": 1235
+   },
+   "overall": 6.22922222222222,
+   "gainFromLv1": 1.1581111111111113,
+   "marginal": 0.05577777777778614,
+   "per100Exp": 0.004516419253262035,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 16,
+   "cost": {
+    "funds": 10800,
+    "experience": 1350
+   },
+   "overall": 6.271777777777792,
+   "gainFromLv1": 1.2006666666666828,
+   "marginal": 0.042555555555571445,
+   "per100Exp": 0.0031522633744867734,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 17,
+   "cost": {
+    "funds": 11760,
+    "experience": 1470
+   },
+   "overall": 6.317777777777771,
+   "gainFromLv1": 1.2466666666666617,
+   "marginal": 0.04599999999997895,
+   "per100Exp": 0.00312925170067884,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 18,
+   "cost": {
+    "funds": 12720,
+    "experience": 1590
+   },
+   "overall": 6.367000000000004,
+   "gainFromLv1": 1.2958888888888955,
+   "marginal": 0.049222222222233825,
+   "per100Exp": 0.0030957372466813727,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 19,
+   "cost": {
+    "funds": 13720,
+    "experience": 1715
+   },
+   "overall": 6.412888888888884,
+   "gainFromLv1": 1.341777777777775,
+   "marginal": 0.04588888888887954,
+   "per100Exp": 0.002675736961450702,
+   "zeroGainShare": 0,
+   "cappedShare": 0.011111111111111112
+  },
+  {
+   "level": 20,
+   "cost": {
+    "funds": 14720,
+    "experience": 1840
+   },
+   "overall": 6.455555555555566,
+   "gainFromLv1": 1.3844444444444575,
+   "marginal": 0.042666666666682396,
+   "per100Exp": 0.0023188405797109997,
+   "zeroGainShare": 0,
+   "cappedShare": 0.03888888888888889
+  }
+ ],
+ "byArchetype": {
+  "power": {
+   "n": 315,
+   "lv1": {
+    "n": 315,
+    "mean": 5.123015873015873,
+    "p10": 4.25,
+    "p50": 5,
+    "p90": 6.25,
+    "min": 2.75,
+    "max": 7.25
+   },
+   "gain20": {
+    "n": 315,
+    "mean": 1.1543650793650857,
+    "p10": 1.174999999999999,
+    "p50": 1.1750000000000007,
+    "p90": 1.1750000000000007,
+    "min": 0.6749999999999989,
+    "max": 1.1750000000000007
+   },
+   "firstCap": {
+    "n": 315,
+    "mean": 19.793650793650794,
+    "p10": 20,
+    "p50": 21,
+    "p90": 21,
+    "min": 1,
+    "max": 21
+   }
+  },
+  "speed": {
+   "n": 259,
+   "lv1": {
+    "n": 259,
+    "mean": 5.054054054054054,
+    "p10": 4,
+    "p50": 5,
+    "p90": 6,
+    "min": 3,
+    "max": 7.5
+   },
+   "gain20": {
+    "n": 259,
+    "mean": 1.153571428571434,
+    "p10": 1.1749999999999996,
+    "p50": 1.1750000000000007,
+    "p90": 1.1750000000000007,
+    "min": 0.6749999999999998,
+    "max": 1.1750000000000007
+   },
+   "firstCap": {
+    "n": 259,
+    "mean": 19.8030888030888,
+    "p10": 20,
+    "p50": 21,
+    "p90": 21,
+    "min": 1,
+    "max": 21
+   }
+  },
+  "skill": {
+   "n": 246,
+   "lv1": {
+    "n": 246,
+    "mean": 5.069105691056911,
+    "p10": 3.875,
+    "p50": 5,
+    "p90": 6,
+    "min": 2.75,
+    "max": 7
+   },
+   "gain20": {
+    "n": 246,
+    "mean": 1.1628048780487856,
+    "p10": 1.174999999999999,
+    "p50": 1.1750000000000007,
+    "p90": 1.1750000000000007,
+    "min": 0.6749999999999998,
+    "max": 1.1750000000000007
+   },
+   "firstCap": {
+    "n": 246,
+    "mean": 20.150406504065042,
+    "p10": 20,
+    "p50": 21,
+    "p90": 21,
+    "min": 1,
+    "max": 21
+   }
+  },
+  "defense": {
+   "n": 280,
+   "lv1": {
+    "n": 280,
+    "mean": 5.001785714285714,
+    "p10": 4,
+    "p50": 5,
+    "p90": 6,
+    "min": 3,
+    "max": 7.25
+   },
+   "gain20": {
+    "n": 280,
+    "mean": 1.1616071428571488,
+    "p10": 1.1749999999999998,
+    "p50": 1.1750000000000007,
+    "p90": 1.1750000000000007,
+    "min": 0.6749999999999998,
+    "max": 1.1750000000000007
+   },
+   "firstCap": {
+    "n": 280,
+    "mean": 20.139285714285716,
+    "p10": 20,
+    "p50": 21,
+    "p90": 21,
+    "min": 1,
+    "max": 21
+   }
+  }
+ },
+ "pitcherFirstCap": {
+  "n": 300,
+  "mean": 20.37,
+  "p10": 20,
+  "p50": 21,
+  "p90": 21,
+  "min": 1,
+  "max": 21
+ },
+ "lateGain": {
+  "gain": {
+   "n": 1400,
+   "mean": 0.19802499999999612,
+   "p10": 0.1949999999999994,
+   "p50": 0.19500000000000028,
+   "p90": 0.23000000000000043,
+   "min": 0.0625,
+   "max": 0.2300000000000022
+  },
+  "uncapped": {
+   "n": 1400,
+   "mean": 0.20479361550690442,
+   "p10": 0.19672145839932767,
+   "p50": 0.19672145839932767,
+   "p90": 0.23439152490132656,
+   "min": 0.19672145839932764,
+   "max": 0.23439152490132656
+  },
+  "lostToCapShare": 0.0007142857142857143,
+  "zeroLateGain": 0
+ },
+ "capReachedBy20": 0.20785714285714285
+}

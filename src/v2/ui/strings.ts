@@ -380,4 +380,10 @@ export const V2T = {
   stageLate: '比賽進入後段',
   stageFinal: '最終局',
   stageExtra: (inning: number) => `延長賽・第 ${inning} 局`,
+  // Phase 6C：成長回饋
+  formLast: (w: number, l: number) => `最近 10 場 ${w} 勝 ${l} 敗`,
+  formPrev: (w: number, l: number) => `前 10 場 ${w} 勝 ${l} 敗`,
+  formNote: '近期戰績也受對手、主客場與運氣影響，不一定完全由升級造成',
+  upgradeReserveTeam: '預備球員：上場後才會影響球隊戰力',
+  betterUpgrade: (name: string, lv: number, ratio: number) => `提示：同樣的經驗升 ${name}（Lv.${lv}）的能力提升約是這一級的 ${Math.floor(ratio)} 倍（等級越高，每一級提升越少、成本越高）`,
 } as const

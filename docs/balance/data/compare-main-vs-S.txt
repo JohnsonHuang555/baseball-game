@@ -1,0 +1,180 @@
+('B', 1) n 30
+   stuck14                     57% →      40%
+   tier<=2 (業餘以下)              37% →      17%
+   reach2_p50                   13 →       11
+   reach2_pct                  63% →      83%
+   reach3_p50                  >30 →       21
+   reach3_pct                  43% →      60%
+   reach4_p50                  >30 →      >30
+   reach4_pct                   7% →      27%
+   challengeFail               60% →      52%
+   attempts                    5.2 →      5.4
+   lvl30                       9.4 →      9.7
+   maxLvl30                   10.0 →     10.0
+   fundsIdle                   10% →      11%
+   expIdle                      1% →       1%
+('B', 2) n 30
+   stuck14                     20% →      17%
+   tier<=2 (業餘以下)               3% →       7%
+   reach2_p50                  6.5 →      5.5
+   reach2_pct                  97% →      93%
+   reach3_p50                   18 →     10.5
+   reach3_pct                  63% →      77%
+   reach4_p50                  >30 →     26.5
+   reach4_pct                  30% →      57%
+   challengeFail               59% →      54%
+   attempts                    7.1 →      7.1
+   lvl30                      12.9 →     13.2
+   maxLvl30                   13.0 →     14.0
+   fundsIdle                    9% →       9%
+   expIdle                      1% →       1%
+('B', 6) n 30
+   stuck14                     27% →      13%
+   tier<=2 (業餘以下)               0% →       0%
+   reach2_p50                    3 →      2.2
+   reach2_pct                 100% →     100%
+   reach3_p50                 10.5 →      5.5
+   reach3_pct                  80% →      90%
+   reach4_p50                  >30 →     17.8
+   reach4_pct                  47% →      63%
+   challengeFail               58% →      56%
+   attempts                    7.8 →      8.0
+   lvl30                      15.4 →     15.9
+   maxLvl30                   16.0 →     16.0
+   fundsIdle                    7% →       8%
+   expIdle                      1% →       1%
+('C', 1) n 30
+   stuck14                     63% →      40%
+   tier<=2 (業餘以下)              37% →      33%
+   reach2_p50                   12 →       12
+   reach2_pct                  63% →      67%
+   reach3_p50                  >30 →      >30
+   reach3_pct                  30% →      43%
+   reach4_p50                  >30 →      >30
+   reach4_pct                   0% →      20%
+   challengeFail               56% →      60%
+   attempts                    4.3 →      5.6
+   lvl30                       5.7 →      5.7
+   maxLvl30                   15.0 →     15.0
+   fundsIdle                   11% →      12%
+   expIdle                      2% →       2%
+('C', 2) n 30
+   stuck14                     53% →      33%
+   tier<=2 (業餘以下)              27% →      17%
+   reach2_p50                    6 →        6
+   reach2_pct                  73% →      83%
+   reach3_p50                   28 →       21
+   reach3_pct                  50% →      57%
+   reach4_p50                  >30 →      >30
+   reach4_pct                  17% →      30%
+   challengeFail               57% →      60%
+   attempts                    5.6 →      6.8
+   lvl30                       7.5 →      7.7
+   maxLvl30                   20.0 →     20.0
+   fundsIdle                    9% →       9%
+   expIdle                      1% →       1%
+('C', 6) n 30
+   stuck14                     20% →      10%
+   tier<=2 (業餘以下)               3% →       0%
+   reach2_p50                    4 →        3
+   reach2_pct                  97% →     100%
+   reach3_p50                   12 →     10.8
+   reach3_pct                  70% →      83%
+   reach4_p50                  >30 →       21
+   reach4_pct                  43% →      63%
+   challengeFail               62% →      60%
+   attempts                    8.1 →      8.8
+   lvl30                      14.4 →     15.1
+   maxLvl30                   20.0 →     20.0
+   fundsIdle                    7% →       8%
+   expIdle                      0% →       0%
+('D', 1) n 30
+   stuck14                     33% →      33%
+   tier<=2 (業餘以下)              17% →      10%
+   reach2_p50                   10 →       10
+   reach2_pct                  83% →      90%
+   reach3_p50                   23 →       15
+   reach3_pct                  63% →      63%
+   reach4_p50                  >30 →      >30
+   reach4_pct                  30% →      47%
+   challengeFail               52% →      52%
+   attempts                    5.7 →      6.3
+   lvl30                       8.0 →      8.2
+   maxLvl30                    9.0 →      9.0
+   fundsIdle                    1% →       1%
+   expIdle                     33% →      34%
+('D', 2) n 30
+   stuck14                     27% →      13%
+   tier<=2 (業餘以下)               3% →       0%
+   reach2_p50                    5 →        5
+   reach2_pct                  97% →     100%
+   reach3_p50                 11.5 →      7.5
+   reach3_pct                  80% →      83%
+   reach4_p50                 27.5 →       16
+   reach4_pct                  60% →      73%
+   challengeFail               54% →      52%
+   attempts                    7.3 →      7.5
+   lvl30                      11.6 →     11.9
+   maxLvl30                   12.0 →     12.0
+   fundsIdle                    0% →       0%
+   expIdle                     23% →      22%
+('D', 6) n 30
+   stuck14                     10% →       7%
+   tier<=2 (業餘以下)               0% →       0%
+   reach2_p50                  2.3 →      2.7
+   reach2_pct                 100% →     100%
+   reach3_p50                  4.5 →      4.3
+   reach3_pct                 100% →      97%
+   reach4_p50                   15 →      8.5
+   reach4_pct                  70% →      80%
+   challengeFail               56% →      58%
+   attempts                    8.4 →      8.9
+   lvl30                      15.1 →     15.5
+   maxLvl30                   16.0 →     16.0
+   fundsIdle                    1% →       0%
+   expIdle                      8% →       6%
+('E', 1) n 30
+   stuck14                     43% →      20%
+   tier<=2 (業餘以下)              20% →      20%
+   reach2_p50                   10 →       11
+   reach2_pct                  80% →      80%
+   reach3_p50                   20 →       20
+   reach3_pct                  60% →      67%
+   reach4_p50                  >30 →      >30
+   reach4_pct                  17% →      47%
+   challengeFail               54% →      53%
+   attempts                    5.6 →      6.3
+   lvl30                       9.2 →      9.4
+   maxLvl30                   11.0 →     11.0
+   fundsIdle                    3% →       4%
+   expIdle                      0% →       0%
+('E', 2) n 30
+   stuck14                     33% →      17%
+   tier<=2 (業餘以下)               3% →       0%
+   reach2_p50                    5 →      5.5
+   reach2_pct                  97% →     100%
+   reach3_p50                   10 →       10
+   reach3_pct                  73% →      80%
+   reach4_p50                  >30 →       16
+   reach4_pct                  43% →      63%
+   challengeFail               57% →      54%
+   attempts                    7.3 →      7.5
+   lvl30                      12.8 →     13.2
+   maxLvl30                   14.0 →     15.0
+   fundsIdle                    4% →       5%
+   expIdle                      0% →       0%
+('E', 6) n 30
+   stuck14                     17% →       7%
+   tier<=2 (業餘以下)               0% →       0%
+   reach2_p50                  2.3 →      2.3
+   reach2_pct                 100% →     100%
+   reach3_p50                  6.8 →      4.3
+   reach3_pct                  87% →     100%
+   reach4_p50                 19.5 →       10
+   reach4_pct                  60% →      77%
+   challengeFail               62% →      51%
+   attempts                    9.2 →      7.7
+   lvl30                      15.6 →     16.0
+   maxLvl30                   17.0 →     17.0
+   fundsIdle                    4% →       5%
+   expIdle                      1% →       0%

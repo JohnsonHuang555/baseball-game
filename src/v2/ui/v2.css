@@ -2201,3 +2201,23 @@
     animation: none;
   }
 }
+
+/* ---- Phase 6C：近期戰績對照、升級後的球隊戰力 ---- */
+.v2-form {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-form-item.prev {
+  color: var(--ink-faint);
+}
+.v2-form-note {
+  flex: 1 1 100%;
+  font-size: 12px;
+}
+.v2-preview-team {
+  color: var(--indigo);
+}
