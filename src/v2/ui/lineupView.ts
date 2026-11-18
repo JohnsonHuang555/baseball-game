@@ -1,11 +1,15 @@
 // 陣容：看 9 位先發、板凳、先發投手、後援、預備名單的能力（含養成）、流派、特性；點兩位球員交換，改完按「儲存陣容」。
 // 修改先放在畫面上的草稿，儲存時只送球員編號（ClubController.saveRoster → updateSettings：先結算到期的比賽、新陣容從下一場生效）。
 // 每位球員都有「養成」按鈕，打開球員詳情升級
-import { gradeLine, offPosIcon, pitchChip, toast } from '../../ui/visual'
+import { pitchChip, toast } from '../../ui/visual'
 import { choiceModal } from '../../ui/modal'
-import { el, traitChips } from '../../ui/playerCard'
-import { archetypeChip, captainIcon, synergyBadges } from '../../ui/synergyUi'
-import { POSITION_FULL, POSITION_SPOT } from '../../ui/strings'
+import { el, traitTag } from '../../ui/playerCard'
+import { captainIcon, synergyBadges } from '../../ui/synergyUi'
+import { archetypeSvg } from '../../ui/synergyIcons'
+import { avatar } from '../../ui/avatar'
+import { gradeOf } from '../../ui/grades'
+import { ARCHETYPE_NAMES, POSITION_FULL, POSITION_SPOT, RATING_LABELS } from '../../ui/strings'
+import type { Position } from '../../sim/types'
 import { getSlot, type Slot } from '../../sim/setup'
 import { isOffPosition } from '../../sim/positions'
 import type { Player } from '../../sim/types'
@@ -28,6 +32,8 @@ import { openPlayerDetail } from './playerView'
 import { openRecruit } from './recruitView'
 import { v2Modal } from './reportView'
 import { V2T } from './strings'
+import { icon } from './icons'
+import { barButton, draftBar } from './draftBar'
 
 export interface LineupView {
   render(state: ControllerState): HTMLElement
@@ -114,11 +120,20 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
         return apply(swapWithReserve(d, other as Slot, index(res)), V2T.substituted(incoming.name, outgoing.name))
       }
       if (kinds === 'lineup+lineup') {
+        const sa = r.lineup[index(a)]
+        const sb = r.lineup[index(b)]
+        // 交換守位後各自守什麼、是不是本職（指定打擊不算非本職）
+        const fit = (pl: (typeof sa)['player'], pos: Position) => (pos === 'DH' || !isOffPosition(pl, pos) ? '' : `（${V2T.offPosition}）`)
         const choice = await choiceModal<'pos' | 'order'>({
-          title: V2T.swapChoiceTitle,
+          title: `${sa.player.name} ↔ ${sb.player.name}`,
+          message: V2T.swapChoiceTitle,
           options: [
-            { value: 'pos', label: V2T.swapPositions, sub: `${POSITION_SPOT[r.lineup[index(a)].position]} ↔ ${POSITION_SPOT[r.lineup[index(b)].position]}` },
-            { value: 'order', label: V2T.swapOrder, sub: `${index(a) + 1} ↔ ${index(b) + 1}` },
+            {
+              value: 'pos',
+              label: V2T.swapPositions,
+              sub: `${sa.player.name} 守${POSITION_SPOT[sb.position]}${fit(sa.player, sb.position)}、${sb.player.name} 守${POSITION_SPOT[sa.position]}${fit(sb.player, sa.position)}`,
+            },
+            { value: 'order', label: V2T.swapOrder, sub: V2T.swapOrderSub(sa.player.name, index(b) + 1, sb.player.name, index(a) + 1) },
           ],
         })
         if (!choice) {
@@ -147,40 +162,83 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
     }
   }
 
-  function row(slot: DraftSlot, label: string, p: Player, opts: { off?: boolean } = {}): HTMLElement {
-    const item = el('div', 'v2-player-item')
+  /** 存檔裡這個位置原本是誰（換過的人用綠底標出來） */
+  function savedIdAt(slot: DraftSlot): string | null {
+    if (!club) return null
+    try {
+      const saved = resolveRoster(club)
+      const i = 'index' in slot ? slot.index : 0
+      if (slot.kind === 'lineup') return saved.lineup[i]?.player.id ?? null
+      if (slot.kind === 'bench') return saved.bench[i]?.id ?? null
+      if (slot.kind === 'starter') return saved.starter.id
+      if (slot.kind === 'reliever') return saved.relievers[i]?.id ?? null
+      return reservesOf(club)[i]?.id ?? null
+    } catch {
+      return null
+    }
+  }
+
+  function row(slot: DraftSlot, chip: string, p: Player, opts: { order?: number; position?: Position; pitcher?: boolean } = {}): HTMLElement {
+    const isSelected = !!selected && sameSlot(selected, slot)
+    const changed = dirty() && savedIdAt(slot) !== p.id
+    const item = el('div', `v2-player-item${isSelected ? ' selected' : changed ? ' changed' : ''}`)
     const b = el('button', 'v2-player')
     b.type = 'button'
-    const isSelected = !!selected && sameSlot(selected, slot)
     b.setAttribute('aria-pressed', String(isSelected))
     if (isSelected) b.classList.add('selected')
     b.disabled = !lastState.canWrite || lastState.saving
-    const tag = el('span', 'v2-player-slot', label)
-    const main = el('span', 'v2-player-main')
+    const off = p.role === 'batter' && !!opts.position && opts.position !== 'DH' && isOffPosition(p, opts.position)
     const level = (club && recordOf(club, p.id)?.level) ?? 1
-    const name = el('span', 'v2-player-name', p.name)
-    name.append(el('span', 'v2-level', V2T.level(level)))
-    if (p.role === 'batter' && draft?.roster.captain === p.id && slot.kind === 'lineup') name.append(captainIcon(14))
-    if (opts.off) {
-      const off = el('span', 'v2-offpos')
-      off.append(offPosIcon(11), V2T.offPosition)
-      name.append(off)
+
+    if (opts.order) b.append(el('span', 'v2-player-order', String(opts.order)))
+    b.append(el('span', `v2-player-slot${opts.pitcher ? ' pitcher' : ''}`, chip))
+    const face = el('span', 'v2-player-face')
+    face.append(avatar(p.id, 'user', 'v2-player-avatar'))
+    if (p.role === 'batter') {
+      const arch = el('span', 'v2-player-arch')
+      arch.innerHTML = archetypeSvg(p.archetype, 15)
+      arch.title = ARCHETYPE_NAMES[p.archetype]
+      face.append(arch)
+      if (draft?.roster.captain === p.id && slot.kind === 'lineup') face.append(captainIcon(15))
     }
-    const chips = el('span', 'v2-player-chips')
-    if (p.role === 'batter') chips.append(archetypeChip(p))
-    else chips.append(pitchChip(p))
-    if (p.traits.length) chips.append(traitChips(p))
-    main.append(name, gradeLine(p), chips)
-    b.append(tag, main)
+    const main = el('span', 'v2-player-main')
+    const name = el('span', 'v2-player-name')
+    name.append(el('span', 'v2-player-name-text', p.name), el('span', 'v2-level', V2T.level(level)))
+    const sub = el('span', 'v2-player-sub')
+    if (off) sub.append(el('span', 'v2-offpos', V2T.offPositionNative(POSITION_SPOT[p.primary])))
+    if (p.role === 'pitcher') sub.append(pitchChip(p))
+    else if (p.traits.length && !off) sub.append(traitTag(p.traits[0]))
+    else if (slot.kind === 'reserve' && !off) sub.append(el('span', 'v2-player-native', V2T.nativePosition(POSITION_SPOT[p.primary])))
+    main.append(name, sub)
+    b.append(face, main, gradeLetters(p, off))
+    b.setAttribute('aria-label', `${chip} ${p.name} ${V2T.level(level)}${off ? `，${V2T.offPosition}` : ''}`)
     if (isSelected) b.append(el('span', 'v2-selected-note', V2T.selected))
     b.onclick = () => void pick(slot)
-    const develop = el('button', 'v2-develop', V2T.develop)
+    const develop = el('button', 'v2-develop')
     develop.type = 'button'
     develop.dataset.player = p.id
     develop.setAttribute('aria-label', `${p.name} ${V2T.develop}`)
+    develop.append(icon('upgrade', 16), V2T.develop)
     develop.onclick = () => openPlayerDetail(controller, p.id)
     item.append(b, develop)
     return item
+  }
+
+  /** 一組球員（一張卡片）：標題、人數說明、能力欄名 */
+  function group(title: string, sub: string, pitcher: boolean, rows: HTMLElement[], cls = '', empty?: string): HTMLElement {
+    const card = el('section', `v2-card v2-roster-card ${cls}`.trim())
+    card.setAttribute('aria-label', title)
+    const head = el('div', 'v2-roster-head')
+    const cols = el('span', 'v2-roster-cols')
+    cols.setAttribute('aria-hidden', 'true')
+    for (const k of pitcher ? PITCHER_KEYS : BATTER_KEYS) cols.append(el('span', '', RATING_LABELS[k]))
+    head.append(el('h3', 'v2-section-title', title), el('span', 'v2-roster-sub', sub), cols)
+    card.append(head)
+    if (empty && !rows.length) card.append(el('p', 'v2-roster-empty', empty))
+    const list = el('div', 'v2-player-list')
+    list.append(...rows)
+    card.append(list)
+    return card
   }
 
   function render(state: ControllerState): HTMLElement {
@@ -192,86 +250,106 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
     if (!d) return page
     const r = d.roster
 
-    const intro = el('section', 'v2-card')
-    const head = el('div', 'v2-card-head')
-    head.append(el('h2', 'v2-card-title', V2T.lineupTitle))
+    const head = el('div', 'v2-page-head')
+    head.append(el('h2', 'v2-page-title', V2T.lineupTitle))
     const actions = el('div', 'v2-head-actions')
-    const auto = el('button', 'btn-white v2-auto', V2T.autoArrange)
+    const auto = el('button', 'btn-white v2-head-btn v2-auto')
     auto.type = 'button'
+    auto.append(icon('lineup', 18), V2T.autoArrange)
     auto.disabled = !state.canWrite || state.saving
     auto.onclick = () => openAutoArrange(d, (next) => apply(next))
-    const recruitBtn = el('button', 'btn-white v2-auto', V2T.recruitEntry)
+    const recruitBtn = el('button', 'btn-white v2-head-btn')
     recruitBtn.type = 'button'
     recruitBtn.dataset.action = 'recruit'
+    recruitBtn.append(icon('recruit', 18), V2T.recruitEntry)
     recruitBtn.onclick = () => openRecruit(controller, goToLineup)
     actions.append(auto, recruitBtn)
     head.append(actions)
-    intro.append(head, el('p', 'v2-hint', V2T.lineupHint), synergyBadges(r.lineup, r.captain, []), el('p', 'v2-effective', V2T.lineupEffective))
+    const bonds = el('div', 'v2-bond-row')
+    bonds.append(el('span', 'v2-bond-label', V2T.bondsActive), synergyBadges(r.lineup, r.captain, [], { full: true }))
+    page.append(head, bonds, el('p', 'v2-page-hint', V2T.lineupHint))
 
-    const starters = el('section', 'v2-card')
-    starters.append(el('h3', 'v2-section-title', V2T.starters))
-    const list = el('div', 'v2-player-list')
-    r.lineup.forEach((s, i) => {
-      list.append(row({ kind: 'lineup', index: i }, `${i + 1}・${POSITION_SPOT[s.position]}`, s.player, { off: s.position !== 'DH' && isOffPosition(s.player, s.position) }))
-    })
-    starters.append(list)
+    const starters = group(
+      V2T.starters,
+      V2T.peopleCount(r.lineup.length),
+      false,
+      r.lineup.map((s, i) => row({ kind: 'lineup', index: i }, POS_SHORT[s.position], s.player, { order: i + 1, position: s.position })),
+      'v2-starters',
+    )
+    const bench = group(V2T.bench, V2T.peopleCount(r.bench.length), false, r.bench.map((p, i) => row({ kind: 'bench', index: i }, V2T.benchChip, p)), 'v2-bench')
+    const pitchers = group(
+      V2T.pitchersTitle,
+      V2T.pitchersSub(r.relievers.length),
+      true,
+      [row({ kind: 'starter' }, V2T.starterChip, r.starter, { pitcher: true }), ...r.relievers.map((p, i) => row({ kind: 'reliever', index: i }, V2T.relieverChip, p, { pitcher: true }))],
+      'v2-pitchers',
+    )
+    const reserveCard = group(
+      V2T.reserves,
+      V2T.reservesSub(d.reserves.length),
+      false,
+      d.reserves.map((p, i) => row({ kind: 'reserve', index: i }, V2T.reserveChip, p, { pitcher: p.role === 'pitcher' })),
+      'v2-reserves',
+      V2T.reservesEmpty,
+    )
+    const grid = el('div', 'v2-lineup-grid')
+    grid.append(starters, bench, pitchers, reserveCard)
+    page.append(grid)
+    page.append(saveBar(state, d))
+    return page
+  }
 
-    const bench = el('section', 'v2-card')
-    bench.append(el('h3', 'v2-section-title', V2T.bench))
-    const benchList = el('div', 'v2-player-list')
-    r.bench.forEach((p, i) => benchList.append(row({ kind: 'bench', index: i }, V2T.bench, p)))
-    bench.append(benchList)
-
-    const pitchers = el('section', 'v2-card')
-    pitchers.append(el('h3', 'v2-section-title', `${V2T.starterPitcher}・${V2T.relievers}`))
-    const pList = el('div', 'v2-player-list')
-    pList.append(row({ kind: 'starter' }, V2T.starterPitcher, r.starter))
-    r.relievers.forEach((p, i) => pList.append(row({ kind: 'reliever', index: i }, V2T.relievers, p)))
-    pitchers.append(pList)
-
-    const reserveCard = el('section', 'v2-card v2-reserves')
-    reserveCard.append(el('h3', 'v2-section-title', `${V2T.reserves}（${d.reserves.length}）`))
-    if (!d.reserves.length) reserveCard.append(el('p', 'v2-empty', V2T.reservesEmpty))
-    else {
-      const rList = el('div', 'v2-player-list')
-      d.reserves.forEach((p, i) => rList.append(row({ kind: 'reserve', index: i }, `${V2T.reserveLabel}・${p.role === 'batter' ? POSITION_SPOT[p.primary] : V2T.pitcherLabel}`, p)))
-      reserveCard.append(rList)
-    }
-
-    // 儲存列：有修改才能存；不合法就顯示原因、不能存
-    const bar = el('div', 'v2-savebar')
+  /**
+   * 儲存列：選取中（再點一位交換／取消）、有變更（還原／儲存陣容）、草稿過期（載入最新設定）、
+   * 不合法（說明原因、不能存）；沒有變更時只顯示「已儲存」一行，不浮在畫面上
+   */
+  function saveBar(state: ControllerState, d: LineupDraft): HTMLElement {
+    const r = d.roster
     const issues = lineupIssues(r)
     const isStale = stale()
-    const status = el('span', 'v2-savebar-status', isStale ? V2T.draftStale : issues.length ? issues.join('；') : dirty() ? V2T.unsavedChanges : V2T.lineupEffective)
-    if (issues.length || isStale) status.classList.add('error')
-    const reset = el('button', 'btn-white', isStale ? V2T.loadLatest : V2T.resetDraft)
-    reset.type = 'button'
-    reset.disabled = !dirty() || state.saving
-    reset.onclick = () => {
+    const isDirty = dirty()
+    const resetToLatest = () => {
       if (club) resetDraft(club)
       rerender()
     }
-    const save = el('button', 'btn-yellow', state.saving ? V2T.saving : V2T.saveLineup)
-    save.type = 'button'
-    save.disabled = !dirty() || isStale || issues.length > 0 || state.saving || !state.canWrite
-    save.onclick = async () => {
+    const save = barButton('btn-yellow', state.saving ? V2T.saving : V2T.saveLineup, 'save-draft', async () => {
       save.disabled = true
       const res = await controller.saveRoster(r, base ?? '')
-      if (res.message) toast(res.message)
+      if (res.message) toast(res.message, res.ok ? 'success' : 'error')
       if (res.ok && controller.state.club) {
         club = controller.state.club
         resetDraft(club)
       }
       // 衝突：controller 已讀進最新存檔，草稿留著並標示過期
       rerender()
+    })
+    save.disabled = state.saving || !state.canWrite
+    const reset = () => barButton('btn-white', V2T.resetDraft, 'reset-draft', resetToLatest, 'undo')
+    if (isStale) {
+      const load = barButton('btn-yellow', V2T.loadLatest, 'load-latest', resetToLatest)
+      load.disabled = state.saving
+      return draftBar('stale', V2T.draftStaleTitle, V2T.draftStale, [load])
     }
-    const buttons = el('div', 'v2-savebar-buttons')
-    buttons.append(reset, save)
-    bar.append(status, buttons)
-    if (isStale) bar.classList.add('stale')
+    if (selected) {
+      const cancel = barButton('btn-white', V2T.cancel, 'cancel-select', () => {
+        selected = null
+        rerender()
+      })
+      return draftBar('selected', V2T.selectedWho(selectedPlayer(d)?.name ?? ''), isDirty ? V2T.unsavedChanges : '', isDirty && !issues.length ? [cancel, save] : [cancel])
+    }
+    if (issues.length) return draftBar('invalid', issues.join('；'), '', [reset()])
+    if (isDirty) return draftBar('dirty', V2T.unsavedChanges, V2T.savedFromNext, [reset(), save])
+    return draftBar('clean', V2T.lineupEffective, '', [])
+  }
 
-    page.append(intro, starters, bench, pitchers, reserveCard, bar)
-    return page
+  function selectedPlayer(d: LineupDraft): Player | null {
+    if (!selected) return null
+    const i = 'index' in selected ? selected.index : 0
+    if (selected.kind === 'lineup') return d.roster.lineup[i]?.player ?? null
+    if (selected.kind === 'bench') return d.roster.bench[i] ?? null
+    if (selected.kind === 'starter') return d.roster.starter
+    if (selected.kind === 'reliever') return d.roster.relievers[i] ?? null
+    return d.reserves[i] ?? null
   }
 
   return { render, sync, hasUnsavedChanges: dirty }
@@ -300,6 +378,24 @@ function openAutoArrange(draft: LineupDraft, apply: (d: LineupDraft) => void): v
     close()
     apply({ ...draft, roster: best.roster })
   }
+}
+
+const POS_SHORT: Record<Position, string> = { C: '捕', '1B': '一', '2B': '二', '3B': '三', SS: '游', LF: '左', CF: '中', RF: '右', DH: '指' }
+const BATTER_KEYS = ['contact', 'power', 'speed', 'fielding'] as const
+const PITCHER_KEYS = ['stuff', 'control', 'stamina'] as const
+
+/** 列表用的能力字母：只有 S、A 上色（強項提示），其他是黑字；守非本職時「守」標紅底線 */
+function gradeLetters(p: Player, off: boolean): HTMLElement {
+  const box = el('span', 'v2-grades')
+  const ratings = p.ratings as unknown as Record<string, number>
+  const keys = p.role === 'pitcher' ? PITCHER_KEYS : BATTER_KEYS
+  for (const k of keys) {
+    const g = gradeOf(ratings[k])
+    const cell = el('span', `v2-g${g === 'S' || g === 'A' ? ` hi grade-${g}` : ''}${off && k === 'fielding' ? ' warn' : ''}`, g)
+    cell.title = `${RATING_LABELS[k]} ${g}`
+    box.append(cell)
+  }
+  return box
 }
 
 function sameSlot(a: DraftSlot, b: DraftSlot): boolean {

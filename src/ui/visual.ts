@@ -46,13 +46,21 @@ export function sideTag(isUser: boolean): HTMLElement {
   return el('span', `side-tag ${isUser ? 'user' : 'opponent'}`, isUser ? T.mySide : T.opponentSide)
 }
 
-export function toast(text: string): void {
+export type ToastKind = 'info' | 'success' | 'error'
+const TOAST_ICON: Record<ToastKind, string> = {
+  info: '<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#141633" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
+  success: '<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#22A35A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
+  error:
+    '<path d="M12 3 22 20.5H2Z" fill="none" stroke="#E5383B" stroke-width="2.2" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="#E5383B" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="17.9" r="1.3" fill="#E5383B"/>',
+}
+
+/** 畫面底部的短訊息：同時只有一則（新的取代舊的），停留 1.8 秒後淡出 0.4 秒，出現時播一聲音效 */
+export function toast(text: string, kind: ToastKind = 'info'): void {
   play('pop')
   document.querySelector('.toast')?.remove()
-  const node = el('div', 'toast')
-  node.setAttribute('role', 'status')
-  node.innerHTML =
-    '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFD23F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+  const node = el('div', kind === 'info' ? 'toast' : `toast ${kind}`)
+  node.setAttribute('role', kind === 'error' ? 'alert' : 'status')
+  node.innerHTML = `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24">${TOAST_ICON[kind]}</svg>`
   node.append(text)
   document.body.append(node)
   window.setTimeout(() => node.classList.add('leaving'), 1800)

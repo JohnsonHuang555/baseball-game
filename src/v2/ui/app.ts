@@ -20,18 +20,15 @@ import { openMatchReport, renderReports, welcomeModal } from './reportView'
 import { openRecruit } from './recruitView'
 import { openPlayerDetail } from './playerView'
 import { V2T } from './strings'
+import { icon, iconSvg, type IconName } from './icons'
+import { leagueOf } from '../domain/league'
 import { createTacticsView, type TacticsView } from './tacticsView'
 import { createWriterGuard, randomTabId, type StorageEventSource } from './writerGuard'
 
 export type V2Tab = 'home' | 'lineup' | 'tactics' | 'reports'
 const TABS: V2Tab[] = ['home', 'lineup', 'tactics', 'reports']
 const TAB_LABELS: Record<V2Tab, string> = { home: V2T.navHome, lineup: V2T.navLineup, tactics: V2T.navTactics, reports: V2T.navReports }
-const TAB_ICONS: Record<V2Tab, string> = {
-  home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
-  lineup: '<circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M15 14.5c3.3-.4 6.5 1.5 6.5 5.5"/>',
-  tactics: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
-  reports: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
-}
+const TAB_ICONS: Record<V2Tab, IconName> = { home: 'club', lineup: 'lineup', tactics: 'tactics', reports: 'report' }
 
 export interface V2AppOptions {
   deps?: V2Deps
@@ -85,17 +82,20 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   let draftName = ''
 
   const screen = el('div', 'v2-screen')
+  const body = el('div', 'v2-body')
   const header = el('header', 'v2-header')
   const titles = el('div', 'v2-titles')
   const title = el('h1', 'v2-title', V2T.modeTitle)
   const subtitle = el('span', 'v2-subtitle', V2T.modeBadge)
   titles.append(title, subtitle)
-  header.append(titles)
+  const resources = el('div', 'v2-resources')
+  header.append(titles, resources)
   const banner = el('div', 'v2-banner-slot')
   const main = el('main', 'v2-main')
   const nav = el('nav', 'v2-nav')
-  nav.setAttribute('aria-label', V2T.modeTitle)
-  screen.append(header, banner, main, nav)
+  nav.setAttribute('aria-label', V2T.navLabel)
+  body.append(header, banner, main)
+  screen.append(nav, body)
   root.replaceChildren(screen)
   // V2 是整個網站：Escape 不會關掉 App（只有觀戰畫面、對話框各自用 Escape 關閉，關閉後還原成這裡的空設定）
   setKeys({})
@@ -110,37 +110,71 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   function renderNav(state: ControllerState): void {
     nav.replaceChildren()
     nav.hidden = state.status.kind !== 'ready'
+    screen.classList.toggle('has-nav', !nav.hidden)
+    nav.append(el('span', 'v2-rail-logo', 'DICE BALL'))
     for (const id of TABS) {
       const b = el('button', 'v2-nav-btn')
       b.type = 'button'
-      b.setAttribute('aria-current', String(id === tab))
+      b.setAttribute('aria-current', id === tab ? 'page' : 'false')
       b.dataset.tab = id
-      b.innerHTML = `<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${TAB_ICONS[id]}</svg>`
+      b.innerHTML = iconSvg(TAB_ICONS[id], 22)
       b.append(el('span', '', TAB_LABELS[id]))
       b.onclick = () => show(id)
       nav.append(b)
     }
   }
 
+  /** 頁首：隊名、聯盟與總戰績，右邊是資金與經驗（切到任何分頁都看得到） */
+  function renderHeader(state: ControllerState): void {
+    const club = state.club
+    title.textContent = club?.clubName ?? V2T.modeTitle
+    resources.replaceChildren()
+    if (!club || state.status.kind !== 'ready') {
+      subtitle.textContent = club ? V2T.record(club.record.wins, club.record.losses) : V2T.modeBadge
+      return
+    }
+    const def = leagueOf(club.league.tier)
+    const pill = el('span', 'v2-league-pill', def.name)
+    pill.style.background = def.color
+    const rec = el('span', 'v2-head-record', `${club.record.wins}-${club.record.losses}`)
+    rec.setAttribute('aria-label', V2T.record(club.record.wins, club.record.losses))
+    subtitle.replaceChildren(pill, rec, el('span', '', V2T.totalRecord))
+    const res = (name: IconName, label: string, value: number, key: string) => {
+      const box = el('span', 'v2-res')
+      box.dataset.res = key
+      box.setAttribute('aria-label', `${label} ${value.toLocaleString('zh-Hant')}`)
+      box.append(icon(name, 20), el('span', 'v2-res-value', value.toLocaleString('zh-Hant')))
+      return box
+    }
+    resources.append(
+      res('coin', V2T.funds, club.economy.assets.funds, 'funds'),
+      res('exp', V2T.experience, club.economy.assets.experience, 'exp'),
+    )
+  }
+
   function renderBanner(state: ControllerState): void {
     banner.replaceChildren()
     if (state.status.kind !== 'ready' && state.status.kind !== 'no-club') return
     if (!state.canWrite) {
-      const box = el('div', 'v2-banner warn')
+      const box = el('div', 'v2-banner readonly')
       box.setAttribute('role', 'status')
-      const take = el('button', 'btn-small', V2T.takeOver)
+      const take = el('button', 'btn-white v2-banner-btn', V2T.takeOver)
       take.type = 'button'
       take.onclick = () => controller.takeOver()
-      box.append(el('span', '', V2T.readOnlyBanner), take)
+      const text = el('span', 'v2-banner-text')
+      text.append(el('strong', '', V2T.readOnlyTitle), el('span', '', V2T.readOnlyWhy))
+      box.append(icon('lock', 22), text, take)
       banner.append(box)
     }
     if (state.error) {
       const box = el('div', 'v2-banner error')
       box.setAttribute('role', 'alert')
-      box.append(el('span', '', state.error.message))
+      const text = el('span', 'v2-banner-text')
+      text.append(el('strong', '', state.error.message))
+      box.append(icon('alert', 22), text)
       const retry = state.error.retry
       if (retry) {
-        const b = el('button', 'btn-small', V2T.retry)
+        const b = el('button', 'btn-white v2-banner-btn', V2T.retry)
         b.type = 'button'
         b.onclick = () => (retry === 'settle' ? void controller.settle('manual') : void claimWithToast())
         box.append(b)
@@ -273,9 +307,9 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
 
   function render(state: ControllerState): void {
     if (closed) return
-    title.textContent = state.club?.clubName ?? V2T.modeTitle
-    subtitle.textContent = state.club ? V2T.record(state.club.record.wins, state.club.record.losses) : V2T.modeBadge
+    renderHeader(state)
     renderBanner(state)
+    screen.dataset.tab = state.status.kind === 'ready' ? tab : state.status.kind
     renderNav(state)
     const s = state.status
     if (s.kind === 'loading') main.replaceChildren(el('p', 'v2-loading', V2T.loading))
@@ -297,6 +331,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
               if (!closed && !res.ok && res.message) toast(res.message)
             }),
           watchChallenge: state.club?.challengeReplay ? () => void watchChallenge() : null,
+          desk: isDesk(),
           challenge: (expected) =>
             void controller.challenge(expected).then((res) => {
               if (!closed && !res.ok && res.message) toast(res.message)
@@ -404,6 +439,14 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     return box
   }
 
+  // ---- 電腦版版面：首頁改成三欄，寬度跨過門檻時重畫一次 ----
+  const deskQuery = typeof globalThis.matchMedia === 'function' ? globalThis.matchMedia('(min-width: 1024px)') : null
+  function isDesk(): boolean {
+    return !!deskQuery?.matches
+  }
+  const onDeskChange = () => render(controller.state)
+  deskQuery?.addEventListener?.('change', onDeskChange)
+
   // ---- 瀏覽器事件：回到分頁就結算，倒數每秒更新 ----
   const onVisible = () => {
     if (doc?.visibilityState === 'visible') void controller.settle('resume')
@@ -433,6 +476,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     closed = true
     if (timer) clearInterval(timer)
     viewer?.close()
+    deskQuery?.removeEventListener?.('change', onDeskChange)
     doc?.removeEventListener('visibilitychange', onVisible)
     win?.removeEventListener('focus', onFocus)
     unsubscribe()

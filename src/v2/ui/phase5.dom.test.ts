@@ -71,7 +71,8 @@ describe('聯盟卡片', () => {
     expect(text('.v2-league')).toContain(V2T.leagueRecord(0, 0))
     expect($$('.v2-league-need li')).toHaveLength(2)
     expect($('[data-action="challenge"]')).toBeNull()
-    expect($('.v2-league-bar')!.getAttribute('aria-valuenow')).toBe('0')
+    expect($('[data-need="matches"] [role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('0')
+    expect($('[data-need="rate"] [role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('0')
   })
 
   it('達到條件：出現「挑戰下一聯盟」；挑戰成功後顯示結果對話框，首頁換成新聯盟', async () => {

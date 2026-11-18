@@ -44,58 +44,81 @@ h2,
 h3 {
   margin: 0;
 }
-/* ---- 按鈕 ---- */
+/* ---- 按鈕（設計稿 v7 元件表）：主要黃色每個畫面最多一個；次要白色；危險白底紅框；停用灰色虛線框 ---- */
 .btn-yellow,
 .btn-white,
-.btn-small {
+.btn-small,
+.btn-danger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   border: 2.5px solid var(--ink);
   border-radius: 14px;
   font-family: inherit;
   font-weight: 900;
+  color: var(--ink);
   cursor: pointer;
-}
-.btn-yellow,
-.btn-white {
-  height: 54px;
-  padding: 0 16px;
-  font-size: 16px;
+  transition: transform 0.08s ease-out;
 }
 .btn-yellow {
+  height: 54px;
+  padding: 0 18px;
+  font-size: 17px;
+  border-width: 3px;
   background: var(--yellow);
-  color: var(--ink);
   box-shadow: 0 4px 0 var(--yellow-shadow);
 }
 .btn-big {
-  font-size: 18px;
+  font-size: 17px;
 }
-.btn-white {
+.btn-white,
+.btn-danger {
+  height: 48px;
+  padding: 0 16px;
+  font-size: 15px;
   background: #fff;
-  color: var(--ink);
-  box-shadow: 0 4px 0 var(--ink);
+  box-shadow: 0 3px 0 var(--ink);
+}
+.btn-danger {
+  border: 2px solid #e5383b;
+  color: #c21f2b;
+  box-shadow: 0 3px 0 #e5383b;
 }
 .btn-small {
   flex: none;
-  height: 44px;
-  padding: 0 14px;
-  border-radius: 12px;
-  font-size: 15px;
-  background: var(--yellow);
-  color: var(--ink);
-  box-shadow: 0 3px 0 var(--ink);
+  height: 36px;
+  padding: 0 12px;
+  border-width: 2px;
+  border-radius: 10px;
+  font-size: 13px;
+  background: #fff;
+  box-shadow: 0 2px 0 var(--ink);
 }
 .btn-yellow:disabled,
-.btn-white:disabled {
-  opacity: 0.45;
-  cursor: default;
+.btn-white:disabled,
+.btn-small:disabled,
+.btn-danger:disabled {
+  border: 2px dashed #8a8fae;
+  background: #eceef8;
+  color: #8a8fae;
+  box-shadow: none;
+  cursor: not-allowed;
 }
 .btn-yellow:active:not(:disabled),
-.btn-white:active:not(:disabled) {
+.btn-white:active:not(:disabled),
+.btn-small:active:not(:disabled),
+.btn-danger:active:not(:disabled) {
   transform: translateY(3px);
-  box-shadow: 0 1px 0 var(--ink);
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-yellow:active:not(:disabled),
+  .btn-white:active:not(:disabled),
+  .btn-small:active:not(:disabled),
+  .btn-danger:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 /* ---- 字母等級：S 彩虹、A 到 G 由暖到冷，亮度也一路變化 ---- */
@@ -269,25 +292,44 @@ h3 {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(96px + env(safe-area-inset-bottom));
+  bottom: calc(84px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  max-width: calc(100vw - 32px);
+  max-width: min(420px, calc(100vw - 32px));
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
-  border-radius: 24px;
-  background: var(--ink);
-  border: 2px solid var(--yellow);
-  color: #fff;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 2px solid var(--ink);
+  color: var(--ink);
   font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-  z-index: 30;
+  font-weight: 900;
+  line-height: 1.4;
+  z-index: 90;
   pointer-events: none;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 0 var(--ink);
   animation: toast-in 0.2s ease-out;
   transition: opacity 0.4s;
+}
+.toast.success {
+  border-color: #22a35a;
+  background: #f0fbf4;
+  box-shadow: 0 4px 0 #22a35a;
+}
+.toast.error {
+  border-color: #e5383b;
+  background: #ffecec;
+  box-shadow: 0 4px 0 #e5383b;
+}
+.toast svg {
+  flex: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+    transition: none;
+  }
 }
 .toast.leaving {
   opacity: 0;
@@ -418,28 +460,6 @@ h3 {
   gap: 10px;
   margin-top: 6px;
 }
-.btn-danger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 54px;
-  padding: 0 16px;
-  border: 2.5px solid var(--ink);
-  border-radius: 14px;
-  background: #e5383b;
-  color: #fff;
-  box-shadow: 0 4px 0 var(--ink);
-  font-family: inherit;
-  font-size: 16px;
-  font-weight: 900;
-  cursor: pointer;
-}
-.btn-danger:active {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0 var(--ink);
-}
-
 /* ---- 本職守位：本職標籤、非本職警示 ---- */
 .primary-chip {
   flex: none;
