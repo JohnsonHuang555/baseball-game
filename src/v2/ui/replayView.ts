@@ -44,6 +44,8 @@ import {
   type ReplayView,
 } from '../application/replayPlayer'
 import { V2T } from './strings'
+import { iconSvg } from './icons'
+import { avatar } from '../../ui/avatar'
 
 /**
  * 球場這一層（Canvas 動畫）。正式版包住共用的 FieldRenderer 與 PitchCam；
@@ -180,13 +182,17 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
 
   // 頂部：離開、標題、直播狀態、音效
   const top = el('div', 'v2-replay-top')
-  const back = el('button', 'btn-white v2-replay-back', opts.mode === 'live' ? V2T.liveLeave : V2T.replayBack)
+  const back = el('button', 'v2-replay-back')
   back.type = 'button'
   back.dataset.action = 'replay-back'
+  back.innerHTML = '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
+  back.append(opts.mode === 'live' ? V2T.liveLeave : V2T.replayBack)
+  const titles = el('div', 'v2-replay-titles')
   const title = el('h2', 'v2-replay-title', opts.title)
-  const badge = el('span', 'v2-live-badge')
-  badge.hidden = opts.mode !== 'live'
-  top.append(back, title, badge, soundToggle('sound-btn v2-replay-sound'))
+  // 直播：直播中／即將開始／比賽結束；挑戰賽：挑戰賽重播
+  const badge = el('span', `v2-live-badge ${opts.mode === 'live' ? '' : 'replay'}`, opts.mode === 'live' ? '' : V2T.replayBadge)
+  titles.append(title, badge)
+  top.append(back, titles, soundToggle('sound-btn v2-replay-sound'))
   screen.append(top)
 
   let livePlayer: LivePlayer | null = null
@@ -231,6 +237,8 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
   const callout = el('div', 'callout')
   const finalPanel = el('div', 'v2-replay-final')
   finalPanel.hidden = true
+  /** 結果面板底下的按鈕（直播：離開、觀看下一場） */
+  const finalExtra = el('div', 'v2-final-extra')
   const pausedPanel = el('div', 'v2-live-paused')
   pausedPanel.hidden = true
   // Phase 6B 的特效層：閃光、彩帶、精彩時刻橫幅、關鍵打席標籤、局間轉場（都在球場框裡，不蓋比分條）
@@ -306,11 +314,14 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
     if (s.over) return
     const fielding: Side = s.battingSide === 'home' ? 'away' : 'home'
     const card = (label: string, id: string | null, side: Side, key: string) => {
-      const box = el('div', `v2-replay-duel-card ${side === userSide() ? 'user' : 'opponent'}`)
+      const ours = side === userSide()
+      const box = el('div', `v2-replay-duel-card ${ours ? 'user' : 'opponent'}`)
       const n = el('strong', '', name(id))
       n.dataset[key] = id ?? ''
-      box.append(el('span', 'v2-replay-duel-label', label), n)
-      if (side === userSide()) box.append(sideTag(true))
+      const words = el('span', 'v2-replay-duel-words')
+      words.append(el('span', 'v2-replay-duel-label', label), n)
+      if (ours) words.append(sideTag(true))
+      box.append(avatar(id ?? key, ours ? 'user' : 'opponent', 'v2-replay-duel-face'), words)
       return box
     }
     duel.append(card(V2T.replayBatter, s.batterId, s.battingSide, 'batter'), card(V2T.replayPitcher, s.pitcherId, fielding, 'pitcher'))
@@ -506,7 +517,7 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
     const won = s.winner === userSide()
     opts.onEffect?.({ kind: 'final', label: won ? 'won' : 'lost' })
     finalPanel.className = `v2-replay-final ${won ? 'won' : 'lost'}`
-    finalPanel.replaceChildren(el('strong', 'v2-replay-verdict', won ? V2T.win : V2T.loss), el('span', 'v2-replay-final-score', `${s.score[userSide()]} : ${s.score[otherSide()]}`), linescore(s))
+    finalPanel.replaceChildren(el('strong', 'v2-replay-verdict', won ? V2T.win : V2T.loss), el('span', 'v2-replay-final-score', `${s.score[userSide()]} : ${s.score[otherSide()]}`), linescore(s), finalExtra)
     lastPlay.textContent = V2T.replayFinalLine(won, s.inning)
   }
 
@@ -833,15 +844,25 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
   // ---- 直播 ----
 
   function setupLive(o: LiveViewerOptions): void {
-    const toggle = el('button', 'btn-yellow v2-replay-toggle')
+    const toggle = el('button', 'v2-replay-toggle')
     toggle.type = 'button'
     toggle.dataset.action = 'live-toggle'
+    const toggleLabel = el('span', '')
+    const toggleIcon = el('span', 'v2-toggle-ico')
+    toggle.append(toggleIcon, toggleLabel)
+    const note = el('span', 'v2-live-note', V2T.livePauseNote)
     const remain = el('span', 'v2-live-remain')
-    const nextBtn = el('button', 'btn-white v2-live-next', V2T.liveWatchNext)
+    // 比賽結束：結果面板疊在球場上，「觀看下一場」是唯一的黃色按鈕，旁邊是「離開」
+    const nextBtn = el('button', 'btn-yellow v2-live-next', V2T.liveWatchNext)
     nextBtn.type = 'button'
     nextBtn.dataset.action = 'live-next'
     nextBtn.hidden = true
-    controls.append(toggle, remain, nextBtn)
+    const leave = el('button', 'btn-white v2-final-leave', V2T.liveLeave)
+    leave.type = 'button'
+    leave.onclick = close
+    const finalButtons = el('div', 'v2-final-buttons')
+    finalButtons.append(leave, nextBtn)
+    controls.append(toggle, note, remain)
     pausedPanel.append(el('strong', '', V2T.livePaused), el('span', '', V2T.livePausedHint))
 
     let unsubscribe = () => {}
@@ -856,7 +877,11 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
       if (closed) return
       screen.dataset.status = v.status
       screen.dataset.position = `${v.position}/${v.total}`
-      toggle.textContent = v.status === 'paused' ? V2T.liveResume : V2T.livePause
+      toggleLabel.textContent = v.status === 'paused' ? V2T.liveResume : V2T.livePause
+      toggleIcon.innerHTML = iconSvg(v.status === 'paused' ? 'play' : 'pause', 16)
+      toggle.classList.toggle('resume', v.status === 'paused')
+      note.hidden = v.status === 'paused' || v.status === 'ended'
+      if (!finalExtra.contains(finalButtons)) finalExtra.append(finalButtons)
       toggle.hidden = v.status === 'ended' || v.status === 'error'
       pausedPanel.hidden = v.status !== 'paused'
       nextBtn.hidden = v.status !== 'ended' || !o.next

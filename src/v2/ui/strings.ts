@@ -343,6 +343,8 @@ export const V2T = {
   liveWatch: '觀看比賽',
   liveLeave: '離開',
   livePause: '暫停畫面',
+  livePauseNote: '暫停只停自己的畫面，比賽仍在進行',
+  replayBadge: '挑戰賽重播',
   liveResume: '繼續觀看（同步到目前進度）',
   livePaused: '畫面已暫停',
   livePausedHint: '比賽仍在進行，繼續觀看時會跳到目前的進度',

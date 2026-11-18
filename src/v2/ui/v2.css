@@ -654,32 +654,7 @@
 .v2-replay > * {
   flex-shrink: 0;
 }
-.v2-replay-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.v2-replay-back {
-  flex: none;
-  height: 40px;
-  padding: 0 14px;
-  font-size: 15px;
-}
-.v2-replay-title {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  color: #fff;
-  font-size: 16px;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.v2-replay-sound {
-  height: 40px;
-  min-width: 40px;
-}
+
 .v2-replay-field {
   position: relative;
 }
@@ -757,79 +732,13 @@
 .v2-replay-linescore td.total {
   font-weight: 900;
 }
-.v2-replay-duel {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  min-height: 40px;
-}
-.v2-replay-duel-card {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 6px 10px;
-  border: 2px solid var(--ink);
-  border-radius: 12px;
-  background: #fff;
-  font-size: 14px;
-}
-.v2-replay-duel-card strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.v2-replay-duel-label {
-  flex: none;
-  color: #5a5fa8;
-  font-size: 12px;
-  font-weight: 900;
-}
-.v2-replay-last {
-  margin: 0;
-  min-height: 22px;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 900;
-}
-.v2-replay-log {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin: 0;
-  padding: 6px 10px;
-  overflow-y: auto;
-  list-style: none;
-  border: 2px solid var(--ink);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
-  font-size: 13px;
-}
-.v2-replay-log li {
-  padding: 2px 0;
-}
-.v2-replay-log li.divider {
-  color: #5a5fa8;
-  font-size: 12px;
-  text-align: center;
-}
+
 .v2-replay-log li.score,
 .v2-replay-log li.hr {
   color: var(--v2-win);
   font-weight: 900;
 }
-.v2-replay-log li.sub {
-  color: #5a5fa8;
-}
-.v2-replay-controls {
-  display: grid;
-  grid-template-columns: 1.2fr 1.6fr;
-  gap: 8px;
-}
-.v2-replay-toggle {
-  height: 48px;
-  font-size: 17px;
-}
+
 .v2-replay-speed {
   height: 48px;
 }
@@ -897,19 +806,7 @@
 .v2-live-paused[hidden] {
   display: none;
 }
-.v2-replay-controls.live {
-  grid-template-columns: 1fr auto;
-  align-items: center;
-}
-.v2-replay-controls.live .v2-live-remain {
-  color: #fff;
-  font-size: 15px;
-  font-weight: 900;
-}
-.v2-replay-controls.live .v2-live-next {
-  grid-column: 1 / -1;
-  height: 48px;
-}
+
 .v2-replay-controls.challenge {
   grid-template-columns: 1.2fr 1.6fr;
 }
@@ -1311,7 +1208,7 @@
   font-weight: 700;
   color: var(--lilac);
 }
-.v2-live-remain {
+.v2-live-card .v2-live-remain {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
@@ -1321,7 +1218,7 @@
   color: #fff;
   white-space: nowrap;
 }
-.v2-live-remain .v2-ico {
+.v2-live-card .v2-live-remain .v2-ico {
   color: var(--lilac);
 }
 .v2-live-row {
@@ -3881,4 +3778,354 @@ body:has(.v2-modal-overlay) .toast {
   font-size: 14px;
   font-weight: 900;
   line-height: 1.5;
+}
+
+/* ==== 觀戰（設計稿 v7）：深色頂列、比分條、球場、打者與投手、最新一球、紀錄、底部控制 ==== */
+.v2-replay-overlay {
+  background: #1e2170;
+}
+.v2-replay {
+  padding: 0 0 calc(8px + env(safe-area-inset-bottom));
+  gap: 8px;
+}
+.v2-replay > :not(.v2-replay-top):not(.v2-replay-controls) {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+.v2-replay-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+  background: #0b0c20;
+}
+.v2-replay-back {
+  flex: none;
+  height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.v2-replay-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+.v2-replay-title {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-replay-titles .v2-live-badge {
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+.v2-replay-titles .v2-live-badge.replay {
+  background: #8e4be0;
+}
+.v2-replay-titles .v2-live-badge:empty {
+  display: none;
+}
+.v2-replay-sound {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  background: transparent;
+  color: #fff;
+  box-shadow: none;
+}
+.v2-replay-board {
+  border-radius: 14px;
+  border-width: 1.5px;
+  box-shadow: none;
+}
+.v2-replay-field {
+  border-radius: 16px;
+  border: 2px solid var(--ink);
+  overflow: hidden;
+}
+.v2-replay-duel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.v2-replay-duel-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+}
+.v2-replay-duel-face {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--home);
+  overflow: hidden;
+  background: #fff;
+}
+.v2-replay-duel-card.opponent .v2-replay-duel-face {
+  border-color: var(--away);
+}
+.v2-replay-duel-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.v2-replay-duel-words {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+.v2-replay-duel-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--v2-faint, #6b7099);
+}
+.v2-replay-duel-card strong {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-replay-last {
+  margin: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.3;
+  text-align: center;
+}
+.v2-replay-last:empty {
+  visibility: hidden;
+}
+.v2-replay-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1.5px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+}
+.v2-replay-log li {
+  padding: 7px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.v2-replay-log li:first-child {
+  border-top: 0;
+}
+.v2-replay-log li.divider {
+  padding: 6px 12px;
+  background: var(--v2-soft, #f4f5ff);
+  color: var(--v2-faint, #6b7099);
+  font-size: 11px;
+  font-weight: 900;
+  text-align: left;
+}
+.v2-replay-log li.score,
+.v2-replay-log li.hr {
+  color: #1e7a3c;
+  font-weight: 900;
+}
+.v2-replay-log li.sub {
+  color: var(--v2-faint, #6b7099);
+}
+.v2-replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 8px;
+  background: #0b0c20;
+  margin-bottom: calc(-8px - env(safe-area-inset-bottom));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+.v2-replay-toggle {
+  flex: none;
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.v2-replay-toggle.resume {
+  flex: 1;
+  border: 3px solid var(--ink);
+  background: var(--yellow);
+  color: var(--ink);
+  justify-content: center;
+}
+.v2-toggle-ico {
+  display: inline-flex;
+}
+.v2-live-note {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #a9ade0;
+}
+.v2-replay-controls .v2-live-remain {
+  flex: none;
+  margin-left: auto;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-replay-controls.challenge {
+  display: grid;
+  grid-template-columns: auto 1fr;
+}
+.v2-replay-controls.challenge .v2-replay-skip {
+  grid-column: 1 / -1;
+  height: 44px;
+}
+.v2-replay-controls.challenge .v2-replay-toggle {
+  width: 48px;
+  padding: 0;
+  justify-content: center;
+}
+.v2-replay-final {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(330px, calc(100% - 24px));
+  padding: 16px;
+  gap: 8px;
+  border-radius: 20px;
+  border: 3px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 0 0 999px rgba(11, 12, 32, 0.7), 0 6px 0 var(--ink);
+}
+.v2-replay-verdict {
+  font-family: inherit;
+  font-size: 30px;
+  font-weight: 900;
+}
+.v2-final-extra:empty {
+  display: none;
+}
+.v2-final-extra {
+  width: 100%;
+}
+.v2-final-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 8px;
+}
+.v2-final-buttons button {
+  height: 48px;
+  font-size: 14px;
+}
+.v2-final-buttons [hidden] {
+  display: none;
+}
+.v2-final-buttons:has(.v2-live-next[hidden]) {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 1024px) {
+  .v2-replay {
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-rows: auto auto 1fr auto auto;
+    column-gap: 20px;
+    row-gap: 8px;
+    padding-bottom: 0;
+  }
+  .v2-replay-top {
+    grid-column: 1 / -1;
+    padding: 10px 24px;
+  }
+  .v2-replay > :not(.v2-replay-top):not(.v2-replay-controls) {
+    margin: 0;
+  }
+  .v2-replay-board {
+    grid-column: 1;
+    grid-row: 2;
+    margin-left: 24px !important;
+  }
+  .v2-replay-field {
+    grid-column: 1;
+    grid-row: 3 / span 2;
+    margin-left: 24px !important;
+    min-height: 0;
+  }
+  .v2-replay-duel {
+    grid-column: 2;
+    grid-row: 2;
+    margin-right: 24px !important;
+  }
+  .v2-replay-last {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: start;
+    margin-right: 24px !important;
+  }
+  .v2-replay-log {
+    grid-column: 2;
+    grid-row: 3 / span 2;
+    margin-top: 56px !important;
+    margin-right: 24px !important;
+  }
+  .v2-replay-controls {
+    grid-column: 1 / -1;
+    grid-row: 5;
+    margin: 0;
+    padding: 10px 24px 14px;
+  }
 }
