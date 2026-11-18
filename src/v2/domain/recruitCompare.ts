@@ -1,6 +1,6 @@
 // 招募候選人跟目前陣容的比較（純函式）：打者比同守位的先發，投手比先發投手與最弱的後援。
 // 打者的守備用「守那個位置的實際守備」計算，所以不會只看總評而忽略守位。
-// 比的是目前養成後的能力（候選人是 Lv.1，陣容裡的人可能已經升過級）
+// 比的是目前養成後的能力（候選人是 Lv.1，陣容裡的人可能已經升過級）。結果只是能力數值的預估差距，不是勝率的承諾
 import { fieldingAtPosition } from '../../sim/positions'
 import type { Batter, Pitcher, Player, Position } from '../../sim/types'
 import type { ClubSave } from './club'
@@ -32,7 +32,10 @@ export interface CandidateComparison {
   targetValue: number | null
   diff: number
   verdict: CompareVerdict
-  /** 簽下來換上場，陣容會變強（差距超過「相近」的範圍） */
+  /**
+   * 綜合能力比比較對象高出「相近」的範圍以上（預估的能力差距）。
+   * 只代表能力數值，不代表換上場一定贏更多比賽（羈絆、特性、左右打、對手都會影響）
+   */
   improves: boolean
   ratings: RatingDiff[]
   strengths: string[]
@@ -83,7 +86,7 @@ function finish(base: Omit<CandidateComparison, 'verdict' | 'improves' | 'streng
 /**
  * 候選人跟目前陣容比較。
  * - 打者：跟守本職位置的先發比（雙方都用守那個位置的實際守備）；沒有人守那個位置時，跟指定打擊比打擊三項
- * - 投手：比先發投手強就跟先發投手比；不然跟最弱的後援比（能不能補強牛棚）
+ * - 投手：比先發投手強就跟先發投手比；不然跟最弱的後援比（看能力是否高於牛棚裡最弱的人）
  */
 export function compareCandidate(club: Pick<ClubSave, 'players' | 'roster'>, candidate: Player): CandidateComparison {
   const roster = resolveRoster(club)
@@ -131,7 +134,7 @@ export function compareCandidate(club: Pick<ClubSave, 'players' | 'roster'>, can
 }
 
 /**
- * 三選一時「最能補強陣容」的候選人：比較對象的差距最大者（平手取綜合能力較高、再取位置較前）。
+ * 三選一時「能力比比較對象高最多」的候選人（預估的能力差距）（平手取綜合能力較高、再取位置較前）。
  * 平衡模擬的招募策略用這個挑人；畫面只把比較結果列出來，不替玩家決定
  */
 export function bestCandidateIndex(club: Pick<ClubSave, 'players' | 'roster'>, candidates: readonly Player[]): number {

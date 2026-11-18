@@ -72,6 +72,7 @@ function candidateCard(p: Player, index: number, cmp: CandidateComparison, selec
   const top = el('div', 'v2-cand-compare-top')
   top.append(el('span', 'v2-cand-vs', compareTarget(cmp)))
   if (cmp.target) top.append(el('span', `v2-cand-verdict ${cmp.verdict}`, `${V2T.compareVerdict[cmp.verdict]} ${V2T.compareDiff(cmp.diff)}`))
+  // 標籤只說「能力」的差距，不寫「補強」「變強」：能力高不保證贏更多比賽
   compare.append(top)
   if (cmp.target?.kind === 'designated-hitter' && p.role === 'batter') compare.append(el('span', 'v2-cand-note', V2T.compareNoSpot(POSITION_SPOT[p.primary])))
   else if (cmp.target?.kind === 'starter-at-position' && cmp.position) compare.append(el('span', 'v2-cand-note', V2T.compareFieldingNote(POSITION_SPOT[cmp.position])))
@@ -229,7 +230,7 @@ export function openRecruit(controller: ClubController, goToLineup: () => void):
     // 不能簽約的原因放在卡片上面：手機上一打開就看得到
     const parts: HTMLElement[] = [info(club), roleButtons(state, v.role)]
     if (block) parts.push(block)
-    parts.push(el('span', 'v2-section-title', V2T.recruitCandidatesTitle(v.role)), el('p', 'v2-hint', V2T.recruitPickHint), list, foot)
+    parts.push(el('span', 'v2-section-title', V2T.recruitCandidatesTitle(v.role)), el('p', 'v2-hint', V2T.recruitPickHint), el('p', 'v2-hint v2-cand-disclaimer', V2T.compareDisclaimer), list, foot)
     body.replaceChildren(...parts)
   }
 

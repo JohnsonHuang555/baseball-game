@@ -15,7 +15,7 @@ export interface Experiment {
   days: number
   /** 球團存檔版本 */
   schema: number
-  /** 招募時怎麼選人（first：舊制隨機一位；best：三選一挑最能補強的） */
+  /** 招募時怎麼選人（first：舊制隨機一位；best：三選一挑能力差距最大的） */
   recruitPick: RecruitPick
   /** 套用候選方案「之後」的所有平衡設定（聯盟、獎勵、成長、成本、晉級）的指紋：同一個名稱、不同數值也會被發現 */
   config: string

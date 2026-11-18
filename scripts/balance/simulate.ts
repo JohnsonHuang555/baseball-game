@@ -135,7 +135,7 @@ export interface RecruitLog {
   overall: number
   /** 跟比較對象（同守位先發、先發投手或最弱後援）的差距 */
   diff: number
-  /** 簽下來換上場會讓陣容變強 */
+  /** 能力高於比較對象（預估的能力數值差距 ≥ 0.3，不代表勝率） */
   improves: boolean
   /** 三位候選人的總評（看三選一實際挑到多好的人） */
   candidates: number[]
@@ -144,7 +144,7 @@ export interface RecruitLog {
 /**
  * 招募時怎麼選人：
  * - first：只看第 0 位（等同舊制「付錢後隨機得到一位」）
- * - best：三選一，挑最能補強陣容的那位（bestCandidateIndex：跟比較對象的差距最大）
+ * - best：三選一，挑能力比比較對象高最多的那位（bestCandidateIndex）
  */
 export type RecruitPick = 'first' | 'best'
 let recruitPick: RecruitPick = 'best'

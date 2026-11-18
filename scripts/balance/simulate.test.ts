@@ -1,6 +1,8 @@
 // @vitest-environment node
 // 平衡模擬工具本身的測試：可重現、符合離線上限、沒有 NaN、沒有負資產、統計正確
 import { describe, expect, it } from 'vitest'
+import { RECRUIT_CONFIG } from '../../src/v2/domain/progressionConfig'
+import { recruitCost } from '../../src/v2/domain/recruitment'
 import { censoredQuantiles, dist, pairedDiff, simulate } from './simulate'
 
 describe('平衡模擬', () => {
@@ -48,6 +50,26 @@ describe('平衡模擬', () => {
     expect(r.milestones.firstUpgradeMinutes).not.toBeNull()
     expect(r.milestones.firstUpgradeMatches).toBe(r.milestones.firstUpgradeMinutes! / 5)
   }, 60_000)
+})
+
+describe('積極招募策略 D 的操作成本跟正式遊戲一致', () => {
+  it('「釋出 → 招募」都走正式服務：每次簽約的價格是 recruitCost(第幾次)，釋出不花錢也不退款，帳跟遊戲的支出紀錄對得上', async () => {
+    const r = await simulate({ strategy: 'D', seed: 1001, sessionsPerDay: 6, days: 7 })
+    const last = r.snapshots.at(-1)!
+    // 7 天內名單滿了，開始反覆「釋出最差的預備球員 → 再簽一位」
+    expect(r.ledger.releaseCount).toBeGreaterThan(0)
+    expect(r.recruits).toHaveLength(r.ledger.recruitCount)
+    // 第 i 次簽約的價格就是正式公式（招募次數只增不減，釋出不會讓價格變回便宜）
+    expect(r.recruits.map((x) => x.cost)).toEqual(r.recruits.map((_, i) => recruitCost(i).funds))
+    expect(r.recruits[0].cost).toBe(2000)
+    // 招募花費：模擬自己記的 = 每次簽約的價格加總 = 快照裡的累計
+    const sum = r.recruits.reduce((a, x) => a + x.cost, 0)
+    expect(r.ledger.recruits.funds).toBe(sum)
+    expect(last.spentRecruit.funds).toBe(sum)
+    // 遊戲本身的帳：收入 = 資產 + 未領取 + 支出（升級＋招募）；釋出成本是 0、沒有退款，所以不會多出或少掉
+    expect(last.earned.funds - last.assets.funds - last.unclaimed.funds).toBe(last.spentUpgrade.funds + last.spentRecruit.funds)
+    expect(last.players).toBeLessThanOrEqual(RECRUIT_CONFIG.maxPlayers)
+  }, 120_000)
 })
 
 describe('統計', () => {

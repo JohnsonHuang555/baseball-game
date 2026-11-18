@@ -145,7 +145,7 @@ async function session(d: Deps, strategy: Strategy, core: Set<string>, log: Leag
       if (rosterFull(c) || c.economy.assets.funds < recruitCost(c.recruitment.count).funds) break
       // 打者、投手大約 2：1
       const role = c.recruitment.count % 3 === 2 ? 'pitcher' : 'batter'
-      // 三選一：挑最能補強目前陣容的候選人
+      // 三選一：挑能力比比較對象高最多的候選人
       await recruit(d, { opSeq: c.economy.nextOpSeq, role, candidateIndex: bestCandidateIndex(c, recruitCandidates(c, role)), expectedCount: c.recruitment.count })
     }
     await promoteReserves(d)

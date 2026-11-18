@@ -69,7 +69,7 @@ export const CANDIDATES: Record<string, { label: string; apply: () => void }> = 
       setRecruitPick('first')
     },
   },
-  /** 招募市場的比較 B：新制（2,000 起、每次 +400、三選一挑最能補強的）＝目前的正式數值 */
+  /** 招募市場的比較 B：新制（2,000 起、每次 +400、三選一挑能力差距最大的）＝目前的正式數值 */
   recruitNew: {
     label: '招募新制：2,000 起、每次 +400、三選一',
     apply: () => {
