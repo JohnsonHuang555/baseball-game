@@ -15,15 +15,30 @@ export function cleanLegacyHash(loc: Loc, hist: Hist): boolean {
   return true
 }
 
+/** 每個 root 目前開著的 App；App 關閉時自己移除（只移除自己那一筆，不會清掉之後重新啟動的新 App） */
 const started = new WeakMap<HTMLElement, V2App>()
 
-/** 在 root 啟動 V2；同一個 root 再呼叫一次就回傳原本那個 App，不會重複初始化 */
+/**
+ * 在 root 啟動 V2。同一個 root 已經有開著的 App 就回傳它，不會重複初始化；
+ * 那個 App close() 之後再呼叫，會建立一個新的 App
+ */
 export function startV2(root: HTMLElement, opts: V2AppOptions & { location?: Loc; history?: Hist } = {}): V2App {
   const existing = started.get(root)
-  if (existing) return existing
+  if (existing && !existing.closed) return existing
   const { location: loc = globalThis.location, history: hist = globalThis.history, ...appOpts } = opts
   if (loc && hist) cleanLegacyHash(loc, hist)
-  const app = openV2(root, appOpts)
+  const inner = openV2(root, appOpts)
+  const app: V2App = {
+    controller: inner.controller,
+    show: (tab) => inner.show(tab),
+    close() {
+      if (started.get(root) === app) started.delete(root)
+      inner.close()
+    },
+    get closed() {
+      return inner.closed
+    },
+  }
   started.set(root, app)
   return app
 }

@@ -72,6 +72,12 @@ export function createWriterGuard(opts: WriterGuardOptions): WriterGuard {
     dispose() {
       opts.events?.removeEventListener('storage', onStorage)
       listeners.clear()
+      // 關閉時放掉自己的可寫標記（別的分頁已經接手就不動），不留下指向已關閉 App 的標記
+      try {
+        if (current() === opts.tabId) opts.storage?.removeItem(WRITER_KEY)
+      } catch {
+        // 儲存不能用：沒有標記可以清
+      }
     },
   }
 }

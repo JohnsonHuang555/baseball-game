@@ -53,7 +53,10 @@ export interface V2AppOptions {
 export interface V2App {
   controller: ClubController
   show(tab: V2Tab): void
+  /** 關閉：移除監聽器與計時器、中斷進行中的結算、釋放可寫分頁的標記；重複呼叫不會出錯 */
   close(): void
+  /** 已經 close() 過 */
+  readonly closed: boolean
 }
 
 /**
@@ -438,7 +441,14 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     document.querySelectorAll('.v2-modal-overlay').forEach((n) => n.remove())
   }
 
-  return { controller, show, close }
+  return {
+    controller,
+    show,
+    close,
+    get closed() {
+      return closed
+    },
+  }
 }
 
 /** 讀原始存檔文字（只讀，給「下載存檔備份」用） */
