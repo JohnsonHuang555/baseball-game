@@ -176,3 +176,23 @@ V1 的 key 都**不再讀取或寫入，也不會刪除**：
 - **工具**：Playwright 開真的 Chrome，從開始載入到建立球團的畫面出現，各 7 次取中位數。
 - **字型**：擋掉 Google Fonts，避免外部網路影響。
 - **差異來源**：本機的差異小，因為檔案從本機讀取。在慢速網路與慢 CPU 下，下載與解析的量減半，差異就明顯了。
+
+## 11. 與 Phase 6B（PR #11）的整合
+
+PR #11 在這次移除 V1 時還沒合併，所以這個 PR 不包含 6B。PR #13 review 時，在暫時的 worktree 把 #11 的分支（`afeca44`）合併進來驗證過（沒有推送）：合併後 45 個測試檔、594 個測試、build、`bench:v2:idle`、`balance:v2` 都通過，直播的精彩時刻在瀏覽器裡正常。
+
+**整合順序**：先合併 PR #13，再把最新 main 合併進 #11 的分支（或在 #11 上 rebase）。
+
+**合併時要處理的地方**：
+
+| 檔案 | 處理 |
+|---|---|
+| `src/v2/ui/replayView.ts` | `basesSvg` 從 `../../ui/bases` 匯入（`ui/gameScreen.ts` 已刪除）。git 會自動保留這一行；另外一段註解衝突，保留 6B 的 prelude／reveal 說明，把「V1 animate()」改成「原本逐球比賽畫面 animate()」 |
+| `src/v2/ui/phase6b.dom.test.ts` | `openV2(root, () => undefined, {...})` 改成 `openV2(root, {...})`（沒有衝突標記，但不改會編譯失敗） |
+| `src/v2/ui/strings.ts` | 6C 的成長回饋文字與 6B 的 `fx*` 文字都保留 |
+| `src/v2/ui/v2.css` | 6C 與 6B 的區塊都保留；注意衝突邊界會切在 `.v2-preview-team { color: var(--indigo);` 中間，要補回 `}`，否則 build 會出現 `Expected "}"` 警告。`v2-entry`、`v1-label` 這些 V1 入口樣式不要加回來 |
+| `docs/v2.md` | 功能表兩列都保留；ADR 清單寫成 0014、0015、0016；`bench:v2:idle` 用 6B 的說明（多了精彩時刻判定），保留 6C 的 balance 指令列 |
+
+**避免把 V1 帶回來**：
+- `ui/gameScreen.ts`、`style.css` 等 V1 檔案在 #11 裡沒有被修改，git 合併時會維持刪除。
+- `src/v2/ui/entry.dom.test.ts` 會檢查兩件事：入口只載入共用樣式與 V2，以及沒有任何檔案（含測試）引用已刪除的 V1 模組或樣式。合併後只要測試通過，就代表沒有重新引入 V1。
