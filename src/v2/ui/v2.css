@@ -1,12 +1,7 @@
-/* V2 放置經營：沿用 V1 的配色（靛藍底、白色面板、深色粗外框與實色陰影），手機優先，底部導覽 */
+/* V2 放置經營（設計稿 v7「卡牌手遊風・精簡」）：靛藍底、白色面板、深色外框；手機底部導覽、電腦左側導覽 */
 
-/* 勝負配色：對話框掛在 body 底下（不在 .v2-screen 裡），所以也要在遮罩上定義一次 */
-.v2-modal-overlay {
-  --v2-win: #22a35a;
-  --v2-loss: #e5383b;
-}
-
-.v2-screen {
+/* 共用的顏色與尺寸：對話框、觀戰畫面掛在 body 底下（不在 .v2-screen 裡），所以放在 :root */
+:root {
   --v2-win: #22a35a;
   --v2-loss: #e5383b;
   --v2-nav-h: 64px;
@@ -16,6 +11,9 @@
   --v2-faint: #6b7099;
   --v2-blue: #2d7cff;
   --v2-link: #1a4fb8;
+}
+
+.v2-screen {
   min-height: 100dvh;
 }
 .v2-body {
@@ -177,12 +175,6 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-}
-.v2-loading {
-  text-align: center;
-  font-weight: 800;
-  color: var(--lilac);
-  margin-top: 40px;
 }
 
 /* ---- 卡片：資訊卡片用細框；可以點的主要卡片用粗框＋實色陰影（.strong） ---- */
@@ -412,76 +404,8 @@
 }
 
 /* ---- 建立球團 ---- */
-.v2-create {
-  margin-top: 8px;
-}
-.v2-create-title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 900;
-}
-.v2-create-intro {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.6;
-  font-weight: 700;
-}
-.v2-create-points {
-  margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--ink-soft);
-}
-.v2-create-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.v2-label {
-  font-size: 14px;
-  font-weight: 900;
-}
-.v2-input {
-  height: 50px;
-  padding: 0 14px;
-  border-radius: 14px;
-  border: 2.5px solid var(--ink);
-  font-family: inherit;
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--ink);
-  background: #fff;
-}
-.v2-input:focus {
-  outline: 3px solid var(--yellow);
-  outline-offset: 1px;
-}
-.v2-form-error {
-  margin: 0;
-  min-height: 1.2em;
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--v2-loss);
-}
 
 /* ---- 損壞存檔 ---- */
-.v2-broken h2 {
-  margin: 0;
-  font-size: 20px;
-}
-.v2-broken p {
-  margin: 0;
-  line-height: 1.6;
-  font-weight: 700;
-}
-.v2-broken-actions {
-  display: grid;
-  gap: 8px;
-}
 
 /* ---- 底部導覽（手機）／左側直立導覽（電腦） ---- */
 .v2-nav {
@@ -4127,5 +4051,269 @@ body:has(.v2-modal-overlay) .toast {
     grid-row: 5;
     margin: 0;
     padding: 10px 24px 14px;
+  }
+}
+
+/* ==== 建立球團、讀取中、無法讀取 ==== */
+.v2-header[hidden] {
+  display: none;
+}
+.v2-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 20px 4px;
+  text-align: center;
+}
+.v2-logo-mark {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1;
+  color: var(--yellow);
+  text-shadow: 0 3px 0 var(--ink);
+}
+.v2-logo-sub {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lilac);
+}
+.v2-logo-sub:empty {
+  display: none;
+}
+.v2-create-wrap,
+.v2-broken-wrap {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  min-height: calc(100dvh - 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+.v2-broken-wrap {
+  justify-content: center;
+}
+.v2-create {
+  gap: 14px;
+  padding: 18px 16px;
+  border-radius: 22px;
+}
+.v2-create-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+}
+.v2-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-label {
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-input {
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--ink);
+}
+.v2-input:focus-visible {
+  outline: 3px solid var(--v2-blue, #2d7cff);
+  outline-offset: 2px;
+}
+.v2-input[aria-invalid='true'] {
+  border-color: #e5383b;
+  background: #fff6f6;
+}
+.v2-input-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-faint, #6b7099);
+}
+.v2-form-error {
+  color: #c21f2b;
+  font-weight: 900;
+}
+.v2-create-intro {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--v2-muted, #4a4f7a);
+}
+.v2-create-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-create-points li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--v2-soft, #f4f5ff);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+.v2-create-error {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #ffecec;
+  border: 1.5px solid #e5383b;
+  color: #c21f2b;
+}
+.v2-create-error-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-create-error-words strong {
+  font-size: 14px;
+  font-weight: 900;
+  color: #a3141f;
+}
+.v2-create-error-words .v2-form-error {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #6b1a20;
+}
+.v2-create-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-create-btn {
+  height: 56px;
+  width: 100%;
+}
+.v2-create-note {
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #a9ade0;
+}
+.v2-loading {
+  min-height: calc(100dvh - 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: #fff;
+}
+.v2-loading .v2-logo {
+  padding: 0;
+}
+.v2-loading-ball svg {
+  display: block;
+  animation: v2-spin 1.2s linear infinite;
+}
+@keyframes v2-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.v2-loading-bar {
+  width: 220px;
+  height: 10px;
+  border-radius: 5px;
+  background: #1e2170;
+  border: 2px solid var(--ink);
+  overflow: hidden;
+}
+.v2-loading-bar span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: #fff;
+  animation: v2-bar 1.4s ease-in-out infinite;
+}
+@keyframes v2-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+.v2-loading-text {
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-loading-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: #a9ade0;
+}
+.v2-broken {
+  gap: 14px;
+  padding: 22px 18px;
+  border-radius: 24px;
+  border-width: 3px;
+  box-shadow: 0 6px 0 var(--ink);
+}
+.v2-broken-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffecec;
+  border: 2.5px solid #e5383b;
+  color: #c21f2b;
+}
+.v2-broken h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+}
+.v2-broken-msg {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--v2-muted, #4a4f7a);
+}
+.v2-broken-code {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--v2-soft, #f4f5ff);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted, #4a4f7a);
+}
+.v2-broken-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.v2-broken-actions .btn-yellow {
+  width: 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-loading-ball svg,
+  .v2-loading-bar span {
+    animation: none;
   }
 }

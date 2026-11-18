@@ -312,7 +312,8 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     screen.dataset.tab = state.status.kind === 'ready' ? tab : state.status.kind
     renderNav(state)
     const s = state.status
-    if (s.kind === 'loading') main.replaceChildren(el('p', 'v2-loading', V2T.loading))
+    header.hidden = s.kind !== 'ready'
+    if (s.kind === 'loading') main.replaceChildren(loadingScreen())
     else if (s.kind === 'no-club') main.replaceChildren(createScreen(state))
     else if (s.kind === 'broken') main.replaceChildren(brokenScreen(s.message, s.reason))
     else if (tab === 'home') {
@@ -378,12 +379,31 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     }
   }
 
+  /** 首次進入、讀取中、錯誤畫面上方的標誌 */
+  function logo(sub: string): HTMLElement {
+    const box = el('div', 'v2-logo')
+    box.append(el('span', 'v2-logo-mark', 'DICE BALL'), el('span', 'v2-logo-sub', sub))
+    return box
+  }
+
+  /** 讀取中：標誌、轉動的球、進度條（減少動態效果時不動） */
+  function loadingScreen(): HTMLElement {
+    const box = el('div', 'v2-loading')
+    box.setAttribute('role', 'status')
+    box.setAttribute('aria-live', 'polite')
+    const ball = el('span', 'v2-loading-ball')
+    ball.innerHTML =
+      '<svg aria-hidden="true" width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="24" fill="#fff" stroke="#141633" stroke-width="3"/><path d="M12 14 C20 22 20 34 12 42 M44 14 C36 22 36 34 44 42" fill="none" stroke="#E5383B" stroke-width="2.5" stroke-dasharray="3 3"/></svg>'
+    const bar = el('span', 'v2-loading-bar')
+    bar.append(el('span', ''))
+    box.append(logo(''), ball, bar, el('strong', 'v2-loading-text', V2T.loading), el('span', 'v2-loading-sub', V2T.loadingSub))
+    return box
+  }
+
   /** 建立球團畫面：名稱不能空，建立中按鈕停用，Enter 也能送出 */
   function createScreen(state: ControllerState): HTMLElement {
+    const wrap = el('div', 'v2-create-wrap')
     const box = el('section', 'v2-card v2-create')
-    box.append(el('h2', 'v2-create-title', V2T.createTitle), el('p', 'v2-create-intro', V2T.createIntro))
-    const points = el('ul', 'v2-create-points')
-    for (const p of V2T.createPoints) points.append(el('li', '', p))
     const form = el('form', 'v2-create-form')
     const label = el('label', 'v2-label', V2T.clubNameLabel)
     const input = el('input', 'v2-input')
@@ -393,13 +413,45 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     input.placeholder = V2T.clubNamePlaceholder
     input.autocomplete = 'off'
     input.value = draftName
+    input.setAttribute('aria-describedby', 'v2-club-name-hint')
+    const hint = el('p', 'v2-input-hint', V2T.nameHint)
+    hint.id = 'v2-club-name-hint'
+    const nameError = state.createError === V2T.nameRequired
+    if (nameError) {
+      input.setAttribute('aria-invalid', 'true')
+      hint.textContent = V2T.nameRequired
+      hint.classList.add('v2-form-error')
+    }
     input.oninput = () => (draftName = input.value)
-    const error = el('p', 'v2-form-error', state.createError ?? '')
-    error.setAttribute('role', 'alert')
-    const submit = el('button', 'btn-yellow btn-big v2-create-btn', state.creating ? V2T.creating : V2T.createButton)
+    const points = el('ul', 'v2-create-points')
+    const icons: IconName[] = ['clock', 'play', 'claim']
+    V2T.createPoints.forEach((p, i) => {
+      const li = el('li')
+      li.append(icon(icons[i] ?? 'check', 22), el('span', '', p))
+      points.append(li)
+    })
+    form.append(label, input, hint)
+    box.append(el('h2', 'v2-create-title', V2T.createTitle), form, el('p', 'v2-create-intro', V2T.createIntro), points)
+
+    const parts: HTMLElement[] = [logo(V2T.logoSub), box]
+    // 寫入失敗：輸入的名稱保留，按鈕變成「再試一次」
+    const writeError = state.createError && !nameError ? state.createError : null
+    if (writeError) {
+      const err = el('div', 'v2-create-error')
+      err.setAttribute('role', 'alert')
+      const words = el('span', 'v2-create-error-words')
+      words.append(el('strong', '', V2T.createFailedTitle), el('span', 'v2-form-error', writeError))
+      err.append(icon('alert', 20), words)
+      parts.push(err)
+    }
+    const submit = el('button', 'btn-yellow btn-big v2-create-btn', state.creating ? V2T.creating : writeError ? V2T.tryAgain : V2T.createButton)
     submit.type = 'submit'
+    submit.setAttribute('form', 'v2-create-form')
+    form.id = 'v2-create-form'
     submit.disabled = state.creating || !state.canWrite
-    form.append(label, input, error, submit)
+    const foot = el('div', 'v2-create-foot')
+    foot.append(submit, el('p', 'v2-create-note', V2T.createNote))
+    parts.push(foot)
     form.onsubmit = async (e) => {
       e.preventDefault()
       draftName = input.value
@@ -409,26 +461,27 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
       if (closed) return
       if (res.ok) {
         draftName = ''
-        if (res.message) toast(res.message)
+        if (res.message) toast(res.message, 'success')
       }
     }
-    box.append(points, form)
+    wrap.append(...parts)
     queueMicrotask(() => {
       if (!input.isConnected) return
       input.focus()
       input.setSelectionRange?.(input.value.length, input.value.length)
     })
-    return box
+    return wrap
   }
 
   /** 存檔壞掉、版本不相容、儲存不能用：說明清楚，不自動清除；玩家可以下載備份，確認後才刪除重來 */
   function brokenScreen(message: string, reason: string): HTMLElement {
+    const wrap = el('div', 'v2-broken-wrap')
     const box = el('section', 'v2-card v2-broken')
     box.setAttribute('role', 'alert')
-    box.append(el('h2', '', V2T.brokenTitle), el('p', '', message))
+    box.append(icon('alert', 32, 'v2-broken-icon'), el('h2', '', V2T.brokenTitle), el('p', 'v2-broken-msg', message), el('p', 'v2-broken-code', V2T.errorCode(reason)))
     const raw = readRaw(deps)
     if (raw !== null && reason !== 'storage-unavailable') {
-      const download = el('button', 'btn-white', V2T.downloadBackup)
+      const download = el('button', 'btn-yellow', V2T.downloadBackup)
       download.type = 'button'
       download.onclick = () => downloadText(`dice-baseball-club-backup-${Date.now()}.json`, raw)
       const reset = el('button', 'btn-danger', V2T.resetBroken)
@@ -437,13 +490,14 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
         const ok = await confirmModal({ title: V2T.resetConfirmTitle, message: V2T.resetConfirmMessage, confirmLabel: V2T.resetConfirm, danger: true })
         if (!ok || closed) return
         const res = await controller.resetClub()
-        if (!res.ok && res.message) toast(res.message)
+        if (!res.ok && res.message) toast(res.message, 'error')
       }
       const buttons = el('div', 'v2-broken-actions')
-      buttons.append(download, reset)
+      buttons.append(download, reset, el('p', 'v2-hint', V2T.resetNote))
       box.append(buttons)
     }
-    return box
+    wrap.append(box)
+    return wrap
   }
 
   // ---- 電腦版版面：首頁改成三欄，寬度跨過門檻時重畫一次 ----
