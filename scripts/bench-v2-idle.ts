@@ -187,3 +187,25 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   const bytes = JSON.stringify(club.onboarding).length
   console.log(`\n目前建議＋新手任務（首頁每次重繪）：每次 ${ms((performance.now() - t) / 1000)}；新手任務旗標在存檔裡 ${bytes} bytes`)
 }
+
+// ---- Phase 6B：直播的精彩時刻判定（每一格揭曉時算一次）與排程 ----
+{
+  const { liveTimeline } = await import('../src/v2/application/liveMatch')
+  const { frameMoment, clutchSituation } = await import('../src/v2/application/matchMoments')
+  const repo = new ClubRepository(new MemoryStorage())
+  const club = repo.createClub({ clubName: '精彩', clubSeed: 66, clubId: 'moments-bench', now: T0 })
+  const lives = planMatches(club, 0, 20).map((p) => liveTimeline(p))
+  let frames = 0
+  const t = performance.now()
+  for (const { timeline } of lives) {
+    let prev = timeline.initial
+    for (const f of timeline.frames) {
+      frameMoment(prev, f, timeline.userSide)
+      clutchSituation(prev, timeline.userSide)
+      prev = f.after
+      frames++
+    }
+  }
+  const per = (performance.now() - t) / frames
+  console.log(`\n精彩時刻判定＋關鍵打席：每格 ${(per * 1000).toFixed(1)} µs（${frames} 格）；一場約 ${ms(per * (frames / 20))}`)
+}

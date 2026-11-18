@@ -70,6 +70,7 @@ const stage = (): ReplayStage => {
     align: (a) => ((alignment = a), anim()),
     sync: () => undefined,
     pitch: anim,
+    pitchResult: anim,
     play: anim,
     run: anim,
     cancel: () => undefined,

@@ -235,6 +235,14 @@ export interface FrameContext {
    * （比分條、出局、好壞球、壘上、比賽結束）。狀態由播放器在這一格排定的結束時間到了才用 commit() 提交
    */
   presentOnly?: boolean
+  /**
+   * 直播（Phase 6B）：這一格要演哪一段。prelude（懸念）：投球飛向本壘、關鍵打席、換投公告，在這一格正式提交「之前」播，
+   * 不能揭露結果；reveal（揭曉）：投球結果、擊球軌跡、跑壘、大字、得分提示，在這一格正式提交「之後」播。
+   * 沒有給（晉級挑戰賽）就照順序演完整一格
+   */
+  phase?: 'prelude' | 'reveal'
+  /** 直播：這是最後一格的揭曉，在比賽結束時間（endsAt）之後、跟最終勝負一起演出 */
+  final?: boolean
 }
 
 /** 畫面這一側：播放一格動畫、直接顯示某個狀態（跳轉、暫停中斷後） */
@@ -246,7 +254,15 @@ export interface ReplayPresenter {
    * 直播：正式提交某個時間點的比賽狀態（比分條、壘上、局數），不中斷進行中的效果（大字、數據卡）。
    * 沒有實作就用 show()
    */
-  commit?(state: ReplayState, position: number): void
+  commit?(state: ReplayState, position: number, opts?: CommitOptions): void
+}
+
+export interface CommitOptions {
+  /**
+   * 接下來會演這一格的揭曉（擊球軌跡、跑壘）：畫面可以等球落地、跑者到壘時才把比分條換成這個狀態。
+   * 只能「晚一點顯示」已經提交的狀態，不能更早
+   */
+  reveal?: boolean
 }
 
 export interface ReplayView {
