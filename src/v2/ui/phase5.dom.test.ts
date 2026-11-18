@@ -157,11 +157,11 @@ describe('釋出球員', () => {
     expect($$('.v2-reserves .v2-player')).toHaveLength(0)
   })
 
-  it('上場球員的詳情沒有釋出按鈕，只有說明', async () => {
+  it('上場球員的詳情：釋出按鈕停用，並說明只有預備球員可以釋出', async () => {
     await mountClub(9)
     $<HTMLButtonElement>('[data-tab="lineup"]')!.click()
     $$('.v2-develop')[0].click()
-    expect($('[data-action="release"]')).toBeNull()
-    expect(text('.v2-release')).toBe(V2T.releaseOnlyReserve)
+    expect($<HTMLButtonElement>('[data-action="release"]')!.disabled).toBe(true)
+    expect(text('.v2-release .v2-hint')).toBe(V2T.releaseOnlyReserve)
   })
 })

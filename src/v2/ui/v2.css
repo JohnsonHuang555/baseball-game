@@ -609,15 +609,7 @@
 /* ---- 戰術 ---- */
 
 /* ---- 戰報、回歸摘要 ---- */
-.v2-modal {
-  width: min(520px, 100%);
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
-}
-.v2-modal-close {
-  height: 50px;
-  flex: none;
-}
+
 .v2-report,
 .v2-welcome,
 .v2-auto-body {
@@ -783,107 +775,9 @@
 
 /* ---- Phase 4：養成、招募 ---- */
 
-.v2-level.big {
-  font-size: 15px;
-  line-height: 24px;
-  padding: 0 10px;
-}
-
 .v2-short,
 .short {
   color: var(--v2-loss);
-}
-.v2-detail-head {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.v2-detail-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 20px;
-}
-.v2-rating-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  font-size: 14px;
-  font-weight: 800;
-}
-.v2-rating-table th,
-.v2-rating-table td {
-  padding: 6px;
-  border-bottom: 1px solid var(--line);
-  text-align: center;
-}
-.v2-rating-table th:first-child {
-  text-align: left;
-}
-.v2-rating-table td.current {
-  background: #fff6cf;
-}
-.v2-rating-table td.current .grade {
-  margin-right: 4px;
-}
-.v2-num {
-  font-family: var(--font-display);
-  font-size: 14px;
-}
-.v2-diff {
-  margin-left: 4px;
-  font-size: 11px;
-  color: var(--ink-faint);
-}
-.v2-diff.up {
-  color: var(--v2-win);
-}
-.v2-upgrade {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.v2-cost {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 14px;
-  font-weight: 800;
-}
-.v2-cost-label {
-  font-weight: 900;
-}
-.v2-cost-item.short {
-  color: var(--v2-loss);
-}
-.v2-upgrade-btn {
-  height: 52px;
-}
-.v2-recruit {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.v2-recruit-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-weight: 900;
-}
-.v2-recruit-buttons {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.v2-recruit-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 14px;
-  border: 2.5px solid var(--ink);
-  background: #fff;
-  animation: modal-pop 0.25s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
 
 /* ---- 聯盟（Phase 5） ---- */
@@ -924,24 +818,6 @@
 }
 
 /* ---- 釋出球員 ---- */
-.v2-release {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 2px dashed var(--ink);
-}
-.v2-release-btn {
-  width: 100%;
-}
-.v2-release-warn {
-  margin: 0 0 10px;
-  color: var(--v2-loss);
-  font-weight: 700;
-}
-.v2-release-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
 
 /* ---- 觀戰（Phase 5B）：蓋在 V2 畫面上方的子畫面 ---- */
 .v2-replay-overlay {
@@ -1263,75 +1139,6 @@
   }
 }
 
-.v2-upgrade-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: #fff;
-  border: 2px solid var(--line);
-}
-.v2-preview-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-.v2-preview-title {
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--ink-faint);
-}
-.v2-preview-levels {
-  font-family: var(--font-display);
-  font-size: 18px;
-}
-.v2-preview-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.v2-preview-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 800;
-}
-.v2-preview-name {
-  flex: 1;
-}
-.v2-preview-val {
-  font-variant-numeric: tabular-nums;
-}
-.v2-preview-overall {
-  margin-top: 2px;
-  padding-top: 4px;
-  border-top: 2px dashed var(--line);
-}
-.v2-upgrade-done {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: #e5f8ec;
-  border: 2px solid var(--v2-win);
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.5;
-}
-.v2-upgrade-done strong {
-  font-size: 15px;
-}
-.v2-upgrade-gains {
-  color: var(--v2-win);
-}
-
 /* ---- Phase 6B：直播的精彩時刻（全部是 CSS 動畫；降低動態效果時只留文字） ---- */
 .v2-replay .callout {
   z-index: 4;
@@ -1629,177 +1436,7 @@
 
 /* ---- Phase 6C：近期戰績對照、升級後的球隊戰力 ---- */
 
-.v2-preview-team {
-  color: var(--indigo);
-}
-
 /* ---- 招募市場：三位候選人、跟目前陣容的比較、確認簽約 ---- */
-.v2-recruit-info {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 2px 14px;
-}
-.v2-recruit-cost.short,
-.v2-recruit-block.short {
-  color: var(--v2-loss);
-}
-.v2-recruit-block {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 2px solid currentColor;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.5;
-}
-.v2-recruit-block.full {
-  color: var(--indigo);
-}
-.v2-recruit-roles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.v2-cand-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.v2-cand {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 2.5px solid var(--line);
-  background: #fff;
-  color: var(--ink);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.v2-cand.selected {
-  border-color: var(--ink);
-  background: #fff6cf;
-  box-shadow: 0 3px 0 var(--ink);
-}
-.v2-cand:focus-visible {
-  outline: 3px solid var(--indigo);
-  outline-offset: 2px;
-}
-.v2-cand-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.v2-cand-names {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.v2-cand-name {
-  overflow: hidden;
-  font-size: 17px;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.v2-cand-sub {
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--ink-faint);
-}
-.v2-cand-ovr {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.v2-cand-ovr-num {
-  font-size: 12px;
-  font-weight: 900;
-  color: var(--ink-soft);
-  white-space: nowrap;
-}
-.v2-cand-compare {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 8px;
-  border-radius: 10px;
-  background: var(--paper);
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.5;
-}
-.v2-cand-compare-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.v2-cand-vs {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.v2-cand-verdict {
-  flex: none;
-  padding: 1px 8px;
-  border-radius: 999px;
-  border: 2px solid var(--ink);
-  font-size: 12px;
-  font-weight: 900;
-  white-space: nowrap;
-}
-.v2-cand-verdict.stronger {
-  background: var(--v2-win);
-  color: #fff;
-}
-.v2-cand-verdict.similar {
-  background: #fff;
-}
-.v2-cand-verdict.weaker {
-  background: #5a5f86;
-  color: #fff;
-}
-.v2-cand-good {
-  color: var(--v2-win);
-}
-.v2-cand-bad {
-  color: var(--v2-loss);
-}
-.v2-cand-note {
-  color: var(--ink-faint);
-}
-.v2-recruit-foot,
-.v2-recruit-actions {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px;
-}
-.v2-recruit-foot .btn-white,
-.v2-recruit-actions .btn-white {
-  padding: 0 14px;
-}
-.v2-recruit-confirm {
-  font-size: 16px;
-}
-.v2-recruit-money {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 14px;
-  font-size: 14px;
-  font-weight: 900;
-}
-.v2-recruit-spent {
-  color: var(--v2-loss);
-}
 
 /* ==== 設計稿 v7：首頁 ==== */
 .v2-dashboard.desk {
@@ -3007,4 +2644,913 @@ body:has(.v2-savebar.dirty, .v2-savebar.stale, .v2-savebar.selected, .v2-savebar
   body:has(.v2-savebar.dirty, .v2-savebar.stale, .v2-savebar.selected, .v2-savebar.invalid) .toast {
     bottom: 120px;
   }
+}
+
+/* ==== 對話框：標題列＋✕、內容可捲動、底部固定動作；手機的 sheet 從底部滑出 ==== */
+.v2-modal-overlay {
+  padding: 16px;
+  background: rgba(20, 22, 51, 0.62);
+}
+.v2-modal {
+  width: min(440px, 100%);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  border: 3px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 6px 0 var(--ink);
+  color: var(--ink);
+  overflow: hidden;
+  animation: modal-pop 0.2s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.v2-modal.wide {
+  width: min(600px, 100%);
+}
+.v2-modal-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 12px 16px;
+  border-bottom: 1.5px solid var(--line);
+}
+.v2-modal-head .modal-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 900;
+}
+.v2-modal-x {
+  flex: none;
+  align-self: flex-start;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v2-modal-x:focus-visible {
+  outline: 3px solid var(--v2-blue, #2d7cff);
+  outline-offset: 2px;
+}
+.v2-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.v2-modal-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  border-top: 1.5px solid var(--line);
+  background: #fff;
+}
+.v2-modal-bottom {
+  width: 100%;
+}
+.v2-sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .v2-modal-overlay:has(.v2-modal.sheet) {
+    padding: 32px 0 0;
+    align-items: end;
+    place-items: end stretch;
+  }
+  .v2-modal.sheet {
+    width: 100%;
+    max-height: calc(100dvh - 32px);
+    height: calc(100dvh - 32px);
+    border-bottom: 0;
+    border-radius: 22px 22px 0 0;
+    box-shadow: none;
+    animation: v2-sheet-in 0.26s ease-out;
+  }
+  .v2-modal.sheet .v2-modal-foot {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+}
+@media (min-width: 641px) {
+  .v2-modal.sheet {
+    width: min(600px, 100%);
+    max-height: calc(100dvh - 80px);
+  }
+}
+@keyframes v2-sheet-in {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-modal,
+  .v2-modal.sheet {
+    animation: none;
+  }
+}
+
+/* ==== 球員養成（手機底部面板／電腦置中） ==== */
+.v2-detail-head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.v2-detail-face {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+.v2-detail-avatar {
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid var(--home);
+  overflow: hidden;
+  background: #fff;
+}
+.v2-detail-avatar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.v2-detail-words {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.v2-detail-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.v2-detail-name strong {
+  min-width: 0;
+  font-size: 20px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-level.big {
+  padding: 0 7px;
+  border-radius: 7px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  line-height: 20px;
+}
+.v2-detail-where {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v2-detail-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.v2-detail-chips .arch-chip,
+.v2-detail-chips .trait {
+  height: 20px;
+  font-size: 11px;
+}
+.v2-player-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.v2-upgrade-done {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 10px 40px;
+  position: relative;
+  border-radius: 14px;
+  background: #e3f7e9;
+  border: 2px solid var(--v2-win);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #33385e;
+}
+.v2-upgrade-done::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  width: 18px;
+  height: 18px;
+  background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%231E7A3C' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.v2-upgrade-done strong {
+  font-size: 15px;
+  font-weight: 900;
+  color: #1e7a3c;
+}
+.v2-upgrade-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--v2-soft);
+}
+.v2-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-preview-title {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-preview-levels {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 400;
+}
+.v2-preview-levels .to {
+  color: #1e7a3c;
+}
+.v2-preview-list,
+.v2-preview-sum {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-preview-list li {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+}
+.v2-preview-sum {
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid #d4d7ee;
+}
+.v2-preview-sum li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-preview-name {
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-preview-val {
+  font-family: var(--font-display);
+  font-size: 14px;
+}
+.v2-preview-sum .v2-preview-val {
+  font-size: 13px;
+}
+.v2-diff {
+  font-family: var(--font-display);
+  font-size: 13px;
+  text-align: right;
+  color: var(--v2-faint);
+}
+.v2-diff.up {
+  color: #1e7a3c;
+}
+.v2-preview-note {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-faint);
+}
+.v2-rating-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-rating-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.v2-rating-table th,
+.v2-rating-table td {
+  padding: 0;
+  height: 40px;
+  text-align: left;
+  border-top: 1px solid var(--line);
+}
+.v2-rating-table thead th {
+  height: auto;
+  padding-bottom: 6px;
+  border-top: 0;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-faint);
+}
+.v2-rating-table thead th:first-child,
+.v2-rating-table tbody th {
+  width: 52px;
+}
+.v2-rating-table tbody th {
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-rating-table td.base {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--v2-faint);
+}
+.v2-rating-table td.current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.v2-num {
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+.v2-num.up {
+  color: #1e7a3c;
+}
+.v2-tip {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #eaf2ff;
+  border: 1.5px solid #9bbeff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-link);
+}
+.v2-detail-traits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-detail-sub {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-release {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.v2-release-btn {
+  height: 44px;
+  font-size: 14px;
+  box-shadow: none;
+}
+.v2-release-btn:disabled {
+  border: 1.5px dashed #b4b9cc;
+  background: var(--v2-soft);
+}
+.v2-modal.sheet,
+.v2-player-sheet {
+  position: relative;
+}
+.v2-release-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: rgba(20, 22, 51, 0.5);
+}
+.v2-release-confirm {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(360px, calc(100% - 32px));
+  box-sizing: border-box;
+  padding: 20px;
+  border-radius: 20px;
+  background: #fff;
+  border: 3px solid var(--ink);
+  box-shadow: 0 6px 0 var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.v2-release-icon {
+  color: #e5383b;
+}
+.v2-release-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 900;
+}
+.v2-release-warn {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #33385e;
+}
+.v2-release-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.v2-release-row button {
+  height: 52px;
+}
+.btn-danger.solid {
+  border: 2.5px solid var(--ink);
+  background: #e5383b;
+  color: #fff;
+  box-shadow: 0 3px 0 #8e1f21;
+}
+.v2-detail-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-cost {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.v2-cost-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--v2-soft);
+  border: 1.5px solid transparent;
+}
+.v2-cost-item.short {
+  background: #ffe3e6;
+  border-color: #d9283c;
+  color: #b01e30;
+}
+.v2-cost-text {
+  display: flex;
+  flex-direction: column;
+}
+.v2-cost-need {
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.1;
+}
+.v2-cost-have {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--v2-faint);
+}
+.v2-cost-short {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 900;
+  color: #b01e30;
+}
+.v2-upgrade-btn {
+  width: 100%;
+}
+
+/* ==== 招募市場 ==== */
+.v2-recruit-head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v2-recruit-title {
+  font-size: 20px;
+  font-weight: 900;
+}
+.v2-recruit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.v2-recruit-info {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.v2-info-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--v2-soft);
+  border: 1.5px solid transparent;
+  min-width: 0;
+}
+.v2-info-cell.short {
+  background: #ffe3e6;
+  border-color: #d9283c;
+}
+.v2-info-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--v2-faint);
+}
+.v2-info-value {
+  font-family: var(--font-display);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.v2-info-cell.short .v2-info-value {
+  color: #b01e30;
+}
+.v2-recruit-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.v2-role-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 10px;
+  border-radius: 18px;
+  border: 3px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 4px 0 var(--ink);
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v2-role-card:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: none;
+}
+.v2-role-face .avatar {
+  display: block;
+  width: 56px;
+  height: 56px;
+}
+.v2-role-face svg {
+  width: 100%;
+  height: 100%;
+}
+.v2-role-title {
+  font-size: 17px;
+  font-weight: 900;
+}
+.v2-role-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-recruit-warn {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff0f2;
+  border: 1.5px solid #d9283c;
+  color: #b01e30;
+}
+.v2-recruit-warn-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-recruit-warn-words strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-recruit-block {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #33385e;
+}
+.v2-recruit-roles {
+  align-self: flex-start;
+  display: flex;
+  height: 44px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.v2-role-tab {
+  width: 96px;
+  border: 0;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v2-role-tab + .v2-role-tab {
+  border-left: 2px solid var(--ink);
+}
+.v2-role-tab[aria-checked='true'] {
+  background: var(--yellow);
+}
+.v2-recruit-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: var(--v2-muted);
+}
+.v2-cand-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 4px 10px;
+}
+.v2-cand {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 3px 0 var(--ink);
+  font-family: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.v2-cand.selected {
+  border-width: 3px;
+  box-shadow: 0 0 0 4px var(--yellow), 0 5px 0 4px var(--ink);
+}
+.v2-cand-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v2-cand-face {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+}
+.v2-cand-face.lg {
+  width: 80px;
+  height: 80px;
+}
+.v2-cand-avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2.5px solid var(--home);
+  overflow: hidden;
+  background: #fff;
+}
+.v2-cand-face.lg .v2-cand-avatar {
+  border-width: 3px;
+}
+.v2-cand-avatar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.v2-cand-names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-cand-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.v2-cand-name {
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v2-cand-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-cand-ovr {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.v2-cand-ovr-num {
+  font-family: var(--font-display);
+  font-size: 12px;
+}
+.v2-cand-ratings {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.v2-cand-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.v2-cand-rating-label {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-cand-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.v2-cand-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--v2-soft);
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-cand-compare-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.v2-cand-verdict {
+  padding: 0 7px;
+  border-radius: 7px;
+  line-height: 20px;
+  border: 1.5px solid #8a8fae;
+  background: #eceef8;
+  color: var(--v2-muted);
+}
+.v2-cand-verdict.stronger {
+  background: #e3f7e9;
+  color: #1e7a3c;
+  border-color: #1e7a3c;
+}
+.v2-cand-verdict.weaker {
+  background: #ffe3e6;
+  color: #b01e30;
+  border-color: #d9283c;
+}
+.v2-cand-note {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-faint);
+}
+.v2-cand-good {
+  color: #1e7a3c;
+}
+.v2-cand-bad {
+  color: #b01e30;
+}
+.v2-recruit-foot {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.v2-recruit-foot.two {
+  grid-template-columns: 1fr 2fr;
+}
+.v2-recruit-foot button {
+  height: 54px;
+}
+.v2-recruit-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  text-align: center;
+}
+.v2-recruit-done-title {
+  font-size: 28px;
+  font-weight: 900;
+  color: #1e7a3c;
+}
+.v2-signed-card {
+  width: min(260px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+  background: #fff;
+  border: 3px solid var(--ink);
+  box-shadow: 0 0 0 4px var(--yellow), 0 6px 0 4px var(--ink);
+}
+.v2-signed-card .v2-player-name {
+  justify-content: center;
+  font-size: 20px;
+}
+.v2-signed-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-recruit-money {
+  width: 100%;
+  text-align: left;
+}
+.v2-recruit-money .v2-stat-value {
+  font-size: 18px;
+}
+.v2-recruit-next {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #33385e;
+  line-height: 1.5;
+}
+@media (min-width: 1024px) {
+  .v2-modal.sheet.v2-recruit-modal {
+    width: min(1080px, calc(100vw - 80px));
+  }
+  .v2-recruit-modal .v2-recruit-info {
+    max-width: 520px;
+  }
+  .v2-cand-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+  .v2-recruit-modal .v2-recruit-buttons,
+  .v2-recruit-modal .v2-recruit-card {
+    max-width: 560px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .v2-recruit-modal .v2-recruit-foot.two {
+    max-width: 560px;
+    width: 100%;
+    margin-left: auto;
+  }
+}
+.v2-cand:focus-visible,
+.v2-role-card:focus-visible,
+.v2-role-tab:focus-visible,
+.v2-entry-btn:focus-visible,
+.v2-match:focus-visible {
+  outline: 3px solid var(--v2-blue, #2d7cff);
+  outline-offset: 2px;
+}
+/* 對話框開著時 Toast 改到畫面上方，不蓋住底部的主要按鈕 */
+body:has(.v2-modal-overlay) .toast {
+  top: calc(16px + env(safe-area-inset-top));
+  bottom: auto;
 }

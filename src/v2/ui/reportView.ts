@@ -1,13 +1,13 @@
 // 戰報：全部近期比賽的列表、單場戰報、離線回歸摘要。
 // 單場戰報只讀結算時存下的摘要與 Box Score（每局比分、安打、失誤、我方打者與投手成績），不重新模擬比賽。
 // Box Score 從 schemaVersion 7 起才有；更早結算、又沒有保留完整 Replay 可以補算的場次，只顯示摘要並說明
-import { setKeys } from '../../ui/keys'
 import { el } from '../../ui/playerCard'
 import type { BoxScore, ClubSave, SettledMatch, SummaryHighlight } from '../domain/club'
 import { leagueOf } from '../domain/league'
 import type { ControllerState, WelcomeSummary } from './clubController'
 import { matchList } from './dashboardView'
 import { V2T } from './strings'
+import { v2Modal } from './dialog'
 
 const fmt = (x: number) => x.toLocaleString('zh-Hant')
 
@@ -134,34 +134,4 @@ export function welcomeModal(w: WelcomeSummary, onClose: () => void): () => void
 }
 
 /** V2 的對話框：沿用共用的 modal 樣式（ui/shared.css），Esc、點外面、按鈕都能關 */
-export function v2Modal(title: string, body: HTMLElement, onClose?: () => void, closeLabel: string = V2T.close): () => void {
-  const overlay = el('div', 'modal-overlay v2-modal-overlay')
-  const box = el('section', 'modal-box v2-modal')
-  box.setAttribute('role', 'dialog')
-  box.setAttribute('aria-modal', 'true')
-  const heading = el('h2', 'modal-title', title)
-  heading.id = `v2-modal-${Math.random().toString(36).slice(2)}`
-  box.setAttribute('aria-labelledby', heading.id)
-  const close = el('button', 'btn-yellow v2-modal-close', closeLabel)
-  close.type = 'button'
-  box.append(heading, body, close)
-  overlay.append(box)
-  document.body.append(overlay)
-  const previous = setKeys({ Escape: () => done() })
-  let closed = false
-  function done(): void {
-    if (closed) return
-    closed = true
-    overlay.remove()
-    setKeys(previous)
-    onClose?.()
-  }
-  close.onclick = done
-  overlay.onclick = (e) => {
-    if (e.target === overlay) done()
-  }
-  // 焦點放在關閉鈕，但不要捲到最下面：從頭開始看
-  close.focus({ preventScroll: true })
-  box.scrollTop = 0
-  return done
-}
+export { v2Modal } from './dialog'
