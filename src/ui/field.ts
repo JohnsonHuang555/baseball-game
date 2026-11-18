@@ -361,6 +361,59 @@ export class FieldRenderer {
     this.draw()
   }
 
+  /**
+   * V2 直播用的「中性」投球（Phase 6B）：只畫球從投手丘飛到本壘，最後停在本壘前，不依結果做任何事。
+   * 結果（界外球的後續軌跡、球消失或留在本壘等著被擊出）由 pitchOutcome() 在結果正式提交之後才畫。
+   * 觀戰（直播與挑戰賽）都用這兩個方法；pitch() 是原本逐球比賽畫面用的，V1 移除後只剩 field.test.ts 拿來對照
+   */
+  async pitchTravel(ms: number, type?: PitchType, hand: Hand = 'R'): Promise<void> {
+    const from = this.toPx(...MOUND)
+    const to = { x: this.home.x, y: this.home.y - 2 }
+    const motion = type ? PITCH_MOTION[type] : null
+    const gen = this.generation
+    this.trail = []
+    await this.tween(ms, (t) => {
+      if (!type || !motion) {
+        this.ball = { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t), height: 0 }
+        return
+      }
+      const { x } = pitchPoint(type, hand, from, to, t, PITCH_BREAK_PX)
+      const drop = Math.max(0, motion.breakY * PITCH_BREAK_PX * (1 - t ** motion.power))
+      const height = drop + Math.sin(Math.PI * t) * motion.hump * PITCH_BREAK_PX
+      this.ball = { x, y: lerp(from.y, to.y, t), height }
+      this.trail.push({ x, y: this.ball.y - height })
+      if (this.trail.length > 10) this.trail.shift()
+    })
+    // 被取消（暫停、關閉）：不再改畫面
+    if (gen !== this.generation) return
+    this.trail = []
+    // 球停在本壘：還沒有結果（不消失、也不飛出去）
+    this.ball = { x: to.x, y: to.y, height: 0 }
+    this.draw()
+  }
+
+  /** V2 直播：這一球的結果（結果正式提交之後才呼叫）。界外球畫出後續軌跡；打進場內就留在本壘，其他結果收起球 */
+  async pitchOutcome(result: PitchResult, ms: number): Promise<void> {
+    const to = { x: this.home.x, y: this.home.y - 2 }
+    const gen = this.generation
+    this.trail = []
+    if (result === 'foul') {
+      const side = Math.random() < 0.5 ? -1 : 1
+      const end = this.toPx(side * (55 + Math.random() * 20), 90 + Math.random() * 60)
+      await this.tween(ms, (t) => {
+        this.ball = { x: lerp(to.x, end.x, t), y: lerp(to.y, end.y, t), height: Math.sin(t * Math.PI) * 25 }
+      })
+      if (gen !== this.generation) return
+    }
+    if (result !== 'inPlay') this.ball = null
+    this.draw()
+  }
+
+  /** 測試用：目前畫面上的球（沒有球是 null） */
+  get ballState(): Readonly<Pt & { height: number }> | null {
+    return this.ball
+  }
+
   /** 擊球飛行，同時讓跑者開始跑壘 */
   async play(ball: BattedBall | null, moves: RunnerMove[], caught: boolean, ms: number): Promise<void> {
     const flight = ball ? this.flight(ball, caught, ms) : Promise.resolve()

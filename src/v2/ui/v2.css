@@ -1854,6 +1854,301 @@
   white-space: nowrap;
 }
 
+/* ---- Phase 6B：直播的精彩時刻（全部是 CSS 動畫；降低動態效果時只留文字） ---- */
+.v2-replay .callout {
+  z-index: 4;
+  max-width: calc(100% - 16px);
+}
+.callout-sub {
+  position: relative;
+  margin-top: 2px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.v2-replay .callout .callout-top {
+  max-width: 220px;
+  overflow: hidden;
+  font-size: 16px;
+  font-family: inherit;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.callout.hr.slam .callout-label,
+.callout.walkoff .callout-label {
+  font-size: 34px;
+  color: var(--yellow);
+}
+.callout.walkoff .burst {
+  fill: #fff6cf;
+}
+.callout.opp .callout-label {
+  color: #fff;
+  font-size: 26px;
+}
+.callout.opp .burst {
+  fill: #5a5f86;
+}
+.callout.opp .callout-top {
+  color: #fff;
+}
+.v2-replay .callout.show.hr,
+.v2-replay .callout.show.walkoff {
+  animation: v2-callout-pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+@keyframes v2-callout-pop {
+  0% {
+    transform: translate(-50%, -50%) rotate(-6deg) scale(0.4);
+  }
+  60% {
+    transform: translate(-50%, -50%) rotate(-3deg) scale(1.12);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(-6deg) scale(1);
+  }
+}
+
+/* 閃光：只蓋球場，不蓋比分條 */
+.v2-fx-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  background: #fff;
+  opacity: 0;
+}
+.v2-fx-flash.show {
+  animation: v2-flash 0.45s ease-out;
+}
+.v2-fx-flash.show.huge {
+  background: #fff6cf;
+}
+@keyframes v2-flash {
+  0% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 彩帶：少量 span，播完就移除 */
+.v2-fx-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+.v2-fx-piece {
+  position: absolute;
+  top: -8px;
+  width: 7px;
+  height: 11px;
+  border-radius: 2px;
+  animation: v2-confetti 1.3s ease-in forwards;
+}
+.v2-fx-piece:nth-child(3n) {
+  width: 9px;
+  height: 7px;
+}
+@keyframes v2-confetti {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(260px) rotate(540deg);
+    opacity: 0;
+  }
+}
+
+/* 精彩時刻橫幅（追平、超前、逆轉、換投）：球場上方一條，短暫出現 */
+.v2-fx-moment {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: calc(100% - 20px);
+  padding: 4px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 3px 0 var(--ink);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -8px);
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+.v2-fx-moment.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.v2-fx-moment strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-fx-moment span {
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.v2-fx-moment.good {
+  background: var(--yellow);
+}
+.v2-fx-moment.good strong {
+  color: var(--ink);
+}
+.v2-fx-moment.bad {
+  background: #5a5f86;
+  color: #fff;
+}
+.v2-fx-moment.info {
+  background: #fff;
+}
+
+/* 關鍵打席：左上角標籤＋球場的聚焦框 */
+.v2-fx-clutch {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  align-items: flex-end;
+  text-align: right;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  max-width: 62%;
+  padding: 3px 9px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: #ff4f5e;
+  color: #fff;
+  pointer-events: none;
+}
+.v2-fx-clutch[hidden] {
+  display: none;
+}
+.v2-fx-clutch.theirs {
+  background: #5a5f86;
+}
+.v2-fx-clutch strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-fx-clutch span {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-replay-field.clutch {
+  box-shadow:
+    inset 0 0 0 3px #ff4f5e,
+    0 4px 0 var(--ink);
+}
+.v2-replay-field.clutch-high {
+  animation: v2-clutch 1.6s ease-in-out infinite;
+}
+@keyframes v2-clutch {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 3px #ff4f5e,
+      0 4px 0 var(--ink);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 6px #ff4f5e,
+      0 4px 0 var(--ink);
+  }
+}
+
+/* 局間轉場：球場下方一條，半局結束時出現 */
+.v2-fx-transition {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  max-width: calc(100% - 24px);
+  padding: 8px 18px;
+  border: 2px solid #fff;
+  border-radius: 14px;
+  background: rgba(20, 22, 51, 0.88);
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.9);
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+.v2-fx-transition.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.v2-fx-transition strong {
+  font-size: 18px;
+  font-weight: 900;
+}
+.v2-fx-transition span {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-fx-transition span:nth-child(3) {
+  color: var(--yellow);
+}
+
+/* 降低動態效果：保留文字資訊，拿掉閃光、彩帶、彈跳與脈動 */
+.v2-replay.reduced-motion .v2-fx-flash,
+.v2-replay.reduced-motion .v2-fx-confetti {
+  display: none;
+}
+.v2-replay.reduced-motion .callout,
+.v2-replay.reduced-motion .v2-fx-moment,
+.v2-replay.reduced-motion .v2-fx-transition {
+  transition: opacity 0.15s;
+  animation: none !important;
+}
+.v2-replay.reduced-motion .v2-replay-field.clutch-high {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-fx-flash,
+  .v2-fx-confetti {
+    display: none;
+  }
+  .v2-replay-field.clutch-high,
+  .v2-replay .callout.show.hr,
+  .v2-replay .callout.show.walkoff {
+    animation: none;
+  }
+}
+
 /* ---- Phase 6C：近期戰績對照、升級後的球隊戰力 ---- */
 .v2-form {
   grid-column: 1 / -1;

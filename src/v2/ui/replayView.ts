@@ -8,6 +8,9 @@
 // - 直播（mode: 'live'）：依真實時間播放（livePlayer.ts），暫停只停自己的畫面，繼續時同步到當下進度；沒有重播、跳轉、調速度。
 // - 挑戰賽（mode: 'challenge'）：結果已經在按下挑戰時確定並存檔，這裡只是不先揭曉結果地播出來，可以暫停、調速度、直接看結果。
 // - 生命週期：close() 會停止播放迴圈、取消所有動畫與計時器、移除監聽器、還原鍵盤快捷鍵，之後不再操作 DOM。
+// - 精彩時刻（Phase 6B）：application/matchMoments.ts 判定，這裡只負責演。直播每一格分成「懸念」與「揭曉」兩段，
+//   得分大字、全壘打、追平／逆轉、再見、三振、雙殺、比分條的更新全部在揭曉段，也就是這一格正式提交之後（見 livePlayer.ts）。
+//   特效只用 CSS 動畫與既有的 Canvas、Web Audio；系統要求降低動態效果時不閃光、不撒彩帶，文字資訊照樣顯示。
 import type { Alignment, BattedBall, GameEvent, PitchResult, RunnerMove, Side } from '../../sim/game'
 import { homeRunStats } from '../../sim/game'
 import type { PitchType } from '../../sim/pitches'
@@ -18,10 +21,11 @@ import { setKeys, type KeyMap } from '../../ui/keys'
 import { PITCH_MOTION, PitchCam } from '../../ui/pitchCam'
 import { BURST_SVG, HIT_KINDS, MATCH_PACE, OUT_KINDS, ROUTINE_SPEEDUP, pitchSound, playSound } from '../../ui/playAnimation'
 import { el } from '../../ui/playerCard'
-import { play, soundToggle } from '../../ui/sound'
+import { play as playSoundFx, soundToggle, type SoundName } from '../../ui/sound'
 import { PITCH_TEXT, T, describePlay, homeRunName, runnersText } from '../../ui/strings'
 import { CPU_COLOR, USER_COLOR, sideTag } from '../../ui/visual'
 import { LivePlayer, type LiveClock, type LiveSource, type LiveView } from '../application/livePlayer'
+import { clutchSituation, frameMoment, headlineKind, inningStage, type ClutchSituation, type FrameMoment } from '../application/matchMoments'
 import type { MatchReplay } from '../application/matchRunner'
 import {
   REPLAY_SPEEDS,
@@ -30,6 +34,7 @@ import {
   abortableWait,
   buildTimeline,
   untilAborted,
+  type CommitOptions,
   type FrameContext,
   type ReplayExpectation,
   type ReplayFrame,
@@ -50,7 +55,13 @@ export interface ReplayStage {
   setColors(userFielding: boolean): void
   align(alignment: Alignment, ms: number): Promise<void>
   sync(bases: readonly (string | null)[], batterId: string | null): void
-  pitch(result: PitchResult, ms: number, pitch: PitchType | undefined, thrower: Pitcher | undefined): Promise<void>
+  /**
+   * 投球的前段（懸念）：球飛向本壘，跟這一球的結果無關（所以沒有 result 參數）。
+   * 直播在結果正式提交之前播；不能畫出界外球的後續軌跡、不能依好壞球決定進壘點
+   */
+  pitch(ms: number, pitch: PitchType | undefined, thrower: Pitcher | undefined): Promise<void>
+  /** 投球的結果（揭曉）：進壘點、界外球的後續軌跡、球收起或留在本壘等著被擊出。直播在結果正式提交之後才播 */
+  pitchResult(result: PitchResult, ms: number): Promise<void>
   play(ball: BattedBall | null, moves: RunnerMove[], caught: boolean, ms: number): Promise<void>
   run(moves: RunnerMove[], ms: number): Promise<void>
   /** 取消所有進行中的動畫 */
@@ -77,10 +88,15 @@ export function canvasStage(): ReplayStage {
     },
     align: (a, ms) => ensure().align(a, ms),
     sync: (bases, batterId) => ensure().sync(bases, batterId),
-    async pitch(result, ms, pitch, thrower) {
+    async pitch(ms, pitch, thrower) {
       const f = ensure()
-      if (pitch && thrower) await Promise.all([f.pitch(result, ms, pitch, thrower.throws), cam.play(pitch, thrower, result, ms)])
-      else await f.pitch(result, ms)
+      if (pitch && thrower) await Promise.all([f.pitchTravel(ms, pitch, thrower.throws), cam.approach(pitch, thrower, ms)])
+      else await f.pitchTravel(ms)
+    },
+    async pitchResult(result, ms) {
+      const f = ensure()
+      // 界外球：後續軌跡；投球視角：球從中性軌跡轉到真正的進壘點
+      await Promise.all([f.pitchOutcome(result, result === 'foul' ? ms : 0), cam.finish(result, Math.min(ms, 160))])
     },
     play: (ball, moves, caught, ms) => ensure().play(ball, moves, caught, ms),
     run: (moves, ms) => ensure().run(moves, ms),
@@ -104,6 +120,12 @@ interface ViewerCommon {
   createStage?: () => ReplayStage
   /** 測試用：所有等待時間乘上這個數字（0 = 不等待） */
   timeScale?: number
+  /** 測試用：音效（預設是 ui/sound 的 play） */
+  sound?: (name: SoundName) => void
+  /** 測試用：是否降低動態效果（預設看系統的 prefers-reduced-motion） */
+  reducedMotion?: boolean
+  /** 測試用：每次顯示特效、更新比分條時通知（驗證揭露時間） */
+  onEffect?: (e: { kind: 'callout' | 'banner' | 'transition' | 'board' | 'final' | 'clutch' | 'celebrate'; label: string }) => void
 }
 
 export interface LiveViewerOptions extends ViewerCommon {
@@ -211,7 +233,26 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
   finalPanel.hidden = true
   const pausedPanel = el('div', 'v2-live-paused')
   pausedPanel.hidden = true
-  fieldBox.append(...theStage.elements, callout, pausedPanel, finalPanel)
+  // Phase 6B 的特效層：閃光、彩帶、精彩時刻橫幅、關鍵打席標籤、局間轉場（都在球場框裡，不蓋比分條）
+  const flashLayer = el('div', 'v2-fx-flash')
+  const confettiLayer = el('div', 'v2-fx-confetti')
+  confettiLayer.setAttribute('aria-hidden', 'true')
+  const momentBanner = el('div', 'v2-fx-moment')
+  momentBanner.setAttribute('role', 'status')
+  const clutchChip = el('div', 'v2-fx-clutch')
+  clutchChip.hidden = true
+  const transition = el('div', 'v2-fx-transition')
+  fieldBox.append(...theStage.elements, flashLayer, confettiLayer, clutchChip, momentBanner, transition, callout, pausedPanel, finalPanel)
+  const reduced = opts.reducedMotion ?? (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+  if (reduced) screen.classList.add('reduced-motion')
+  const sound = opts.sound ?? playSoundFx
+  /** 同一格的同一個音效只播一次（暫停恢復、重繪都不重播） */
+  const sounded = new Set<string>()
+  const cue = (key: string, name: SoundName | null) => {
+    if (!name || sounded.has(`${key}:${name}`)) return
+    sounded.add(`${key}:${name}`)
+    sound(name)
+  }
   const duel = el('div', 'v2-replay-duel')
   const lastPlay = el('p', 'v2-replay-last')
   lastPlay.setAttribute('aria-live', 'polite')
@@ -228,6 +269,7 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
   // ---- 畫面 ----
 
   function renderBoard(s: ReplayState, outsOverride?: number): void {
+    opts.onEffect?.({ kind: 'board', label: `${s.score.away}:${s.score.home}:${s.over ? 'over' : ''}` })
     board.replaceChildren()
     const teams = el('div', 'mh-teams')
     for (const side of ['away', 'home'] as const) {
@@ -280,13 +322,81 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
     while (log.children.length > 30) log.lastChild?.remove()
   }
 
-  function flash(label: string, tone: string, topText = ''): void {
+  /** 大字（爆炸框）：ms 是顯示多久（已經依時間預算算好），sub 是下面的小字（打點、出局數、比分） */
+  function flash(label: string, tone: string, topText = '', ms = 1600 / speedNow(), sub = ''): void {
     callout.replaceChildren()
     callout.insertAdjacentHTML('afterbegin', BURST_SVG)
     if (topText) callout.append(el('span', 'callout-top', topText))
     callout.append(el('span', 'callout-label', label))
+    if (sub) callout.append(el('span', 'callout-sub', sub))
     callout.className = `callout show ${tone}`
-    later(() => (callout.className = 'callout'), 1600 / speedNow())
+    callout.dataset.fx = label
+    opts.onEffect?.({ kind: 'callout', label })
+    later(() => {
+      callout.className = 'callout'
+      delete callout.dataset.fx
+    }, ms)
+  }
+
+  /** 精彩時刻橫幅（追平、超前、逆轉、換投、局間），tone：good 我方好消息、bad 對手好消息、info 中性 */
+  function banner(text: string, tone: 'good' | 'bad' | 'info', ms: number, sub = ''): void {
+    momentBanner.replaceChildren(el('strong', '', text))
+    if (sub) momentBanner.append(el('span', '', sub))
+    momentBanner.className = `v2-fx-moment show ${tone}`
+    momentBanner.dataset.fx = text
+    opts.onEffect?.({ kind: 'banner', label: text })
+    later(() => {
+      momentBanner.className = 'v2-fx-moment'
+      delete momentBanner.dataset.fx
+    }, ms)
+  }
+
+  /** 局間轉場：半局結束、比賽進入後段、最終局、延長賽 */
+  function showTransition(lines: string[], ms: number): void {
+    transition.replaceChildren(...lines.map((t, i) => el(i === 0 ? 'strong' : 'span', '', t)))
+    transition.className = 'v2-fx-transition show'
+    transition.dataset.fx = lines.join('／')
+    opts.onEffect?.({ kind: 'transition', label: transition.dataset.fx })
+    later(() => {
+      transition.className = 'v2-fx-transition'
+      delete transition.dataset.fx
+    }, ms)
+  }
+
+  /** 閃光、彩帶：降低動態效果時不做（資訊仍由大字與橫幅顯示） */
+  function celebrate(level: 'big' | 'huge', tone: 'good' | 'neutral'): void {
+    opts.onEffect?.({ kind: 'celebrate', label: `${level}:${tone}${reduced ? ':reduced' : ''}` })
+    if (reduced) return
+    flashLayer.className = `v2-fx-flash show ${level}`
+    later(() => (flashLayer.className = 'v2-fx-flash'), 450)
+    if (tone !== 'good') return
+    const n = level === 'huge' ? 18 : 10
+    const colors = ['#ffd23f', '#ff4f7b', '#5fd068', '#4fc3ff', '#ffffff']
+    confettiLayer.replaceChildren()
+    for (let i = 0; i < n; i++) {
+      const piece = el('span', 'v2-fx-piece')
+      // 純視覺的位置與顏色（用序號決定，不抽亂數）
+      piece.style.left = `${((i * 37) % 100) + 0.5}%`
+      piece.style.background = colors[i % colors.length]
+      piece.style.animationDelay = `${(i % 6) * 40}ms`
+      confettiLayer.append(piece)
+    }
+    later(() => confettiLayer.replaceChildren(), 1600)
+  }
+
+  /** 關鍵打席：球場加上聚焦框、左上角標籤；只看這一格之前的狀態 */
+  function setClutch(c: ClutchSituation | null): void {
+    fieldBox.classList.toggle('clutch', !!c)
+    fieldBox.classList.toggle('clutch-high', c?.level === 'high')
+    clutchChip.hidden = !c
+    if (!c) {
+      delete clutchChip.dataset.clutch
+      return
+    }
+    clutchChip.className = `v2-fx-clutch ${c.ours ? 'ours' : 'theirs'} ${c.level}`
+    clutchChip.dataset.clutch = c.level
+    opts.onEffect?.({ kind: 'clutch', label: c.level })
+    clutchChip.replaceChildren(el('strong', '', c.level === 'high' ? V2T.clutchHigh : V2T.clutchTag), el('span', '', V2T.clutchLine(c.ours, c.deficit)))
   }
 
   function showHomeRunStats(ball: BattedBall): void {
@@ -332,17 +442,29 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
   function clearEffects(): void {
     theStage.cancel()
     callout.className = 'callout'
+    delete callout.dataset.fx
+    momentBanner.className = 'v2-fx-moment'
+    delete momentBanner.dataset.fx
+    transition.className = 'v2-fx-transition'
+    delete transition.dataset.fx
+    flashLayer.className = 'v2-fx-flash'
+    confettiLayer.replaceChildren()
     fieldBox.querySelector('.hr-stats')?.remove()
   }
+
+  /** 已經提交、但等揭曉動畫（球落地、跑者到壘）才顯示在比分條上的狀態 */
+  let pendingBoard: ReplayState | null = null
 
   /** 直接把畫面設成某個狀態（剛進來、同步、暫停中斷、比賽結束） */
   function showState(s: ReplayState, position: number): void {
     if (closed) return
     clearEffects()
+    pendingBoard = null
     theStage.setColors((s.battingSide === 'home' ? 'away' : 'home') === userSide())
     if (theStage.alignment !== s.alignment) void theStage.align(s.alignment, 0)
     theStage.sync(s.bases, s.over ? null : s.batterId)
     renderBoard(s)
+    setClutch(opts.mode === 'live' ? clutchSituation(s, userSide()) : null)
     if (position === 0 && opts.mode === 'challenge') {
       log.replaceChildren()
       lastPlay.textContent = V2T.replayReady
@@ -351,20 +473,38 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
     if (s.over) renderFinal(s)
   }
 
-  /**
-   * 直播：正式提交某個時間點的比賽狀態。只更新比分條、局數、壘上與守備位置，不中斷進行中的大字與數據卡。
-   * 播放器只會提交「排定時間已經到了」的狀態，所以這裡不會出現未來的比分；最終比分由 ended 時的 show() 揭曉
-   */
-  function commitState(s: ReplayState, _position: number): void {
-    if (closed) return
+  /** 比分條、壘上、守備位置換成這個狀態（不中斷大字與特效） */
+  function applyBoard(s: ReplayState): void {
     theStage.setColors((s.battingSide === 'home' ? 'away' : 'home') === userSide())
     if (!s.over && theStage.alignment !== s.alignment) void theStage.align(s.alignment, 300)
     theStage.sync(s.bases, s.over ? null : s.batterId)
     renderBoard(s)
   }
 
+  /**
+   * 直播：正式提交某個時間點的比賽狀態。只更新比分條、局數、壘上與守備位置，不中斷進行中的大字與數據卡。
+   * 播放器只會提交「排定時間已經到了」的狀態，所以這裡不會出現未來的比分。
+   * 接下來要演這一格的揭曉時（opts.reveal），等球落地、跑者到壘才換比分條：只會比提交晚，不會比提交早
+   */
+  function commitState(s: ReplayState, _position: number, o?: CommitOptions): void {
+    if (closed) return
+    if (pendingBoard) applyBoard(pendingBoard)
+    pendingBoard = null
+    if (o?.reveal) pendingBoard = s
+    else applyBoard(s)
+  }
+
+  /** 揭曉動畫走到結果那一刻：把等著的比分條顯示出來 */
+  function flushBoard(fallback: ReplayState, live: boolean): void {
+    if (!live) return
+    const s = pendingBoard ?? fallback
+    pendingBoard = null
+    applyBoard(s)
+  }
+
   function renderFinal(s: ReplayState): void {
     const won = s.winner === userSide()
+    opts.onEffect?.({ kind: 'final', label: won ? 'won' : 'lost' })
     finalPanel.className = `v2-replay-final ${won ? 'won' : 'lost'}`
     finalPanel.replaceChildren(el('strong', 'v2-replay-verdict', won ? V2T.win : V2T.loss), el('span', 'v2-replay-final-score', `${s.score[userSide()]} : ${s.score[otherSide()]}`), linescore(s))
     lastPlay.textContent = V2T.replayFinalLine(won, s.inning)
@@ -389,99 +529,265 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
   }
 
   // ---- 播一格（原本逐球比賽畫面 animate() 的觀戰版：狀態全部來自時間軸） ----
+  //
+  // 一格分成兩段：
+  // - prelude（懸念）：關鍵打席提示、換投公告、打者上場、盜壘起跑、投球飛向本壘。只用這一格「之前」的狀態，不揭露結果。
+  // - reveal（揭曉）：投球結果文字與音效、擊球軌跡、跑壘、比分條、大字、精彩時刻、局間轉場。
+  // 直播把兩段分開排（揭曉在這一格正式提交之後）；挑戰賽依序演完整一格
 
-  /** 這一格在 1× 時大約要播多久（跟下面實際的等待一致），直播時用來把動畫縮放進時間段 */
-  function naturalMs(frame: ReplayFrame): number {
+  /** 懸念段在 1× 時大約多久 */
+  function preludeMs(frame: ReplayFrame): number {
     let ms = 0
     for (const e of frame.events) {
-      if (e.type === 'pitch') ms += MATCH_PACE.pitch * pitchPace(e.pitch) + (e.result === 'inPlay' ? 0 : MATCH_PACE.afterPitch)
+      if (e.type === 'pitch') ms += MATCH_PACE.pitch * pitchPace(e.pitch)
+      else if (e.type === 'substitution') ms += MATCH_PACE.afterPlay
+    }
+    return ms
+  }
+
+  /** 揭曉段在 1× 時大約多久（跟下面實際的等待一致），直播時用來把動畫縮放進時間預算 */
+  function revealMs(frame: ReplayFrame): number {
+    let ms = 0
+    for (const e of frame.events) {
+      if (e.type === 'pitch') ms += MATCH_PACE.afterPitch * 0.4 + (e.result === 'foul' ? MATCH_PACE.pitch * 0.8 : 0) + (e.result === 'inPlay' ? 0 : MATCH_PACE.afterPitch)
       else if (e.type === 'play') ms += MATCH_PACE.flightBase + (e.ball?.distance ?? 0) * MATCH_PACE.flightPerFoot + MATCH_PACE.afterPlay + (e.kind === 'homeRun' ? MATCH_PACE.homeRunStats : e.kind === 'strikeout' ? MATCH_PACE.strikeout : 0)
       else if (e.type === 'steal') ms += MATCH_PACE.steal + MATCH_PACE.afterPlay
-      else if (e.type === 'substitution') ms += MATCH_PACE.afterPlay
       else if (e.type === 'halfInningEnd') ms += MATCH_PACE.afterHalfInning
     }
-    return Math.max(1, ms)
+    return ms
+  }
+
+  /** 上一次提示關鍵打席的打席（同一個打席只提示、只響一次） */
+  let clutchAnnounced = ''
+  let batterAnnounced = ''
+
+  async function prelude(frame: ReplayFrame, ctx: FrameContext, k: () => number): Promise<void> {
+    const { signal } = ctx
+    const live = !!ctx.presentOnly
+    const before = ctx.before
+    // 關鍵打席：只看事件發生前的狀態
+    const clutch = clutchSituation(before, userSide())
+    setClutch(clutch)
+    const atBatKey = `${before.inning}${before.half}${before.batterId}`
+    if (clutch && clutchAnnounced !== atBatKey) {
+      clutchAnnounced = atBatKey
+      cue(`${frame.index}:clutch`, 'alert')
+    }
+    let thrower = timeline.players.get(frame.throwerId) as Pitcher | undefined
+    const pitches = frame.events.filter((e) => e.type === 'pitch')
+    // 直播：投手先準備，球在這一格的提交時間到達本壘（剩下的時間先等）
+    if (live && ctx.budgetMs !== undefined) {
+      const lead = ctx.budgetMs - preludeMs(frame) * k()
+      if (lead > 0) await abortableWait(lead * (opts.timeScale ?? 1), signal)
+    }
+    for (const e of frame.events) {
+      if (signal.aborted || closed) throw abortErr()
+      if (e.type === 'substitution') {
+        const text = describe(e)
+        if (e.kind === 'pitcher') {
+          thrower = timeline.players.get(e.inId) as Pitcher | undefined
+          // 換投是投球前就確定的事：投手卡先換成新投手（其他狀態仍等提交）
+          const card = duel.querySelector<HTMLElement>('[data-pitcher]')
+          if (card) {
+            card.textContent = name(e.inId)
+            card.dataset.pitcher = e.inId
+          }
+          banner(V2T.pitcherChange(name(e.inId), e.side === userSide()), 'info', Math.min(2200, MATCH_PACE.afterPlay * 2 * Math.max(k(), 0.5)))
+        }
+        if (text) {
+          lastPlay.textContent = text
+          addLog(text, 'sub')
+        }
+        await abortableWait(MATCH_PACE.afterPlay * k(), signal)
+      } else if (e.type === 'pitch') {
+        if (batterAnnounced !== atBatKey && before.balls === 0 && before.strikes === 0 && pitches[0] === e) {
+          batterAnnounced = atBatKey
+          lastPlay.textContent = V2T.atBat(name(before.batterId))
+        }
+        // 中性的投球：不帶結果（結果在揭曉段才畫）
+        await untilAborted(theStage.pitch(MATCH_PACE.pitch * k() * pitchPace(e.pitch), e.pitch, thrower), signal)
+      } else if (e.type === 'steal') {
+        lastPlay.textContent = V2T.stealStart(name(e.runnerId))
+      }
+    }
+  }
+
+  async function reveal(frame: ReplayFrame, ctx: FrameContext, k: () => number): Promise<void> {
+    const { signal } = ctx
+    const live = !!ctx.presentOnly
+    const before = ctx.before
+    const m = frameMoment(before, frame, userSide())
+    const startedAt = Date.now()
+    const wait = (ms: number) => abortableWait(ms * k(), signal)
+    /** 特效顯示多久：照預算縮放，最少讓人看得到、最多不長時間蓋住球場 */
+    const fxMs = (natural: number, cap: number) => Math.max(500, Math.min(cap, natural * Math.max(k(), 0.6))) * (opts.timeScale ?? 1)
+    const shown: ReplayState = structuredClone(before)
+    const endsHalf = m.endsHalf
+    const lastAction = frame.events.reduce((last, e, j) => (e.type === 'play' || e.type === 'steal' ? j : last), -1)
+    /** 挑戰賽：打完一球的比分條（得分逐一累加；結束半局時顯示三出局）。直播的比分條在提交時已經準備好，揭曉到結果時才顯示 */
+    const board = (st: ReplayState, outs?: number) => {
+      if (!live) renderBoard(st, outs)
+    }
+    const afterAction = (i: number, runs: number) => {
+      shown.score[before.battingSide] += runs
+      shown.balls = 0
+      shown.strikes = 0
+      if (live) flushBoard(frame.after, true)
+      else if (endsHalf) board(shown, frame.after.over ? Math.max(frame.after.outs, shown.outs) : 3)
+      else if (i === lastAction) board(frame.after)
+      else board(shown)
+    }
+    for (const [i, e] of frame.events.entries()) {
+      if (signal.aborted || closed) throw abortErr()
+      if (e.type === 'pitch') {
+        // 投球結果（揭曉）：進壘點、界外球後續軌跡；結果文字與音效在球到位的同時
+        cue(`${frame.index}:pitch`, pitchSound(e, frame.events[i + 1]))
+        lastPlay.textContent = PITCH_TEXT[e.result]
+        await untilAborted(theStage.pitchResult(e.result, (e.result === 'foul' ? MATCH_PACE.pitch * 0.8 : MATCH_PACE.afterPitch * 0.4) * k()), signal)
+        if (e.result !== 'inPlay') {
+          shown.balls = e.balls
+          shown.strikes = e.strikes
+          if (live) flushBoard(frame.after, true)
+          else board(shown)
+          await wait(MATCH_PACE.afterPitch)
+        }
+      } else if (e.type === 'play') {
+        // 打席有了結果：關鍵打席的提示收起來（下一個打席開始時再依狀態判定）
+        setClutch(null)
+        const ms = (MATCH_PACE.flightBase + (e.ball?.distance ?? 0) * MATCH_PACE.flightPerFoot) * k()
+        await untilAborted(theStage.play(e.ball, e.moves, OUT_KINDS.has(e.kind), ms), signal)
+        const text = describe(e)!
+        afterAction(i, e.runs)
+        const scoreLine = m.runs > 0 && i === lastAction ? `（${V2T.scoreNow(m.score.us, m.score.them)}）` : ''
+        lastPlay.textContent = `${text}${scoreLine}`
+        addLog(text, e.kind === 'homeRun' ? 'hr' : e.runs > 0 ? 'score' : HIT_KINDS.has(e.kind) ? 'hit' : '')
+        if (i === lastAction) playMoment(frame, m, e, fxMs)
+        else {
+          const sound = playSound(e.kind, e.runs)
+          cue(`${frame.index}:${i}`, sound)
+        }
+        await wait(MATCH_PACE.afterPlay + (e.kind === 'homeRun' ? MATCH_PACE.homeRunStats : e.kind === 'strikeout' ? MATCH_PACE.strikeout : 0))
+      } else if (e.type === 'steal') {
+        await untilAborted(theStage.run(e.moves, MATCH_PACE.steal * k()), signal)
+        const text = describe(e)!
+        afterAction(i, 0)
+        lastPlay.textContent = text
+        addLog(text)
+        if (i === lastAction && m.primary) playMoment(frame, m, null, fxMs)
+        await wait(MATCH_PACE.afterPlay)
+      } else if (e.type === 'halfInningEnd') {
+        const text = describe(e)!
+        addLog(text, 'divider')
+        const top = e.half === 'top'
+        const stage = inningStage(frame.after)
+        const lines = [V2T.halfOver(e.inning, top), `${timeline.teamNames[userSide()]} ${frame.after.score[userSide()]} : ${frame.after.score[otherSide()]} ${timeline.teamNames[otherSide()]}`]
+        if (stage === 'late') lines.push(V2T.stageLate)
+        else if (stage === 'final') lines.push(V2T.stageFinal)
+        else if (stage === 'extra') lines.push(V2T.stageExtra(frame.after.inning))
+        if (!frame.after.over) showTransition(lines, fxMs(MATCH_PACE.afterHalfInning * 2, 2200))
+        lastPlay.textContent = text.replace(/─/g, '').trim()
+        await wait(MATCH_PACE.afterHalfInning)
+      } else if (e.type === 'gameOver') {
+        // 直播：「比賽結束」只在 endsAt 之後的最後揭曉（final）才出現
+        if (!live || ctx.final) addLog(T.gameOver)
+      }
+    }
+    if (live) flushBoard(frame.after, true)
+    // 最後一格（endsAt 之後）：讓再見、最後一個出局的演出停留一下，再換成勝負面板（同一個勝利演出不重複）
+    // 停留時間算在這一段的時間預算裡（FINAL_REVEAL_MS），至少 0.6 秒、最多 2.6 秒
+    if (ctx.final) {
+      const left = (ctx.budgetMs ?? 0) - (Date.now() - startedAt)
+      await abortableWait(Math.max(600, Math.min(m.walkOff ? 2600 : 900, left)) * (opts.timeScale ?? 1), signal)
+    }
+  }
+
+  /**
+   * 這一格的主要演出：同一格符合多個分類時只演一個（再見 > 滿貫 > 全壘打 > 超前／逆轉 > 追平 > 得分），
+   * 其他資訊（打點、比分）放在同一個大字的小字裡。我方是振奮的演出，對手只用客觀的播報，不放勝利效果
+   */
+  function playMoment(frame: ReplayFrame, m: FrameMoment, e: Extract<GameEvent, { type: 'play' }> | null, fxMs: (natural: number, cap: number) => number): void {
+    const key = `${frame.index}:moment`
+    const head = headlineKind(m)
+    const scoreSub = V2T.scoreNow(m.score.us, m.score.them)
+    const batter = name(m.batterId)
+    if (head === 'walkOffGrandSlam' || head === 'walkOffHomeRun' || head === 'walkOff') {
+      // 再見：直播只會在 endsAt 之後的最後揭曉走到這裡（最後一格的揭曉）；勝負面板接在後面，不重複演勝利動畫
+      const sub = [m.homeRun ? V2T.fxRbi(m.runs) : '', V2T.fxFinal(m.score.us, m.score.them)].filter(Boolean).join('・')
+      if (m.ours) {
+        flash(head === 'walkOffGrandSlam' ? V2T.fxWalkOffGrandSlam : head === 'walkOffHomeRun' ? V2T.fxWalkOffHomeRun : e && HIT_KINDS.has(e.kind) ? V2T.fxWalkOff : V2T.fxWalkOffOther, 'walkoff', batter, fxMs(3200, 4200), sub)
+        celebrate('huge', 'good')
+        cue(key, 'champion')
+      } else {
+        flash(V2T.fxOppWalkOff, 'opp', batter, fxMs(2400, 3200), sub)
+        cue(key, 'lose')
+      }
+      if (m.homeRun?.distance && e?.ball) showHomeRunStats(e.ball)
+      return
+    }
+    if (head === 'grandSlam' || head === 'homeRun') {
+      const slam = head === 'grandSlam'
+      const extra = m.kinds.includes('takeLead') ? (m.comeback ? (m.ours ? V2T.fxComeback : V2T.fxOppComeback) : m.ours ? V2T.fxLead : V2T.fxOppLead) : m.kinds.includes('tieGame') ? (m.ours ? V2T.fxTie : V2T.fxOppTie) : ''
+      const sub = [V2T.fxRbi(m.runs), extra.replace('！', ''), scoreSub].filter(Boolean).join('・')
+      if (m.ours) {
+        flash(slam ? V2T.fxGrandSlam : `${homeRunName(m.homeRun!.runs)}！`, slam ? 'hr slam' : 'hr', batter, fxMs(slam ? 2600 : 2200, slam ? 3200 : 2600), sub)
+        celebrate(slam ? 'huge' : 'big', 'good')
+        cue(key, 'roar')
+        if (slam) later(() => cue(`${key}:slam`, 'sparkle'), 250)
+      } else {
+        flash(slam ? V2T.fxOppGrandSlam : V2T.fxOppHomeRun, 'opp', batter, fxMs(1800, 2200), sub)
+        celebrate('big', 'neutral')
+        cue(key, 'pop')
+      }
+      if (e?.ball) showHomeRunStats(e.ball)
+      return
+    }
+    if (head === 'takeLead' || head === 'comeback' || head === 'tieGame') {
+      const text = head === 'comeback' ? (m.ours ? V2T.fxComeback : V2T.fxOppComeback) : head === 'takeLead' ? (m.ours ? V2T.fxLead : V2T.fxOppLead) : m.ours ? V2T.fxTie : V2T.fxOppTie
+      banner(text, m.ours ? 'good' : 'bad', fxMs(2200, 2600), `${m.ours ? V2T.fxScore(m.runs) : V2T.fxOppScore(m.runs)}・${scoreSub}`)
+      if (m.ours) {
+        if (head === 'comeback') celebrate('big', 'good')
+        cue(key, head === 'tieGame' ? 'cheer' : 'sparkle')
+      } else cue(key, 'pop')
+      return
+    }
+    if (head === 'score') {
+      flash(m.ours ? V2T.fxScore(m.runs) : V2T.fxOppScore(m.runs), m.ours ? 'score' : 'opp', '', fxMs(1500, 1800), scoreSub)
+      cue(key, m.ours ? 'cheer' : null)
+      return
+    }
+    // 沒有得分：三振、雙殺、失誤、安打
+    const outsNow = m.endsHalf ? 3 : frame.after.outs
+    if (m.strikeout) {
+      // 第三個出局：短一點，接半局轉場
+      const looking = m.strikeout === 'looking'
+      flash('K', looking ? 'k looking' : 'k', looking ? V2T.fxStrikeoutLooking : V2T.fxStrikeoutSwinging, fxMs(m.endsHalf ? 900 : 1400, 1600), V2T.fxOuts(outsNow))
+      cue(key, 'strikeout')
+      return
+    }
+    if (m.doublePlay) {
+      const names = m.doublePlay.outs.map((id) => name(id)).join('、')
+      flash(V2T.fxDoublePlay, 'dp', m.doublePlay.notation ?? '', fxMs(m.endsHalf ? 1100 : 1600, 1800), V2T.fxDoublePlayOuts(names))
+      cue(key, 'cheer')
+      return
+    }
+    if (e?.kind === 'error') {
+      flash(T.callError, 'error', '', fxMs(1200, 1600))
+      return
+    }
+    cue(key, e ? playSound(e.kind, e.runs) : null)
   }
 
   const presenter: ReplayPresenter = {
     async playFrame(frame: ReplayFrame, ctx: FrameContext): Promise<void> {
       const { signal } = ctx
       const scale = opts.timeScale ?? 1
-      // 直播：整格動畫縮放到剩下的時間裡（最多放慢一點點，不會拖過這一格的時間）；挑戰賽：照速度
-      const k = () => (ctx.budgetMs !== undefined ? scale * Math.min(1.3, ctx.budgetMs / naturalMs(frame)) : scale / (ctx.speed() * (frame.important ? 1 : ROUTINE_SPEEDUP)))
-      const wait = (ms: number) => abortableWait(ms * k(), signal)
-      const anim = <T>(p: Promise<T>) => untilAborted(p, signal)
-      let thrower = timeline.players.get(frame.throwerId) as Pitcher | undefined
-      const shown: ReplayState = structuredClone(ctx.before)
-      const endsHalf = frame.events.some((e) => e.type === 'halfInningEnd' || e.type === 'gameOver')
-      const lastAction = frame.events.reduce((last, e, j) => (e.type === 'play' || e.type === 'steal' ? j : last), -1)
-      /** 打完一球（或盜壘）之後的比分條：得分逐一累加；結束半局時顯示三出局；這一格最後的動作之後就是模擬的狀態 */
-      // 直播只呈現事件：比分條、壘上、局數這些「狀態」等播放器在排定時間提交（commit），不在動畫裡提前更新
-      const board = (st: ReplayState, outs?: number) => {
-        if (!ctx.presentOnly) renderBoard(st, outs)
-      }
-      const afterAction = (i: number, runs: number) => {
-        shown.score[ctx.before.battingSide] += runs
-        shown.balls = 0
-        shown.strikes = 0
-        if (endsHalf) board(shown, frame.after.over ? Math.max(frame.after.outs, shown.outs) : 3)
-        else if (i === lastAction) board(frame.after)
-        else board(shown)
-      }
-      for (const [i, e] of frame.events.entries()) {
-        if (signal.aborted || closed) throw abortErr()
-        // 直播：「比賽結束」是最終結果的一部分，要到 endsAt 才由播放器揭曉
-        const text = ctx.presentOnly && e.type === 'gameOver' ? null : describe(e)
-        if (e.type === 'substitution' && e.kind === 'pitcher') thrower = timeline.players.get(e.inId) as Pitcher | undefined
-        if (e.type === 'pitch') {
-          lastPlay.textContent = PITCH_TEXT[e.result]
-          await anim(theStage.pitch(e.result, MATCH_PACE.pitch * k() * pitchPace(e.pitch), e.pitch, thrower))
-          play(pitchSound(e, frame.events[i + 1]))
-          if (e.result !== 'inPlay') {
-            shown.balls = e.balls
-            shown.strikes = e.strikes
-            board(shown)
-            await wait(MATCH_PACE.afterPitch)
-          }
-        } else if (e.type === 'play') {
-          const ms = (MATCH_PACE.flightBase + (e.ball?.distance ?? 0) * MATCH_PACE.flightPerFoot) * k()
-          await anim(theStage.play(e.ball, e.moves, OUT_KINDS.has(e.kind), ms))
-          const sound = playSound(e.kind, e.runs)
-          if (sound) play(sound)
-          if (e.kind === 'homeRun') {
-            flash(`${homeRunName(e.runs)}！`, 'hr')
-            if (e.ball) showHomeRunStats(e.ball)
-          } else if (e.kind === 'strikeout') {
-            const prev = frame.events[i - 1]
-            const looking = prev?.type === 'pitch' && prev.result === 'calledStrike'
-            flash('K', looking ? 'k looking' : 'k', looking ? T.calledStrikeout : T.callStrikeout)
-          } else if (e.runs > 0) flash(T.scored(e.runs).replace('，', ''), 'score')
-          else if (e.kind === 'doublePlay') flash(T.callDoublePlay, 'dp', e.notation ?? '')
-          else if (e.kind === 'error') flash(T.callError, 'error')
-          lastPlay.textContent = text
-          addLog(text!, e.kind === 'homeRun' ? 'hr' : e.runs > 0 ? 'score' : HIT_KINDS.has(e.kind) ? 'hit' : '')
-          afterAction(i, e.runs)
-          await wait(MATCH_PACE.afterPlay + (e.kind === 'homeRun' ? MATCH_PACE.homeRunStats : e.kind === 'strikeout' ? MATCH_PACE.strikeout : 0))
-        } else if (e.type === 'steal') {
-          await anim(theStage.run(e.moves, MATCH_PACE.steal * k()))
-          lastPlay.textContent = text
-          addLog(text!)
-          afterAction(i, 0)
-          await wait(MATCH_PACE.afterPlay)
-        } else if (text) {
-          addLog(text, e.type === 'halfInningEnd' ? 'divider' : e.type === 'substitution' ? 'sub' : '')
-          if (e.type === 'substitution') {
-            lastPlay.textContent = text
-            await wait(MATCH_PACE.afterPlay)
-          }
-          if (e.type === 'halfInningEnd') {
-            lastPlay.textContent = text.replace(/─/g, '').trim()
-            await wait(MATCH_PACE.afterHalfInning)
-          }
-        }
-      }
+      // 直播：這一段動畫縮放到時間預算裡（最多放慢一點點，不會拖過預算）；挑戰賽：照速度
+      const natural = ctx.phase === 'prelude' ? preludeMs(frame) : ctx.phase === 'reveal' ? revealMs(frame) : preludeMs(frame) + revealMs(frame)
+      const k = () => (ctx.budgetMs !== undefined ? scale * Math.min(1.3, ctx.budgetMs / Math.max(1, natural)) : scale / (ctx.speed() * (frame.important ? 1 : ROUTINE_SPEEDUP)))
+      if (ctx.phase !== 'reveal') await prelude(frame, ctx, k)
+      if (ctx.phase !== 'prelude') await reveal(frame, ctx, k)
       if (signal.aborted || closed) throw abortErr()
-      // 直播：狀態等播放器在這一格的結束時間提交
+      // 直播：狀態由播放器提交（揭曉時已經顯示）
       if (ctx.presentOnly) return
       // 一格結束：對齊這一步之後的模擬狀態
       const after = frame.after

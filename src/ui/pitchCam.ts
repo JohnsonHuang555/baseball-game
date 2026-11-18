@@ -56,6 +56,9 @@ export function pitchPoint(pitch: PitchType, hand: Hand, start: Pt, end: Pt, t: 
 /** 停在本壘的時間，讓人看清楚進壘點 */
 const HOLD_MS = 350
 
+/** V2 直播的中性投球播到軌跡的哪裡（0～1），剩下的在結果提交後才播 */
+export const APPROACH = 0.8
+
 export class PitchCam {
   readonly root: HTMLElement
   private readonly canvas: HTMLCanvasElement
@@ -64,6 +67,8 @@ export class PitchCam {
   private hideTimer = 0
   /** 每次 cancel() 加 1：進行中的投球動畫看到代號變了就立刻結束 */
   private generation = 0
+  /** V2 直播：approach() 播到一半、等結果的那一球 */
+  private flight: { pitch: PitchType; hand: Hand; start: Pt; zone: { x: number; y: number; w: number; h: number }; neutral: Pt; trail: Pt[]; w: number; ms: number; gen: number } | null = null
 
   constructor() {
     this.root = el('div', 'pitch-cam')
@@ -78,6 +83,7 @@ export class PitchCam {
   /** 取消進行中的投球動畫並收起小窗（觀戰暫停、跳過、關閉時用） */
   cancel(): void {
     this.generation++
+    this.flight = null
     window.clearTimeout(this.hideTimer)
     this.root.classList.remove('show')
   }
@@ -109,6 +115,75 @@ export class PitchCam {
         trail.push(p)
         this.draw(zone, trail, p, t)
         if (t < 1) requestAnimationFrame(tick)
+        else {
+          this.hideTimer = window.setTimeout(() => this.root.classList.remove('show'), HOLD_MS)
+          resolve()
+        }
+      }
+      requestAnimationFrame(tick)
+    })
+  }
+
+  /**
+   * V2 直播的「中性」投球（Phase 6B）：只播到球飛到 APPROACH 的位置（還在半空中），而且是朝好球帶中心飛，
+   * 跟這一球的結果（好球、壞球、揮空、界外、擊出）完全無關。結果正式提交之後才用 finish() 把球帶到真正的進壘點。
+   * 觀戰（直播與挑戰賽）都用這兩個方法；play() 是原本逐球比賽畫面用的，V1 移除後已經沒有呼叫端
+   */
+  approach(pitch: PitchType, pitcher: Pitcher, ms: number): Promise<void> {
+    window.clearTimeout(this.hideTimer)
+    this.flight = null
+    const gen = this.generation
+    this.label.textContent = `${T.pitchNames[pitch]} ${pitchSpeed(pitch, pitcher)} km/h`
+    this.root.classList.add('show')
+    const w = this.root.clientWidth
+    const h = this.root.clientHeight
+    if (w === 0) return Promise.resolve()
+    const dpr = window.devicePixelRatio || 1
+    this.canvas.width = Math.round(w * dpr)
+    this.canvas.height = Math.round(h * dpr)
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const zone = { x: w * 0.36, y: h * 0.46, w: w * 0.28, h: h * 0.36 }
+    const start = { x: w * (pitcher.throws === 'R' ? 0.36 : 0.64), y: h * 0.3 }
+    const neutral = { x: zone.x + zone.w / 2, y: zone.y + zone.h / 2 }
+    const flight = { pitch, hand: pitcher.throws, start, zone, neutral, trail: [] as Pt[], w, ms, gen }
+    this.flight = flight
+    return new Promise((resolve) => {
+      const begin = performance.now()
+      const tick = (now: number) => {
+        if (gen !== this.generation) return resolve()
+        const t = APPROACH * (ms <= 0 ? 1 : Math.max(0, Math.min(1, (now - begin) / ms)))
+        const p = pitchPoint(pitch, pitcher.throws, start, neutral, t, w)
+        flight.trail.push(p)
+        this.draw(zone, flight.trail, p, t)
+        if (t < APPROACH) requestAnimationFrame(tick)
+        else resolve()
+      }
+      requestAnimationFrame(tick)
+    })
+  }
+
+  /**
+   * V2 直播：結果正式提交之後，把 approach() 的球帶到這一球真正的進壘點（壞球在好球帶外）。
+   * 從中性軌跡平順地轉到真正的軌跡；沒有進行中的投球（例如中途加入）就什麼都不畫
+   */
+  finish(result: PitchResult, ms: number): Promise<void> {
+    const f = this.flight
+    this.flight = null
+    if (!f || f.gen !== this.generation) return Promise.resolve()
+    const end = this.target(result, f.zone)
+    return new Promise((resolve) => {
+      const begin = performance.now()
+      const tick = (now: number) => {
+        if (f.gen !== this.generation) return resolve()
+        const u = ms <= 0 ? 1 : Math.max(0, Math.min(1, (now - begin) / ms))
+        const t = APPROACH + (1 - APPROACH) * u
+        const a = pitchPoint(f.pitch, f.hand, f.start, f.neutral, t, f.w)
+        const b = pitchPoint(f.pitch, f.hand, f.start, end, t, f.w)
+        const s = u * u * (3 - 2 * u)
+        const p = { x: a.x + (b.x - a.x) * s, y: a.y + (b.y - a.y) * s }
+        f.trail.push(p)
+        this.draw(f.zone, f.trail, p, t)
+        if (u < 1) requestAnimationFrame(tick)
         else {
           this.hideTimer = window.setTimeout(() => this.root.classList.remove('show'), HOLD_MS)
           resolve()
