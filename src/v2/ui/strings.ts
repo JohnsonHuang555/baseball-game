@@ -148,7 +148,6 @@ export const V2T = {
   battingCols: ['球員', '打席', '安打', '全壘打', '打點', '三振'],
   pitchingCols: ['投手', '局數', '失分', '三振'],
   welcomeUnclaimed: '資金與經驗已加到未領取收益，回球團按「領取收益」',
-  reportsHint: '只保留最近 50 場的戰報（每局比分、個人成績、精彩事件與收益），更早的比賽不再保留',
   reportTitle: (no: number) => `戰報・第 ${n(no)} 場`,
   rewards: '這場收益',
   highlights: '精彩事件',
@@ -159,7 +158,6 @@ export const V2T = {
   noBoxScore: '較早的比賽只保留比分、精彩事件與收益，每局比分和個人成績已不再保存。',
   close: '關閉',
 
-  readOnlyBanner: '遊戲已經在其他分頁開啟，這個分頁目前只能查看',
   readOnlyTitle: '這個分頁目前只能查看',
   readOnlyWhy: '遊戲已在其他分頁開啟',
   takeOver: '在此分頁繼續',
@@ -215,7 +213,6 @@ export const V2T = {
   recruitPitcher: '招募投手',
   recruiting: '簽約中…',
   recruitFunds: (funds: number) => `資金 ${n(funds)}`,
-  recruitCandidatesTitle: (role: 'batter' | 'pitcher') => (role === 'batter' ? '三位打者候選人' : '三位投手候選人'),
   recruitPickHint: '點一張卡片選擇；關閉視窗或重新整理，這一批候選人都不會變',
   recruitConfirm: (funds: number) => `確認簽約：${n(funds)} 資金`,
   recruitPickFirst: '先選一位候選人',
@@ -252,14 +249,12 @@ export const V2T = {
   recruitResult: '新加入的球員',
   reserves: '預備名單',
   reservesEmpty: '還沒有預備球員，可以到「招募」找新球員',
-  reserveLabel: '預備',
   pitcherLabel: '投手',
   develop: '養成',
   level: (lv: number) => `Lv.${lv}`,
   playerTitle: '球員養成',
   maxLevel: '已經是最高等級',
   baseRating: '原始',
-  currentRating: '目前',
   nextRating: '下一級',
   upgradeCostLabel: '升級成本',
   ratingCol: '能力',
@@ -279,7 +274,6 @@ export const V2T = {
   upgradeButton: (lv: number) => `升到 Lv.${lv}`,
   upgrading: '升級中…',
   upgraded: (name: string, lv: number) => `${name} 升到 Lv.${lv}`,
-  notEnoughResources: '資金或經驗不足',
   progressionNote: '「目前」就是比賽實際使用的能力；升級後從下一場尚未打的比賽開始生效',
   owned: '持有',
   // 聯盟與晉級
@@ -341,7 +335,6 @@ export const V2T = {
   watchChallenge: '觀看挑戰過程',
   challengeShowResult: '直接看結果',
   challengeStartLine: (league: string) => `挑戰「${league}」的晉級挑戰賽已經打完`,
-  challengeStartHint: '結果已經確定並保存（重新整理或離開都不會消失）。要觀看比賽過程，還是直接看結果？',
   liveTitle: '比賽直播',
   liveCardTitle: '目前比賽',
   liveBadge: '直播中',
@@ -413,11 +406,9 @@ export const V2T = {
   teamTitle: '球隊',
   upgradeShort: (exp: number, funds: number) =>
     `升級還差 ${[exp > 0 ? `${n(exp)} 經驗` : '', funds > 0 ? `${n(funds)} 資金` : ''].filter(Boolean).join('、')}`,
-  growthHint: '比賽收益可以升級球員（能力提高）或招募新球員；陣容與戰術在下面的分頁調整',
 
   rewardsEmpty: '比賽結束後，資金與經驗會先累積在這裡',
 
-  leagueProgressTitle: '晉級進度',
   leagueMatchesLine: (have: number, need: number) => (have >= need ? `已完成 ${n(have)} 場（需要 ${n(need)} 場）` : `已完成 ${n(have)} / ${n(need)} 場（還差 ${n(need - have)} 場）`),
   leagueRateLine: (rate: number, games: number, need: number, window: number) =>
     games < window
@@ -477,8 +468,6 @@ export const V2T = {
   stageFinal: '最終局',
   stageExtra: (inning: number) => `延長賽・第 ${inning} 局`,
   // Phase 6C：成長回饋
-  formLast: (w: number, l: number) => `最近 10 場 ${w} 勝 ${l} 敗`,
-  formPrev: (w: number, l: number) => `前 10 場 ${w} 勝 ${l} 敗`,
   formTitle: '近期戰績',
   formLastLabel: '最近 10 場',
   formPrevLabel: '前 10 場',
