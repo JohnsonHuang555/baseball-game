@@ -5444,3 +5444,10 @@ body:has(.v2-modal-overlay) .toast {
   border-color: #8e4be0;
   background: #fbf8ff;
 }
+
+/* 手機：頁首跟著內容捲走，不再固定在最上面蓋住目前比賽與卡片（電腦版本來就不固定） */
+@media (max-width: 1023px) {
+  .v2-header {
+    position: relative;
+  }
+}
