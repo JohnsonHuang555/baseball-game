@@ -7,6 +7,11 @@
 //   讓現行的 leagueViolations（Phase 5「沒有降級」的不變量）在模擬裡繼續成立；真正的最高階級與已發獎勵記在影子狀態。
 // - 積分制聯盟的挑戰：現行 eligibility 只認 100 場／60%，所以挑戰前暫時把本聯盟戰績補到符合，挑戰後（失敗時）還原。
 // - 重返已經領過獎勵的聯盟：applyChallenge 會因為 rewardedTiers 被壓掉而再發一次，模擬裡馬上扣回，對應設計「不重複發放」。
+//
+// 分段結算（預設，simulate.ts 的 ranked 模式）：正式設計是「降級那一場之後的比賽用新聯盟重新規劃」。
+// 模擬不改 Domain，改成把一次上線的離線結算切成好幾段：chunk() 回傳「最多再幾場一定不會降級」，
+// simulate.ts 每段只結算那麼多場（把模擬時鐘停在那一段結束的時間），降級後下一段自然用新聯盟的對手與收益倍率規劃。
+// 舊的整批近似（rankedApprox）保留，用來比較兩者的差異。
 import type { challengeNextLeague } from '../../src/v2/application/leagueService'
 import type { ClubSave } from '../../src/v2/domain/club'
 import { eligibility } from '../../src/v2/domain/league'
@@ -40,6 +45,8 @@ export interface PointsRules {
   minMatches: number
   /** 晉級資格：points＝積分進入晉級區；classic＝維持現行 100 場／60%（積分只用來保級） */
   promotion?: 'points' | 'classic'
+  /** 保級緩衝：每次待在這個聯盟期間，積分歸零時改回危險區上緣（20 分）而不降級的次數 */
+  rescues?: number
 }
 
 export interface SeasonRules {
@@ -57,12 +64,15 @@ export interface SeasonRules {
 export type RankedRules = PointsRules | SeasonRules
 
 export interface RankedEvent {
-  kind: 'promote' | 'relegate' | 'danger'
+  kind: 'promote' | 'relegate' | 'rescue'
   day: number
   matches: number
   from: number
   to: number
 }
+
+/** 積分區間：0、1～20（危險區）、21～79、80 以上（晉級區） */
+export const ZONES = ['0', '1-20', '21-79', '80+'] as const
 
 export interface RankedLog {
   events: RankedEvent[]
@@ -70,40 +80,85 @@ export interface RankedLog {
   matchesAt: number[]
   /** 每一級在危險區（積分 ≤ 20）的場數 */
   dangerAt: number[]
+  /** 每一級每一場結束時的積分區間（ZONES 的順序） */
+  zoneMatches: number[][]
   /** 每次降級後到重返原聯盟的天數（沒回去就是 null） */
   returns: { from: number; days: number | null }[]
-  /** 單一批次結算（一次上線）裡積分掉最多的一次 */
+  /** 一次上線（整段離線結算）裡積分掉最多的一次 */
   worstBatchDrop: number[]
-  /** 因為單一次上線的離線批次就從非危險區直接降級的次數 */
+  /** 一次上線開始時還在危險區以上，同一次上線的離線結算就被降級 */
   oneBatchRelegations: number
+  /** 降級時那次上線已經結算到第幾場（看批次大小的影響） */
+  relegationBatch: number[]
+  /**
+   * 晉級條件是否「互相矛盾」（classic 晉級＋顯示積分，方案 C／D）：每次上線檢查一次
+   * eligibleLow：100 場／60% 已達成，但積分還不到晉級區；highNotEligible：積分在晉級區，但 100 場／60% 還沒達成
+   */
+  conflict: { sessions: number; eligibleLow: number; highNotEligible: number }[]
+  /** 整批近似模式：降級之後，同一批裡還是用舊聯盟規劃（對手、收益倍率都是舊聯盟）的比賽數 */
+  staleAfterRelegation: number
 }
 
 export interface RankedHook {
   readonly rules: RankedRules
   readonly log: RankedLog
-  /** 每次上線結算完，依序處理新結算的比賽；必要時改存檔（降級） */
+  /** 每次上線開始時呼叫：記下這次上線的起始積分（算「一次上線就被降級」） */
+  startSession(): void
+  /** 每段結算完，依序處理新結算的比賽；必要時改存檔（降級） */
   afterSettle(d: Deps, settled: readonly Settled[], day: number): void
+  /** 最多再結算幾場，一定不會在中間發生降級（分段結算用）；不會降級的聯盟是 Infinity */
+  chunk(): number
+  /** 每次上線結算完、做任何事之前呼叫：統計晉級條件是否矛盾 */
+  observe(c: ClubSave): void
   /** 現在能不能挑戰下一級 */
   canChallenge(c: ClubSave): boolean
   /** 挑戰前：讓現行的 eligibility 放行，回傳還原用的函式 */
   prepareChallenge(d: Deps): (out: ChallengeOut, day: number) => void
   points(): number
+  tier(): number
 }
 
 const DANGER = 20
+const zoneOf = (p: number) => (p <= 0 ? 0 : p <= DANGER ? 1 : p < 80 ? 2 : 3)
 
 export function createRankedHook(rules: RankedRules): RankedHook {
   const n = LEAGUES.length
-  const log: RankedLog = { events: [], matchesAt: Array(n).fill(0), dangerAt: Array(n).fill(0), returns: [], worstBatchDrop: Array(n).fill(0), oneBatchRelegations: 0 }
+  const log: RankedLog = {
+    events: [],
+    matchesAt: Array(n).fill(0),
+    dangerAt: Array(n).fill(0),
+    zoneMatches: LEAGUES.map(() => ZONES.map(() => 0)),
+    returns: [],
+    worstBatchDrop: Array(n).fill(0),
+    oneBatchRelegations: 0,
+    relegationBatch: [],
+    conflict: LEAGUES.map(() => ({ sessions: 0, eligibleLow: 0, highNotEligible: 0 })),
+    staleAfterRelegation: 0,
+  }
+  const rescueMax = rules.kind === 'points' ? (rules.rescues ?? 0) : 0
   let tier = 0
   let points = rules.kind === 'points' ? rules.start : 0
   let inTier = 0
   let seasonWins = 0
   let seasonGames = 0
   let protect = 0
+  let rescuesLeft = rescueMax
   let firstSeason = false
   const rewarded = new Set<number>()
   const pending: { from: number; day: number; idx: number }[] = []
+  // 這次上線
+  let sStart = points
+  let sTier = 0
+  let sMatches = 0
+
+  const enterTier = (to: number, startPoints: number) => {
+    tier = to
+    inTier = 0
+    seasonWins = 0
+    seasonGames = 0
+    rescuesLeft = rescueMax
+    if (rules.kind === 'points') points = startPoints
+  }
 
   const relegate = (d: Deps, day: number) => {
     const c = d.store.loadClub()!
@@ -112,26 +167,38 @@ export function createRankedHook(rules: RankedRules): RankedHook {
     d.store.saveClub({ ...c, league }, c.revision)
     log.events.push({ kind: 'relegate', day, matches: c.idle.nextMatchIndex, from: tier, to })
     log.returns.push({ from: tier, days: null })
+    log.relegationBatch.push(sMatches)
+    if (sTier === tier && sStart > DANGER) log.oneBatchRelegations++
     pending.push({ from: tier, day, idx: log.returns.length - 1 })
-    tier = to
-    inTier = 0
-    seasonWins = 0
-    seasonGames = 0
     protect = 0
-    if (rules.kind === 'points') points = rules.afterRelegation
+    enterTier(to, rules.kind === 'points' ? rules.afterRelegation : 0)
   }
 
   return {
     rules,
     log,
     points: () => points,
+    tier: () => tier,
+    startSession() {
+      sStart = points
+      sTier = tier
+      sMatches = 0
+    },
+    chunk() {
+      if (!rules.relegateTiers.includes(tier)) return Infinity
+      if (rules.kind === 'season') return Math.max(1, rules.season - seasonGames)
+      if (protect > 0) return protect
+      // 每場最多扣 loss 分：ceil(points / loss) 場之內最早也只會在最後一場歸零
+      return Math.max(1, Math.ceil(points / rules.loss))
+    },
     afterSettle(d, settled, day) {
-      const before = points
-      let minInBatch = points
-      let relegatedThisBatch = false
       for (const m of settled) {
         const t = m.result.leagueTier ?? 0
-        if (t !== tier) continue // 降級後同一批剩下的比賽（還是舊聯盟打的）不再計分
+        sMatches++
+        if (t !== tier) {
+          log.staleAfterRelegation++
+          continue
+        } // 整批近似模式：降級後同一批剩下的比賽（舊聯盟打的）不再計分
         log.matchesAt[t]++
         inTier++
         if (rules.kind === 'points') {
@@ -141,14 +208,15 @@ export function createRankedHook(rules: RankedRules): RankedHook {
             protect--
             points = Math.max(1, points)
           }
-          if (points <= DANGER) log.dangerAt[t]++
-          minInBatch = Math.min(minInBatch, points)
-          if (points === 0 && rules.relegateTiers.includes(t)) {
-            if (before > DANGER) log.oneBatchRelegations++
-            log.worstBatchDrop[t] = Math.max(log.worstBatchDrop[t], before - 0)
-            relegate(d, day)
-            relegatedThisBatch = true
+          if (points === 0 && rules.relegateTiers.includes(t) && rescuesLeft > 0) {
+            rescuesLeft--
+            points = DANGER
+            log.events.push({ kind: 'rescue', day, matches: 0, from: t, to: t })
           }
+          log.zoneMatches[t][zoneOf(points)]++
+          if (points <= DANGER) log.dangerAt[t]++
+          if (t === sTier) log.worstBatchDrop[t] = Math.max(log.worstBatchDrop[t], sStart - points)
+          if (points === 0 && rules.relegateTiers.includes(t)) relegate(d, day)
         } else {
           if (!rules.relegateTiers.includes(t)) continue
           seasonGames++
@@ -159,14 +227,19 @@ export function createRankedHook(rules: RankedRules): RankedHook {
             firstSeason = false
             seasonWins = 0
             seasonGames = 0
-            if (rate < rules.relegateBelow && !safe) {
-              relegate(d, day)
-              relegatedThisBatch = true
-            }
+            if (rate < rules.relegateBelow && !safe) relegate(d, day)
           }
         }
       }
-      if (rules.kind === 'points' && !relegatedThisBatch) log.worstBatchDrop[tier] = Math.max(log.worstBatchDrop[tier], before - minInBatch)
+    },
+    observe(c) {
+      if (rules.kind !== 'points' || rules.promotion !== 'classic' || tier < rules.rankedFrom || tier >= MAX_TIER) return
+      const e = eligibility(c.league, c.idle.nextMatchIndex)
+      const hi = points >= rules.promoteAt
+      const k = log.conflict[tier]
+      k.sessions++
+      if (e.ok && !hi) k.eligibleLow++
+      if (hi && !e.ok) k.highNotEligible++
     },
     canChallenge(c) {
       if (c.league.tier >= MAX_TIER) return false
@@ -203,15 +276,9 @@ export function createRankedHook(rules: RankedRules): RankedHook {
               pending.splice(i, 1)
             }
           }
-          tier = to
-          inTier = 0
-          seasonWins = 0
-          seasonGames = 0
+          enterTier(to, rules.kind === 'points' ? rules.start : 0)
           firstSeason = true
-          if (rules.kind === 'points') {
-            points = rules.start
-            protect = rules.protectMatches
-          }
+          if (rules.kind === 'points') protect = rules.protectMatches
         } else if (patched) {
           d.store.saveClub({ ...x, league: { ...x.league, ...saved } }, x.revision)
         }
@@ -233,8 +300,14 @@ export const RANKED_VARIANTS: Record<string, RankedRules | null> = {
   'A+2-2': { kind: 'points', name: 'A 積分 +2／−2', ...common, win: 2, loss: 2, protectMatches: 20 },
   /** 方案 A 的調整版：勝 +2／敗 −1（損益兩平 33%）、晉級後 40 場保護 */
   'A+2-1': { kind: 'points', name: 'A 積分 +2／−1', ...common, win: 2, loss: 1, protectMatches: 40 },
-  /** 方案 C（保級積分）：晉級維持 100 場＋60%＋挑戰賽；積分只用來保級（勝 +3／敗 −2，損益兩平 40%），晉級後 20 場保護 */
-  'C+3-2': { kind: 'points', name: 'C 保級積分 +3／−2', ...common, win: 3, loss: 2, protectMatches: 20, promotion: 'classic' },
+  /**
+   * 方案 C（保級積分）／方案 D（積分從挑戰者開始顯示）：晉級維持 100 場＋60%＋挑戰賽；勝 +3／敗 −2，晉級後 20 場保護。
+   * 兩者在模擬裡是同一組數字：D 只是在挑戰者也「顯示」積分，挑戰者是保底，積分不影響任何結果，
+   * 所以 C／D 的進度與降級完全相同，差別只看挑戰者的積分分布與條件矛盾的統計（zoneMatches、conflict）
+   */
+  'C+3-2': { kind: 'points', name: 'C／D 保級積分 +3／−2', ...common, win: 3, loss: 2, protectMatches: 20, promotion: 'classic' },
+  /** C／D 加保級緩衝：每次待在職業／傳奇期間，第一次歸零改回 20 分（一次） */
+  'C+3-2r': { kind: 'points', name: 'C／D ＋保級緩衝 1 次', ...common, win: 3, loss: 2, protectMatches: 20, promotion: 'classic', rescues: 1 },
   /** 方案 B（賽季）：維持 100 場＋60% 晉級；職業／傳奇每 100 場一季，季勝率 < 40% 降級，晉級後第一季不降 */
   B40: { kind: 'season', name: 'B 賽季 100 場 <40%', relegateTiers: [3, 4], season: 100, relegateBelow: 0.4, protectFirstSeason: true },
 }

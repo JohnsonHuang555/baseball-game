@@ -75,7 +75,7 @@ function chapterView(c: GuideChapter, index: number, total: number, go: (i: numb
       const head = el('div', 'v2-guide-card-head')
       head.append(el('strong', '', card.title))
       if (card.tag === 'key') head.append(el('span', 'v2-key-tag', '重點'))
-      if (card.tag === 'demo') head.append(placeholderTag('示意'))
+      if (card.tag === 'demo') head.append(placeholderTag('尚未上線'))
       const text = el('div', 'v2-guide-card-text')
       text.append(head, el('p', '', card.text))
       item.append(ci, text)

@@ -72,4 +72,5 @@ ui/dashboardView.ts goalCard → openRoad
 ## 5. 檔案
 
 - 新增：`src/v2/ui/leagueInfo.ts`、`guideContent.ts`、`guideView.ts`、`leagueBadge.ts`、`leagueRoadView.ts`、`phase7.dom.test.ts`、`scripts/balance/ranked.ts`、`scripts/balance-v2-ranked.ts`、`docs/phase7-*.md`、`docs/balance/v2-phase7-ranked-report.md`。
-- 修改：`leagueConfig.ts`（只有顏色）、`dialog.ts`（`full`）、`app.ts`（「?」、開啟函式）、`dashboardView.ts`（目標卡）、`icons.ts`（search、help）、`strings.ts`、`v2.css`、`phase6a.dom.test.ts`（首頁順序多了目標卡）、`scripts/balance/simulate.ts`（可選的 ranked hook；沒指定時行為不變）。
+- 修改：`leagueConfig.ts`（只有顏色）、`dialog.ts`（`full`）、`app.ts`（「?」、開啟函式）、`dashboardView.ts`（目標卡）、`icons.ts`（search、help）、`strings.ts`、`v2.css`、`phase6a.dom.test.ts`（首頁順序多了目標卡）、`scripts/balance/simulate.ts`（可選的 ranked hook 與分段結算：降級後的比賽用新聯盟規劃；沒指定 ranked 時行為不變）。
+- 首頁目標卡的勝率提示：最近 60 場是滾動視窗，只顯示「目前幾勝、目標幾勝、目前差幾勝」並說明舊比賽會被擠出，不承諾「再贏 N 場」；資格判定仍是 `eligibility()`。

@@ -31,21 +31,20 @@ export function riskOf(tier: number): Risk {
 export const isRankedPreview = (tier: number) => tier >= RANKED_PREVIEW.fromTier
 
 const n = (x: number) => x.toLocaleString('zh-Hant')
-const short = (tier: number) => leagueOf(tier).name.replace('聯盟', '')
 
 export const LEAGUE_INTRO: readonly string[] = [
   '起點。熟悉比賽、領取收益、第一次養成球員。',
   '開始練習招募與調整陣容，準備進入競技。',
-  '規劃中的競技升降級會從這裡開始，這一級是保底。',
-  '晉級與保級同時存在，每一場都算數（規劃中）。',
+  '對手明顯變強。規劃中的競技積分會從這裡開始（尚未上線）。',
+  '對手更強、收益更高。規劃中的保級尚未上線，目前不會降級。',
   '目前最高的聯盟。目標是維持資格、繼續養成球隊。',
 ]
 
 export function riskLabel(tier: number): string {
   const r = riskOf(tier)
   if (r === 'safe') return '只升不降'
-  if (r === 'floor') return `保底：不會降回${short(tier - 1)}`
-  return `可能降回${short(tier - 1)}`
+  if (r === 'floor') return '規劃：保底聯盟'
+  return '規劃：可能降級'
 }
 
 /** 目前正式的晉級條件（所有聯盟相同，來自 PROMOTION_CONFIG） */
@@ -64,19 +63,22 @@ export function officialConditions(tier: number): string[] {
 export function plannedConditions(tier: number): string[] {
   if (!isRankedPreview(tier)) return []
   const r = RANKED_PREVIEW
-  if (tier >= MAX_TIER) return [`競技積分 0～${r.max}，目標是維持在危險區（${r.dangerAt} 分）以上`]
-  return [`競技積分進入晉級區（${r.promoteAt} 分以上），再贏得晉級挑戰賽`, `每場勝 +${r.win}／敗 −${r.loss}，晉級後從 ${r.start} 分開始`]
+  const out = [`0～${r.max} 的競技積分，例如勝 +${r.win}／敗 −${r.loss}（數字未定）`]
+  if (riskOf(tier) === 'danger') out.push('積分長期偏低可能降級；球員、資金、經驗都會保留')
+  else out.push('這一級是保底，積分再低也不會降級')
+  out.push('積分是否影響晉級還在討論；確定前晉級只看上面的條件')
+  return out
 }
 
 /** 降級規則的說明（現行：所有聯盟都不會降級；競技區附上規劃中的示意） */
 export function relegationText(tier: number): { risk: Risk; title: string; text: string; planned: boolean } {
   const risk = riskOf(tier)
   if (risk === 'safe') return { risk, title: '只升不降', text: '這一級不會降級，可以放心慢慢養成。', planned: false }
-  if (risk === 'floor') return { risk, title: '保底聯盟（規劃中）', text: `規劃中的競技積分從這裡開始，但積分再低也不會降回${leagueOf(tier - 1).name}。目前所有聯盟都還不會降級。`, planned: true }
+  if (risk === 'floor') return { risk, title: '目前不會降級', text: `尚未上線的規劃：這一級是保底，之後就算有積分，也不會降回${leagueOf(tier - 1).name}。`, planned: true }
   return {
     risk,
-    title: '可能降級（規劃中）',
-    text: `規劃中：積分降到 0 會降回${leagueOf(tier - 1).name}，球員、資金、經驗都會保留；首次晉級獎勵不會重複發放。目前所有聯盟都還不會降級。`,
+    title: '目前不會降級',
+    text: `尚未上線的規劃：之後這一級可能因為積分歸零降回${leagueOf(tier - 1).name}，球員、資金、經驗都會保留，首次晉級獎勵不會重複發放。規則確定前，這一級和其他聯盟一樣只升不降。`,
     planned: true,
   }
 }
@@ -85,8 +87,8 @@ export function relegationText(tier: number): { risk: Risk; title: string; text:
 export function linkText(upper: number): { text: string; tone: 'safe' | 'floor' | 'danger'; planned: boolean } {
   const p = PROMOTION_CONFIG
   if (upper < RANKED_PREVIEW.fromTier) return { text: `↑ 晉級挑戰（${p.minMatches} 場・勝率 ${Math.round(p.winRate * 100)}%）`, tone: 'safe', planned: false }
-  if (upper === RANKED_PREVIEW.fromTier) return { text: '— 保底線：挑戰者以下不再降級 —', tone: 'floor', planned: true }
-  return { text: '↑ 晉級挑戰 ↓ 積分歸零降級', tone: 'danger', planned: true }
+  if (upper === RANKED_PREVIEW.fromTier) return { text: '— 規劃中的保底線（尚未上線）—', tone: 'floor', planned: true }
+  return { text: '↑ 晉級挑戰　↓ 規劃中的降級（尚未上線）', tone: 'danger', planned: true }
 }
 
 export function rewardText(tier: number): string {

@@ -597,6 +597,28 @@ function rewardItem(label: string, value: number, kind: string, ico: IconName): 
   return box
 }
 
+export interface RateProgress {
+  window: number
+  /** 最近戰績裡有幾場（還沒滿 window 時比 window 少） */
+  games: number
+  wins: number
+  /** 滿 window 場時要幾勝才達到門檻（跟 eligibility 的 have ≥ need 一致） */
+  target: number
+  full: boolean
+  /** 還差幾場才有完整的最近戰績 */
+  missingGames: number
+  /** 目前跟目標的勝場差（只是現況，不是「再贏幾場」：舊比賽會被擠出視窗） */
+  gap: number
+}
+
+/** 最近 window 場勝率的現況：全部從 eligibility 的結果推算，不另外定義門檻 */
+export function rateProgress(e: ReturnType<typeof eligibility>): RateProgress {
+  const { window, games, need, have } = e.winRate
+  const wins = Math.round(have * games)
+  const target = Math.ceil(need * window - 1e-9)
+  return { window, games, wins, target, full: games >= window, missingGames: Math.max(0, window - games), gap: Math.max(0, target - wins) }
+}
+
 /**
  * 下一個目標（設計稿 p7 IdGoal）：目前聯盟、下一個聯盟要達成什麼、還差多少，以及「聯盟之路」入口。
  * 條件全部來自 eligibility（正式規則）；競技積分還在規劃，只加一行「示意」的說明，不顯示任何積分
@@ -652,8 +674,10 @@ export function goalCard(club: ClubSave, actions: Pick<DashboardActions, 'openRo
 
     const needs: string[] = []
     if (!matchesOk) needs.push(V2T.goalNeedMatches(e.matches.need - e.matches.have))
-    if (e.winRate.games < e.winRate.window) needs.push(V2T.goalNeedWindow(e.winRate.window - e.winRate.games))
-    else if (!rateOk) needs.push(V2T.goalNeedRate(Math.ceil((e.winRate.need - e.winRate.have) * e.winRate.window - 1e-9)))
+    // 最近 60 場是滾動視窗：新比賽會擠掉最舊的一場，所以只說「現在幾勝、目標幾勝」，不承諾「再贏 N 場就達標」
+    const rp = rateProgress(e)
+    if (!rp.full) needs.push(V2T.goalNeedWindow(rp.missingGames, rp.window, rp.games, rp.wins))
+    else if (!rateOk) needs.push(V2T.goalNeedRate(rp.wins, rp.target, rp.window))
     if (e.retryRemaining > 0) needs.push(V2T.leagueCooldownLine(e.retryRemaining))
     const need = el('div', `v2-goal-need ${needs.length ? '' : 'done'}`.trim())
     need.append(el('span', 'v2-goal-need-k', needs.length ? V2T.goalNeedTitle : V2T.goalReadyTitle))
@@ -662,12 +686,13 @@ export function goalCard(club: ClubSave, actions: Pick<DashboardActions, 'openRo
       for (const x of needs) ul.append(el('li', '', x))
       need.append(ul)
     } else need.append(el('span', 'v2-goal-need-ready', V2T.goalReady))
+    if (rp.full && !rateOk) need.append(el('span', 'v2-goal-need-note', V2T.goalRollingNote(rp.window)))
     card.append(need)
   }
   // 競技區（規劃中）：只用一行說明，不顯示積分
   if (isRankedPreview(league.tier + 1) || isRankedPreview(league.tier)) {
     const p = el('p', 'v2-goal-plan')
-    p.append(placeholderTag('示意'), isRankedPreview(league.tier) ? V2T.goalPlanRanked : V2T.goalPlanNext(leagueOf(league.tier + 1).name))
+    p.append(placeholderTag('尚未上線'), isRankedPreview(league.tier) ? V2T.goalPlanRanked : V2T.goalPlanNext(leagueOf(league.tier + 1).name))
     card.append(p)
   }
   if (actions.openRoad) {

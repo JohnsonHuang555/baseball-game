@@ -70,7 +70,7 @@ export function guideChapters(): GuideChapter[] {
       cards: [
         { icon: 'clock', title: '離線最多 8 小時', text: `超過 ${offlineH} 小時的部分不會再累積比賽。睡前、起床各看一次就不會浪費。`, tag: 'key' },
         { icon: 'play', title: '可以觀看直播', text: '首頁的「目前比賽」可以看正在進行的那一場；不看也不會影響結果。' },
-        { icon: 'lock', title: '結果不會因為觀看改變', text: '每一場都用固定的種子模擬，重新整理、開好幾個分頁、重看 Replay 都不會重算或重複發獎勵。' },
+        { icon: 'lock', title: '結果不會因為觀看改變', text: '每一場都用固定的種子模擬，重新整理、開好幾個分頁、重看 Replay 都不會重算，也不會重複發獎勵。' },
       ],
     },
     {
@@ -142,14 +142,14 @@ export function guideChapters(): GuideChapter[] {
     {
       id: 'ranked',
       short: '積分',
-      title: '積分與降級（規劃中）',
+      title: '積分與降級（尚未上線）',
       icon: 'challenge',
-      summary: `目前所有聯盟都只升不降。從挑戰者聯盟開始的「競技積分」還在設計，下面的數字都是示意，不是正式規則。`,
+      summary: '這一章是尚未上線的規劃：目前沒有競技積分，所有聯盟（包含職業、傳奇）都只升不降。下面的數字都是示意，不是正式規則。',
       visual: { kind: 'points' },
       cards: [
-        { icon: 'challenge', title: '競技積分（示意）', text: `規劃從挑戰者聯盟開始用 0～${rp.max} 的積分取代勝率條件，例如勝 +${rp.win}／敗 −${rp.loss}。`, tag: 'demo' },
-        { icon: 'league', title: '晉級區（示意）', text: `積分到 ${rp.promoteAt} 分以上進入晉級區，仍然要贏晉級挑戰賽才會升級。`, tag: 'demo' },
-        { icon: 'alert', title: '降級（示意）', text: `規劃中只有職業、傳奇聯盟會降級；挑戰者是保底，不會降回業餘。球員、資金、經驗都會保留。`, tag: 'demo' },
+        { icon: 'challenge', title: '競技積分（尚未上線）', text: `規劃中的 0～${rp.max} 積分，例如勝 +${rp.win}／敗 −${rp.loss}；怎麼影響晉級還在討論。`, tag: 'demo' },
+        { icon: 'league', title: '晉級區（尚未上線）', text: `示意：積分 ${rp.promoteAt} 分以上是晉級區。目前晉級只看「${P.minMatches} 場・勝率 ${pct(P.winRate)}」與挑戰賽。`, tag: 'demo' },
+        { icon: 'alert', title: '降級與保底（尚未上線）', text: '規劃中：職業、傳奇聯盟才可能降級，挑戰者是保底；降級時球員、資金、經驗都會保留。目前不會發生。', tag: 'demo' },
         { icon: 'lock', title: '正式規則確認前', text: '你的存檔不會有積分，也不會被降級。規則確定後會先公告再上線。', tag: 'key' },
       ],
     },
@@ -162,9 +162,9 @@ export function guideChapters(): GuideChapter[] {
       cards: [],
       faq: [
         { q: '離線很久，比賽會一直累積嗎？', a: `最多累積 ${offlineH} 小時（${IDLE_CONFIG.MAX_BATCH_MATCHES} 場），超過的部分不會再打。` },
-        { q: '開兩個分頁會重複拿獎勵嗎？', a: '不會。同一時間只有一個分頁可以操作，其他分頁只能查看；每場比賽只會結算一次。' },
+        { q: '開兩個分頁會重複拿獎勵嗎？', a: '不會。每場比賽只會結算一次、收益只會領一次。大部分瀏覽器支援跨分頁鎖，每個分頁都可以操作，存檔會依序寫入；不支援的瀏覽器同一時間只有一個分頁可以操作，其他分頁只能查看。' },
         { q: '晉級挑戰失敗會怎樣？', a: `不會失去任何東西，只要再完成 ${P.retryAfterMatches} 場一般比賽就能再挑戰。` },
-        { q: '現在會被降級嗎？', a: '不會。降級規則還在規劃中，確定之前所有聯盟都只升不降。' },
+        { q: '現在會被降級嗎？', a: '不會。競技積分與降級都還沒上線，職業、傳奇聯盟目前也只升不降。之後若要上線，會先公告規則。' },
         { q: '重看比賽會改變結果嗎？', a: 'Replay 只是重播已經存好的結果，不會重算，也不會再發獎勵。' },
       ],
     },

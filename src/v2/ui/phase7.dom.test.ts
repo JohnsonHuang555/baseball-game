@@ -14,6 +14,8 @@ import { guideChapters, searchGuide } from './guideContent'
 import { leagueDetail, openLeagueRoad } from './leagueRoadView'
 import { linkText, riskOf } from './leagueInfo'
 import { badgeStateFor, leagueBadgeSvg } from './leagueBadge'
+import { rateProgress } from './dashboardView'
+import { eligibility, recordLeagueResult } from '../domain/league'
 
 let app: V2App | null = null
 afterEach(() => {
@@ -143,7 +145,7 @@ describe('遊戲指南', () => {
     expect(byId.promotion.cards[0].title).toContain(String(PROMOTION_CONFIG.minMatches))
     expect(byId.promotion.summary).toContain(String(LEAGUES.length))
     const ranked = byId.ranked
-    expect(ranked.title).toContain('規劃中')
+    expect(ranked.title).toContain('尚未上線')
     // 寫到積分數字的卡片都是 demo；說明「目前不會降級」的是重點
     for (const c of ranked.cards) if (/[+−]\d|\d+ 分/.test(c.text)) expect(c.tag).toBe('demo')
     expect(ranked.cards.some((c) => c.tag === 'key' && c.text.includes('不會被降級'))).toBe(true)
@@ -151,6 +153,22 @@ describe('遊戲指南', () => {
     for (const c of chapters.filter((x) => x.id !== 'ranked')) for (const card of c.cards) expect(card.tag).not.toBe('demo')
     expect(searchGuide(chapters, '  ')).toEqual([])
     expect(searchGuide(chapters, '離線').length).toBeGreaterThan(0)
+  })
+
+  it('多分頁與降級的文案：不暗示有 Web Locks 時只能單分頁操作；職業、傳奇不寫成現在就會降級', () => {
+    const chapters = guideChapters()
+    const faq = chapters.find((c) => c.id === 'faq')!.faq!
+    const tabs = faq.find((f) => f.q.includes('分頁'))!.a
+    expect(tabs).toContain('每個分頁都可以操作')
+    expect(tabs).toContain('不支援的瀏覽器')
+    expect(faq.find((f) => f.q.includes('降級'))!.a).toMatch(/職業、傳奇聯盟目前也只升不降/)
+    for (const t of [3, 4]) {
+      const text = leagueDetail(t, null).textContent!
+      expect(text).toContain('目前不會降級')
+      expect(text).toContain('尚未上線的規劃')
+    }
+    const ranked = chapters.find((c) => c.id === 'ranked')!
+    for (const c of ranked.cards.filter((x) => x.tag === 'demo')) expect(c.title).toContain('尚未上線')
   })
 
   it('指南在其他分頁不顯示「?」', async () => {
@@ -175,13 +193,51 @@ describe('首頁：下一個目標', () => {
 
   it('業餘聯盟：多一行「示意」說明下一級規劃的積分；挑戰者：說明規則確定前仍用正式條件', async () => {
     await setup(atTier(1))
-    expect($('.v2-goal-plan')!.textContent).toContain('示意')
+    expect($('.v2-goal-plan')!.textContent).toContain('尚未上線')
     expect($('.v2-goal-plan')!.textContent).toContain(LEAGUES[2].name)
     app?.close()
     document.body.replaceChildren()
     await setup(atTier(2))
-    expect($('.v2-goal-plan')!.textContent).toContain('規則確定前仍用上面的條件')
+    expect($('.v2-goal-plan')!.textContent).toContain('目前不會降級')
     expect($('.v2-goal .v2-points-bar')).toBeNull()
+  })
+
+  it('最近 60 場是滾動視窗：只顯示目前勝場與目標勝場，不承諾「再贏 N 場」', async () => {
+    const W = PROMOTION_CONFIG.window
+    const target = Math.ceil(PROMOTION_CONFIG.winRate * W - 1e-9)
+    // 最舊的 target − 1 場都是勝、後面都是敗：再贏一場會擠掉最舊的一勝，勝場數不變
+    const recent = 'W'.repeat(target - 1) + 'L'.repeat(W - target + 1)
+    const league = (c: ClubSave) => ({ ...c.league, matches: 120, wins: 80, losses: 40, recent })
+    await setup((c) => ({ ...c, league: league(c), record: { ...c.record, wins: 80, losses: 40 } }))
+    const need = $('.v2-goal-need')!.textContent!
+    expect(need).toContain(`最近 ${W} 場贏 ${target - 1} 場，目標 ${target} 場（目前差 1 勝）`)
+    expect(need).toContain('最舊的一場會被擠出去')
+    expect(need).not.toMatch(/再(多)?贏/)
+    // 驗證這個提示為什麼不能寫成「再贏 1 場」：真的再贏一場，勝場數還是 target − 1，仍然沒有資格
+    const base = { tier: 0, matches: 120, wins: 80, losses: 40, recent, promotions: 0, highestTier: 0, nextChallengeSeq: 0, challengeReadyAt: 0, challenges: [], rewardedTiers: [] }
+    expect(rateProgress(eligibility(base, 0))).toMatchObject({ wins: target - 1, gap: 1 })
+    const after = recordLeagueResult(base, true)
+    const p = rateProgress(eligibility(after, 0))
+    expect(p).toMatchObject({ full: true, wins: target - 1, target, gap: 1 })
+    expect(eligibility(after, 0).ok).toBe(false)
+  })
+
+  it('最近戰績還沒滿 60 場：顯示還差幾場、目前幾場幾勝', async () => {
+    await setup((c) => ({ ...c, league: { ...c.league, matches: 30, wins: 20, losses: 10, recent: 'W'.repeat(20) + 'L'.repeat(10) }, record: { ...c.record, wins: 20, losses: 10 } }))
+    const W = PROMOTION_CONFIG.window
+    expect($('.v2-goal-need')!.textContent).toContain(`最近戰績還差 ${W - 30} 場才滿 ${W} 場（目前 30 場贏 20 場）`)
+    expect($('.v2-goal-need-note')).toBeNull()
+  })
+
+  it('rateProgress 跟 eligibility 的門檻一致：剛好 target 勝就達標', () => {
+    const W = PROMOTION_CONFIG.window
+    const target = Math.ceil(PROMOTION_CONFIG.winRate * W - 1e-9)
+    const base = { tier: 0, matches: 200, wins: 0, losses: 0, promotions: 0, highestTier: 0, nextChallengeSeq: 0, challengeReadyAt: 0, challenges: [], rewardedTiers: [] }
+    const at = (wins: number) => eligibility({ ...base, recent: 'W'.repeat(wins) + 'L'.repeat(W - wins) }, 0)
+    expect(at(target).ok).toBe(true)
+    expect(at(target - 1).ok).toBe(false)
+    expect(rateProgress(at(target))).toMatchObject({ wins: target, gap: 0, full: true, missingGames: 0 })
+    expect(rateProgress(at(target - 1)).gap).toBe(1)
   })
 
   it('條件都達成：顯示可以挑戰', async () => {
@@ -228,7 +284,8 @@ describe('聯盟之路與聯盟詳情', () => {
     const sheet = $('.v2-modal.sheet.v2-league-detail-modal')!
     expect(sheet.querySelector('.v2-league-detail')!.getAttribute('data-tier')).toBe('3')
     expect(sheet.querySelector('.v2-ld-rel.danger .v2-demo-tag')).toBeTruthy()
-    expect(sheet.textContent).toContain('目前所有聯盟都還不會降級')
+    expect(sheet.textContent).toContain('目前不會降級')
+    expect(sheet.textContent).toContain('尚未上線')
     key('Escape')
     await flush()
     expect($('.v2-league-detail-modal')).toBeNull()

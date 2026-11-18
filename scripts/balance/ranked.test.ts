@@ -4,6 +4,7 @@ import { createClubSafely } from '../../src/v2/application/clubLifecycle'
 import { MemoryStorage } from '../../src/v2/infrastructure/clubRepository'
 import { FakeLockManager, ManualClock, T0, tab } from '../../src/v2/testkit'
 import { createRankedHook, RANKED_VARIANTS, type PointsRules, type RankedHook } from './ranked'
+import { simulate } from './simulate'
 
 async function clubAt(tier: number) {
   const d = tab(new MemoryStorage(), new ManualClock(T0), new FakeLockManager())
@@ -38,6 +39,7 @@ describe('模擬用的積分規則', () => {
     const h = createRankedHook({ ...rules, rankedFrom: 0, relegateTiers: [1], start: 50 })
     promote(h, d, 1)
     expect(h.points()).toBe(50)
+    h.startSession()
     h.afterSettle(d, games(1, 'L'.repeat(25 + rules.protectMatches)), 2)
     const c = d.store.loadClub()!
     expect(c.league).toMatchObject({ tier: 0, highestTier: 0, promotions: 0 })
@@ -74,4 +76,38 @@ describe('模擬用的積分規則', () => {
     expect(h.points()).toBe(100)
     expect(h.canChallenge(d.store.loadClub()!)).toBe(false)
   })
+
+  it('chunk：保證一段之內只會在最後一場降級；不會降級的聯盟不切段', async () => {
+    const d = await clubAt(1)
+    const h = createRankedHook({ ...rules, rankedFrom: 0, relegateTiers: [1], start: 7, protectMatches: 3 })
+    expect(h.chunk()).toBe(Infinity) // 影子狀態還在新秀
+    promote(h, d, 1)
+    expect(h.chunk()).toBe(3) // 保護期
+    h.afterSettle(d, games(1, 'WWW'), 0)
+    expect(h.points()).toBe(16)
+    expect(h.chunk()).toBe(8)
+    h.afterSettle(d, games(1, 'L'.repeat(7)), 0)
+    expect(h.points()).toBe(2)
+    expect(d.store.loadClub()!.league.tier).toBe(1)
+    expect(h.chunk()).toBe(1)
+  })
+
+  it('保級緩衝：第一次歸零回到 20 分，第二次才降級', async () => {
+    const d = await clubAt(3)
+    const h = createRankedHook(RANKED_VARIANTS['C+3-2r']!)
+    promote(h, d, 3)
+    h.afterSettle(d, games(3, 'L'.repeat(25)), 1)
+    expect(h.points()).toBe(20)
+    expect(h.log.events.filter((e) => e.kind === 'rescue')).toHaveLength(1)
+    expect(d.store.loadClub()!.league.tier).toBe(3)
+    h.afterSettle(d, games(3, 'L'.repeat(10)), 1)
+    expect(d.store.loadClub()!.league.tier).toBe(2)
+  })
+
+  it('分段結算跟整批結算的比賽完全相同（沒有降級時）', async () => {
+    const noRelegation = { ...(RANKED_VARIANTS['C+3-2'] as PointsRules), relegateTiers: [] }
+    const run = (approx: boolean) => simulate({ strategy: 'E', seed: 3, sessionsPerDay: 1, days: 2, ranked: createRankedHook(noRelegation), rankedApprox: approx })
+    const [a, b] = [await run(true), await run(false)]
+    expect(b.snapshots.map((x) => [x.matches, x.wins, x.tier, x.earned.funds])).toEqual(a.snapshots.map((x) => [x.matches, x.wins, x.tier, x.earned.funds]))
+  }, 60_000)
 })

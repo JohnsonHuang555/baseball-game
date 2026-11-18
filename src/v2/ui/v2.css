@@ -5434,3 +5434,13 @@ body:has(.v2-modal-overlay) .toast {
   border-radius: 2px;
   background: var(--ink);
 }
+.v2-goal-need-note {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-faint);
+}
+.v2-ld-rel.planned {
+  border-style: dashed;
+  border-color: #8e4be0;
+  background: #fbf8ff;
+}
