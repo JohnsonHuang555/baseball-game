@@ -20,6 +20,7 @@ import { openMatchReport, renderReports, welcomeModal } from './reportView'
 import { openRecruit } from './recruitView'
 import { openPlayerDetail } from './playerView'
 import { V2T } from './strings'
+import { refocusTopDialog } from './dialog'
 import { icon, iconSvg, type IconName } from './icons'
 import { leagueOf } from '../domain/league'
 import { createTacticsView, type TacticsView } from './tacticsView'
@@ -290,6 +291,8 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
         onClose: () => {
           viewer = null
           finish()
+          // 從挑戰結果打開的觀戰：關閉後焦點回到結果對話框
+          refocusTopDialog()
         },
       })
     } catch {

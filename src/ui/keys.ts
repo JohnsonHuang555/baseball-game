@@ -13,6 +13,11 @@ export function setKeys(map: KeyMap): KeyMap {
   return previous
 }
 
+/** 目前生效的那組按鍵（對話框堆疊用來判斷別人有沒有換過） */
+export function currentKeys(): KeyMap {
+  return current
+}
+
 function keyName(e: KeyboardEvent): string {
   if (e.key === ' ') return 'Space'
   return e.key.length === 1 ? e.key.toLowerCase() : e.key

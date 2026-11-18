@@ -60,6 +60,12 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
   /** 剛完成的升級（顯示成功回饋）：升到幾級、哪些能力提升、從第幾場生效 */
   let done: { level: number; gains: ReturnType<typeof upgradeGains>; fromMatch: number } | null = null
   let close: () => void = () => {}
+  /** 取消第二次確認：回到面板，焦點放回「釋出球員」 */
+  const cancelConfirm = () => {
+    confirming = false
+    draw(controller.state)
+    body.querySelector<HTMLButtonElement>('[data-action="release"]')?.focus({ preventScroll: true })
+  }
   const draw = (state: ControllerState) => {
     const club = state.club
     const record = club ? recordOf(club, playerId) : undefined
@@ -248,10 +254,7 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
       }
       const no = el('button', 'btn-white v2-release-no', V2T.releaseCancel)
       no.type = 'button'
-      no.onclick = () => {
-        confirming = false
-        draw(controller.state)
-      }
+      no.onclick = () => cancelConfirm()
       const row = el('div', 'v2-release-row')
       row.append(no, yes)
       confirmBox.append(icon('alert', 32, 'v2-release-icon'), el('h3', 'v2-release-title', V2T.releaseTitle(base.name)), el('p', 'v2-release-warn', V2T.releaseConfirm), row)
@@ -262,7 +265,19 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
   }
   draw(controller.state)
   const unsubscribe = controller.subscribe(draw)
-  close = v2Modal(V2T.playerTitle, body, unsubscribe, { sheet: true, noCloseButton: true, header, footer, className: 'v2-player-sheet' })
+  close = v2Modal(V2T.playerTitle, body, unsubscribe, {
+    sheet: true,
+    noCloseButton: true,
+    header,
+    footer,
+    className: 'v2-player-sheet',
+    // 第二次確認開著時，Escape 只取消確認，不關閉整個面板
+    onEscape: () => {
+      if (!confirming) return false
+      cancelConfirm()
+      return true
+    },
+  })
   return close
 }
 

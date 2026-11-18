@@ -4,6 +4,7 @@
 import { el } from '../../ui/playerCard'
 import type { BoxScore, ClubSave, SettledMatch, SummaryHighlight } from '../domain/club'
 import { leagueOf } from '../domain/league'
+import { IDLE_CONFIG } from '../domain/config'
 import type { ControllerState, WelcomeSummary } from './clubController'
 import { V2T } from './strings'
 import { announceModal, v2Modal } from './dialog'
@@ -26,8 +27,9 @@ export function renderReports(state: ControllerState, open: (m: SettledMatch) =>
   }
   const list = el('div', 'v2-report-list')
   let lastDay = ''
+  const all = state.club?.recentMatches ?? []
   for (const m of matches) {
-    const day = dayLabel(m.playedAt ?? m.settledAt, now)
+    const day = dayLabel(matchTime(m, all), now)
     if (day !== lastDay) {
       list.append(el('h3', 'v2-day-label', day))
       lastDay = day
@@ -38,14 +40,30 @@ export function renderReports(state: ControllerState, open: (m: SettledMatch) =>
   return page
 }
 
-/** 今天、昨天，或「11/14」 */
-function dayLabel(t: number, now: number): string {
+/**
+ * 比賽的時間（分組與戰報日期用）：用比賽本身的時間，不用結算時間。
+ * playedAt 是預定結束時間；離線很久回來才結算的比賽，結算時間是「重新開啟遊戲」的時間，不能拿來分組。
+ * 存檔升級前的比賽沒有 playedAt：同一次結算的比賽 settledAt 相同，最後一場在結算前打完，
+ * 前面的每場往前推一個比賽間隔，用這個估計比賽時間
+ */
+export function matchTime(m: SettledMatch, all: readonly SettledMatch[]): number {
+  if (m.playedAt !== undefined) return m.playedAt
+  let last = m.matchIndex
+  for (const x of all) if (x.settledAt === m.settledAt && x.playedAt === undefined && x.matchIndex > last) last = x.matchIndex
+  return m.settledAt - (last - m.matchIndex) * IDLE_CONFIG.MATCH_INTERVAL_MS
+}
+
+/** 今天、昨天；今年的其他日子寫「11/14」，其他年份寫「2025/12/30」（依裝置的時區算日界） */
+export function dayLabel(t: number, now: number): string {
   const d = new Date(t)
+  const today = new Date(now)
   const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
-  const diff = Math.round((start(new Date(now)) - start(d)) / 86_400_000)
+  // 用日曆日相減（避開日光節約時間造成的 23／25 小時）
+  const diff = Math.round((start(today) - start(d)) / 86_400_000)
   if (diff <= 0) return V2T.today
   if (diff === 1) return V2T.yesterday
-  return `${d.getMonth() + 1}/${d.getDate()}`
+  const md = `${d.getMonth() + 1}/${d.getDate()}`
+  return d.getFullYear() === today.getFullYear() ? md : `${d.getFullYear()}/${md}`
 }
 
 function reportRow(m: SettledMatch, open: (m: SettledMatch) => void): HTMLElement {
@@ -71,7 +89,7 @@ export function openMatchReport(m: SettledMatch, club: ClubSave): () => void {
   const r = m.result
   const body = el('div', 'v2-report')
   const score = el('section', `v2-report-card v2-report-score ${r.won ? 'won' : 'lost'}`)
-  const when = new Date(m.playedAt ?? m.settledAt).toLocaleString('zh-Hant', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const when = new Date(matchTime(m, club.recentMatches)).toLocaleString('zh-Hant', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   const meta = el('p', 'v2-report-meta', `${leagueOf(r.leagueTier ?? 0).name}・${V2T.innings(r.innings)}・${when}`)
   meta.dataset.league = String(r.leagueTier ?? 0)
   const line = el('div', 'v2-report-line')

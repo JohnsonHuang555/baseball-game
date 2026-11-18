@@ -1,9 +1,134 @@
 // V2 的對話框（設計稿 v7 元件表「對話框」）：標題列有 ✕、內容可以捲動、主要動作固定在底部。
 // Esc、點外面、右上 ✕、底部「關閉」都能關。sheet：手機從底部滑出的面板（球員養成、招募），電腦版置中 600 寬
-import { setKeys } from '../../ui/keys'
+import { currentKeys, setKeys, type KeyMap } from '../../ui/keys'
 import { el } from '../../ui/playerCard'
 import { icon, type IconName } from './icons'
 import { V2T } from './strings'
+
+// ---- 對話框堆疊：焦點與鍵盤 ----
+// 每個開著的 V2 對話框都在堆疊裡。只有最上層的對話框處理 Tab／Shift+Tab（焦點限制在對話框內）與 Escape（關閉它）；
+// 「最上層」除了看堆疊，也看畫面：如果之後又蓋了別的 aria-modal（例如從挑戰結果打開的觀戰畫面），就讓給那一層處理。
+// 第一個對話框打開時把畫面的快捷鍵換成空的、最後一個關閉時還原，所以多層對話框不論用什麼順序關閉，快捷鍵都不會錯亂。
+
+interface Layer {
+  /** 限制焦點的範圍（對話框本體） */
+  box: HTMLElement
+  /** Escape：通常是關閉這一層 */
+  escape: () => void
+  /** 打開前的焦點，關閉時還原 */
+  opener: Element | null
+}
+
+const stack: Layer[] = []
+let savedKeys: KeyMap | null = null
+let ownKeys: KeyMap | null = null
+
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
+/** 範圍內可以用 Tab 走到的元素（排除停用、隱藏） */
+export function focusables(root: HTMLElement): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+    (x) => !(x as HTMLButtonElement).disabled && !x.closest('[hidden]') && !x.closest('[inert]') && x.getAttribute('aria-hidden') !== 'true',
+  )
+}
+
+/** 這一層是不是畫面上真正的最上層（之後沒有蓋上別的 aria-modal） */
+function isTopmost(layer: Layer): boolean {
+  if (stack[stack.length - 1] !== layer) return false
+  const modals = document.querySelectorAll('[aria-modal="true"]')
+  const last = modals[modals.length - 1]
+  return !last || last === layer.box || layer.box.contains(last) || last.contains(layer.box)
+}
+
+/** 焦點限制的範圍：對話框裡如果有第二次確認（role="alertdialog"），就只在那個小框裡 */
+function trapRoot(layer: Layer): HTMLElement {
+  const inner = layer.box.querySelectorAll<HTMLElement>('[role="alertdialog"]')
+  return inner[inner.length - 1] ?? layer.box
+}
+
+function onKeydown(e: KeyboardEvent): void {
+  const top = stack[stack.length - 1]
+  if (!top || !isTopmost(top)) return
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    top.escape()
+    return
+  }
+  if (e.key !== 'Tab') return
+  const root = trapRoot(top)
+  const items = focusables(root)
+  e.preventDefault()
+  if (!items.length) {
+    root.focus?.()
+    return
+  }
+  const i = items.indexOf(document.activeElement as HTMLElement)
+  // 焦點不在範圍內（例如剛從觀戰畫面回來）：Tab 到第一個、Shift+Tab 到最後一個
+  const next = i < 0 ? (e.shiftKey ? items.length - 1 : 0) : (i + (e.shiftKey ? -1 : 1) + items.length) % items.length
+  items[next].focus()
+}
+
+/** 焦點放回最上層對話框（從蓋在上面的畫面回來時用）；沒有對話框就不動 */
+export function refocusTopDialog(): void {
+  const top = stack[stack.length - 1]
+  if (!top || !top.box.isConnected) return
+  if (top.box.contains(document.activeElement)) return
+  focusables(trapRoot(top))[0]?.focus({ preventScroll: true })
+}
+
+function pushLayer(layer: Layer): void {
+  if (!stack.length) {
+    document.addEventListener('keydown', onKeydown, true)
+    // 對話框開著時，畫面的快捷鍵都不作用
+    savedKeys = setKeys({})
+    ownKeys = currentKeys()
+  }
+  stack.push(layer)
+}
+
+/** 關閉後焦點去哪裡：還在畫面上的原本元素 → 下一層對話框 → 目前的導覽分頁 → 主畫面 */
+function restoreFocus(layer: Layer): void {
+  const below = stack[stack.length - 1]
+  const opener = layer.opener as HTMLElement | null
+  if (below) {
+    if (opener?.isConnected && below.box.contains(opener) && focusables(below.box).includes(opener)) opener.focus({ preventScroll: true })
+    else focusables(trapRoot(below))[0]?.focus({ preventScroll: true })
+    return
+  }
+  if (opener?.isConnected && opener !== document.body && !(opener as HTMLButtonElement).disabled && !opener.closest('[hidden]')) {
+    opener.focus({ preventScroll: true })
+    return
+  }
+  const fallback =
+    document.querySelector<HTMLElement>('.v2-nav-btn[aria-current="page"]') ??
+    document.querySelector<HTMLElement>('.v2-main button:not(:disabled)') ??
+    document.querySelector<HTMLElement>('.v2-main')
+  fallback?.focus({ preventScroll: true })
+}
+
+function popLayer(layer: Layer): void {
+  const i = stack.indexOf(layer)
+  if (i < 0) return
+  const wasTop = i === stack.length - 1
+  // 先關掉的是底下那層：上面那層如果是從它裡面打開的，改成記住它的開啟元素（關閉時才有地方可以回去）
+  for (const above of stack.slice(i + 1)) if (above.opener && layer.box.contains(above.opener)) above.opener = layer.opener
+  stack.splice(i, 1)
+  if (!stack.length) {
+    document.removeEventListener('keydown', onKeydown, true)
+    // 只有快捷鍵還是我們設的那組時才還原（中間有別的畫面換過，就交給它自己還原）
+    if (savedKeys && currentKeys() === ownKeys) setKeys(savedKeys)
+    savedKeys = null
+    ownKeys = null
+  }
+  // 關掉的不是最上層（例如底下的對話框先被程式關掉）：焦點留在原本的最上層
+  if (wasTop) restoreFocus(layer)
+}
+
+/** 測試用：目前開著幾層 */
+export function openDialogCount(): number {
+  return stack.length
+}
 
 export interface V2ModalOptions {
   /** 底部關閉按鈕的文字（預設「關閉」） */
@@ -18,6 +143,8 @@ export interface V2ModalOptions {
   header?: HTMLElement
   /** 對話框的額外 class */
   className?: string
+  /** Escape 先交給它；回傳 true 代表已經處理（例如取消第二次確認），對話框不關 */
+  onEscape?: () => boolean
 }
 
 export function v2Modal(title: string, body: HTMLElement, onClose?: () => void, opts: string | V2ModalOptions = {}): () => void {
@@ -49,14 +176,15 @@ export function v2Modal(title: string, body: HTMLElement, onClose?: () => void, 
   }
   if (foot.childNodes.length) box.append(foot)
   overlay.append(box)
+  const layer: Layer = { box, opener: document.activeElement, escape: () => (o.onEscape?.() ? undefined : done()) }
   document.body.append(overlay)
-  const previous = setKeys({ Escape: () => done() })
+  pushLayer(layer)
   let closed = false
   function done(): void {
     if (closed) return
     closed = true
     overlay.remove()
-    setKeys(previous)
+    popLayer(layer)
     onClose?.()
   }
   x.onclick = done
@@ -141,14 +269,15 @@ export function announceModal(o: AnnounceOptions): () => void {
     overlay.append(confetti)
   }
   overlay.append(box)
+  const layer: Layer = { box, opener: document.activeElement, escape: () => done() }
   document.body.append(overlay)
-  const previous = setKeys({ Escape: () => done() })
+  pushLayer(layer)
   let closed = false
   function done(): void {
     if (closed) return
     closed = true
     overlay.remove()
-    setKeys(previous)
+    popLayer(layer)
     o.onClose?.()
   }
   overlay.onclick = (e) => {
