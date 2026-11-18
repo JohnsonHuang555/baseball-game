@@ -2,8 +2,8 @@
 //
 // - 只在玩家按「觀看比賽」時才由 app 動態載入，放置結算、Headless MatchRunner 不會載入任何畫面或 Canvas。
 // - 畫面全部由時間軸驅動：比分、出局、壘上、打者、投手都來自確定性的模擬狀態，
-//   這裡不抽任何影響結果的亂數（V1 球場的界外球方向是純視覺的隨機，不影響狀態）。
-// - 用 V1 的 FieldRenderer、PitchCam、爆炸框大字、全壘打數據卡，節奏與音效規則與 V1 共用（ui/playAnimation.ts）。
+//   這裡不抽任何影響結果的亂數（球場的界外球方向是純視覺的隨機，不影響狀態）。
+// - 用共用的 FieldRenderer、PitchCam、爆炸框大字、全壘打數據卡，節奏與音效規則在 ui/playAnimation.ts。
 // - 完全不碰球團、存檔與 controller：播放過程不寫入任何東西。
 // - 直播（mode: 'live'）：依真實時間播放（livePlayer.ts），暫停只停自己的畫面，繼續時同步到當下進度；沒有重播、跳轉、調速度。
 // - 挑戰賽（mode: 'challenge'）：結果已經在按下挑戰時確定並存檔，這裡只是不先揭曉結果地播出來，可以暫停、調速度、直接看結果。
@@ -16,7 +16,7 @@ import { homeRunStats } from '../../sim/game'
 import type { PitchType } from '../../sim/pitches'
 import type { Pitcher } from '../../sim/types'
 import { FieldRenderer } from '../../ui/field'
-import { basesSvg } from '../../ui/gameScreen'
+import { basesSvg } from '../../ui/bases'
 import { setKeys, type KeyMap } from '../../ui/keys'
 import { PITCH_MOTION, PitchCam } from '../../ui/pitchCam'
 import { BURST_SVG, HIT_KINDS, MATCH_PACE, OUT_KINDS, ROUTINE_SPEEDUP, pitchSound, playSound } from '../../ui/playAnimation'
@@ -46,7 +46,7 @@ import {
 import { V2T } from './strings'
 
 /**
- * 球場這一層（Canvas 動畫）。正式版包住 V1 的 FieldRenderer 與 PitchCam；
+ * 球場這一層（Canvas 動畫）。正式版包住共用的 FieldRenderer 與 PitchCam；
  * 測試環境沒有 Canvas，可以換成立即完成的假實作
  */
 export interface ReplayStage {
@@ -70,7 +70,7 @@ export interface ReplayStage {
   readonly alignment: Alignment
 }
 
-/** 正式的球場：V1 的 FieldRenderer + PitchCam */
+/** 正式的球場：FieldRenderer + PitchCam（src/ui） */
 export function canvasStage(): ReplayStage {
   const canvas = el('canvas', 'field')
   const cam = new PitchCam()
@@ -528,7 +528,7 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
     return table
   }
 
-  // ---- 播一格（V1 animate() 的觀戰版：狀態全部來自時間軸） ----
+  // ---- 播一格（原本逐球比賽畫面 animate() 的觀戰版：狀態全部來自時間軸） ----
   //
   // 一格分成兩段：
   // - prelude（懸念）：關鍵打席提示、換投公告、打者上場、盜壘起跑、投球飛向本壘。只用這一格「之前」的狀態，不揭露結果。

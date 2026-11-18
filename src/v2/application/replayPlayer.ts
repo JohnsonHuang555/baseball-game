@@ -2,7 +2,7 @@
 // 直播（livePlayer.ts，依真實時間）與晉級挑戰賽的觀看（這裡的 ReplayPlayer，可以暫停、調速度、直接看結果）共用。
 //
 // - 不碰 DOM、不碰存檔、不碰球團：輸入是一份複製的 MatchReplay，輸出只有時間軸與播放狀態。
-// - 時間軸用 V1 的 Game 照「setup + commands」逐步重現（跟 sim/game.ts 的 replay() 同一套規則），
+// - 時間軸用模擬引擎的 Game 照「setup + commands」逐步重現（跟 sim/game.ts 的 replay() 同一套規則），
 //   但連 issue() 本身產生的事件（換投、代打、故意四壞）也一起收集，畫面才能如實播出。
 // - 開啟時一次算完整場：同一份 Replay 每次的時間軸都相同，跳到結束、重新播放只是移動位置，不重新模擬。
 //   之後要支援逐局跳轉，只要用 frame 的 inning / half 找到位置即可。
@@ -55,7 +55,7 @@ export interface ReplayFrame {
   step: number
   /** 這一格開始時的投手（這一格裡換投的話，事件會告訴畫面換人） */
   throwerId: string
-  /** 關鍵時刻：V1 在這種時候用正常速度播放 */
+  /** 關鍵時刻：用正常速度播放（沿用 V1 比賽畫面的做法） */
   important: boolean
   events: GameEvent[]
   /** 這一格結束後的狀態 */
@@ -170,7 +170,7 @@ export function buildTimeline(value: unknown, expected?: ReplayExpectation, opti
       if (game.stepIndex >= maxSteps) throw new ReplayError('corrupt', `重播超過 ${maxSteps} 步還沒結束`)
       const step = game.stepIndex
       const events: GameEvent[] = []
-      // 這一步之前的指令（跟 V1 replay() 相同的時機）；指令不合法代表資料壞了或規則不相容，不略過
+      // 這一步之前的指令（跟 sim/game.ts 的 replay() 相同的時機）；指令不合法代表資料壞了或規則不相容，不略過
       const throwerBefore = game.pitcher.id
       while (c < commands.length && commands[c].stepIndex === step) events.push(...game.issue(commands[c++].tactic))
       if (game.over) {
@@ -218,7 +218,7 @@ export type ReplayStatus = 'idle' | 'playing' | 'paused' | 'completed' | 'error'
 
 export const REPLAY_SPEEDS = [1, 2, 4] as const
 export type ReplaySpeed = (typeof REPLAY_SPEEDS)[number]
-/** 預設 2×：V1 一般比賽是 1×，但觀戰看的是已經打完的比賽，1× 一場要十幾分鐘 */
+/** 預設 2×：逐球比賽是 1×，但觀戰看的是已經打完的比賽，1× 一場要十幾分鐘 */
 export const DEFAULT_REPLAY_SPEED: ReplaySpeed = 2
 
 /** 播放一格時給畫面的資訊：速度用函式讀，播放中切換速度下一段動畫就生效 */

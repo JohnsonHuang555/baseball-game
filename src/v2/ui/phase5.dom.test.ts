@@ -34,7 +34,7 @@ async function mountClub(clubSeed: number, edit?: (c: ClubSave) => ClubSave) {
   const deps = tab(storage, clock, locks)
   const root = document.createElement('div')
   document.body.append(root)
-  app = openV2(root, () => undefined, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'test-tab' })
+  app = openV2(root, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'test-tab' })
   await flush()
   await (await import('../application/clubLifecycle')).createClubSafely(deps, { clubName: '聯盟畫面隊', clubSeed, clubId: 'club-ui' })
   if (edit) {

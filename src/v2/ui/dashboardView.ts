@@ -3,7 +3,7 @@
 // 只有「目前比賽」和「目前建議」有醒目的主按鈕，其他區塊用較輕的樣式，不讓每張卡片搶一樣的注意力
 import { el } from '../../ui/playerCard'
 import type { Side } from '../../sim/game'
-import { basesSvg } from '../../ui/gameScreen'
+import { basesSvg } from '../../ui/bases'
 import { T, runnersText } from '../../ui/strings'
 import type { LiveMatchInfo } from '../application/liveMatch'
 import type { ReplayState } from '../application/replayPlayer'

@@ -32,8 +32,6 @@ const TAB_ICONS: Record<V2Tab, string> = {
   tactics: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
   reports: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
 }
-const BACK_ICON =
-  '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
 
 export interface V2AppOptions {
   deps?: V2Deps
@@ -55,10 +53,17 @@ export interface V2AppOptions {
 export interface V2App {
   controller: ClubController
   show(tab: V2Tab): void
+  /** 關閉：移除監聽器與計時器、中斷進行中的結算、釋放可寫分頁的標記；重複呼叫不會出錯 */
   close(): void
+  /** 已經 close() 過 */
+  readonly closed: boolean
 }
 
-export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions = {}): V2App {
+/**
+ * 開啟 V2（整個網站就是 V2，沒有可以「離開」的上一層）。
+ * close() 只給測試與重新掛載用：畫面上沒有任何會呼叫它的按鈕或按鍵
+ */
+export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   const deps = opts.deps ?? createV2Deps()
   const win = opts.events ?? (globalThis.window as V2AppOptions['events'])
   const doc = opts.doc ?? globalThis.document
@@ -81,37 +86,19 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
 
   const screen = el('div', 'v2-screen')
   const header = el('header', 'v2-header')
-  const back = el('button', 'icon-btn v2-back')
-  back.type = 'button'
-  back.innerHTML = BACK_ICON
-  back.setAttribute('aria-label', V2T.backToTitle)
-  back.onclick = () => void leave()
   const titles = el('div', 'v2-titles')
   const title = el('h1', 'v2-title', V2T.modeTitle)
   const subtitle = el('span', 'v2-subtitle', V2T.modeBadge)
   titles.append(title, subtitle)
-  header.append(back, titles)
+  header.append(titles)
   const banner = el('div', 'v2-banner-slot')
   const main = el('main', 'v2-main')
   const nav = el('nav', 'v2-nav')
   nav.setAttribute('aria-label', V2T.modeTitle)
   screen.append(header, banner, main, nav)
   root.replaceChildren(screen)
-  setKeys({ Escape: () => void leave() })
-
-  function exit(): void {
-    close()
-    onExit()
-  }
-
-  /** 離開 V2：陣容或戰術有未儲存的草稿就先問，不讓草稿無聲消失 */
-  async function leave(): Promise<void> {
-    if (lineup?.hasUnsavedChanges() || tactics?.hasUnsavedChanges()) {
-      const ok = await confirmModal({ title: V2T.leaveUnsavedTitle, message: V2T.leaveUnsavedMessage, confirmLabel: V2T.leaveUnsavedConfirm, danger: true })
-      if (!ok || closed) return
-    }
-    exit()
-  }
+  // V2 是整個網站：Escape 不會關掉 App（只有觀戰畫面、對話框各自用 Escape 關閉，關閉後還原成這裡的空設定）
+  setKeys({})
 
   function show(next: V2Tab): void {
     tab = next
@@ -414,10 +401,6 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
       buttons.append(download, reset)
       box.append(buttons)
     }
-    const backBtn = el('button', 'btn-white', V2T.backToTitle)
-    backBtn.type = 'button'
-    backBtn.onclick = () => exit()
-    box.append(backBtn)
     return box
   }
 
@@ -458,7 +441,14 @@ export function openV2(root: HTMLElement, onExit: () => void, opts: V2AppOptions
     document.querySelectorAll('.v2-modal-overlay').forEach((n) => n.remove())
   }
 
-  return { controller, show, close }
+  return {
+    controller,
+    show,
+    close,
+    get closed() {
+      return closed
+    },
+  }
 }
 
 /** 讀原始存檔文字（只讀，給「下載存檔備份」用） */

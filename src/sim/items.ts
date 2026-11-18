@@ -96,9 +96,6 @@ export const RELICS: Record<RelicId, RelicDef> = {
   captainBand: { id: 'captainBand', tier: 'silver' },
 }
 
-/** 獎勵、商店、起始秘技會出現的秘技 */
-export const OFFERED_RELICS = (Object.keys(RELICS) as RelicId[]).filter((id) => !RELICS[id].retired)
-
 export function equipmentOf(p: Player): readonly EquipmentId[] {
   return p.equipment ?? []
 }

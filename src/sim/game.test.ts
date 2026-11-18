@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ALIGNMENT_SPOTS, Game, fenceDistance, fielderFor, homeRunStats, replay, type Alignment, type GameEvent, type GameSetup, type Tactic } from './game'
 import { generateBatter, generatePitcher, generateTeam } from './generate'
-import { applyGrowth, gameGrowth, performance } from './growth'
 import type { RelicId } from './items'
 import { repertoire, type PitchType } from './pitches'
 import { Rng } from './rng'
@@ -803,7 +802,7 @@ describe('左右投打相剋', () => {
   })
 })
 
-describe('個人成績與錦標賽成長', () => {
+describe('個人成績', () => {
   const games = Array.from({ length: 60 }, (_, i) => playOut(new Game(setup(i + 1))))
 
   it('個人安打加總等於球隊安打；投手抓的出局數至少 24 個', () => {
@@ -817,40 +816,6 @@ describe('個人成績與錦標賽成長', () => {
         expect(outs).toBeGreaterThanOrEqual(24)
       }
     }
-  })
-
-  it('每場最多一位 MVP（+1），其他成長都是 +0.5，而且不超過 10', () => {
-    for (const g of games) {
-      const growth = gameGrowth(g, 'home')
-      expect(growth.filter((x) => x.mvp).length).toBeLessThanOrEqual(1)
-      for (const x of growth) {
-        expect(x.amount).toBeLessThanOrEqual(x.mvp ? 1 : 0.5)
-        const p = g.player(x.playerId)!
-        expect((p.ratings as unknown as Record<string, number>)[x.rating] + x.amount).toBeLessThanOrEqual(10)
-      }
-    }
-    expect(games.filter((g) => gameGrowth(g, 'home').some((x) => x.mvp)).length).toBeGreaterThan(40)
-  })
-
-  it('MVP 是表現分最高的人：有全壘打的打者長力量', () => {
-    for (const g of games) {
-      const growth = gameGrowth(g, 'home')
-      const mvp = growth.find((x) => x.mvp)
-      if (!mvp) continue
-      const p = g.player(mvp.playerId)!
-      const best = Math.max(...[...g.rosterIds('home')].filter((id) => g.box[id]).map((id) => performance(g.player(id)!, g.box[id])))
-      expect(performance(p, g.box[p.id])).toBe(best)
-      if (p.role === 'batter') expect(mvp.rating).toBe(g.box[p.id].hr > 0 ? 'power' : 'contact')
-    }
-  })
-
-  it('applyGrowth 只改到成長名單上的球員，上限 10', () => {
-    const roster = setup(3).home.roster
-    const target = roster.lineup[0].player
-    const grown = applyGrowth(roster, [{ playerId: target.id, rating: 'contact', amount: 1, mvp: true }])
-    expect(grown.lineup[0].player.ratings.contact).toBe(Math.min(10, target.ratings.contact + 1))
-    expect(grown.lineup[1].player).toBe(roster.lineup[1].player)
-    expect(roster.lineup[0].player.ratings.contact).toBe(target.ratings.contact)
   })
 })
 

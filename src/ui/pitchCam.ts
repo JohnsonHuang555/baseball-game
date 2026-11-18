@@ -80,7 +80,7 @@ export class PitchCam {
   }
 
   /** 播一球：回傳時球剛好進到本壘 */
-  /** 取消進行中的投球動畫並收起小窗（V2 觀戰暫停、跳過、關閉時用；V1 不呼叫） */
+  /** 取消進行中的投球動畫並收起小窗（觀戰暫停、跳過、關閉時用） */
   cancel(): void {
     this.generation++
     this.flight = null
@@ -127,7 +127,7 @@ export class PitchCam {
   /**
    * V2 直播的「中性」投球（Phase 6B）：只播到球飛到 APPROACH 的位置（還在半空中），而且是朝好球帶中心飛，
    * 跟這一球的結果（好球、壞球、揮空、界外、擊出）完全無關。結果正式提交之後才用 finish() 把球帶到真正的進壘點。
-   * V1 比賽畫面不呼叫這兩個方法，仍然用 play()，行為不變
+   * 觀戰（直播與挑戰賽）都用這兩個方法；play() 是原本逐球比賽畫面用的，V1 移除後已經沒有呼叫端
    */
   approach(pitch: PitchType, pitcher: Pitcher, ms: number): Promise<void> {
     window.clearTimeout(this.hideTimer)

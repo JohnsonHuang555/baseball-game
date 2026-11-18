@@ -324,7 +324,7 @@ describe('資料安全：觀戰只是播放', () => {
     document.body.append(root)
     const live = clock(T0 + 12 * MINUTE)
     live.stopAt = T0 + 14 * MINUTE
-    app = openV2(root, () => undefined, { deps: tab(storage, clockM, locks), tickMs: 0, tabId: 'safe', replayStage: stage, replayTimeScale: 0, liveClock: live })
+    app = openV2(root, { deps: tab(storage, clockM, locks), tickMs: 0, tabId: 'safe', replayStage: stage, replayTimeScale: 0, liveClock: live })
     await flush(40)
     const before = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
     document.querySelector<HTMLButtonElement>('[data-action="watch-live"]')!.click()

@@ -302,7 +302,6 @@ export class FieldRenderer {
 
   /**
    * 取消所有進行中的動畫（V2 觀戰暫停、跳過、關閉時用）：補間在下一幀直接結束，不再改畫面也不再繪製。
-   * V1 比賽畫面不會呼叫，行為不變
    */
   cancel(): void {
     this.generation++
@@ -365,7 +364,7 @@ export class FieldRenderer {
   /**
    * V2 直播用的「中性」投球（Phase 6B）：只畫球從投手丘飛到本壘，最後停在本壘前，不依結果做任何事。
    * 結果（界外球的後續軌跡、球消失或留在本壘等著被擊出）由 pitchOutcome() 在結果正式提交之後才畫。
-   * V1 比賽畫面不呼叫這兩個方法，仍然用 pitch()，行為不變
+   * 觀戰（直播與挑戰賽）都用這兩個方法；pitch() 是原本逐球比賽畫面用的，V1 移除後只剩 field.test.ts 拿來對照
    */
   async pitchTravel(ms: number, type?: PitchType, hand: Hand = 'R'): Promise<void> {
     const from = this.toPx(...MOUND)

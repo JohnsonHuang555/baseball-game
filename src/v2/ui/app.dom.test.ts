@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// V2 畫面的 DOM 互動測試：建立球團、連點、首頁、領取按鈕、分頁切換、回歸摘要只彈一次、V1 入口
+// V2 畫面的 DOM 互動測試：建立球團、連點、首頁、領取按鈕、分頁切換、回歸摘要只彈一次、沒有離開 V2 的入口
 import { afterEach, describe, expect, it } from 'vitest'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
 import { FakeLockManager, FlakyStorage, HOUR, ManualClock, tab } from '../testkit'
@@ -7,7 +7,7 @@ import { updateSettings } from '../application/settlementService'
 import { substitute } from '../domain/lineup'
 import { resolveRoster, toAssignment } from '../domain/roster'
 import { openV2, type V2App } from './app'
-import { v1Label, v2EntryButton } from './entry'
+import { setKeys } from '../../ui/keys'
 import { V2T } from './strings'
 
 let app: V2App | null = null
@@ -24,9 +24,8 @@ const flush = async (times = 30) => {
 function mount(storage: MemoryStorage | FlakyStorage = new MemoryStorage(), clock = new ManualClock(), locks = new FakeLockManager()) {
   const root = document.createElement('div')
   document.body.append(root)
-  let exited = 0
-  app = openV2(root, () => exited++, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'test-tab' })
-  return { root, storage, clock, locks, exited: () => exited }
+  app = openV2(root, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'test-tab' })
+  return { root, storage, clock, locks }
 }
 
 /** 瀏覽器在別的分頁寫入 localStorage 時發的 storage 事件 */
@@ -168,16 +167,15 @@ describe('V2 畫面', () => {
     expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).strategy.coach.params).toEqual({ stealMin: 0.65, latePlatoon: true, sacBunt: false })
   })
 
-  it('存檔損壞：顯示錯誤與備份、刪除按鈕，不會自動清除；回到首頁可以離開', async () => {
+  it('存檔損壞：顯示錯誤與備份、刪除按鈕，不會自動清除；沒有「回到首頁」（V2 就是整個網站，離開會是空白畫面）', async () => {
     const storage = new MemoryStorage()
     storage.setItem(CLUB_STORAGE_KEY, '{oops')
-    const { exited } = mount(storage)
+    mount(storage)
     await flush()
     expect(text('.v2-broken')).toContain(V2T.corruptSave)
-    expect($$('.v2-broken button').map((b) => b.textContent)).toEqual([V2T.downloadBackup, V2T.resetBroken, V2T.backToTitle])
+    expect($$('.v2-broken button').map((b) => b.textContent)).toEqual([V2T.downloadBackup, V2T.resetBroken])
     expect(storage.getItem(CLUB_STORAGE_KEY)).toBe('{oops')
-    $$('.v2-broken button')[2].click()
-    expect(exited()).toBe(1)
+    expect($('.v2-screen')).not.toBeNull()
   })
 })
 
@@ -242,19 +240,29 @@ describe('Code review 修正', () => {
     expect($$('.v2-seg-btn')[0].getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('有未儲存的草稿時離開 V2：先確認，取消就留下', async () => {
-    const { exited } = mount()
+  it('沒有返回按鈕；Escape 不會關掉 V2，未儲存的草稿留著', async () => {
+    const { root } = mount()
     await flush()
     await createClub()
+    expect($('.v2-back')).toBeNull()
     $<HTMLButtonElement>('[data-tab="tactics"]')!.click()
     $$('.v2-seg-btn')[2].click()
-    $<HTMLButtonElement>('.v2-back')!.click()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await flush(2)
-    expect(text('.modal-box')).toContain(V2T.leaveUnsavedTitle)
-    $<HTMLButtonElement>('.modal-box .btn-white')!.click()
-    await flush(2)
-    expect(exited()).toBe(0)
+    expect(root.querySelector('.v2-screen')).not.toBeNull()
     expect($('.v2-tactics')).not.toBeNull()
+    expect($$('.v2-seg-btn')[2].getAttribute('aria-pressed')).toBe('true')
+    expect($$('.v2-nav-btn')).toHaveLength(4)
+  })
+
+  it('開啟時把按鍵設定清成空的：沒有任何按鍵會關掉整個 App', async () => {
+    let fired = 0
+    setKeys({ Escape: () => fired++ })
+    mount()
+    await flush()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(fired).toBe(0)
+    expect($('.v2-screen')).not.toBeNull()
   })
 })
 
@@ -322,17 +330,5 @@ describe('Phase 4：養成與招募', () => {
     expect($$<HTMLButtonElement>('.v2-recruit [data-role]').every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
     expect(text('.v2-recruit')).toContain(V2T.notEnoughFunds)
     expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).economy.spent.funds).toBe(0)
-  })
-})
-
-describe('V1 首頁的模式選擇', () => {
-  it('V2 入口按鈕與 V1 標籤', () => {
-    let clicked = 0
-    const b = v2EntryButton(() => clicked++)
-    document.body.append(b, v1Label())
-    expect(b.textContent).toContain(V2T.modeTitle)
-    b.click()
-    expect(clicked).toBe(1)
-    expect(document.body.textContent).toContain(V2T.classicLabel)
   })
 })

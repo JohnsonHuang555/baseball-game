@@ -133,7 +133,7 @@ export function welcomeModal(w: WelcomeSummary, onClose: () => void): () => void
   return v2Modal(V2T.welcomeTitle, body, onClose, V2T.welcomeClose)
 }
 
-/** V2 的對話框：沿用 V1 的 modal 樣式，Esc、點外面、按鈕都能關 */
+/** V2 的對話框：沿用共用的 modal 樣式（ui/shared.css），Esc、點外面、按鈕都能關 */
 export function v2Modal(title: string, body: HTMLElement, onClose?: () => void, closeLabel: string = V2T.close): () => void {
   const overlay = el('div', 'modal-overlay v2-modal-overlay')
   const box = el('section', 'modal-box v2-modal')

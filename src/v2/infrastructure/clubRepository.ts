@@ -1,4 +1,4 @@
-// V2 球團存檔：localStorage 的獨立 key（dice-baseball.club.v3），不讀也不動 V1 的任何 key。
+// V2 球團存檔：localStorage 的獨立 key（dice-baseball.club.v3），不讀也不動 V1 時期留下的任何 key（ADR-0016）。
 // 儲存介面抽象成 KeyValueStorage，測試換成記憶體版；跨分頁互斥抽象成 ClubLock。
 //
 // 多分頁（見 ADR-0008）：localStorage 沒有交易、沒有 compare-and-swap。

@@ -1,5 +1,5 @@
 // V2 陣容：合法性檢查與玩家能做的基本調整。
-// 交換的細節重用 V1 的 swapSlots / swapPositions（隊長離開先發會自動清掉），這裡只負責檢查與 V2 的操作名稱
+// 交換的細節重用模擬引擎（sim/setup.ts）的 swapSlots / swapPositions（隊長離開先發會自動清掉），這裡只負責檢查與 V2 的操作名稱
 import { bestArrangement, type Arrangement } from '../../sim/arrange'
 import { getSlot, setSlot, swapPositions, swapSlots, type Slot } from '../../sim/setup'
 import { POSITIONS, type Player, type Roster } from '../../sim/types'
@@ -61,7 +61,7 @@ export function setStartingPitcher(roster: Roster, relieverIndex: number): Roste
 }
 
 /**
- * 自動排陣：重用 V1 的「最多羈絆排法」。它先比羈絆階級、再比守非本職、最後比改動最少，
+ * 自動排陣：重用 sim/arrange.ts 的「最多羈絆排法」。它先比羈絆階級、再比守非本職、最後比改動最少，
  * 不看能力值高低，所以 UI 要先列出會改哪些人讓玩家確認。已經是最好的排法就回傳 null
  */
 export function autoArrange(roster: Roster): Arrangement | null {

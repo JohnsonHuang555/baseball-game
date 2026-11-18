@@ -102,7 +102,7 @@ async function mountAt12() {
   const gate: { stopAt?: number } = { stopAt: T0 + 12 * MINUTE }
   const root = document.createElement('div')
   document.body.append(root)
-  app = openV2(root, () => undefined, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'live-tab', replayStage: fakeStage(stats), replayTimeScale: 0, liveClock: virtualLive(clock, gate) })
+  app = openV2(root, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'live-tab', replayStage: fakeStage(stats), replayTimeScale: 0, liveClock: virtualLive(clock, gate) })
   await flush()
   return { storage, clock, locks, deps, stats, gate }
 }
@@ -361,7 +361,7 @@ describe('晉級挑戰的觀看', () => {
     deps.store.saveClub(eligible(c), c.revision)
     const root = document.createElement('div')
     document.body.append(root)
-    app = openV2(root, () => undefined, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'cw-tab', replayStage: fakeStage({ active: 0, created: 0 }), replayTimeScale: 0 })
+    app = openV2(root, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'cw-tab', replayStage: fakeStage({ active: 0, created: 0 }), replayTimeScale: 0 })
     await flush()
     return { storage, clock, locks, deps }
   }
@@ -423,7 +423,7 @@ describe('晉級挑戰的觀看', () => {
     document.body.replaceChildren()
     const root = document.createElement('div')
     document.body.append(root)
-    app = openV2(root, () => undefined, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'cw-tab-2', replayStage: fakeStage({ active: 0, created: 0 }), replayTimeScale: 0 })
+    app = openV2(root, { deps: tab(storage, clock, locks), tickMs: 0, tabId: 'cw-tab-2', replayStage: fakeStage({ active: 0, created: 0 }), replayTimeScale: 0 })
     await flush()
     expect(club(storage).league.tier).toBe(1)
     $<HTMLButtonElement>('[data-action="watch-last-challenge"]')!.click()
