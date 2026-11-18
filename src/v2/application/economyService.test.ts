@@ -197,7 +197,7 @@ describe('升級', () => {
     clock.advance(HOUR) // 有到期的比賽，結算時會讓出主執行緒，兩個分頁交錯
     const results = await Promise.allSettled([
       upgrade(a, { opSeq: 0, playerId: c.roster.lineup[0].playerId, expectedLevel: 1 }),
-      recruit(b, { opSeq: 0, role: 'batter' }),
+      recruit(b, { opSeq: 0, role: 'batter', candidateIndex: 0, expectedCount: 0 }),
     ])
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
     const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')!
@@ -227,7 +227,7 @@ describe('招募', () => {
   it('資金足夠：招募到 Lv.1 的新球員，放進預備名單，不自動上場', async () => {
     const { deps } = await setup({ funds: 50_000, experience: 0 })
     const before = load(deps)
-    const out = await recruit(deps, { opSeq: 0, role: 'batter' })
+    const out = await recruit(deps, { opSeq: 0, role: 'batter', candidateIndex: 0, expectedCount: 0 })
     const c = load(deps)
     const rec = recordOf(c, out.op.playerId)!
     expect(rec.level).toBe(1)
@@ -244,18 +244,18 @@ describe('招募', () => {
   it('資金不足：拒絕，不扣款', async () => {
     const { deps } = await setup({ funds: recruitCost(0).funds - 1, experience: 0 })
     const before = load(deps)
-    expect((await recruit(deps, { opSeq: 0, role: 'pitcher' }).catch((e) => e)).code).toBe('insufficient')
+    expect((await recruit(deps, { opSeq: 0, role: 'pitcher', candidateIndex: 0, expectedCount: 0 }).catch((e) => e)).code).toBe('insufficient')
     expect(load(deps)).toEqual(before)
   })
 
   it('招募到上限：拒絕，不扣款；每位球員編號唯一', async () => {
     const { deps } = await setup(rich)
     const roles = ['batter', 'pitcher'] as const
-    for (let i = 0; i < RECRUIT_CONFIG.maxPlayers - 14; i++) await recruit(deps, { opSeq: load(deps).economy.nextOpSeq, role: roles[i % 2] })
+    for (let i = 0; i < RECRUIT_CONFIG.maxPlayers - 14; i++) await recruit(deps, { opSeq: load(deps).economy.nextOpSeq, role: roles[i % 2], candidateIndex: 0, expectedCount: load(deps).recruitment.count })
     const full = load(deps)
     expect(full.players).toHaveLength(RECRUIT_CONFIG.maxPlayers)
     expect(new Set(full.players.map((r) => r.player.id)).size).toBe(RECRUIT_CONFIG.maxPlayers)
-    const error = await recruit(deps, { opSeq: full.economy.nextOpSeq, role: 'batter' }).catch((e) => e)
+    const error = await recruit(deps, { opSeq: full.economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: full.recruitment.count }).catch((e) => e)
     expect(error.code).toBe('roster-full')
     expect(load(deps)).toEqual(full)
   })
@@ -263,7 +263,7 @@ describe('招募', () => {
   it('滿員 30 人、近期比賽與 replay 都滿：存檔大小有上限，不隨場次成長', async () => {
     const storage = new MemoryStorage()
     const { deps, clock } = await setup(rich, storage)
-    for (let i = 0; i < RECRUIT_CONFIG.maxPlayers - 14; i++) await recruit(deps, { opSeq: load(deps).economy.nextOpSeq, role: i % 2 ? 'pitcher' : 'batter' })
+    for (let i = 0; i < RECRUIT_CONFIG.maxPlayers - 14; i++) await recruit(deps, { opSeq: load(deps).economy.nextOpSeq, role: i % 2 ? 'pitcher' : 'batter', candidateIndex: 0, expectedCount: load(deps).recruitment.count })
     for (let i = 0; i < 40; i++) {
       const c = load(deps)
       const r = c.players[i % c.players.length]
@@ -283,15 +283,15 @@ describe('招募', () => {
   it('存檔失敗後重試：抽到同一位球員，只扣一次款', async () => {
     const storage = new FlakyStorage()
     const { deps } = await setup({ funds: 50_000, experience: 0 }, storage)
-    const preview = recruitPlayer(load(deps), { opSeq: 0, role: 'batter' }, T0)
+    const preview = recruitPlayer(load(deps), { opSeq: 0, role: 'batter', candidateIndex: 0, expectedCount: 0 }, T0)
     storage.failWrites = true
-    await expect(recruit(deps, { opSeq: 0, role: 'batter' })).rejects.toThrow(ClubSaveError)
+    await expect(recruit(deps, { opSeq: 0, role: 'batter', candidateIndex: 0, expectedCount: 0 })).rejects.toThrow(ClubSaveError)
     expect(load(deps).players).toHaveLength(14)
     storage.failWrites = false
-    const out = await recruit(deps, { opSeq: 0, role: 'batter' })
+    const out = await recruit(deps, { opSeq: 0, role: 'batter', candidateIndex: 0, expectedCount: 0 })
     expect(out.op.playerId).toBe(preview.op.playerId)
     // 成功後再重送同一個請求：重送，不會再招募或扣款
-    const again = await recruit(deps, { opSeq: 0, role: 'batter' })
+    const again = await recruit(deps, { opSeq: 0, role: 'batter', candidateIndex: 0, expectedCount: 0 })
     expect(again.duplicate).toBe(true)
     const c = load(deps)
     expect(c.players).toHaveLength(15)
@@ -300,7 +300,7 @@ describe('招募', () => {
 
   it('招募後可以放進先發，比賽計畫裡就有他', async () => {
     const { deps, clock } = await setup(rich)
-    const out = await recruit(deps, { opSeq: 0, role: 'batter' })
+    const out = await recruit(deps, { opSeq: 0, role: 'batter', candidateIndex: 0, expectedCount: 0 })
     const c = load(deps)
     const draft = swapWithReserve({ roster: resolveRoster(c), reserves: reserves(c) }, { kind: 'lineup', index: 8 }, 0)
     await updateSettings(deps, { roster: toAssignment(draft.roster) })
@@ -318,7 +318,7 @@ describe('招募', () => {
     const { deps } = await setup(rich)
     const c = load(deps)
     const before = JSON.stringify(c)
-    recruitPlayer(c, { opSeq: 0, role: 'batter' }, T0)
+    recruitPlayer(c, { opSeq: 0, role: 'batter', candidateIndex: 0, expectedCount: 0 }, T0)
     upgradePlayer(c, { opSeq: 0, playerId: firstStarter(c), expectedLevel: 1 }, T0)
     expect(JSON.stringify(c)).toBe(before)
   })
@@ -340,7 +340,7 @@ describe('經濟帳務', () => {
       } catch (e) {
         expect((e as EconomyError).code).toBe('insufficient')
       }
-      if (round % 5 === 0) await recruit(deps, { opSeq: load(deps).economy.nextOpSeq, role: 'pitcher' }).catch(() => undefined)
+      if (round % 5 === 0) await recruit(deps, { opSeq: load(deps).economy.nextOpSeq, role: 'pitcher', candidateIndex: 0, expectedCount: load(deps).recruitment.count }).catch(() => undefined)
       const now = load(deps)
       expect(economyViolations(now.economy)).toEqual([])
       expect(now.economy.assets.funds).toBeGreaterThanOrEqual(0)
@@ -360,7 +360,7 @@ describe('支出失敗時，到期的比賽照樣保存', () => {
     const { deps, clock } = await setup({ funds: 100, experience: 0 })
     const before = load(deps)
     clock.advance(8 * HOUR)
-    const error = await recruit(deps, { opSeq: 0, role: 'batter' }).catch((e) => e)
+    const error = await recruit(deps, { opSeq: 0, role: 'batter', candidateIndex: 0, expectedCount: 0 }).catch((e) => e)
     expect(error).toBeInstanceOf(EconomyError)
     expect(error.code).toBe('insufficient')
     expect(error.settled.matches).toBe(96)
@@ -405,10 +405,10 @@ describe('支出失敗時，到期的比賽照樣保存', () => {
   it('4. 失敗後重試：不會重複結算或扣款；資源夠了之後重試只扣一次', async () => {
     const { deps, clock } = await setup({ funds: 100, experience: 0 })
     clock.advance(8 * HOUR)
-    await recruit(deps, { opSeq: 0, role: 'pitcher' }).catch(() => undefined)
+    await recruit(deps, { opSeq: 0, role: 'pitcher', candidateIndex: 0, expectedCount: 0 }).catch(() => undefined)
     const afterFirst = load(deps)
     // 同一個時間點重試：沒有新的比賽可以結算，也沒有扣款
-    const again = await recruit(deps, { opSeq: 0, role: 'pitcher' }).catch((e) => e)
+    const again = await recruit(deps, { opSeq: 0, role: 'pitcher', candidateIndex: 0, expectedCount: 0 }).catch((e) => e)
     expect(again.code).toBe('insufficient')
     expect(again.settled).toBeUndefined()
     expect(load(deps)).toEqual(afterFirst)
@@ -416,8 +416,8 @@ describe('支出失敗時，到期的比賽照樣保存', () => {
     await claim(deps, afterFirst.economy.nextClaimSeq)
     const funds = load(deps).economy.assets.funds
     expect(funds).toBeGreaterThanOrEqual(recruitCost(0).funds)
-    await recruit(deps, { opSeq: 0, role: 'pitcher' })
-    await recruit(deps, { opSeq: 0, role: 'pitcher' }) // 重送
+    await recruit(deps, { opSeq: 0, role: 'pitcher', candidateIndex: 0, expectedCount: 0 })
+    await recruit(deps, { opSeq: 0, role: 'pitcher', candidateIndex: 0, expectedCount: 0 }) // 重送
     const final = load(deps)
     expect(final.idle.nextMatchIndex).toBe(96)
     expect(final.economy.assets.funds).toBe(funds - recruitCost(0).funds)
@@ -446,7 +446,7 @@ describe('支出失敗時，到期的比賽照樣保存', () => {
     const before = load(deps)
     clock.advance(8 * HOUR)
     storage.failWrites = true
-    const error = await recruit(deps, { opSeq: 0, role: 'batter' }).catch((e) => e)
+    const error = await recruit(deps, { opSeq: 0, role: 'batter', candidateIndex: 0, expectedCount: 0 }).catch((e) => e)
     expect(error).toBeInstanceOf(ClubSaveError)
     expect(error.code).toBe('write-failed')
     expect(load(deps)).toEqual(before)

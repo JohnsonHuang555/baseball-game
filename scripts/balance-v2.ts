@@ -20,7 +20,8 @@ import type { ClubSave } from '../src/v2/domain/club'
 import { swapWithReserve, type LineupDraft } from '../src/v2/domain/lineup'
 import { totalUpgradeCost, upgradeCost } from '../src/v2/domain/progression'
 import { MAX_LEVEL, RECRUIT_CONFIG } from '../src/v2/domain/progressionConfig'
-import { recruitCost, rosterFull } from '../src/v2/domain/recruitment'
+import { bestCandidateIndex } from '../src/v2/domain/recruitCompare'
+import { recruitCandidates, recruitCost, rosterFull } from '../src/v2/domain/recruitment'
 import { assignedIds, reserves, resolveRoster, toAssignment } from '../src/v2/domain/roster'
 import { MemoryStorage } from '../src/v2/infrastructure/clubRepository'
 import { FakeLockManager, HOUR, ManualClock, T0, tab } from '../src/v2/testkit'
@@ -144,7 +145,8 @@ async function session(d: Deps, strategy: Strategy, core: Set<string>, log: Leag
       if (rosterFull(c) || c.economy.assets.funds < recruitCost(c.recruitment.count).funds) break
       // 打者、投手大約 2：1
       const role = c.recruitment.count % 3 === 2 ? 'pitcher' : 'batter'
-      await recruit(d, { opSeq: c.economy.nextOpSeq, role })
+      // 三選一：挑能力比比較對象高最多的候選人
+      await recruit(d, { opSeq: c.economy.nextOpSeq, role, candidateIndex: bestCandidateIndex(c, recruitCandidates(c, role)), expectedCount: c.recruitment.count })
     }
     await promoteReserves(d)
     await upgradeEvenly(d, (c) => activeRecords(c).map((r) => r.player.id))

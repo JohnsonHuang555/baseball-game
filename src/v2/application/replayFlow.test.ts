@@ -31,7 +31,7 @@ describe('Replay 與球團進度互不影響', () => {
       const rich = { funds: 9_000_000, experience: 900_000 }
       d.store.saveClub({ ...c, economy: { ...c.economy, assets: rich, earned: rich } }, c.revision)
     }
-    const { op } = await recruit(d, { opSeq: load().economy.nextOpSeq, role: 'batter' })
+    const { op } = await recruit(d, { opSeq: load().economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: load().recruitment.count })
     {
       const c = load()
       const lineup = c.roster.lineup.map((s, i) => (i === 8 ? { ...s, playerId: op.playerId } : s))

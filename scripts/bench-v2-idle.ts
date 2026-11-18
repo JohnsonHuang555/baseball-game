@@ -55,7 +55,7 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   const rich = { funds: 1e9, experience: 1e8 }
   deps.store.saveClub({ ...c0, economy: { ...c0.economy, assets: rich, earned: rich } }, c0.revision)
   let t = performance.now()
-  for (let i = 0; i < 16; i++) await recruit(deps, { opSeq: deps.store.loadClub()!.economy.nextOpSeq, role: i % 3 === 2 ? 'pitcher' : 'batter' })
+  for (let i = 0; i < 16; i++) await recruit(deps, { opSeq: deps.store.loadClub()!.economy.nextOpSeq, role: i % 3 === 2 ? 'pitcher' : 'batter', candidateIndex: 0, expectedCount: deps.store.loadClub()!.recruitment.count })
   const tRecruit = (performance.now() - t) / 16
   t = performance.now()
   let ups = 0
@@ -109,7 +109,7 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
     },
     c0.revision,
   )
-  for (let i = 0; i < 16; i++) await recruit(deps, { opSeq: load().economy.nextOpSeq, role: i % 3 === 2 ? 'pitcher' : 'batter' })
+  for (let i = 0; i < 16; i++) await recruit(deps, { opSeq: load().economy.nextOpSeq, role: i % 3 === 2 ? 'pitcher' : 'batter', candidateIndex: 0, expectedCount: load().recruitment.count })
   // 挑戰 10 次（失敗就補回資格，量的是挑戰本身：讀檔、驗證、模擬、存檔）
   let tChallenge = 0
   let tries = 0
@@ -132,7 +132,7 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   const victims = reserves(load()).slice(0, 5)
   for (const v of victims) await release(deps, { opSeq: load().economy.nextOpSeq, playerId: v.id })
   const tRelease = (performance.now() - t) / victims.length
-  for (let i = 0; i < 5; i++) await recruit(deps, { opSeq: load().economy.nextOpSeq, role: 'batter' })
+  for (let i = 0; i < 5; i++) await recruit(deps, { opSeq: load().economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: load().recruitment.count })
   clock.advance(8 * HOUR)
   t = performance.now()
   const report = await settleDue(deps)

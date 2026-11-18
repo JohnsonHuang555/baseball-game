@@ -45,7 +45,7 @@ describe('Phase 5 完整流程', () => {
         if (r.level < 20) await upgrade(d, { opSeq: load().economy.nextOpSeq, playerId: id, expectedLevel: r.level })
       }
     }
-    await recruit(d, { opSeq: load().economy.nextOpSeq, role: 'batter' })
+    await recruit(d, { opSeq: load().economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: load().recruitment.count })
     expect(load().players).toHaveLength(15)
 
     // 打到符合晉級條件，挑戰到晉級為止（失敗要再打幾場）
@@ -72,12 +72,12 @@ describe('Phase 5 完整流程', () => {
     await claim(d, load().economy.nextClaimSeq)
 
     // 名單滿 → 釋出預備球員 → 再招募（新球員編號沒用過）
-    while (load().players.length < RECRUIT_CONFIG.maxPlayers) await recruit(d, { opSeq: load().economy.nextOpSeq, role: 'pitcher' })
-    expect((await recruit(d, { opSeq: load().economy.nextOpSeq, role: 'batter' }).catch((e) => e)).code).toBe('roster-full')
+    while (load().players.length < RECRUIT_CONFIG.maxPlayers) await recruit(d, { opSeq: load().economy.nextOpSeq, role: 'pitcher', candidateIndex: 0, expectedCount: load().recruitment.count })
+    expect((await recruit(d, { opSeq: load().economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: load().recruitment.count }).catch((e) => e)).code).toBe('roster-full')
     const everSeen = new Set(load().players.map((r) => r.player.id))
     const victim = reserves(load())[0]
     await release(d, { opSeq: load().economy.nextOpSeq, playerId: victim.id })
-    const again = await recruit(d, { opSeq: load().economy.nextOpSeq, role: 'batter' })
+    const again = await recruit(d, { opSeq: load().economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: load().recruitment.count })
     expect(everSeen.has(again.op.playerId)).toBe(false)
     expect(again.op.playerId).not.toBe(victim.id)
 

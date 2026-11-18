@@ -21,7 +21,8 @@ import { LEAGUES } from '../../src/v2/domain/leagueConfig'
 import { swapWithReserve, type LineupDraft } from '../../src/v2/domain/lineup'
 import { upgradeCost } from '../../src/v2/domain/progression'
 import { MAX_LEVEL } from '../../src/v2/domain/progressionConfig'
-import { recruitCost, rosterFull } from '../../src/v2/domain/recruitment'
+import { bestCandidateIndex, compareCandidate } from '../../src/v2/domain/recruitCompare'
+import { recruitCandidates, recruitCost, rosterFull } from '../../src/v2/domain/recruitment'
 import { rewardFor } from '../../src/v2/domain/rewards'
 import { assignedIds, reserves, resolveRoster, toAssignment } from '../../src/v2/domain/roster'
 import { MemoryStorage } from '../../src/v2/infrastructure/clubRepository'
@@ -124,6 +125,36 @@ export interface Milestones {
   firstRecruitMatches: number | null
 }
 
+/** 一次簽約：第幾天、第幾場、簽下的人與當時陣容的比較 */
+export interface RecruitLog {
+  day: number
+  matches: number
+  role: 'batter' | 'pitcher'
+  cost: number
+  /** 簽下那位的總評（Lv.1） */
+  overall: number
+  /** 跟比較對象（同守位先發、先發投手或最弱後援）的差距 */
+  diff: number
+  /** 能力高於比較對象（預估的能力數值差距 ≥ 0.3，不代表勝率） */
+  improves: boolean
+  /** 三位候選人的總評（看三選一實際挑到多好的人） */
+  candidates: number[]
+}
+
+/**
+ * 招募時怎麼選人：
+ * - first：只看第 0 位（等同舊制「付錢後隨機得到一位」）
+ * - best：三選一，挑能力比比較對象高最多的那位（bestCandidateIndex）
+ */
+export type RecruitPick = 'first' | 'best'
+let recruitPick: RecruitPick = 'best'
+export function setRecruitPick(pick: RecruitPick): void {
+  recruitPick = pick
+}
+export function currentRecruitPick(): RecruitPick {
+  return recruitPick
+}
+
 export interface SimResult {
   strategy: Strategy
   seed: number
@@ -133,6 +164,7 @@ export interface SimResult {
   tiers: TierLog[]
   ledger: Ledger
   milestones: Milestones
+  recruits: RecruitLog[]
 }
 
 export interface SimOptions {
@@ -195,10 +227,15 @@ export async function simulate(o: SimOptions): Promise<SimResult> {
     }
   }
 
+  const recruitLog: RecruitLog[] = []
   const doRecruit = async (role: 'batter' | 'pitcher') => {
     const c = load(d)
     const cost = recruitCost(c.recruitment.count)
-    await recruit(d, { opSeq: c.economy.nextOpSeq, role })
+    const candidates = recruitCandidates(c, role)
+    const candidateIndex = recruitPick === 'best' ? bestCandidateIndex(c, candidates) : 0
+    const cmp = compareCandidate(c, candidates[candidateIndex])
+    await recruit(d, { opSeq: c.economy.nextOpSeq, role, candidateIndex, expectedCount: c.recruitment.count })
+    recruitLog.push({ day: day(), matches: c.idle.nextMatchIndex, role, cost: cost.funds, overall: overall(candidates[candidateIndex]), diff: cmp.diff, improves: cmp.improves, candidates: candidates.map(overall) })
     ledger.recruits.funds += cost.funds
     ledger.recruitCount++
     actions++
@@ -396,7 +433,7 @@ export async function simulate(o: SimOptions): Promise<SimResult> {
       snapshots.push(snap(dday))
     }
   }
-  return { strategy: o.strategy, seed: o.seed, sessionsPerDay: o.sessionsPerDay, days: o.days, snapshots, tiers, ledger, milestones: ms }
+  return { strategy: o.strategy, seed: o.seed, sessionsPerDay: o.sessionsPerDay, days: o.days, snapshots, tiers, ledger, milestones: ms, recruits: recruitLog }
 }
 
 // ---- 統計 ----

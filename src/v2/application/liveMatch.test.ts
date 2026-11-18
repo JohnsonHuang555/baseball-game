@@ -210,7 +210,7 @@ describe('固定比賽計畫：情境 A～E 的同一場比賽結果都相同', 
     const raw = await baseline()
     const W = world(raw)
     // 先固定第 2 場（招募），然後離線 10 小時
-    await recruit(W.d, { opSeq: W.load().economy.nextOpSeq, role: 'batter' })
+    await recruit(W.d, { opSeq: W.load().economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: W.load().recruitment.count })
     const frozenPlan = W.load().liveMatch!.plan
     W.clock.advance(10 * HOUR)
     const report = await settleDue(W.d)

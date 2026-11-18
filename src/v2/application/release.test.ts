@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { economyViolations, validateClub } from '../domain/club'
 import { swapWithReserve } from '../domain/lineup'
 import { RECRUIT_CONFIG } from '../domain/progressionConfig'
-import { recruitCandidate } from '../domain/recruitment'
+import { recruitCandidates } from '../domain/recruitment'
 import { assignedIds, reserves, resolveRoster, toAssignment } from '../domain/roster'
 import { ClubSaveError, MemoryStorage } from '../infrastructure/clubRepository'
 import { FakeLockManager, FlakyStorage as Flaky, HOUR, ManualClock, tab } from '../testkit'
@@ -31,7 +31,7 @@ function intoLineup(c: ReturnType<Deps['store']['loadClub']> & object, playerId:
 }
 
 async function recruitOne(deps: Deps, role: 'batter' | 'pitcher' = 'batter') {
-  return recruit(deps, { opSeq: load(deps).economy.nextOpSeq, role })
+  return recruit(deps, { opSeq: load(deps).economy.nextOpSeq, role, candidateIndex: 0, expectedCount: load(deps).recruitment.count })
 }
 
 describe('釋出球員', () => {
@@ -100,7 +100,7 @@ describe('釋出球員', () => {
     expect(load(deps).recruitment.count).toBe(6)
     // 就算名單裡已經沒有那些人，第 i 次招募的編號也帶著招募次數，不會撞到之前的人
     const c = load(deps)
-    for (let i = 0; i < 6; i++) expect(recruitCandidate({ ...c, recruitment: { count: i } }, 'batter').id.startsWith(`r${i}-`)).toBe(true)
+    for (let i = 0; i < 6; i++) expect(recruitCandidates({ ...c, recruitment: { count: i } }, 'batter')[0].id.startsWith(`r${i}-`)).toBe(true)
   })
 
   it('名單滿了：釋出一位預備球員後就能再招募', async () => {

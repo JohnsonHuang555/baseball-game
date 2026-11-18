@@ -1,5 +1,11 @@
 /* V2 放置經營：沿用 V1 的配色（靛藍底、白色面板、深色粗外框與實色陰影），手機優先，底部導覽 */
 
+/* 勝負配色：對話框掛在 body 底下（不在 .v2-screen 裡），所以也要在遮罩上定義一次 */
+.v2-modal-overlay {
+  --v2-win: #22a35a;
+  --v2-loss: #e5383b;
+}
+
 .v2-screen {
   --v2-win: #22a35a;
   --v2-loss: #e5383b;
@@ -2167,4 +2173,172 @@
 }
 .v2-preview-team {
   color: var(--indigo);
+}
+
+/* ---- 招募市場：三位候選人、跟目前陣容的比較、確認簽約 ---- */
+.v2-recruit-info {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+.v2-recruit-cost.short,
+.v2-recruit-block.short {
+  color: var(--v2-loss);
+}
+.v2-recruit-block {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 2px solid currentColor;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+.v2-recruit-block.full {
+  color: var(--indigo);
+}
+.v2-recruit-roles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.v2-cand-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-cand {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 2.5px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.v2-cand.selected {
+  border-color: var(--ink);
+  background: #fff6cf;
+  box-shadow: 0 3px 0 var(--ink);
+}
+.v2-cand:focus-visible {
+  outline: 3px solid var(--indigo);
+  outline-offset: 2px;
+}
+.v2-cand-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-cand-names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.v2-cand-name {
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-cand-sub {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-faint);
+}
+.v2-cand-ovr {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.v2-cand-ovr-num {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.v2-cand-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--paper);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+.v2-cand-compare-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.v2-cand-vs {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-cand-verdict {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.v2-cand-verdict.stronger {
+  background: var(--v2-win);
+  color: #fff;
+}
+.v2-cand-verdict.similar {
+  background: #fff;
+}
+.v2-cand-verdict.weaker {
+  background: #5a5f86;
+  color: #fff;
+}
+.v2-cand-good {
+  color: var(--v2-win);
+}
+.v2-cand-bad {
+  color: var(--v2-loss);
+}
+.v2-cand-note {
+  color: var(--ink-faint);
+}
+.v2-recruit-foot,
+.v2-recruit-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+.v2-recruit-foot .btn-white,
+.v2-recruit-actions .btn-white {
+  padding: 0 14px;
+}
+.v2-recruit-confirm {
+  font-size: 16px;
+}
+.v2-recruit-money {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-recruit-spent {
+  color: var(--v2-loss);
 }

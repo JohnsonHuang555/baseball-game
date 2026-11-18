@@ -357,9 +357,16 @@ export class ClubController {
     })
   }
 
-  /** 招募一位打者或投手：加入預備名單，不會自動上場 */
-  recruit(role: RecruitRole): Promise<SpendResult> {
-    return this.spend((opSeq) => recruit(this.deps, { opSeq, role }), (out) => V2T.recruited(recordOf(out.club, out.op.playerId)?.player.name ?? ''))
+  /**
+   * 簽下候選名單裡的一位球員：加入預備名單，不會自動上場。
+   * expectedCount 是畫面顯示候選名單時的招募次數（不從最新存檔重新取）：別的分頁剛招募過，服務會拒絕並要求重新選擇。
+   * 只傳角色與候選位置，球員資料由服務層用最新存檔重建；連點只會送一次
+   */
+  recruit(role: RecruitRole, candidateIndex: number, expectedCount: number): Promise<SpendResult> {
+    return this.spend(
+      (opSeq) => recruit(this.deps, { opSeq, role, candidateIndex, expectedCount }),
+      (out) => V2T.recruited(recordOf(out.club, out.op.playerId)?.player.name ?? ''),
+    )
   }
 
   /**
@@ -462,7 +469,7 @@ export class ClubController {
           // 支出被拒絕，但到期的比賽已經結算存檔：畫面換成存好的球團
           if (e.settled) this.set({ club: e.settled.club })
           // 畫面資料過期：讀進最新的，讓玩家看清楚再操作
-          if (e.code === 'stale-request' || e.code === 'level-mismatch' || e.code === 'not-reserve') this.reload()
+          if (e.code === 'stale-request' || e.code === 'stale-candidates' || e.code === 'level-mismatch' || e.code === 'not-reserve') this.reload()
           return { ok: false, message: e.message }
         }
         return { ok: false, message: this.handleError(e) }

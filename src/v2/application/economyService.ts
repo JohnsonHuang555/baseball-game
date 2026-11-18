@@ -16,7 +16,7 @@
 import type { ClubSave, PlayerRecord, Resources, SpendRecord } from '../domain/club'
 import { MAX_LEVEL, upgradeCost } from '../domain/progression'
 import { SPEND_LOG_LIMIT } from '../domain/progressionConfig'
-import { recruitCandidate, recruitCost, rosterFull, type RecruitRole } from '../domain/recruitment'
+import { isCandidateIndex, recruitCandidateAt, recruitCost, rosterFull, type RecruitRole } from '../domain/recruitment'
 import { assignedIds, recordOf } from '../domain/roster'
 import { SettlementError, settleDueUnsaved, type SettlementDeps } from './settlementService'
 import { freezeLiveMatch } from './liveMatch'
@@ -29,6 +29,8 @@ export type EconomyErrorCode =
   | 'max-level'
   | 'insufficient'
   | 'roster-full'
+  /** 簽約根據的候選名單已經過期（別的分頁剛招募過，招募次數變了），要重新選擇 */
+  | 'stale-candidates'
   /** 要釋出的球員目前在先發、板凳或投手名單上（例如別的分頁剛把他排進陣容） */
   | 'not-reserve'
 
@@ -55,9 +57,17 @@ export interface UpgradeRequest {
   expectedLevel: number
 }
 
+/**
+ * 簽下候選名單裡的一位球員。不傳球員資料：服務層用「招募次數 + 角色 + 候選位置」重建，
+ * 所以畫面上的資料被竄改、或是根據舊名單，都不會簽到別人
+ */
 export interface RecruitRequest {
   opSeq: number
   role: RecruitRole
+  /** 候選位置 0～2 */
+  candidateIndex: number
+  /** 畫面顯示候選名單時的招募次數：跟存檔不同（別的分頁剛招募過）就拒絕，要玩家重新選擇 */
+  expectedCount: number
 }
 
 export interface ReleaseRequest {
@@ -117,16 +127,26 @@ export function upgradePlayer(club: ClubSave, req: UpgradeRequest, now: number):
   return { ...out, duplicate: false }
 }
 
-/** 招募一位球員：加入永久名單（預備名單），不自動上場 */
+/**
+ * 簽下這次候選名單裡的一位球員：加入永久名單（預備名單），不自動上場。
+ * 順序：請求格式 → 重送判斷（同一個序號、同一個角色／候選位置／招募次數）→ 候選名單是否過期 → 資金 → 名單人數
+ * → 用最新存檔重建候選名單、取出那一位 → 扣款、加入、招募次數 +1。
+ * 不同候選人的請求內容不同，不會被當成同一筆重送
+ */
 export function recruitPlayer(club: ClubSave, req: RecruitRequest, now: number): SpendOutcome {
   if (req.role !== 'batter' && req.role !== 'pitcher') throw new EconomyError('bad-request', `招募類型不合法：${String(req.role)}`)
-  const requestKey = `recruit:${req.role}`
+  if (!isCandidateIndex(req.candidateIndex)) throw new EconomyError('bad-request', `候選位置不合法：${String(req.candidateIndex)}`)
+  if (!Number.isSafeInteger(req.expectedCount) || req.expectedCount < 0) throw new EconomyError('bad-request', `招募次數不合法：${String(req.expectedCount)}`)
+  const requestKey = `recruit:${req.role}:${req.expectedCount}:${req.candidateIndex}`
   const dup = checkSeq(club, req.opSeq, requestKey)
   if (dup) return { club, op: dup, duplicate: true }
-  if (rosterFull(club)) throw new EconomyError('roster-full', '球團人數已滿，無法再招募')
   const index = club.recruitment.count
-  const player = recruitCandidate(club, req.role)
-  const out = spend(club, { kind: 'recruit', playerId: player.id, cost: recruitCost(index), at: now, requestKey, recruitIndex: index })
+  if (req.expectedCount !== index) throw new EconomyError('stale-candidates', '候選名單已經更新（可能其他分頁剛完成招募），請重新選擇')
+  const cost = recruitCost(index)
+  if (!canAfford(club, cost)) throw new EconomyError('insufficient', '資金不足，無法簽約')
+  if (rosterFull(club)) throw new EconomyError('roster-full', '球團人數已滿，無法再招募')
+  const player = recruitCandidateAt(club, req.role, req.candidateIndex)
+  const out = spend(club, { kind: 'recruit', playerId: player.id, cost, at: now, requestKey, recruitIndex: index, candidateIndex: req.candidateIndex })
   const record: PlayerRecord = { player, level: 1, origin: 'recruit', joinedAtMatch: club.idle.nextMatchIndex }
   out.club.players.push(record)
   out.club.recruitment.count++
@@ -189,7 +209,7 @@ export function upgrade(deps: SettlementDeps, req: UpgradeRequest): Promise<Spen
   return spendSafely(deps, (club, now) => upgradePlayer(club, req, now))
 }
 
-/** 招募球員（冪等）：先結算到期的比賽，再招募，一次存檔 */
+/** 簽下候選球員（冪等）：先結算到期的比賽，再簽約，一次存檔 */
 export function recruit(deps: SettlementDeps, req: RecruitRequest): Promise<SpendOutcome> {
   return spendSafely(deps, (club, now) => recruitPlayer(club, req, now))
 }
