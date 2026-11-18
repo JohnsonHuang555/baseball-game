@@ -20,18 +20,16 @@ import { openMatchReport, renderReports, welcomeModal } from './reportView'
 import { openRecruit } from './recruitView'
 import { openPlayerDetail } from './playerView'
 import { V2T } from './strings'
+import { closeDialogs, refocusTopDialog } from './dialog'
+import { icon, iconSvg, type IconName } from './icons'
+import { leagueOf } from '../domain/league'
 import { createTacticsView, type TacticsView } from './tacticsView'
 import { createWriterGuard, randomTabId, type StorageEventSource } from './writerGuard'
 
 export type V2Tab = 'home' | 'lineup' | 'tactics' | 'reports'
 const TABS: V2Tab[] = ['home', 'lineup', 'tactics', 'reports']
 const TAB_LABELS: Record<V2Tab, string> = { home: V2T.navHome, lineup: V2T.navLineup, tactics: V2T.navTactics, reports: V2T.navReports }
-const TAB_ICONS: Record<V2Tab, string> = {
-  home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
-  lineup: '<circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M15 14.5c3.3-.4 6.5 1.5 6.5 5.5"/>',
-  tactics: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
-  reports: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
-}
+const TAB_ICONS: Record<V2Tab, IconName> = { home: 'club', lineup: 'lineup', tactics: 'tactics', reports: 'report' }
 
 export interface V2AppOptions {
   deps?: V2Deps
@@ -85,17 +83,20 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   let draftName = ''
 
   const screen = el('div', 'v2-screen')
+  const body = el('div', 'v2-body')
   const header = el('header', 'v2-header')
   const titles = el('div', 'v2-titles')
   const title = el('h1', 'v2-title', V2T.modeTitle)
   const subtitle = el('span', 'v2-subtitle', V2T.modeBadge)
   titles.append(title, subtitle)
-  header.append(titles)
+  const resources = el('div', 'v2-resources')
+  header.append(titles, resources)
   const banner = el('div', 'v2-banner-slot')
   const main = el('main', 'v2-main')
   const nav = el('nav', 'v2-nav')
-  nav.setAttribute('aria-label', V2T.modeTitle)
-  screen.append(header, banner, main, nav)
+  nav.setAttribute('aria-label', V2T.navLabel)
+  body.append(header, banner, main)
+  screen.append(nav, body)
   root.replaceChildren(screen)
   // V2 是整個網站：Escape 不會關掉 App（只有觀戰畫面、對話框各自用 Escape 關閉，關閉後還原成這裡的空設定）
   setKeys({})
@@ -110,37 +111,71 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   function renderNav(state: ControllerState): void {
     nav.replaceChildren()
     nav.hidden = state.status.kind !== 'ready'
+    screen.classList.toggle('has-nav', !nav.hidden)
+    nav.append(el('span', 'v2-rail-logo', 'DICE BALL'))
     for (const id of TABS) {
       const b = el('button', 'v2-nav-btn')
       b.type = 'button'
-      b.setAttribute('aria-current', String(id === tab))
+      b.setAttribute('aria-current', id === tab ? 'page' : 'false')
       b.dataset.tab = id
-      b.innerHTML = `<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${TAB_ICONS[id]}</svg>`
+      b.innerHTML = iconSvg(TAB_ICONS[id], 22)
       b.append(el('span', '', TAB_LABELS[id]))
       b.onclick = () => show(id)
       nav.append(b)
     }
   }
 
+  /** 頁首：隊名、聯盟與總戰績，右邊是資金與經驗（切到任何分頁都看得到） */
+  function renderHeader(state: ControllerState): void {
+    const club = state.club
+    title.textContent = club?.clubName ?? V2T.modeTitle
+    resources.replaceChildren()
+    if (!club || state.status.kind !== 'ready') {
+      subtitle.textContent = club ? V2T.record(club.record.wins, club.record.losses) : V2T.modeBadge
+      return
+    }
+    const def = leagueOf(club.league.tier)
+    const pill = el('span', 'v2-league-pill', def.name)
+    pill.style.background = def.color
+    const rec = el('span', 'v2-head-record', `${club.record.wins}-${club.record.losses}`)
+    rec.setAttribute('aria-label', V2T.record(club.record.wins, club.record.losses))
+    subtitle.replaceChildren(pill, rec, el('span', '', V2T.totalRecord))
+    const res = (name: IconName, label: string, value: number, key: string) => {
+      const box = el('span', 'v2-res')
+      box.dataset.res = key
+      box.setAttribute('aria-label', `${label} ${value.toLocaleString('zh-Hant')}`)
+      box.append(icon(name, 20), el('span', 'v2-res-value', value.toLocaleString('zh-Hant')))
+      return box
+    }
+    resources.append(
+      res('coin', V2T.funds, club.economy.assets.funds, 'funds'),
+      res('exp', V2T.experience, club.economy.assets.experience, 'exp'),
+    )
+  }
+
   function renderBanner(state: ControllerState): void {
     banner.replaceChildren()
     if (state.status.kind !== 'ready' && state.status.kind !== 'no-club') return
     if (!state.canWrite) {
-      const box = el('div', 'v2-banner warn')
+      const box = el('div', 'v2-banner readonly')
       box.setAttribute('role', 'status')
-      const take = el('button', 'btn-small', V2T.takeOver)
+      const take = el('button', 'btn-white v2-banner-btn', V2T.takeOver)
       take.type = 'button'
       take.onclick = () => controller.takeOver()
-      box.append(el('span', '', V2T.readOnlyBanner), take)
+      const text = el('span', 'v2-banner-text')
+      text.append(el('strong', '', V2T.readOnlyTitle), el('span', '', V2T.readOnlyWhy))
+      box.append(icon('lock', 22), text, take)
       banner.append(box)
     }
     if (state.error) {
       const box = el('div', 'v2-banner error')
       box.setAttribute('role', 'alert')
-      box.append(el('span', '', state.error.message))
+      const text = el('span', 'v2-banner-text')
+      text.append(el('strong', '', state.error.message))
+      box.append(icon('alert', 22), text)
       const retry = state.error.retry
       if (retry) {
-        const b = el('button', 'btn-small', V2T.retry)
+        const b = el('button', 'btn-white v2-banner-btn', V2T.retry)
         b.type = 'button'
         b.onclick = () => (retry === 'settle' ? void controller.settle('manual') : void claimWithToast())
         box.append(b)
@@ -256,6 +291,8 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
         onClose: () => {
           viewer = null
           finish()
+          // 從挑戰結果打開的觀戰：關閉後焦點回到結果對話框
+          refocusTopDialog()
         },
       })
     } catch {
@@ -273,19 +310,20 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
 
   function render(state: ControllerState): void {
     if (closed) return
-    title.textContent = state.club?.clubName ?? V2T.modeTitle
-    subtitle.textContent = state.club ? V2T.record(state.club.record.wins, state.club.record.losses) : V2T.modeBadge
+    renderHeader(state)
     renderBanner(state)
+    screen.dataset.tab = state.status.kind === 'ready' ? tab : state.status.kind
     renderNav(state)
     const s = state.status
-    if (s.kind === 'loading') main.replaceChildren(el('p', 'v2-loading', V2T.loading))
+    header.hidden = s.kind !== 'ready'
+    if (s.kind === 'loading') main.replaceChildren(loadingScreen())
     else if (s.kind === 'no-club') main.replaceChildren(createScreen(state))
     else if (s.kind === 'broken') main.replaceChildren(brokenScreen(s.message, s.reason))
     else if (tab === 'home') {
       main.replaceChildren(
         renderDashboard(state, controller, {
           claim: () => void claimWithToast(),
-          openReport: (m) => openMatchReport(m, state.club!),
+          openReport: (m) => openMatchReport(m, state.club!, controller),
           watchLive: () => void watchLive(),
           liveCard,
           allReports: () => show('reports'),
@@ -297,6 +335,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
               if (!closed && !res.ok && res.message) toast(res.message)
             }),
           watchChallenge: state.club?.challengeReplay ? () => void watchChallenge() : null,
+          desk: isDesk(),
           challenge: (expected) =>
             void controller.challenge(expected).then((res) => {
               if (!closed && !res.ok && res.message) toast(res.message)
@@ -309,7 +348,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     } else if (tab === 'tactics') {
       tactics ??= createTacticsView(controller)
       main.replaceChildren(tactics.render(state))
-    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!)))
+    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!, controller), deps.clock.now()))
 
     if (state.notice) {
       toast(state.notice)
@@ -320,28 +359,56 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
       const result = state.challengeResult
       const reveal = () => {
         if (closed) return
-        challengeResultModal(result, () => {
-          shownChallenge = null
-          controller.dismissChallengeResult()
-        })
+        // 這次挑戰有保留 Replay：結果對話框多一個「觀看挑戰過程」（觀戰蓋在對話框上方，返回後回到這裡）
+        const kept = result.club.challengeReplay?.seq === result.challenge.seq
+        challengeResultModal(
+          result,
+          result.club.clubName,
+          (reason) => {
+            shownChallenge = null
+            // App 關閉時（dispose）只清掉對話框，不改狀態、不重畫
+            if (reason === 'user') controller.dismissChallengeResult()
+          },
+          kept ? () => void watchChallenge() : undefined,
+          controller,
+        )
       }
       // 結果已經確定並存檔；先問要不要看比賽過程（不先揭曉），不想看就直接看結果
       if (result.club.challengeReplay?.seq === result.challenge.seq && !result.duplicate) {
-        challengeStartModal(result, () => void watchChallenge(reveal), reveal)
+        challengeStartModal(result, () => void watchChallenge(reveal), reveal, controller)
       } else reveal()
     }
     if (state.welcome && state.welcome.key !== shownWelcome) {
       shownWelcome = state.welcome.key
-      welcomeModal(state.welcome, () => controller.dismissWelcome())
+      welcomeModal(state.welcome, (reason) => reason === 'user' && controller.dismissWelcome(), controller)
     }
+  }
+
+  /** 首次進入、讀取中、錯誤畫面上方的標誌 */
+  function logo(sub: string): HTMLElement {
+    const box = el('div', 'v2-logo')
+    box.append(el('span', 'v2-logo-mark', 'DICE BALL'), el('span', 'v2-logo-sub', sub))
+    return box
+  }
+
+  /** 讀取中：標誌、轉動的球、進度條（減少動態效果時不動） */
+  function loadingScreen(): HTMLElement {
+    const box = el('div', 'v2-loading')
+    box.setAttribute('role', 'status')
+    box.setAttribute('aria-live', 'polite')
+    const ball = el('span', 'v2-loading-ball')
+    ball.innerHTML =
+      '<svg aria-hidden="true" width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="24" fill="#fff" stroke="#141633" stroke-width="3"/><path d="M12 14 C20 22 20 34 12 42 M44 14 C36 22 36 34 44 42" fill="none" stroke="#E5383B" stroke-width="2.5" stroke-dasharray="3 3"/></svg>'
+    const bar = el('span', 'v2-loading-bar')
+    bar.append(el('span', ''))
+    box.append(logo(''), ball, bar, el('strong', 'v2-loading-text', V2T.loading), el('span', 'v2-loading-sub', V2T.loadingSub))
+    return box
   }
 
   /** 建立球團畫面：名稱不能空，建立中按鈕停用，Enter 也能送出 */
   function createScreen(state: ControllerState): HTMLElement {
+    const wrap = el('div', 'v2-create-wrap')
     const box = el('section', 'v2-card v2-create')
-    box.append(el('h2', 'v2-create-title', V2T.createTitle), el('p', 'v2-create-intro', V2T.createIntro))
-    const points = el('ul', 'v2-create-points')
-    for (const p of V2T.createPoints) points.append(el('li', '', p))
     const form = el('form', 'v2-create-form')
     const label = el('label', 'v2-label', V2T.clubNameLabel)
     const input = el('input', 'v2-input')
@@ -351,13 +418,45 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     input.placeholder = V2T.clubNamePlaceholder
     input.autocomplete = 'off'
     input.value = draftName
+    input.setAttribute('aria-describedby', 'v2-club-name-hint')
+    const hint = el('p', 'v2-input-hint', V2T.nameHint)
+    hint.id = 'v2-club-name-hint'
+    const nameError = state.createError === V2T.nameRequired
+    if (nameError) {
+      input.setAttribute('aria-invalid', 'true')
+      hint.textContent = V2T.nameRequired
+      hint.classList.add('v2-form-error')
+    }
     input.oninput = () => (draftName = input.value)
-    const error = el('p', 'v2-form-error', state.createError ?? '')
-    error.setAttribute('role', 'alert')
-    const submit = el('button', 'btn-yellow btn-big v2-create-btn', state.creating ? V2T.creating : V2T.createButton)
+    const points = el('ul', 'v2-create-points')
+    const icons: IconName[] = ['clock', 'play', 'claim']
+    V2T.createPoints.forEach((p, i) => {
+      const li = el('li')
+      li.append(icon(icons[i] ?? 'check', 22), el('span', '', p))
+      points.append(li)
+    })
+    form.append(label, input, hint)
+    box.append(el('h2', 'v2-create-title', V2T.createTitle), form, el('p', 'v2-create-intro', V2T.createIntro), points)
+
+    const parts: HTMLElement[] = [logo(V2T.logoSub), box]
+    // 寫入失敗：輸入的名稱保留，按鈕變成「再試一次」
+    const writeError = state.createError && !nameError ? state.createError : null
+    if (writeError) {
+      const err = el('div', 'v2-create-error')
+      err.setAttribute('role', 'alert')
+      const words = el('span', 'v2-create-error-words')
+      words.append(el('strong', '', V2T.createFailedTitle), el('span', 'v2-form-error', writeError))
+      err.append(icon('alert', 20), words)
+      parts.push(err)
+    }
+    const submit = el('button', 'btn-yellow btn-big v2-create-btn', state.creating ? V2T.creating : writeError ? V2T.tryAgain : V2T.createButton)
     submit.type = 'submit'
+    submit.setAttribute('form', 'v2-create-form')
+    form.id = 'v2-create-form'
     submit.disabled = state.creating || !state.canWrite
-    form.append(label, input, error, submit)
+    const foot = el('div', 'v2-create-foot')
+    foot.append(submit, el('p', 'v2-create-note', V2T.createNote))
+    parts.push(foot)
     form.onsubmit = async (e) => {
       e.preventDefault()
       draftName = input.value
@@ -367,26 +466,27 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
       if (closed) return
       if (res.ok) {
         draftName = ''
-        if (res.message) toast(res.message)
+        if (res.message) toast(res.message, 'success')
       }
     }
-    box.append(points, form)
+    wrap.append(...parts)
     queueMicrotask(() => {
       if (!input.isConnected) return
       input.focus()
       input.setSelectionRange?.(input.value.length, input.value.length)
     })
-    return box
+    return wrap
   }
 
   /** 存檔壞掉、版本不相容、儲存不能用：說明清楚，不自動清除；玩家可以下載備份，確認後才刪除重來 */
   function brokenScreen(message: string, reason: string): HTMLElement {
+    const wrap = el('div', 'v2-broken-wrap')
     const box = el('section', 'v2-card v2-broken')
     box.setAttribute('role', 'alert')
-    box.append(el('h2', '', V2T.brokenTitle), el('p', '', message))
+    box.append(icon('alert', 32, 'v2-broken-icon'), el('h2', '', V2T.brokenTitle), el('p', 'v2-broken-msg', message), el('p', 'v2-broken-code', V2T.errorCode(reason)))
     const raw = readRaw(deps)
     if (raw !== null && reason !== 'storage-unavailable') {
-      const download = el('button', 'btn-white', V2T.downloadBackup)
+      const download = el('button', 'btn-yellow', V2T.downloadBackup)
       download.type = 'button'
       download.onclick = () => downloadText(`dice-baseball-club-backup-${Date.now()}.json`, raw)
       const reset = el('button', 'btn-danger', V2T.resetBroken)
@@ -395,14 +495,23 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
         const ok = await confirmModal({ title: V2T.resetConfirmTitle, message: V2T.resetConfirmMessage, confirmLabel: V2T.resetConfirm, danger: true })
         if (!ok || closed) return
         const res = await controller.resetClub()
-        if (!res.ok && res.message) toast(res.message)
+        if (!res.ok && res.message) toast(res.message, 'error')
       }
       const buttons = el('div', 'v2-broken-actions')
-      buttons.append(download, reset)
+      buttons.append(download, reset, el('p', 'v2-hint', V2T.resetNote))
       box.append(buttons)
     }
-    return box
+    wrap.append(box)
+    return wrap
   }
+
+  // ---- 電腦版版面：首頁改成三欄，寬度跨過門檻時重畫一次 ----
+  const deskQuery = typeof globalThis.matchMedia === 'function' ? globalThis.matchMedia('(min-width: 1024px)') : null
+  function isDesk(): boolean {
+    return !!deskQuery?.matches
+  }
+  const onDeskChange = () => render(controller.state)
+  deskQuery?.addEventListener?.('change', onDeskChange)
 
   // ---- 瀏覽器事件：回到分頁就結算，倒數每秒更新 ----
   const onVisible = () => {
@@ -433,12 +542,15 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     closed = true
     if (timer) clearInterval(timer)
     viewer?.close()
+    // 這個 App 開的對話框都走正式的關閉流程（離開堆疊、還原快捷鍵、移除鍵盤監聽、取消訂閱）；
+    // closed 已經是 true，onClose 收到 'dispose'，不會再揭曉結果、重畫或改狀態。別的 App 的對話框不受影響
+    closeDialogs(controller)
+    deskQuery?.removeEventListener?.('change', onDeskChange)
     doc?.removeEventListener('visibilitychange', onVisible)
     win?.removeEventListener('focus', onFocus)
     unsubscribe()
     controller.dispose()
     guard.dispose()
-    document.querySelectorAll('.v2-modal-overlay').forEach((n) => n.remove())
   }
 
   return {

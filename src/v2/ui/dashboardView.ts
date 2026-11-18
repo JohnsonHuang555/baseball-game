@@ -1,6 +1,7 @@
 // 球團首頁（Phase 6A 重新整理）：讓玩家一眼回答「球隊在做什麼、我現在能做什麼、下一個目標是什麼」。
 // 由上到下：目前比賽（直播入口）→ 目前建議（同一時間只有一個）→ 新手任務（未完成時）→ 球隊與養成 → 聯盟進度 → 未領取收益 → 最近比賽。
-// 只有「目前比賽」和「目前建議」有醒目的主按鈕，其他區塊用較輕的樣式，不讓每張卡片搶一樣的注意力
+// 只有「目前比賽」和「目前建議」有醒目的主按鈕，其他區塊用較輕的樣式，不讓每張卡片搶一樣的注意力。
+// 版面照設計稿 v7：手機一欄；電腦版三欄（比賽與建議／球隊與收益／聯盟、任務、最近比賽），DOM 順序就是閱讀順序
 import { el } from '../../ui/playerCard'
 import type { Side } from '../../sim/game'
 import { basesSvg } from '../../ui/bases'
@@ -21,6 +22,8 @@ import { assignedIds } from '../domain/roster'
 import { recentForm, teamPower } from '../domain/growthInfo'
 import type { ClubController, ControllerState } from './clubController'
 import { V2T } from './strings'
+import { icon, type IconName } from './icons'
+import { PROMOTION_CONFIG } from '../domain/leagueConfig'
 
 export interface DashboardActions {
   claim: () => void
@@ -40,6 +43,8 @@ export interface DashboardActions {
   watchChallenge?: (() => void) | null
   /** 帶上按鈕顯示時的聯盟與挑戰序號（不是送出當下重新讀到的值） */
   challenge: (expected: { fromTier: number; challengeSeq: number }) => void
+  /** 電腦版三欄 */
+  desk?: boolean
 }
 
 export { teamPower }
@@ -58,58 +63,70 @@ const fmt = (x: number) => x.toLocaleString('zh-Hant')
 
 export function renderDashboard(state: ControllerState, controller: ClubController, actions: DashboardActions): HTMLElement {
   const club = state.club!
-  const page = el('div', 'v2-page v2-dashboard')
+  const page = el('div', `v2-page v2-dashboard ${actions.desk ? 'desk' : ''}`.trim())
   const suggestion = suggestNextAction(club, { canWrite: state.canWrite })
 
   const live = liveSection(club, state, actions)
   const next = nextSection(suggestion, state, actions)
   const onboard = onboardingSection(club, state, actions, suggestion.kind)
-  const team = teamSection(club, actions)
+  const team = teamSection(club, state, actions)
   const league = leagueCard(state, actions)
   const rewards = rewardsSection(club, state, actions)
   const recent = recentSection(club, actions)
 
-  page.append(live, next)
-  if (onboard) page.append(onboard)
-  page.append(team, league, rewards, recent)
+  if (actions.desk) {
+    const col = (...xs: (HTMLElement | null)[]) => {
+      const c = el('div', 'v2-dash-col')
+      for (const x of xs) if (x) c.append(x)
+      return c
+    }
+    page.append(col(live, next), col(team, rewards), col(league, onboard, recent))
+  } else {
+    page.append(live, next)
+    if (onboard) page.append(onboard)
+    page.append(team, league, rewards, recent)
+  }
   updateCountdown(page, controller.due(), state, actions.liveCard?.() ?? null)
   return page
 }
 
-/** 目前比賽（直播）：每秒由 updateCountdown 更新比分、局數、剩餘時間；底下一行說明比賽是自動進行的 */
+/** 目前比賽（直播）：深色卡片，每秒由 updateCountdown 更新比分、局數、壘包、出局、剩餘時間 */
 function liveSection(club: ClubSave, state: ControllerState, actions: DashboardActions): HTMLElement {
   const live = el('section', 'v2-card v2-live-card')
   live.dataset.liveCard = ''
+  live.setAttribute('aria-label', V2T.liveCardTitle)
   live.setAttribute('aria-live', 'polite')
-  const liveHead = el('div', 'v2-card-head')
-  const liveBadge = el('span', 'v2-live-badge live', V2T.liveBadge)
-  liveBadge.dataset.liveBadge = ''
-  liveHead.append(el('h2', 'v2-card-title', V2T.liveCardTitle), liveBadge)
   const liveBody = el('div', 'v2-live-body')
   liveBody.dataset.liveBody = ''
-  const watch = el('button', 'btn-yellow btn-big v2-live-watch', V2T.liveWatch)
+  const watch = el('button', 'btn-white v2-live-watch')
   watch.type = 'button'
   watch.dataset.action = 'watch-live'
+  watch.append(icon('play', 20), V2T.liveWatch)
   watch.onclick = () => actions.watchLive?.()
-  const foot = el('div', 'v2-live-foot')
-  const played = el('span', 'v2-live-played', V2T.livePlayed(club.idle.nextMatchIndex))
+  const foot = el('p', 'v2-live-foot')
   const due = el('span', 'v2-live-due')
   due.dataset.due = ''
-  foot.append(el('span', 'v2-live-how', V2T.liveFoot), played, due)
-  live.append(liveHead, liveBody, watch, foot)
+  foot.append(el('span', 'v2-live-how', V2T.liveFoot), el('span', 'v2-live-played', `・${V2T.livePlayed(club.idle.nextMatchIndex)}`), due)
+  live.append(liveBody, watch, foot)
   // 沒有 Web Locks：照實說明限制，不宣稱跨分頁安全
-  if (!state.crossTab) live.append(el('p', 'v2-hint v2-limit', V2T.exclusiveLimit))
+  if (!state.crossTab) live.append(el('p', 'v2-live-foot v2-limit', V2T.exclusiveLimit))
   return live
 }
 
+const SUGGESTION_ICON: Record<SuggestionKind, IconName> = { claim: 'claim', challenge: 'challenge', upgrade: 'upgrade', lineup: 'lineup', watch: 'play' }
+
 /** 目前建議：規則見 application/guidance.ts；按鈕只帶玩家過去，需要資源或確認的操作仍在原本的畫面確認 */
 function nextSection(s: Suggestion, state: ControllerState, actions: DashboardActions): HTMLElement {
-  const box = el('section', `v2-card v2-next ${s.kind === 'watch' ? 'calm' : 'act'}`)
+  const calm = s.kind === 'watch'
+  const box = el('section', `v2-card v2-next ${calm ? 'calm' : 'act'}`)
   box.dataset.suggestion = s.kind
+  box.setAttribute('aria-label', V2T.nextTitle)
+  const top = el('div', 'v2-next-top')
   const text = el('div', 'v2-next-text')
   text.append(el('span', 'v2-next-label', V2T.nextTitle))
-  // 沒有其他事時建議觀戰：「目前比賽」的大按鈕就在正上方，這裡只放較輕的連結，不搶主按鈕
-  const button = el('button', s.kind === 'watch' ? 'v2-link v2-next-link' : 'btn-yellow v2-next-btn')
+  top.append(icon(SUGGESTION_ICON[s.kind], 26, 'v2-next-icon'), text)
+  // 沒有其他事時建議觀戰：卡片改成細框、按鈕改白色（「目前比賽」已經有觀看按鈕，不搶主按鈕）
+  const button = el('button', calm ? 'btn-white v2-next-btn' : 'btn-yellow v2-next-btn')
   button.type = 'button'
   button.dataset.action = `next-${s.kind}`
   const add = (title: string, why: string, label: string, run: () => void) => {
@@ -140,7 +157,7 @@ function nextSection(s: Suggestion, state: ControllerState, actions: DashboardAc
       if (s.goal) text.append(el('span', 'v2-next-goal', V2T.nextWatchGoal(s.goal.name, s.goal.short.experience, s.goal.short.funds)))
       break
   }
-  box.append(text, button)
+  box.append(top, button)
   return box
 }
 
@@ -156,34 +173,40 @@ function focusChallenge(from: HTMLElement): void {
 /** 新手任務會對應到哪一種建議：任務與建議相同時，任務不另外放按鈕（避免兩個地方叫玩家做同一件事） */
 const TASK_SUGGESTION: Partial<Record<OnboardingTaskId, SuggestionKind>> = { watch: 'watch', claim: 'claim', upgrade: 'upgrade', lineup: 'lineup' }
 
+const CHEV_UP = '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>'
+const CHEV_DOWN = '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>'
+
 /** 新手任務：不限順序、完成自動打勾、可以收起；全部完成後只剩一行，收起後就不再佔首頁 */
 function onboardingSection(club: ClubSave, state: ControllerState, actions: DashboardActions, suggested: SuggestionKind): HTMLElement | null {
   const p = onboardingProgress(club)
   if (p.allDone && p.collapsed) return null
   const box = el('section', `v2-card v2-onboard ${p.collapsed ? 'collapsed' : ''} ${p.allDone ? 'all-done' : ''}`)
   box.dataset.onboarding = `${p.done}/${p.total}`
-  const head = el('div', 'v2-card-head')
+  const head = el('div', 'v2-onboard-head')
   const title = el('h2', 'v2-card-title', V2T.onboardTitle)
-  title.append(el('span', 'v2-onboard-count', V2T.onboardCount(p.done, p.total)))
-  const toggle = el('button', 'v2-link v2-onboard-toggle', p.collapsed ? V2T.onboardExpand : V2T.onboardCollapse)
+  const count = el('span', 'v2-onboard-count', V2T.onboardCount(p.done, p.total))
+  const toggle = el('button', 'v2-icon-btn v2-onboard-toggle')
   toggle.type = 'button'
   toggle.dataset.action = 'toggle-onboarding'
   toggle.setAttribute('aria-expanded', String(!p.collapsed))
+  toggle.setAttribute('aria-label', `${p.collapsed ? V2T.onboardExpand : V2T.onboardCollapse}${V2T.onboardTitle}`)
+  toggle.innerHTML = p.collapsed ? CHEV_DOWN : CHEV_UP
   toggle.disabled = !state.canWrite
   toggle.onclick = () => {
     toggle.disabled = true
     actions.toggleOnboarding?.(!p.collapsed)
   }
-  head.append(title, toggle)
   const bar = el('div', 'v2-onboard-bar')
   bar.setAttribute('role', 'progressbar')
+  bar.setAttribute('aria-label', V2T.onboardTitle)
   bar.setAttribute('aria-valuemin', '0')
   bar.setAttribute('aria-valuemax', String(p.total))
   bar.setAttribute('aria-valuenow', String(p.done))
   const fill = el('span', 'v2-onboard-fill')
   fill.style.width = `${Math.round((p.done / p.total) * 100)}%`
   bar.append(fill)
-  box.append(head, bar)
+  head.append(title, count, bar, toggle)
+  box.append(head)
   if (p.collapsed) return box
   if (p.allDone) {
     box.append(el('p', 'v2-onboard-done', V2T.onboardAllDone))
@@ -198,12 +221,14 @@ function onboardingSection(club: ClubSave, state: ControllerState, actions: Dash
     const li = el('li', `v2-task ${t.done ? 'done' : ''}`)
     li.dataset.task = t.id
     li.dataset.done = String(t.done)
-    const mark = el('span', 'v2-task-mark', t.done ? '✓' : '')
+    const mark = el('span', 'v2-task-mark')
+    if (t.done) mark.append(icon('check', 14))
     mark.setAttribute('aria-hidden', 'true')
     const body = el('div', 'v2-task-body')
     body.append(el('span', 'v2-task-title', copy.title))
     li.setAttribute('aria-label', `${copy.title}${t.done ? '（已完成）' : ''}`)
-    if (!t.done) {
+    if (t.done) body.append(el('span', 'v2-task-hint', V2T.onboardDone))
+    else {
       let hint: string = copy.hint
       if (t.id === 'claim' && unclaimed.funds === 0 && unclaimed.experience === 0) hint = V2T.onboardClaimWait
       if (t.id === 'upgrade' && goal) hint = `${copy.hint}。${V2T.onboardUpgradeShort(goal.short.experience, goal.short.funds)}`
@@ -247,65 +272,92 @@ function taskAction(id: OnboardingTaskId, club: ClubSave, state: ControllerState
   }
 }
 
-/** 球隊：戰績、可用資源、戰力，以及養成、招募的入口（升級不夠時說明還差多少） */
-function teamSection(club: ClubSave, actions: DashboardActions): HTMLElement {
+/** 球隊：戰績、可用資源、戰力、近期戰績，以及養成、招募的入口（升級不夠時說明還差多少） */
+function teamSection(club: ClubSave, state: ControllerState, actions: DashboardActions): HTMLElement {
   const growth = el('section', 'v2-card v2-growth v2-club')
   const { wins, losses } = club.record
   const games = wins + losses
-  const head = el('div', 'v2-card-head')
-  head.append(el('h2', 'v2-card-title', V2T.teamTitle))
-  const stats = el('div', 'v2-stats')
-  stats.append(
-    stat(V2T.wins, fmt(wins)),
-    stat(V2T.losses, fmt(losses)),
-    stat(V2T.winRate, games ? (wins / games).toFixed(3).replace(/^0/, '') : '---'),
-    stat(V2T.funds, fmt(club.economy.assets.funds), 'funds'),
-    stat(V2T.experience, fmt(club.economy.assets.experience), 'exp'),
+  growth.append(el('h2', 'v2-card-title', V2T.teamTitle))
+  const rec = el('div', 'v2-stats three')
+  rec.append(
+    stat(V2T.wins, fmt(wins), 'wins'),
+    stat(V2T.losses, fmt(losses), 'losses'),
+    stat(V2T.winRate, games ? (wins / games).toFixed(3).replace(/^0/, '') : '---', 'rate'),
   )
+  const res = el('div', 'v2-stats two')
+  res.append(stat(V2T.funds, fmt(club.economy.assets.funds), 'funds', 'coin'), stat(V2T.experience, fmt(club.economy.assets.experience), 'exp', 'exp'))
+
   const power = teamPower(club)
   const powerBox = el('div', 'v2-power')
-  powerBox.append(el('span', 'v2-power-label', V2T.teamPower), gradeBadge(power, 'md'), el('span', 'v2-power-value', power.toFixed(2)))
-  const upgradeable = upgradeableCount(club)
-  const goal = upgradeable ? null : nearestUpgrade(club)
-  const lineupBtn = el(
-    'button',
-    upgradeable ? 'btn-yellow v2-growth-btn' : 'btn-white v2-growth-btn',
-    upgradeable ? V2T.upgradeReady(upgradeable) : goal ? V2T.upgradeShort(goal.short.experience, goal.short.funds) : V2T.upgradeNone,
-  )
-  lineupBtn.type = 'button'
-  lineupBtn.dataset.action = 'lineup'
-  lineupBtn.onclick = actions.lineup
-  const cost = recruitCost(club.recruitment.count)
-  const full = rosterFull(club)
-  const recruitBtn = el('button', 'btn-white v2-growth-btn', full ? V2T.rosterFull : `${V2T.recruitEntry}・${V2T.recruitCost(cost.funds)}`)
-  recruitBtn.type = 'button'
-  recruitBtn.dataset.action = 'recruit'
-  if (!full && club.economy.assets.funds < cost.funds) recruitBtn.append(el('span', 'v2-short', `（${V2T.notEnoughFunds}）`))
-  recruitBtn.onclick = actions.recruit
-  growth.append(head, stats, powerBox, el('p', 'v2-hint', `${V2T.teamPowerHint}・${V2T.rosterCount(club.players.length, RECRUIT_CONFIG.maxPlayers)}`))
+  const powerText = el('span', 'v2-power-text')
+  const powerLine = el('span', 'v2-power-line')
+  powerLine.append(el('span', 'v2-power-label', V2T.teamPower), el('span', 'v2-power-value', power.toFixed(2)))
+  powerText.append(powerLine, el('span', 'v2-power-hint', `${V2T.teamPowerHint}・${V2T.rosterCount(club.players.length, RECRUIT_CONFIG.maxPlayers)}`))
+  powerBox.append(gradeBadge(power, 'lg'), powerText)
+  growth.append(rec, res, powerBox)
+
   // 近期戰績對照：只放事實（勝敗），並說明不一定是升級造成的
   const form = recentForm(club)
   if (form) {
     const box = el('div', 'v2-form')
     box.dataset.form = ''
-    box.append(el('span', 'v2-form-item', V2T.formLast(form.last.wins, form.last.losses)))
-    if (form.previous) box.append(el('span', 'v2-form-item prev', V2T.formPrev(form.previous.wins, form.previous.losses)))
+    box.append(el('span', 'v2-form-title', V2T.formTitle))
+    const ms = club.recentMatches
+    box.append(formRow(V2T.formLastLabel, ms.slice(-10), form.last, 'last'))
+    if (form.previous) box.append(formRow(V2T.formPrevLabel, ms.slice(-20, -10), form.previous, 'prev'))
     box.append(el('span', 'v2-hint v2-form-note', V2T.formNote))
     growth.append(box)
   }
-  growth.append(lineupBtn, recruitBtn, el('p', 'v2-hint', V2T.growthHint))
+
+  const upgradeable = upgradeableCount(club)
+  const goal = upgradeable ? null : nearestUpgrade(club)
+  const entries = el('div', 'v2-entries')
+  const entry = (name: IconName, label: string, sub: string | null, action: string, run: () => void) => {
+    const b = el('button', 'v2-entry-btn')
+    b.type = 'button'
+    b.dataset.action = action
+    const t = el('span', 'v2-entry-text', label)
+    if (sub) t.append(el('span', 'v2-entry-sub', sub))
+    b.append(icon(name, 20), t, icon('chev', 14, 'v2-entry-chev'))
+    b.onclick = run
+    return b
+  }
+  entries.append(
+    entry('upgrade', upgradeable ? V2T.upgradeReady(upgradeable) : goal ? V2T.upgradeShort(goal.short.experience, goal.short.funds) : V2T.upgradeNone, null, 'lineup', actions.lineup),
+  )
+  const cost = recruitCost(club.recruitment.count)
+  const full = rosterFull(club)
+  const short = !full && club.economy.assets.funds < cost.funds
+  entries.append(
+    entry('recruit', full ? V2T.rosterFull : V2T.recruitEntry, full ? null : `・${V2T.recruitCost(cost.funds)}${short ? `（${V2T.notEnoughFunds}）` : ''}`, 'recruit', actions.recruit),
+  )
+  growth.append(entries)
+  void state
   return growth
 }
 
-/** 未領取收益：沒有收益時只剩一行說明與（停用的）按鈕 */
+function formRow(label: string, ms: readonly SettledMatch[], tally: { wins: number; losses: number }, key: string): HTMLElement {
+  const row = el('div', 'v2-form-row')
+  row.dataset.formRow = key
+  const dots = el('span', 'v2-form-dots')
+  dots.setAttribute('aria-hidden', 'true')
+  for (const m of ms) dots.append(el('span', m.result.won ? 'w' : 'l'))
+  const v = el('span', 'v2-form-value', `${tally.wins}-${tally.losses}`)
+  row.setAttribute('aria-label', `${label} ${tally.wins} 勝 ${tally.losses} 敗`)
+  row.append(el('span', 'v2-form-label', label), dots, v)
+  return row
+}
+
+/** 未領取收益：沒有收益時數字變灰、按鈕停用並說明 */
 function rewardsSection(club: ClubSave, state: ControllerState, actions: DashboardActions): HTMLElement {
   const { funds, experience } = club.economy.unclaimed
   const empty = funds === 0 && experience === 0
   const rewards = el('section', `v2-card v2-rewards ${empty ? 'empty' : ''}`)
-  const amounts = el('div', 'v2-reward-amounts')
-  amounts.append(rewardItem(V2T.funds, funds, 'funds'), rewardItem(V2T.experience, experience, 'exp'))
-  const claim = el('button', 'btn-white v2-claim', state.claiming ? V2T.claiming : V2T.claimButton)
+  const amounts = el('div', 'v2-stats two v2-reward-amounts')
+  amounts.append(rewardItem(V2T.funds, funds, 'funds', 'coin'), rewardItem(V2T.experience, experience, 'exp', 'exp'))
+  const claim = el('button', 'btn-white v2-claim')
   claim.type = 'button'
+  claim.append(icon('claim', 20), state.claiming ? V2T.claiming : V2T.claimButton)
   claim.disabled = state.claiming || !state.canWrite || empty
   claim.onclick = () => {
     claim.disabled = true
@@ -322,7 +374,7 @@ function recentSection(club: ClubSave, actions: DashboardActions): HTMLElement {
   const head = el('div', 'v2-card-head')
   head.append(el('h2', 'v2-card-title', V2T.recentTitle))
   if (club.recentMatches.length > RECENT_ON_HOME) {
-    const all = el('button', 'v2-link', V2T.seeAll)
+    const all = el('button', 'v2-link', `${V2T.seeAll} ›`)
     all.type = 'button'
     all.onclick = actions.allReports
     head.append(all)
@@ -335,7 +387,7 @@ function recentSection(club: ClubSave, actions: DashboardActions): HTMLElement {
 }
 
 /**
- * 聯盟卡片：目前聯盟、晉級進度（每個條件目前多少、需要多少、還差多少）、挑戰冷卻，以及「挑戰下一聯盟」。
+ * 聯盟卡片：目前聯盟、晉級條件（每個條件目前多少、需要多少）、挑戰冷卻，以及「挑戰下一聯盟」。
  * 所有數字都來自 domain/league.ts 的 eligibility，不另外算一套條件
  */
 export function leagueCard(state: ControllerState, actions: Pick<DashboardActions, 'challenge' | 'watchChallenge'>): HTMLElement {
@@ -343,71 +395,88 @@ export function leagueCard(state: ControllerState, actions: Pick<DashboardAction
   const { league } = club
   const def = leagueOf(league.tier)
   const e = eligibility(league, club.idle.nextMatchIndex)
-  const card = el('section', `v2-card v2-league ${e.ok ? 'ready' : ''}`)
+  const ready = e.ok && !e.atMaxTier
+  const card = el('section', `v2-card v2-league ${ready ? 'ready' : ''}`)
   card.dataset.tier = String(league.tier)
+  card.setAttribute('aria-label', V2T.leagueCardLabel)
   const head = el('div', 'v2-league-head')
-  const badge = el('span', 'v2-league-badge', String(league.tier + 1))
-  badge.style.background = def.color
+  const badge = el('span', 'v2-league-badge')
+  badge.style.color = def.color
+  badge.append(icon('league', 44), el('span', 'v2-league-tier', String(league.tier + 1)))
   badge.setAttribute('aria-hidden', 'true')
   const names = el('div', 'v2-league-names')
-  names.append(el('strong', 'v2-league-name', def.name), el('span', 'v2-league-sub', e.atMaxTier ? V2T.leagueTop : V2T.leagueNext(leagueOf(league.tier + 1).name)))
+  const nameRow = el('span', 'v2-league-name-row')
+  nameRow.append(el('strong', 'v2-league-name', def.name))
+  if (ready) nameRow.append(el('span', 'v2-ready-tag', V2T.leagueReadyTag))
+  const line = el('span', 'v2-league-line', `${V2T.leagueRecord(league.wins, league.losses)}・${V2T.leagueHint(def.rewardMultiplier)}・`)
+  line.append(el('span', 'v2-league-sub', e.atMaxTier ? V2T.leagueTop : V2T.leagueNext(leagueOf(league.tier + 1).name)))
+  names.append(nameRow, line)
   head.append(badge, names)
-  const lines = el('div', 'v2-league-lines')
-  lines.append(el('span', '', V2T.leagueRecord(league.wins, league.losses)), el('span', 'v2-hint', V2T.leagueHint(def.rewardMultiplier)))
-  card.append(head, lines)
+  card.append(head)
+
+  if (!e.atMaxTier) {
+    const need = el('ul', 'v2-league-need')
+    const item = (ok: boolean, text: string, value: string, ratio: number | null, key: string, mark?: number) => {
+      const li = el('li', ok ? 'done' : '')
+      li.dataset.need = key
+      const top = el('span', 'v2-need-top')
+      const dot = el('span', 'v2-need-dot')
+      if (ok) dot.append(icon('check', 10))
+      top.append(dot, el('span', 'v2-need-text', text), el('span', 'v2-need-value', value))
+      li.append(top)
+      if (ratio !== null) {
+        const bar = el('span', 'v2-need-bar')
+        bar.setAttribute('role', 'progressbar')
+        bar.setAttribute('aria-label', text)
+        bar.setAttribute('aria-valuemin', '0')
+        bar.setAttribute('aria-valuemax', '100')
+        bar.setAttribute('aria-valuenow', String(Math.round(ratio * 100)))
+        const fill = el('span', 'v2-need-fill')
+        fill.style.width = `${Math.round(Math.min(1, ratio) * 100)}%`
+        bar.append(fill)
+        if (mark !== undefined) {
+          const m = el('span', 'v2-need-mark')
+          m.style.left = `${Math.round(mark * 100)}%`
+          bar.append(m)
+        }
+        li.append(bar)
+      }
+      need.append(li)
+    }
+    const rateOk = e.winRate.games >= e.winRate.window && e.winRate.have >= e.winRate.need
+    item(e.matches.have >= e.matches.need, V2T.leagueMatchesLine(e.matches.have, e.matches.need), `${fmt(e.matches.have)} / ${fmt(e.matches.need)}`, e.matches.have / e.matches.need, 'matches')
+    item(rateOk, V2T.leagueRateLine(e.winRate.have, e.winRate.games, e.winRate.need, e.winRate.window), `${Math.round(e.winRate.have * 100)}%`, e.winRate.have, 'rate', e.winRate.need)
+    if (e.retryRemaining > 0) {
+      const total = PROMOTION_CONFIG.retryAfterMatches
+      item(false, V2T.leagueCooldownLine(e.retryRemaining), `${total - e.retryRemaining} / ${total}`, (total - e.retryRemaining) / total, 'cooldown')
+    }
+    card.append(need)
+    const nextMult = leagueOf(league.tier + 1).rewardMultiplier
+    if (ready) {
+      card.append(el('p', 'v2-league-ready', `${V2T.leagueReady}${V2T.leagueWhy(nextMult)}。`))
+      const btn = el('button', 'btn-white v2-challenge')
+      btn.type = 'button'
+      btn.dataset.action = 'challenge'
+      btn.append(icon('challenge', 20), state.challenging ? V2T.challenging : V2T.challengeButton)
+      const expected = { fromTier: league.tier, challengeSeq: league.nextChallengeSeq }
+      btn.dataset.tier = String(expected.fromTier)
+      btn.dataset.seq = String(expected.challengeSeq)
+      btn.disabled = state.challenging || !state.canWrite
+      btn.onclick = () => {
+        btn.disabled = true
+        actions.challenge(expected)
+      }
+      card.append(btn)
+    } else {
+      card.append(el('p', 'v2-hint', `${V2T.leagueWhy(nextMult)}。${V2T.leagueLongTerm}`))
+    }
+  }
   if (actions.watchChallenge) {
-    const watch = el('button', 'v2-link v2-watch-challenge', V2T.watchLastChallenge)
+    const watch = el('button', 'v2-link v2-watch-challenge', `${V2T.watchLastChallenge} ›`)
     watch.type = 'button'
     watch.dataset.action = 'watch-last-challenge'
     watch.onclick = actions.watchChallenge
     card.append(watch)
-  }
-  if (e.atMaxTier) return card
-
-  // 進度條：場數與勝率兩個條件裡，比較落後的那個
-  const matchRatio = Math.min(1, e.matches.have / e.matches.need)
-  const rateRatio = e.winRate.games < e.winRate.window ? Math.min(matchRatio, e.winRate.have / e.winRate.need) : Math.min(1, e.winRate.have / e.winRate.need)
-  const ratio = e.ok ? 1 : Math.min(matchRatio, rateRatio)
-  const bar = el('div', 'v2-league-bar')
-  bar.setAttribute('role', 'progressbar')
-  bar.setAttribute('aria-valuemin', '0')
-  bar.setAttribute('aria-valuemax', '100')
-  bar.setAttribute('aria-valuenow', String(Math.round(ratio * 100)))
-  const fill = el('span', 'v2-league-fill')
-  fill.style.width = `${Math.round(ratio * 100)}%`
-  fill.style.background = def.color
-  bar.append(fill)
-
-  const need = el('ul', 'v2-league-need')
-  const item = (ok: boolean, text: string, key: string) => {
-    const li = el('li', ok ? 'done' : '', `${ok ? '✓' : '・'} ${text}`)
-    li.dataset.need = key
-    need.append(li)
-  }
-  const rateOk = e.winRate.games >= e.winRate.window && e.winRate.have >= e.winRate.need
-  item(e.matches.have >= e.matches.need, V2T.leagueMatchesLine(e.matches.have, e.matches.need), 'matches')
-  item(rateOk, V2T.leagueRateLine(e.winRate.have, e.winRate.games, e.winRate.need, e.winRate.window), 'rate')
-  if (e.retryRemaining > 0) item(false, V2T.leagueCooldownLine(e.retryRemaining), 'cooldown')
-  const nextMult = leagueOf(league.tier + 1).rewardMultiplier
-  card.append(el('h3', 'v2-section-title', V2T.leagueProgressTitle), bar, need)
-
-  if (e.ok) {
-    card.append(el('p', 'v2-league-ready', V2T.leagueReady), el('p', 'v2-hint', V2T.leagueWhy(nextMult)))
-    const btn = el('button', 'btn-yellow btn-big v2-challenge', state.challenging ? V2T.challenging : V2T.challengeButton)
-    btn.type = 'button'
-    btn.dataset.action = 'challenge'
-    // 記住畫面顯示時的聯盟與挑戰序號：畫面過期（別的分頁已經晉級）時，服務會拒絕，不會挑戰到另一個聯盟
-    const expected = { fromTier: league.tier, challengeSeq: league.nextChallengeSeq }
-    btn.dataset.tier = String(expected.fromTier)
-    btn.dataset.seq = String(expected.challengeSeq)
-    btn.disabled = state.challenging || !state.canWrite
-    btn.onclick = () => {
-      btn.disabled = true
-      actions.challenge(expected)
-    }
-    card.append(btn)
-  } else {
-    card.append(el('p', 'v2-hint', `${V2T.leagueWhy(nextMult)}。${V2T.leagueLongTerm}`))
   }
   return card
 }
@@ -424,7 +493,6 @@ export interface LiveCard {
 /** 目前比賽卡片：我方、對手、比分、局數、出局、壘上、剩餘時間；跟直播畫面用同一份時間軸 */
 export function renderLiveCard(card: HTMLElement, live: LiveCard | null): void {
   const body = card.querySelector<HTMLElement>('[data-live-body]')
-  const badge = card.querySelector<HTMLElement>('[data-live-badge]')
   if (!body) return
   if (!live) {
     body.replaceChildren(el('p', 'v2-empty', V2T.liveNone))
@@ -433,35 +501,46 @@ export function renderLiveCard(card: HTMLElement, live: LiveCard | null): void {
   const { state: s, info, userSide, teamNames, now } = live
   const other: Side = userSide === 'home' ? 'away' : 'home'
   const upcoming = now < info.startsAt
-  if (badge) {
-    badge.textContent = upcoming ? V2T.liveUpcoming : V2T.liveBadge
-    badge.className = `v2-live-badge ${upcoming ? 'waiting' : 'live'}`
-  }
-  const teams = el('div', 'v2-live-teams')
-  const team = (side: Side) => {
-    const row = el('div', `v2-live-team ${side === userSide ? 'ours' : ''}`)
-    const sc = el('span', 'v2-live-score', String(s.score[side]))
-    sc.dataset.liveScore = side === userSide ? 'us' : 'them'
-    row.append(el('span', 'v2-live-name', teamNames[side]), sc)
-    return row
-  }
-  teams.append(team(userSide), team(other))
-  const meta = el('div', 'v2-live-meta')
-  const inning = el('span', 'v2-live-inning', upcoming ? V2T.matchNo(info.matchIndex + 1) : `${s.inning} ${s.half === 'top' ? T.halfTop : T.halfBottom}`)
-  inning.dataset.liveInning = `${s.inning}${s.half}`
-  const outs = el('span', 'v2-live-outs', V2T.liveOuts(s.outs))
-  outs.dataset.liveOuts = String(s.outs)
-  const bases = el('span', 'v2-live-bases')
-  bases.innerHTML = basesSvg(s.bases.map(Boolean))
-  bases.setAttribute('role', 'img')
-  bases.setAttribute('aria-label', runnersText(s.bases.map(Boolean)))
+
+  const head = el('div', 'v2-live-head')
+  const badge = el('span', `v2-live-badge ${upcoming ? 'waiting' : 'live'}`)
+  badge.dataset.liveBadge = ''
+  badge.append(el('span', 'v2-live-dot'), upcoming ? V2T.liveUpcoming : V2T.liveBadge)
   const left = Math.max(0, upcoming ? info.startsAt - now : info.endsAt - now)
   const secs = Math.ceil(left / 1000)
   const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
-  const remain = el('span', 'v2-live-remain', upcoming ? V2T.liveStartsIn(clock) : V2T.liveRemaining(clock))
+  const remain = el('span', 'v2-live-remain')
   remain.dataset.liveRemain = String(secs)
-  meta.append(inning, outs, bases, remain)
-  body.replaceChildren(teams, meta)
+  remain.append(icon('clock', 16), upcoming ? V2T.liveStartsIn(clock) : V2T.liveRemaining(clock))
+  head.append(badge, el('span', 'v2-live-no', V2T.matchNo(info.matchIndex + 1)), remain)
+
+  const row = el('div', 'v2-live-row')
+  const teams = el('div', 'v2-live-teams')
+  const team = (side: Side) => {
+    const ours = side === userSide
+    const r = el('div', `v2-live-team ${ours ? 'ours' : 'theirs'}`)
+    const sc = el('span', 'v2-live-score', String(s.score[side]))
+    sc.dataset.liveScore = ours ? 'us' : 'them'
+    r.append(el('span', 'v2-live-color'), el('span', 'v2-live-name', teamNames[side]), sc)
+    return r
+  }
+  teams.append(team(userSide), team(other))
+  const meta = el('div', 'v2-live-meta')
+  const runners = s.bases.map(Boolean)
+  meta.setAttribute('aria-label', `${upcoming ? V2T.matchNo(info.matchIndex + 1) : `${s.inning} ${s.half === 'top' ? T.halfTop : T.halfBottom}`}，${V2T.liveOuts(s.outs)}，${runnersText(runners)}`)
+  const inning = el('span', 'v2-live-inning')
+  inning.dataset.liveInning = `${s.inning}${s.half}`
+  inning.append(el('span', 'v2-live-inning-no', String(s.inning)), ` ${s.half === 'top' ? T.halfTop : T.halfBottom}`)
+  const bases = el('span', 'v2-live-bases')
+  bases.innerHTML = basesSvg(runners)
+  bases.setAttribute('aria-hidden', 'true')
+  const outs = el('span', 'v2-live-outs')
+  outs.dataset.liveOuts = String(s.outs)
+  outs.setAttribute('aria-hidden', 'true')
+  for (let i = 0; i < 2; i++) outs.append(el('span', i < s.outs ? 'on' : ''))
+  meta.append(inning, bases, outs)
+  row.append(teams, meta)
+  body.replaceChildren(head, row)
 }
 
 export function updateCountdown(scope: HTMLElement, due: DueMatches | null, state: ControllerState, live: LiveCard | null = null): void {
@@ -473,7 +552,7 @@ export function updateCountdown(scope: HTMLElement, due: DueMatches | null, stat
   dueEl.textContent = state.settling || due.matches > 0 ? V2T.liveSettling : ''
 }
 
-/** 比賽列表：勝敗、比分、對手、局數、獲得資源，點了看戰報 */
+/** 比賽列表：勝敗、對手、場次與局數、獲得資源、比分，點了看戰報 */
 export function matchList(matches: readonly SettledMatch[], open: (m: SettledMatch) => void): HTMLElement {
   const list = el('ul', 'v2-match-list')
   for (const m of matches) {
@@ -484,10 +563,11 @@ export function matchList(matches: readonly SettledMatch[], open: (m: SettledMat
     b.setAttribute('aria-label', `${V2T.matchNo(m.matchIndex + 1)} ${r.won ? V2T.win : V2T.loss} ${r.runsFor} 比 ${r.runsAgainst} ${V2T.vs(r.opponentName)}`)
     const badge = el('span', 'v2-result-badge', r.won ? V2T.win : V2T.loss)
     const body = el('span', 'v2-match-body')
-    body.append(el('span', 'v2-match-opp', V2T.vs(r.opponentName)), el('span', 'v2-match-sub', `${V2T.matchNo(m.matchIndex + 1)}・${V2T.innings(r.innings)}`))
-    const right = el('span', 'v2-match-right')
-    right.append(el('span', 'v2-match-score', `${r.runsFor} : ${r.runsAgainst}`), el('span', 'v2-match-earned', V2T.earned(m.earnedFunds, m.earnedExperience)))
-    b.append(badge, body, right)
+    body.append(
+      el('span', 'v2-match-opp', V2T.vs(r.opponentName)),
+      el('span', 'v2-match-sub', `${V2T.matchNo(m.matchIndex + 1)}・${V2T.innings(r.innings)}・${V2T.earned(m.earnedFunds, m.earnedExperience)}`),
+    )
+    b.append(badge, body, el('span', 'v2-match-score', `${r.runsFor} : ${r.runsAgainst}`))
     b.onclick = () => open(m)
     li.append(b)
     list.append(li)
@@ -495,14 +575,19 @@ export function matchList(matches: readonly SettledMatch[], open: (m: SettledMat
   return list
 }
 
-function stat(label: string, value: string, kind = ''): HTMLElement {
+function stat(label: string, value: string, kind = '', ico?: IconName): HTMLElement {
   const box = el('div', `v2-stat ${kind}`)
-  box.append(el('span', 'v2-stat-value', value), el('span', 'v2-stat-label', label))
+  const v = el('span', 'v2-stat-num')
+  if (ico) v.append(icon(ico, 20))
+  v.append(el('span', 'v2-stat-value', value))
+  box.append(el('span', 'v2-stat-label', label), v)
   return box
 }
 
-function rewardItem(label: string, value: number, kind: string): HTMLElement {
-  const box = el('div', `v2-reward ${kind}`)
-  box.append(el('span', 'v2-reward-value', `+${fmt(value)}`), el('span', 'v2-reward-label', label))
+function rewardItem(label: string, value: number, kind: string, ico: IconName): HTMLElement {
+  const box = el('div', `v2-stat v2-reward ${kind}`)
+  const v = el('span', 'v2-stat-num')
+  v.append(icon(ico, 20), el('span', 'v2-reward-value', value ? `+${fmt(value)}` : '0'))
+  box.append(el('span', 'v2-stat-label', label), v)
   return box
 }

@@ -105,8 +105,21 @@ const give = (c: ClubSave, funds: number, experience: number, where: 'assets' | 
 }
 
 describe('首頁層級', () => {
-  it('新球團：目前比賽在最上面，接著目前建議、新手任務；沒有近期比賽、沒有收益', async () => {
+  it('電腦版（1024 寬以上）三欄：比賽與建議／球隊與收益／聯盟、任務、最近比賽', async () => {
     await setup()
+    const cols = $$('.v2-dashboard > .v2-dash-col').map((c) => [...c.children].map((s) => s.className.split(' ').find((x) => x.startsWith('v2-') && x !== 'v2-card')))
+    expect(cols).toEqual([['v2-live-card', 'v2-next'], ['v2-growth', 'v2-rewards'], ['v2-league', 'v2-onboard', 'v2-recent']])
+  })
+
+  it('新球團：目前比賽在最上面，接著目前建議、新手任務；沒有近期比賽、沒有收益', async () => {
+    // 手機版一欄（測試環境的視窗預設 1024 寬，這裡讓版面判斷成手機）
+    const realMatchMedia = globalThis.matchMedia
+    globalThis.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof matchMedia
+    try {
+      await setup()
+    } finally {
+      globalThis.matchMedia = realMatchMedia
+    }
     const order = $$('.v2-dashboard > section').map((s) => s.className.split(' ').find((c) => c.startsWith('v2-') && c !== 'v2-card'))
     expect(order).toEqual(['v2-live-card', 'v2-next', 'v2-onboard', 'v2-growth', 'v2-league', 'v2-rewards', 'v2-recent'])
     expect(text('[data-live-remain]')).toContain('5:00')

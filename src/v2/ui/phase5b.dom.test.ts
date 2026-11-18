@@ -322,7 +322,7 @@ describe('歷史戰報', () => {
   it('每場都有 Box Score：日期、聯盟、比分、各局比分、安打、打者與投手成績、收益；說明保留範圍；沒有觀看入口', async () => {
     const { storage } = await mountAt12()
     $<HTMLButtonElement>('[data-tab="reports"]')!.click()
-    expect(text('.v2-hint')).toContain('最近 50 場')
+    expect(text('.v2-page-sub')).toContain('最近 50 場')
     $$('.v2-match')[1].click()
     const m = club(storage).recentMatches[0]
     expect($('.v2-report-meta')!.dataset.league).toBe('0')
@@ -331,8 +331,8 @@ describe('歷史戰報', () => {
     const totals = $$('.v2-linescore tr.ours .total').map((x) => x.textContent)
     expect(totals[0]).toBe(String(m.result.runsFor))
     expect(totals[1]).toBe(String(m.box!.hits[m.result.userSide]))
-    expect($$('.v2-box li').length).toBe(m.box!.batters.length + m.box!.pitchers.length)
-    expect(text('.v2-report')).toContain(V2T.earned(m.earnedFunds, m.earnedExperience))
+    expect($$('.v2-box tbody tr').length).toBe(m.box!.batters.length + m.box!.pitchers.length)
+    expect($('.v2-report-rewards')!.getAttribute('aria-label')).toContain(V2T.earned(m.earnedFunds, m.earnedExperience))
     expect($('[data-action="watch"]')).toBeNull()
   })
 })

@@ -71,7 +71,8 @@ describe('聯盟卡片', () => {
     expect(text('.v2-league')).toContain(V2T.leagueRecord(0, 0))
     expect($$('.v2-league-need li')).toHaveLength(2)
     expect($('[data-action="challenge"]')).toBeNull()
-    expect($('.v2-league-bar')!.getAttribute('aria-valuenow')).toBe('0')
+    expect($('[data-need="matches"] [role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('0')
+    expect($('[data-need="rate"] [role="progressbar"]')!.getAttribute('aria-valuenow')).toBe('0')
   })
 
   it('達到條件：出現「挑戰下一聯盟」；挑戰成功後顯示結果對話框，首頁換成新聯盟', async () => {
@@ -88,7 +89,7 @@ describe('聯盟卡片', () => {
     expect(text('.v2-challenge-verdict')).toBe(V2T.challengeWin)
     expect(text('.v2-challenge-result')).toContain(V2T.challengePromoted(LEAGUES[1].name))
     expect(text('.v2-challenge-result')).toContain(V2T.challengeReward(LEAGUES[1].promotionReward.funds, LEAGUES[1].promotionReward.experience))
-    expect($$('.v2-modal')).toHaveLength(1)
+    expect($$('.v2-modal-overlay')).toHaveLength(1)
     $<HTMLButtonElement>('.v2-modal-close')!.click()
     await flush()
     expect($('.v2-modal')).toBeNull()
@@ -156,11 +157,11 @@ describe('釋出球員', () => {
     expect($$('.v2-reserves .v2-player')).toHaveLength(0)
   })
 
-  it('上場球員的詳情沒有釋出按鈕，只有說明', async () => {
+  it('上場球員的詳情：釋出按鈕停用，並說明只有預備球員可以釋出', async () => {
     await mountClub(9)
     $<HTMLButtonElement>('[data-tab="lineup"]')!.click()
     $$('.v2-develop')[0].click()
-    expect($('[data-action="release"]')).toBeNull()
-    expect(text('.v2-release')).toBe(V2T.releaseOnlyReserve)
+    expect($<HTMLButtonElement>('[data-action="release"]')!.disabled).toBe(true)
+    expect(text('.v2-release .v2-hint')).toBe(V2T.releaseOnlyReserve)
   })
 })

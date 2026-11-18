@@ -1,48 +1,119 @@
-/* V2 放置經營：沿用 V1 的配色（靛藍底、白色面板、深色粗外框與實色陰影），手機優先，底部導覽 */
+/* V2 放置經營（設計稿 v7「卡牌手遊風・精簡」）：靛藍底、白色面板、深色外框；手機底部導覽、電腦左側導覽 */
 
-/* 勝負配色：對話框掛在 body 底下（不在 .v2-screen 裡），所以也要在遮罩上定義一次 */
-.v2-modal-overlay {
-  --v2-win: #22a35a;
-  --v2-loss: #e5383b;
-}
-
-.v2-screen {
+/* 共用的顏色與尺寸：對話框、觀戰畫面掛在 body 底下（不在 .v2-screen 裡），所以放在 :root */
+:root {
   --v2-win: #22a35a;
   --v2-loss: #e5383b;
   --v2-nav-h: 64px;
-  min-height: 100dvh;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: calc(10px + env(safe-area-inset-top)) 14px calc(var(--v2-nav-h) + 24px + env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  --v2-card-bg: #fff;
+  --v2-soft: #f4f5ff;
+  --v2-muted: #4a4f7a;
+  --v2-faint: #6b7099;
+  --v2-blue: #2d7cff;
+  --v2-link: #1a4fb8;
 }
 
-/* ---- 頂部 ---- */
+.v2-screen {
+  min-height: 100dvh;
+}
+.v2-body {
+  min-width: 0;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+.v2-screen.has-nav .v2-body {
+  padding-bottom: calc(var(--v2-nav-h) + 20px + env(safe-area-inset-bottom));
+}
+
+/* ---- 頁首：隊名、聯盟與總戰績；右邊資金與經驗 ---- */
 .v2-header {
+  position: sticky;
+  top: 0;
+  z-index: 15;
   display: flex;
   align-items: center;
   gap: 12px;
+  padding: calc(14px + env(safe-area-inset-top)) 14px 12px;
+  background: #1e2170;
+  border-bottom: 2px solid var(--ink);
 }
 .v2-titles {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 4px;
   min-width: 0;
 }
 .v2-title {
   margin: 0;
   font-size: 22px;
   font-weight: 900;
+  line-height: 1.15;
+  color: #fff;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .v2-subtitle {
-  font-size: 13px;
-  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--lilac);
 }
+.v2-league-pill {
+  padding: 0 7px;
+  border-radius: 9px;
+  border: 1.5px solid var(--ink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 16px;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(20, 22, 51, 0.45);
+}
+.v2-head-record {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: #fff;
+}
+.v2-resources {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.v2-resources:empty {
+  display: none;
+}
+.v2-res {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px 0 4px;
+  border-radius: 19px;
+  background: #fff;
+  border: 2px solid var(--ink);
+  color: var(--ink);
+}
+.v2-res-value {
+  font-family: var(--font-display);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.v2-ico {
+  flex: none;
+  display: inline-flex;
+}
+.v2-icon {
+  display: block;
+  overflow: visible;
+}
+
 .v2-banner-slot:empty {
   display: none;
 }
@@ -50,6 +121,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 14px 12px 0;
 }
 .v2-banner {
   display: flex;
@@ -57,53 +129,69 @@
   gap: 10px;
   padding: 10px 12px;
   border-radius: 14px;
-  border: 2.5px solid var(--ink);
-  font-size: 14px;
-  font-weight: 800;
+  border: 2px solid var(--ink);
+  background: #fff;
   color: var(--ink);
-  box-shadow: 0 3px 0 var(--ink);
-}
-.v2-banner span {
-  flex: 1;
-  line-height: 1.5;
-}
-.v2-banner.warn {
-  background: var(--yellow);
 }
 .v2-banner.error {
-  background: #ffd9d9;
+  border: 1.5px solid #e5383b;
+  background: #ffecec;
+  color: #a3141f;
 }
-.v2-banner .btn-small {
-  background: #fff;
+.v2-banner-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.4;
+}
+.v2-banner-text strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-banner-text span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-banner-btn {
+  flex: none;
+  height: 44px;
+  padding: 0 12px;
+  font-size: 13px;
 }
 
 .v2-main {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 14px 12px 0;
+  box-sizing: border-box;
 }
 .v2-page {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-.v2-loading {
-  text-align: center;
-  font-weight: 800;
-  color: var(--lilac);
-  margin-top: 40px;
+  gap: 14px;
 }
 
-/* ---- 卡片 ---- */
+/* ---- 卡片：資訊卡片用細框；可以點的主要卡片用粗框＋實色陰影（.strong） ---- */
 .v2-card {
-  background: var(--paper);
+  background: #fff;
   color: var(--ink);
-  border: 3px solid var(--ink);
+  border: 1.5px solid var(--ink);
   border-radius: 20px;
-  box-shadow: 0 5px 0 var(--ink);
-  padding: 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  min-width: 0;
+}
+.v2-card.strong {
+  border-width: 3px;
+  box-shadow: 0 5px 0 var(--ink);
 }
 .v2-card-head {
   display: flex;
@@ -113,168 +201,174 @@
 }
 .v2-card-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 900;
 }
 .v2-section-title {
   margin: 0;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 900;
-  color: var(--ink-soft);
+  color: var(--v2-muted);
 }
 .v2-hint {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--ink-faint);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--v2-faint);
   font-weight: 700;
 }
 .v2-effective {
   margin: 0;
-  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
   border-radius: 12px;
-  background: #fff6cf;
-  border: 2px solid var(--yellow-shadow);
-  font-size: 13px;
-  font-weight: 900;
+  background: #eaf1ff;
+  color: var(--v2-link);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
 }
 .v2-empty {
   margin: 0;
   padding: 16px 12px;
   border-radius: 14px;
-  border: 2px dashed var(--lilac);
+  background: var(--v2-soft);
   text-align: center;
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--ink-faint);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--v2-faint);
 }
 .v2-link {
+  min-height: 32px;
   border: 0;
   background: none;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 900;
-  color: var(--indigo);
-  text-decoration: underline;
+  color: var(--v2-link);
   cursor: pointer;
-  padding: 6px 2px;
+  padding: 0;
+  text-align: left;
+}
+.v2-link:hover {
+  text-decoration: underline;
+}
+.v2-icon-btn {
+  flex: none;
+  width: 44px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0;
+}
+.v2-icon-btn:disabled {
+  color: #8a8fae;
+  cursor: not-allowed;
 }
 
-/* ---- 球團資訊 ---- */
+/* ---- 數字統計格：淡底小格，標籤在上、數字在下；7 位數也放得下 ---- */
 .v2-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
+.v2-stats.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .v2-stat {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 2px;
-  padding: 8px 4px;
-  border-radius: 14px;
-  background: #fff;
-  border: 2px solid var(--line);
-}
-.v2-stat-value {
-  font-family: var(--font-display);
-  font-size: 22px;
-  line-height: 1.1;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--v2-soft);
+  min-width: 0;
 }
 .v2-stat-label {
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-muted);
 }
-.v2-stat.funds .v2-stat-value {
-  color: #b07800;
+.v2-stat-num {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
 }
-.v2-stat.exp .v2-stat-value {
-  color: #6a35d6;
+.v2-stat-value,
+.v2-reward-value {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.1;
+  white-space: nowrap;
 }
-.v2-club .v2-stat.funds,
-.v2-club .v2-stat.exp {
-  grid-column: span 1;
+.v2-stat.wins .v2-stat-value {
+  color: var(--v2-win);
 }
-.v2-club .v2-stats {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+.v2-stat.losses .v2-stat-value {
+  color: var(--v2-loss);
 }
-.v2-club .v2-stat {
-  grid-column: span 2;
+@container (max-width: 150px) {
+  .v2-stat-value,
+  .v2-reward-value {
+    font-size: 16px;
+  }
 }
-.v2-club .v2-stat.funds,
-.v2-club .v2-stat.exp {
-  grid-column: span 3;
+.v2-stat {
+  container-type: inline-size;
 }
 
 /* ---- 未領取收益 ---- */
-.v2-reward-amounts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.v2-reward {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 10px 6px;
-  border-radius: 14px;
-  background: #fff;
-  border: 2px solid var(--line);
-}
-.v2-reward-value {
-  font-family: var(--font-display);
-  font-size: 24px;
-}
-.v2-reward.funds .v2-reward-value {
-  color: #b07800;
-}
-.v2-reward.exp .v2-reward-value {
-  color: #6a35d6;
-}
-.v2-reward-label {
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--ink-faint);
+
+.v2-claim {
+  width: 100%;
 }
 
-/* ---- 比賽列表 ---- */
+/* ---- 比賽列表：勝敗方塊、對手與場次、比分；列與列之間細線 ---- */
 .v2-match-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
 .v2-match {
   width: 100%;
-  display: flex;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  border-radius: 14px;
-  border: 2px solid var(--line);
-  background: #fff;
+  min-height: 52px;
+  padding: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
   font-family: inherit;
   color: var(--ink);
   text-align: left;
   cursor: pointer;
-  min-height: 56px;
 }
-.v2-match:hover {
-  border-color: var(--ink-soft);
+.v2-match-list li:first-child .v2-match {
+  border-top: 0;
+}
+.v2-match:hover .v2-match-opp {
+  text-decoration: underline;
 }
 .v2-result-badge {
-  flex: none;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 14px;
   font-weight: 900;
   color: #fff;
-  border: 2px solid var(--ink);
 }
 .v2-match.won .v2-result-badge {
   background: var(--v2-win);
@@ -283,108 +377,33 @@
   background: var(--v2-loss);
 }
 .v2-match-body {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 1px;
 }
 .v2-match-opp {
   font-weight: 900;
-  font-size: 15px;
+  font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.v2-match-sub,
-.v2-match-earned {
-  font-size: 12px;
+.v2-match-sub {
+  font-size: 11px;
   font-weight: 700;
-  color: var(--ink-faint);
-}
-.v2-match-right {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  color: var(--v2-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .v2-match-score {
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: 16px;
+  white-space: nowrap;
 }
 
-/* ---- 建立球團 ---- */
-.v2-create {
-  margin-top: 8px;
-}
-.v2-create-title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 900;
-}
-.v2-create-intro {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.6;
-  font-weight: 700;
-}
-.v2-create-points {
-  margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--ink-soft);
-}
-.v2-create-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.v2-label {
-  font-size: 14px;
-  font-weight: 900;
-}
-.v2-input {
-  height: 50px;
-  padding: 0 14px;
-  border-radius: 14px;
-  border: 2.5px solid var(--ink);
-  font-family: inherit;
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--ink);
-  background: #fff;
-}
-.v2-input:focus {
-  outline: 3px solid var(--yellow);
-  outline-offset: 1px;
-}
-.v2-form-error {
-  margin: 0;
-  min-height: 1.2em;
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--v2-loss);
-}
-
-/* ---- 損壞存檔 ---- */
-.v2-broken h2 {
-  margin: 0;
-  font-size: 20px;
-}
-.v2-broken p {
-  margin: 0;
-  line-height: 1.6;
-  font-weight: 700;
-}
-.v2-broken-actions {
-  display: grid;
-  gap: 8px;
-}
-
-/* ---- 底部導覽 ---- */
+/* ---- 底部導覽（手機）／左側直立導覽（電腦） ---- */
 .v2-nav {
   position: fixed;
   z-index: 20;
@@ -392,760 +411,127 @@
   right: 0;
   bottom: 0;
   height: calc(var(--v2-nav-h) + env(safe-area-inset-bottom));
-  padding: 6px max(8px, calc((100vw - 720px) / 2)) env(safe-area-inset-bottom);
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  padding: 0 max(4px, calc((100vw - 720px) / 2)) env(safe-area-inset-bottom);
+  display: flex;
   background: var(--ink);
-  border-top: 3px solid #000;
+  border-top: 2px solid var(--ink);
 }
 .v2-nav[hidden] {
   display: none;
 }
+.v2-rail-logo {
+  display: none;
+}
 .v2-nav-btn {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
+  height: 52px;
+  margin: 6px 4px;
   border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--lilac);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 900;
-  cursor: pointer;
-}
-.v2-nav-btn[aria-current='true'] {
-  background: var(--yellow);
-  color: var(--ink);
-}
-
-/* ---- 陣容 ---- */
-.v2-auto {
-  height: 40px;
-  font-size: 14px;
-  padding: 0 12px;
-  box-shadow: 0 3px 0 var(--ink);
-}
-.v2-player-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.v2-player {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
   border-radius: 14px;
-  border: 2px solid var(--line);
-  background: #fff;
-  font-family: inherit;
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
-}
-.v2-player:disabled {
-  cursor: default;
-  opacity: 0.8;
-}
-.v2-player.selected {
-  border-color: var(--ink);
-  background: #fff6cf;
-  box-shadow: 0 0 0 3px var(--yellow);
-}
-.v2-player-slot {
-  flex: none;
-  width: 68px;
-  padding-top: 2px;
-  font-size: 12px;
-  font-weight: 900;
-  color: var(--ink-soft);
-}
-.v2-player-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.v2-player-name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  font-size: 15px;
-  font-weight: 900;
-}
-.v2-player-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
-.v2-offpos {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 6px;
-  border-radius: 8px;
-  background: #ffe1e1;
-  color: #b3261e;
-  font-size: 11px;
-  font-weight: 900;
-}
-.v2-selected-note {
-  position: absolute;
-  right: 8px;
-  top: 6px;
-  font-size: 11px;
-  font-weight: 900;
-  color: var(--yellow-shadow);
-}
-
-/* 儲存列：貼在底部導覽上方 */
-.v2-savebar {
-  flex-wrap: wrap;
-  position: sticky;
-  bottom: calc(var(--v2-nav-h) + 8px + env(safe-area-inset-bottom));
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 18px;
-  border: 3px solid var(--ink);
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: 0 5px 0 var(--ink);
-}
-.v2-savebar-status {
-  flex: 1 1 140px;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 1.4;
-}
-.v2-savebar-status.error {
-  color: var(--v2-loss);
-}
-.v2-savebar-buttons {
-  display: flex;
-  gap: 8px;
-}
-.v2-savebar .btn-yellow,
-.v2-savebar .btn-white {
-  height: 46px;
-  padding: 0 14px;
-  font-size: 15px;
-}
-
-/* ---- 戰術 ---- */
-.v2-beta {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--indigo);
+  background: transparent;
   color: #fff;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 900;
-}
-.v2-field {
-  margin: 0;
-  padding: 10px 0 0;
-  border: 0;
-  border-top: 2px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.v2-field legend {
-  float: left;
-  padding: 0;
-  margin-bottom: 6px;
-  font-size: 15px;
-  font-weight: 900;
-}
-.v2-segment {
-  clear: both;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-.v2-seg-btn {
-  height: 44px;
-  border-radius: 12px;
-  border: 2.5px solid var(--ink);
-  background: #fff;
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 900;
-  color: var(--ink);
   cursor: pointer;
 }
-.v2-seg-btn[aria-pressed='true'] {
-  background: var(--yellow);
-  box-shadow: 0 3px 0 var(--ink);
-}
-.v2-toggle-row {
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-}
-.v2-toggle-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.v2-toggle-label {
-  font-size: 15px;
-  font-weight: 900;
-}
-.v2-switch {
-  flex: none;
-  position: relative;
-  width: 72px;
-  height: 38px;
-  border-radius: 999px;
-  border: 2.5px solid var(--ink);
-  background: #d9dbef;
-  font-family: inherit;
-  cursor: pointer;
-}
-.v2-switch[aria-checked='true'] {
-  background: var(--v2-win);
-}
-.v2-switch-knob {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 27px;
-  height: 27px;
-  border-radius: 50%;
-  background: #fff;
+.v2-nav-btn[aria-current='page'] {
   border: 2px solid var(--ink);
-  transition: transform 0.15s;
-}
-.v2-switch[aria-checked='true'] .v2-switch-knob {
-  transform: translateX(33px);
-}
-.v2-switch-text {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  right: 10px;
-  font-size: 13px;
-  font-weight: 900;
+  background: var(--yellow);
   color: var(--ink);
 }
-.v2-switch[aria-checked='true'] .v2-switch-text {
-  right: auto;
-  left: 11px;
-  color: #fff;
-}
-.v2-seg-btn:disabled,
-.v2-switch:disabled {
-  opacity: 0.55;
-  cursor: default;
+.v2-nav-btn:focus-visible {
+  outline: 3px solid var(--yellow);
+  outline-offset: 2px;
 }
 
-/* ---- 戰報、回歸摘要 ---- */
-.v2-modal {
-  width: min(520px, 100%);
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
-}
-.v2-modal-close {
-  height: 50px;
-  flex: none;
-}
-.v2-report,
-.v2-welcome,
-.v2-auto-body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.v2-report-score {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 16px;
-  background: var(--ink);
-  color: #fff;
-}
-.v2-report-team {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-}
-.v2-report-runs {
-  font-family: var(--font-display);
-  font-size: 34px;
-  color: #fff;
-}
-.v2-report-team.ours .v2-report-runs {
-  color: var(--yellow);
-}
-.v2-report-name {
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--lilac);
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-.v2-report-result {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  font-weight: 900;
-  border: 2px solid #000;
-}
-.v2-report-score.won .v2-report-result {
-  background: var(--v2-win);
-}
-.v2-report-score.lost .v2-report-result {
-  background: var(--v2-loss);
-}
-.v2-report-meta {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ink-faint);
-  text-align: center;
-}
-.v2-report-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.v2-report-section h3,
-.v2-welcome-h {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 900;
-}
-.v2-report-rewards {
-  margin: 0;
-  font-weight: 900;
-}
-.v2-highlights,
-.v2-box,
-.v2-moves {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
-  font-weight: 800;
-}
-.v2-highlights li {
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: #fff;
-  border-left: 5px solid var(--lilac);
-}
-.v2-highlights li.ours {
-  border-left-color: var(--yellow);
-}
-.v2-moves li {
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: #fff;
-}
-.v2-box li {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--line);
-}
-.v2-box-line {
-  color: var(--ink-soft);
-  text-align: right;
-}
-.v2-linescore-wrap {
-  overflow-x: auto;
-}
-.v2-linescore {
-  border-collapse: collapse;
-  font-size: 13px;
-  font-weight: 800;
-  width: 100%;
-  background: #fff;
-}
-.v2-linescore th,
-.v2-linescore td {
-  padding: 4px 6px;
-  text-align: center;
-  border: 1px solid var(--line);
-  white-space: nowrap;
-}
-.v2-linescore th.team {
-  text-align: left;
-  max-width: 7em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.v2-linescore .total {
-  background: var(--paper);
-}
-.v2-linescore tr.ours {
-  background: #fff6cf;
-}
-.v2-welcome-lead {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 900;
-  line-height: 1.5;
-}
-.v2-welcome-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-
-@media (min-width: 640px) {
-  .v2-club .v2-stats {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+@media (min-width: 1024px) {
+  .v2-screen.has-nav {
+    display: flex;
   }
-  .v2-club .v2-stat,
-  .v2-club .v2-stat.funds,
-  .v2-club .v2-stat.exp {
-    grid-column: span 1;
+  .v2-screen.has-nav .v2-body {
+    flex: 1;
+    padding-bottom: 32px;
   }
-  .v2-dashboard {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .v2-nav {
+    position: sticky;
+    top: 0;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    flex: none;
+    width: 96px;
+    height: 100dvh;
+    padding: 20px 10px;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    background: #1e2170;
+    border-top: 0;
+    border-right: 2px solid var(--ink);
   }
-  .v2-dashboard .v2-live-card,
-  .v2-dashboard .v2-next,
-  .v2-dashboard .v2-onboard,
-  .v2-dashboard .v2-rewards,
-  .v2-dashboard .v2-recent {
-    grid-column: 1 / -1;
+  .v2-rail-logo {
+    display: block;
+    margin-bottom: 10px;
+    font-family: var(--font-display);
+    font-size: 13px;
+    line-height: 1.1;
+    color: var(--yellow);
+    text-align: center;
+    width: 50px;
   }
-  .v2-dashboard {
-    align-items: start;
+  .v2-nav-btn {
+    flex: none;
+    width: 76px;
+    height: 68px;
+    margin: 0;
+    gap: 4px;
+    border-radius: 16px;
+    font-size: 12px;
+  }
+  .v2-nav-btn .v2-icon {
+    width: 24px;
+    height: 24px;
+  }
+  .v2-header {
+    position: static;
+    padding: 24px 32px 16px;
+    background: transparent;
+    border-bottom: 0;
+  }
+  .v2-title {
+    font-size: 30px;
+  }
+  .v2-resources {
+    flex-direction: row;
+  }
+  .v2-res {
+    height: 38px;
+  }
+  .v2-banner-slot {
+    padding: 0 32px 12px;
+  }
+  .v2-main {
+    max-width: none;
+    padding: 4px 32px 0;
   }
 }
 
-/* 草稿過期（別的分頁已經改過設定）、沒有 Web Locks 的限制說明 */
-.v2-savebar.stale {
-  border-color: var(--v2-loss);
-  box-shadow: 0 5px 0 var(--v2-loss);
-}
+/* 沒有 Web Locks 的限制說明（目前比賽卡片底下） */
 .v2-limit {
   padding: 6px 8px;
   border-radius: 10px;
-  background: #fff;
-  border: 2px dashed var(--lilac);
+  border: 1.5px dashed rgba(201, 204, 255, 0.5);
 }
 
-/* ---- Phase 4：養成、招募 ---- */
-.v2-player-item {
-  display: flex;
-  gap: 6px;
-  align-items: stretch;
-}
-.v2-player-item .v2-player {
-  flex: 1;
-  min-width: 0;
-}
-.v2-develop {
-  flex: none;
-  width: 52px;
-  border-radius: 14px;
-  border: 2px solid var(--ink);
-  background: var(--yellow);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--ink);
-  cursor: pointer;
-  box-shadow: 0 2px 0 var(--ink);
-}
-.v2-level {
-  display: inline-block;
-  padding: 0 6px;
-  border-radius: 8px;
-  background: var(--indigo);
-  color: #fff;
-  font-family: var(--font-display);
-  font-size: 11px;
-  line-height: 18px;
-}
-.v2-level.big {
-  font-size: 15px;
-  line-height: 24px;
-  padding: 0 10px;
-}
-.v2-head-actions {
-  display: flex;
-  gap: 6px;
-}
-.v2-growth {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.v2-growth .v2-power,
-.v2-growth .v2-hint {
-  grid-column: 1 / -1;
-}
-.v2-power {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.v2-power-label {
-  font-size: 18px;
-  font-weight: 900;
-}
-.v2-power-value {
-  font-family: var(--font-display);
-  font-size: 22px;
-}
-.v2-growth-btn {
-  height: auto;
-  min-height: 50px;
-  padding: 6px 10px;
-  font-size: 14px;
-  line-height: 1.3;
-  flex-wrap: wrap;
-}
-.v2-short,
+/* 不夠的數字（資金、經驗、人數）用紅字 */
 .short {
   color: var(--v2-loss);
-}
-.v2-detail-head {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.v2-detail-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 20px;
-}
-.v2-rating-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  font-size: 14px;
-  font-weight: 800;
-}
-.v2-rating-table th,
-.v2-rating-table td {
-  padding: 6px;
-  border-bottom: 1px solid var(--line);
-  text-align: center;
-}
-.v2-rating-table th:first-child {
-  text-align: left;
-}
-.v2-rating-table td.current {
-  background: #fff6cf;
-}
-.v2-rating-table td.current .grade {
-  margin-right: 4px;
-}
-.v2-num {
-  font-family: var(--font-display);
-  font-size: 14px;
-}
-.v2-diff {
-  margin-left: 4px;
-  font-size: 11px;
-  color: var(--ink-faint);
-}
-.v2-diff.up {
-  color: var(--v2-win);
-}
-.v2-upgrade {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.v2-cost {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 14px;
-  font-weight: 800;
-}
-.v2-cost-label {
-  font-weight: 900;
-}
-.v2-cost-item.short {
-  color: var(--v2-loss);
-}
-.v2-upgrade-btn {
-  height: 52px;
-}
-.v2-recruit {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.v2-recruit-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-weight: 900;
-}
-.v2-recruit-buttons {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.v2-recruit-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 14px;
-  border: 2.5px solid var(--ink);
-  background: #fff;
-  animation: modal-pop 0.25s cubic-bezier(0.2, 1.4, 0.4, 1);
-}
-
-/* ---- 聯盟（Phase 5） ---- */
-.v2-league {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.v2-league-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.v2-league-badge {
-  flex: none;
-  width: 44px;
-  height: 44px;
-  border: 2.5px solid var(--ink);
-  border-radius: 50%;
-  box-shadow: 0 3px 0 var(--ink);
-  color: #fff;
-  font-family: var(--font-display);
-  font-size: 22px;
-  line-height: 39px;
-  text-align: center;
-}
-.v2-league-names {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.v2-league-name {
-  font-size: 20px;
-  font-weight: 900;
-}
-.v2-league-sub {
-  font-size: 13px;
-  color: var(--lilac);
-}
-.v2-league-lines {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  font-size: 14px;
-  font-weight: 700;
-}
-.v2-league-bar {
-  height: 14px;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: #fff;
-  overflow: hidden;
-}
-.v2-league-fill {
-  display: block;
-  height: 100%;
-  transition: width 0.3s ease;
-}
-.v2-league-need {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 14px;
-}
-.v2-league-need li.done {
-  color: var(--v2-win);
-  font-weight: 700;
-}
-.v2-challenge {
-  width: 100%;
-}
-.v2-challenge-result {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-}
-.v2-challenge-verdict {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 28px;
-}
-.v2-modal .v2-challenge-result.won .v2-challenge-verdict {
-  color: var(--v2-win);
-}
-.v2-modal .v2-challenge-result.lost .v2-challenge-verdict {
-  color: var(--v2-loss);
-}
-.v2-challenge-score {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.v2-challenge-runs {
-  font-family: var(--font-display);
-  font-size: 34px;
-}
-.v2-challenge-line {
-  margin: 0;
-  font-weight: 700;
-}
-.v2-challenge-line.reward {
-  color: var(--v2-win);
-}
-
-/* ---- 釋出球員 ---- */
-.v2-release {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 2px dashed var(--ink);
-}
-.v2-release-btn {
-  width: 100%;
-}
-.v2-release-warn {
-  margin: 0 0 10px;
-  color: var(--v2-loss);
-  font-weight: 700;
-}
-.v2-release-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
 }
 
 /* ---- 觀戰（Phase 5B）：蓋在 V2 畫面上方的子畫面 ---- */
@@ -1172,32 +558,7 @@
 .v2-replay > * {
   flex-shrink: 0;
 }
-.v2-replay-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.v2-replay-back {
-  flex: none;
-  height: 40px;
-  padding: 0 14px;
-  font-size: 15px;
-}
-.v2-replay-title {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  color: #fff;
-  font-size: 16px;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.v2-replay-sound {
-  height: 40px;
-  min-width: 40px;
-}
+
 .v2-replay-field {
   position: relative;
 }
@@ -1275,79 +636,13 @@
 .v2-replay-linescore td.total {
   font-weight: 900;
 }
-.v2-replay-duel {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  min-height: 40px;
-}
-.v2-replay-duel-card {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 6px 10px;
-  border: 2px solid var(--ink);
-  border-radius: 12px;
-  background: #fff;
-  font-size: 14px;
-}
-.v2-replay-duel-card strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.v2-replay-duel-label {
-  flex: none;
-  color: #5a5fa8;
-  font-size: 12px;
-  font-weight: 900;
-}
-.v2-replay-last {
-  margin: 0;
-  min-height: 22px;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 900;
-}
-.v2-replay-log {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin: 0;
-  padding: 6px 10px;
-  overflow-y: auto;
-  list-style: none;
-  border: 2px solid var(--ink);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
-  font-size: 13px;
-}
-.v2-replay-log li {
-  padding: 2px 0;
-}
-.v2-replay-log li.divider {
-  color: #5a5fa8;
-  font-size: 12px;
-  text-align: center;
-}
+
 .v2-replay-log li.score,
 .v2-replay-log li.hr {
   color: var(--v2-win);
   font-weight: 900;
 }
-.v2-replay-log li.sub {
-  color: #5a5fa8;
-}
-.v2-replay-controls {
-  display: grid;
-  grid-template-columns: 1.2fr 1.6fr;
-  gap: 8px;
-}
-.v2-replay-toggle {
-  height: 48px;
-  font-size: 17px;
-}
+
 .v2-replay-speed {
   height: 48px;
 }
@@ -1358,15 +653,7 @@
 .v2-replay-error {
   margin-top: 24px;
 }
-.v2-watch-btn {
-  width: 100%;
-  margin-top: 10px;
-}
-.v2-replay-missing {
-  margin: 8px 0 0;
-  color: #5a5fa8;
-  font-size: 13px;
-}
+
 /* 電腦版：V1 的比分條在桌面會把隊名移到另一欄；觀戰畫面只有一欄，維持手機版的比分條 */
 @media (min-width: 1024px) {
   .v2-replay .match-header {
@@ -1401,76 +688,7 @@
 }
 
 /* ---- 直播（目前比賽卡片與觀戰畫面） ---- */
-.v2-live-badge {
-  flex: none;
-  padding: 2px 10px;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: #ff4f5e;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 900;
-  white-space: nowrap;
-}
-.v2-live-badge.waiting,
-.v2-live-badge.paused {
-  background: #8a8fd8;
-}
-.v2-live-badge.ended {
-  background: var(--ink);
-}
-.v2-live-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.v2-live-teams {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.v2-live-team {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 17px;
-  font-weight: 700;
-}
-.v2-live-team.ours {
-  font-weight: 900;
-}
-.v2-live-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.v2-live-score {
-  font-family: var(--font-display);
-  font-size: 26px;
-  line-height: 1;
-}
-.v2-live-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-  font-size: 14px;
-  font-weight: 700;
-}
-.v2-live-bases svg {
-  display: block;
-  width: 40px;
-  height: 28px;
-}
-.v2-live-remain {
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-}
-.v2-live-watch {
-  width: 100%;
-}
+
 .v2-live-paused {
   position: absolute;
   left: 50%;
@@ -1492,288 +710,18 @@
 .v2-live-paused[hidden] {
   display: none;
 }
-.v2-replay-controls.live {
-  grid-template-columns: 1fr auto;
-  align-items: center;
-}
-.v2-replay-controls.live .v2-live-remain {
-  color: #fff;
-  font-size: 15px;
-  font-weight: 900;
-}
-.v2-replay-controls.live .v2-live-next {
-  grid-column: 1 / -1;
-  height: 48px;
-}
+
 .v2-replay-controls.challenge {
   grid-template-columns: 1.2fr 1.6fr;
 }
 .v2-replay-controls.challenge .v2-replay-skip {
   grid-column: 1 / -1;
 }
-.v2-challenge-start {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
-}
+
 .v2-replay-controls [hidden] {
   display: none;
 }
-
-/* ---- Phase 6A：首頁層級、目前建議、新手任務、養成預覽、聯盟目標 ---- */
-/* 次要區塊的視覺權重較輕：只有「目前比賽」與「目前建議」用粗框與深陰影 */
-.v2-dashboard .v2-growth,
-.v2-dashboard .v2-league,
-.v2-dashboard .v2-rewards,
-.v2-dashboard .v2-recent,
-.v2-dashboard .v2-onboard {
-  border-width: 2px;
-  box-shadow: 0 3px 0 var(--ink);
-}
-.v2-dashboard .v2-card-title {
-  font-size: 17px;
-}
-.v2-live-foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink-faint);
-  line-height: 1.5;
-}
-.v2-live-how {
-  flex: 1 1 100%;
-}
-.v2-live-played {
-  font-weight: 900;
-  color: var(--ink-soft);
-}
-.v2-live-due:empty {
-  display: none;
-}
-.v2-live-due {
-  color: var(--indigo);
-  font-weight: 900;
-}
-
-.v2-next {
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-}
-.v2-next.act {
-  background: #fff6cf;
-  border-color: var(--ink);
-}
-.v2-next.calm {
-  border-width: 2px;
-  box-shadow: 0 3px 0 var(--ink);
-}
-.v2-next-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.v2-next-label {
-  font-size: 12px;
-  font-weight: 900;
-  color: var(--indigo);
-  letter-spacing: 1px;
-}
-.v2-next-title {
-  font-size: 17px;
-  font-weight: 900;
-  overflow-wrap: anywhere;
-}
-.v2-next-why,
-.v2-next-goal {
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.5;
-  color: var(--ink-faint);
-}
-.v2-next-goal {
-  color: var(--ink-soft);
-}
-.v2-next-btn {
-  flex: none;
-  height: 48px;
-  padding: 0 14px;
-  font-size: 15px;
-  white-space: nowrap;
-}
-@media (max-width: 420px) {
-  .v2-next {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .v2-next-btn {
-    width: 100%;
-  }
-  .v2-next .v2-next-link {
-    align-self: flex-start;
-    padding: 0;
-  }
-}
-
-.v2-onboard-count {
-  margin-left: 8px;
-  font-family: var(--font-display);
-  font-size: 15px;
-  color: var(--indigo);
-}
-.v2-onboard-bar {
-  height: 8px;
-  border-radius: 999px;
-  background: var(--line);
-  overflow: hidden;
-}
-.v2-onboard-fill {
-  display: block;
-  height: 100%;
-  background: var(--v2-win);
-  transition: width 0.3s;
-}
-.v2-onboard.collapsed {
-  gap: 6px;
-  padding-top: 10px;
-  padding-bottom: 10px;
-}
-.v2-onboard-done {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.5;
-}
-.v2-onboard-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.v2-task {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  background: #fff;
-  border: 2px solid var(--line);
-}
-.v2-task.done {
-  background: transparent;
-  border-color: transparent;
-  padding-top: 2px;
-  padding-bottom: 2px;
-}
-.v2-task-mark {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid var(--lilac);
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  font-weight: 900;
-  color: #fff;
-}
-.v2-task.done .v2-task-mark {
-  background: var(--v2-win);
-  border-color: var(--v2-win);
-}
-.v2-task-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.v2-task-title {
-  font-size: 15px;
-  font-weight: 900;
-}
-.v2-task.done .v2-task-title {
-  font-weight: 700;
-  color: var(--ink-faint);
-}
-.v2-task-hint {
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.5;
-  color: var(--ink-faint);
-}
-.v2-task-go {
-  height: 38px;
-  padding: 0 10px;
-  font-size: 13px;
-  white-space: nowrap;
-}
-.v2-task-tag {
-  flex: none;
-  font-size: 12px;
-  font-weight: 900;
-  color: var(--indigo);
-  white-space: nowrap;
-}
-
-.v2-growth .v2-card-head,
-.v2-growth .v2-stats {
-  grid-column: 1 / -1;
-}
-.v2-growth .v2-stats {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-.v2-growth .v2-stat {
-  grid-column: span 2;
-  padding: 6px 4px;
-}
-.v2-growth .v2-stat.funds,
-.v2-growth .v2-stat.exp {
-  grid-column: span 3;
-}
-.v2-growth .v2-stat-value {
-  font-size: 20px;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  text-align: center;
-}
-
-.v2-rewards.empty .v2-reward-value {
-  color: var(--ink-faint);
-}
-.v2-rewards .v2-claim {
-  height: 48px;
-}
-.v2-rewards:not(.empty) .v2-claim:not(:disabled) {
-  background: var(--yellow);
-}
-.v2-reward-value {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  text-align: center;
-}
-
-.v2-league.ready {
-  border-color: var(--ink);
-  background: #fff6cf;
-}
-.v2-league-ready {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 900;
-  color: var(--v2-win);
-}
-.v2-league .v2-section-title {
-  margin-top: 2px;
-}
+/* 「前往聯盟挑戰」把焦點帶到聯盟卡時的提示光圈 */
 .v2-pulse {
   animation: v2-pulse 1.2s ease-out 2;
 }
@@ -1784,80 +732,6 @@
   100% {
     box-shadow: 0 0 0 14px rgba(255, 210, 63, 0);
   }
-}
-
-.v2-upgrade-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: #fff;
-  border: 2px solid var(--line);
-}
-.v2-preview-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-.v2-preview-title {
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--ink-faint);
-}
-.v2-preview-levels {
-  font-family: var(--font-display);
-  font-size: 18px;
-}
-.v2-preview-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.v2-preview-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 800;
-}
-.v2-preview-name {
-  flex: 1;
-}
-.v2-preview-val {
-  font-variant-numeric: tabular-nums;
-}
-.v2-preview-overall {
-  margin-top: 2px;
-  padding-top: 4px;
-  border-top: 2px dashed var(--line);
-}
-.v2-upgrade-done {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: #e5f8ec;
-  border: 2px solid var(--v2-win);
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.5;
-}
-.v2-upgrade-done strong {
-  font-size: 15px;
-}
-.v2-upgrade-gains {
-  color: var(--v2-win);
-}
-.v2-next-link {
-  flex: none;
-  align-self: center;
-  white-space: nowrap;
 }
 
 /* ---- Phase 6B：直播的精彩時刻（全部是 CSS 動畫；降低動態效果時只留文字） ---- */
@@ -2155,190 +1029,3273 @@
   }
 }
 
-/* ---- Phase 6C：近期戰績對照、升級後的球隊戰力 ---- */
-.v2-form {
-  grid-column: 1 / -1;
+/* ==== 設計稿 v7：首頁 ==== */
+.v2-dashboard.desk {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.v2-dash-col {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px 12px;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* 目前比賽：深色直播卡 */
+.v2-live-card {
+  gap: 14px;
+  border: 3px solid var(--ink);
+  border-radius: 22px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12), 0 6px 0 #0b0c20;
+}
+.v2-live-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.v2-live-card .v2-empty {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--lilac);
+}
+.v2-live-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-live-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 12px;
+  background: #d9283c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-live-badge.waiting,
+.v2-live-badge.paused {
+  background: #4a4f7a;
+}
+.v2-live-badge.ended {
+  background: #22a35a;
+}
+.v2-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+}
+.v2-live-badge.live .v2-live-dot {
+  animation: v2-live-blink 1.4s ease-in-out infinite;
+}
+@keyframes v2-live-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+.v2-live-no {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lilac);
+}
+.v2-live-card .v2-live-remain {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 900;
+  color: #fff;
+  white-space: nowrap;
+}
+.v2-live-card .v2-live-remain .v2-ico {
+  color: var(--lilac);
+}
+.v2-live-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.v2-live-teams {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-live-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-live-color {
+  flex: none;
+  width: 12px;
+  height: 28px;
+  border-radius: 4px;
+  background: var(--home);
+}
+.v2-live-team.theirs .v2-live-color {
+  background: var(--away);
+}
+.v2-live-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v2-live-team.theirs .v2-live-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--lilac);
+}
+.v2-live-score {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1;
+  color: #fff;
+}
+.v2-live-team.ours .v2-live-score {
+  color: var(--yellow);
+}
+.v2-live-meta {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-left: 14px;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.18);
+}
+.v2-live-inning {
+  font-size: 14px;
+  font-weight: 900;
+  color: #fff;
+  white-space: nowrap;
+}
+.v2-live-inning-no {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+.v2-live-bases svg {
+  display: block;
+  width: 46px;
+  height: 34px;
+}
+.v2-live-outs {
+  display: flex;
+  gap: 4px;
+}
+.v2-live-outs span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+}
+.v2-live-outs span.on {
+  background: #d9283c;
+}
+.v2-live-watch {
+  height: 52px;
+  font-size: 17px;
+  border-color: #fff;
+  box-shadow: none;
+}
+.v2-live-foot {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #a9ade0;
+}
+.v2-live-due:not(:empty) {
+  display: block;
+  margin-top: 2px;
+  color: var(--yellow);
+  font-weight: 900;
+}
+
+/* 目前建議：同一時間只有一個；觀看狀態改成細框、白按鈕 */
+.v2-next {
+  gap: 14px;
+  border-width: 3px;
+  box-shadow: 0 5px 0 var(--ink);
+}
+.v2-next.calm {
+  border-width: 1.5px;
+  box-shadow: none;
+}
+.v2-next-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.v2-next-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: #fff1b8;
+  border: 2px solid var(--ink);
+}
+.v2-next.calm .v2-next-icon {
+  background: var(--v2-soft);
+  border: 1.5px solid #d4d7ee;
+}
+.v2-next-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.v2-next-label {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-muted);
+  letter-spacing: 0.08em;
+}
+.v2-next-title {
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+.v2-next-why,
+.v2-next-goal {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-muted);
+}
+.v2-next-goal {
+  color: var(--v2-link);
+}
+.v2-next-btn {
+  width: 100%;
+}
+.v2-next.calm .v2-next-btn {
+  height: 54px;
+  font-size: 17px;
+}
+
+/* 新手任務 */
+.v2-onboard-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v2-onboard-count {
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+.v2-onboard-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+.v2-onboard-fill {
+  display: block;
+  height: 100%;
+  background: var(--v2-win);
+}
+.v2-onboard-done {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-muted);
+}
+.v2-onboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.v2-task {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+}
+.v2-task-mark {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #8a8fae;
+  background: #fff;
+  color: #fff;
+}
+.v2-task.done .v2-task-mark {
+  border-color: var(--v2-win);
+  background: var(--v2-win);
+}
+.v2-task-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.v2-task-title {
   font-size: 14px;
   font-weight: 900;
 }
-.v2-form-item.prev {
-  color: var(--ink-faint);
+.v2-task.done .v2-task-title {
+  color: #8a8fae;
+  text-decoration: line-through;
 }
-.v2-form-note {
-  flex: 1 1 100%;
-  font-size: 12px;
+.v2-task-hint {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--v2-faint);
 }
-.v2-preview-team {
-  color: var(--indigo);
+.v2-task-tag {
+  flex: none;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-link);
 }
 
-/* ---- 招募市場：三位候選人、跟目前陣容的比較、確認簽約 ---- */
-.v2-recruit-info {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 2px 14px;
+/* 球隊：戰力、近期戰績、養成與招募入口 */
+.v2-power {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--v2-soft);
 }
-.v2-recruit-cost.short,
-.v2-recruit-block.short {
-  color: var(--v2-loss);
+.v2-power-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
-.v2-recruit-block {
+.v2-power-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.v2-power-label {
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-power-value {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+.v2-power-hint {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-faint);
+}
+.v2-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-form-title {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-form-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 44px;
+  gap: 8px;
+  align-items: center;
+}
+.v2-form-label {
+  font-size: 12px;
+  font-weight: 700;
+}
+.v2-form-dots {
+  display: flex;
+  gap: 3px;
+}
+.v2-form-dots span {
+  flex: 1;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--v2-loss);
+}
+.v2-form-dots span.w {
+  background: var(--v2-win);
+}
+.v2-form-value {
+  font-family: var(--font-display);
+  font-size: 13px;
+  text-align: right;
+}
+.v2-form-note {
+  font-size: 11px;
+}
+.v2-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-entry-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 14px;
+  border-radius: 14px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 3px 0 var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.v2-entry-btn:active {
+  transform: translateY(3px);
+  box-shadow: none;
+}
+.v2-entry-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+.v2-entry-sub {
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+
+/* 聯盟：徽章、條件列（圓點勾、進度條、勝率門檻線）；條件達成時整張卡變綠 */
+.v2-league-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.v2-league-badge {
+  position: relative;
+  flex: none;
+  display: block;
+}
+.v2-league-tier {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--ink);
+}
+.v2-league-names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-league-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.v2-league-name {
+  font-size: 17px;
+  font-weight: 900;
+}
+.v2-ready-tag {
+  padding: 0 7px;
+  border-radius: 7px;
+  background: var(--v2-win);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 20px;
+}
+.v2-league-line {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  line-height: 1.45;
+}
+.v2-league.ready {
+  border: 3px solid var(--v2-win);
+  background: #f0fbf4;
+}
+.v2-league-need {
+  list-style: none;
   margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-league-need li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.v2-need-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.v2-need-dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 2px solid #8a8fae;
+  background: #fff;
+  color: #fff;
+}
+.v2-league-need li.done .v2-need-dot {
+  border-color: var(--v2-win);
+  background: var(--v2-win);
+}
+.v2-need-text {
+  flex: 1;
+  min-width: 0;
+}
+.v2-need-value {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 12px;
+}
+.v2-need-bar {
+  position: relative;
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+}
+.v2-need-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--v2-blue);
+}
+.v2-league-need li.done .v2-need-fill {
+  background: var(--v2-win);
+}
+.v2-need-mark {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--ink);
+}
+.v2-league-ready {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #33385e;
+}
+.v2-challenge {
+  width: 100%;
+}
+.v2-watch-challenge {
+  align-self: flex-start;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-live-badge.live .v2-live-dot {
+    animation: none;
+  }
+}
+
+/* ==== 設計稿 v7：分頁標題（陣容、戰術、戰報） ==== */
+.v2-page-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.v2-page-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.v2-page-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-page-title {
+  flex: 1;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+}
+.v2-page-title-row .v2-page-title {
+  flex: none;
+}
+.v2-page-sub,
+.v2-page-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--lilac);
+}
+.v2-head-actions {
+  display: flex;
+  gap: 6px;
+}
+.v2-head-btn {
+  height: 44px;
+  padding: 0 10px;
+  border-width: 2px;
+  font-size: 12px;
+  gap: 5px;
+  white-space: nowrap;
+}
+.v2-beta {
+  padding: 0 7px;
+  border-radius: 7px;
+  border: 1.5px solid var(--lilac);
+  color: var(--lilac);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+/* ==== 陣容 ==== */
+.v2-lineup {
+  gap: 10px;
+}
+.v2-bond-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.v2-bond-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--lilac);
+}
+.v2-bond-row .syn-badge {
+  background: #fff;
+}
+.v2-lineup-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.v2-roster-card {
+  padding: 0;
+  gap: 0;
+  border-radius: 18px;
+  overflow: hidden;
+}
+.v2-roster-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px 14px 6px;
+}
+.v2-roster-head .v2-section-title {
+  font-size: 15px;
+  color: var(--ink);
+}
+.v2-roster-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-faint);
+}
+.v2-roster-cols {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  padding-right: 52px;
+}
+.v2-roster-cols span {
+  width: 18px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-faint);
+}
+.v2-roster-empty {
+  margin: 0;
+  padding: 4px 14px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-faint);
+}
+.v2-player-list {
+  display: flex;
+  flex-direction: column;
+}
+.v2-player-item {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--line);
+  background: #fff;
+}
+.v2-player-item.selected {
+  background: #fff1b8;
+  box-shadow: inset 4px 0 0 var(--yellow);
+}
+.v2-player-item.changed {
+  background: #f0fbf4;
+  box-shadow: inset 4px 0 0 var(--v2-win);
+}
+.v2-player {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 4px 8px 4px 12px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.v2-player:disabled {
+  cursor: default;
+  color: var(--ink);
+}
+.v2-player:focus-visible,
+.v2-develop:focus-visible {
+  outline: 3px solid var(--v2-blue);
+  outline-offset: -3px;
+}
+.v2-player-order {
+  flex: none;
+  width: 16px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  text-align: center;
+}
+.v2-player-slot {
+  flex: none;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: #e4ecff;
+  color: var(--v2-link);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.v2-player-slot.pitcher {
+  background: var(--ink);
+  color: #fff;
+}
+.v2-player-face {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 34px;
+}
+.v2-player-avatar {
+  display: block;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--home);
+  overflow: hidden;
+  background: #fff;
+}
+.v2-player-avatar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.v2-player-arch {
+  position: absolute;
+  right: -6px;
+  top: -5px;
+  display: block;
+  line-height: 0;
+}
+.v2-player-face .captain-icon {
+  position: absolute;
+  left: -6px;
+  bottom: -4px;
+  line-height: 0;
+}
+.v2-player-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-player-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v2-player-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v2-level {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--v2-muted);
+}
+.v2-player-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.v2-player-sub .trait {
+  flex: none;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 10px;
+}
+.v2-offpos {
+  flex: none;
+  font-size: 10px;
+  font-weight: 900;
+  color: #b01e30;
+}
+.v2-player-native {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--v2-faint);
+}
+.v2-selected-note {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.v2-grades {
+  flex: none;
+  display: flex;
+  gap: 4px;
+}
+.v2-g {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--ink);
+}
+.v2-g.hi {
+  border: 1.5px solid var(--ink);
+  border-radius: 5px;
+  font-size: 11px;
+}
+.v2-g.warn {
+  color: #b01e30;
+  text-decoration: underline;
+}
+.v2-develop {
+  flex: none;
+  width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-link);
+  cursor: pointer;
+}
+.v2-player-sub .pitch-chip {
+  gap: 3px;
+}
+
+/* ==== 草稿儲存列：有變更、選取中、過期時浮在底部導覽上方 ==== */
+.v2-savebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+}
+.v2-savebar.dirty,
+.v2-savebar.stale,
+.v2-savebar.selected,
+.v2-savebar.invalid {
+  position: sticky;
+  bottom: calc(var(--v2-nav-h) + 8px + env(safe-area-inset-bottom));
+  z-index: 12;
+  border-radius: 16px;
+  border: 3px solid var(--ink);
+  box-shadow: 0 5px 0 var(--ink);
+}
+.v2-savebar-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--v2-win);
+}
+.v2-savebar.dirty .v2-savebar-dot {
+  background: #ff7a1a;
+}
+.v2-savebar-icon {
+  align-self: flex-start;
+  margin-top: 1px;
+}
+.v2-savebar.stale .v2-savebar-icon,
+.v2-savebar.invalid .v2-savebar-icon {
+  color: #b01e30;
+}
+.v2-savebar-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.v2-savebar-status {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+.v2-savebar.clean .v2-savebar-status {
+  font-size: 13px;
+}
+.v2-savebar-status.error {
+  color: #b01e30;
+  font-size: 13px;
+}
+.v2-savebar-sub {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--v2-muted);
+}
+.v2-savebar-buttons {
+  flex: none;
+  display: flex;
+  gap: 6px;
+}
+.v2-savebar .btn-yellow,
+.v2-savebar .btn-white {
+  height: 46px;
+  padding: 0 12px;
+  font-size: 14px;
+  border-radius: 12px;
+}
+.v2-savebar .btn-yellow {
+  border-width: 2.5px;
+  box-shadow: 0 3px 0 var(--yellow-shadow);
+}
+.v2-savebar.stale .btn-yellow {
+  font-size: 13px;
+  white-space: normal;
+  line-height: 1.3;
+  max-width: 132px;
+}
+@media (min-width: 1024px) {
+  .v2-lineup-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .v2-lineup-grid .v2-starters {
+    grid-row: 1 / span 3;
+  }
+  .v2-savebar.dirty,
+  .v2-savebar.stale,
+  .v2-savebar.selected,
+  .v2-savebar.invalid {
+    bottom: 20px;
+    width: 100%;
+    max-width: 880px;
+    margin: 0 auto;
+  }
+  .v2-page-title {
+    font-size: 30px;
+  }
+}
+
+/* ==== 戰術：分段按鈕、說明、開關 ==== */
+.v2-segment {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.v2-seg-btn {
+  height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 14px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v2-seg-btn[aria-checked='true'] {
+  border-width: 3px;
+  background: var(--yellow);
+  box-shadow: 0 3px 0 var(--ink);
+}
+.v2-seg-current {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-seg-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--v2-soft);
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-bullets {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.v2-bullets li {
+  position: relative;
+  padding-left: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #33385f;
+}
+.v2-bullets li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+.v2-toggles {
+  padding: 4px 16px;
+  gap: 0;
+}
+.v2-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+}
+.v2-toggle-row + .v2-toggle-row {
+  border-top: 1px solid var(--line);
+}
+.v2-toggle-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.v2-toggle-label {
+  font-size: 15px;
+  font-weight: 900;
+}
+.v2-toggle-desc {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-muted);
+}
+.v2-switch {
+  flex: none;
+  position: relative;
+  width: 56px;
+  height: 32px;
+  padding: 0;
+  border-radius: 16px;
+  border: 2px solid var(--ink);
+  background: #d6d9ee;
+  cursor: pointer;
+}
+.v2-switch[aria-checked='true'] {
+  background: var(--v2-win);
+}
+.v2-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--ink);
+  box-sizing: border-box;
+  transition: left 0.15s;
+}
+.v2-switch[aria-checked='true'] .v2-switch-knob {
+  left: 26px;
+}
+.v2-seg-btn:disabled,
+.v2-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-switch-knob {
+    transition: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .v2-savebar {
+    flex-wrap: wrap;
+  }
+  .v2-savebar-buttons:has(> :nth-child(2)) {
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  }
+}
+/* 浮動的儲存列出現時，Toast 往上移，不要蓋住它 */
+body:has(.v2-savebar.dirty, .v2-savebar.stale, .v2-savebar.selected, .v2-savebar.invalid) .toast {
+  bottom: calc(190px + env(safe-area-inset-bottom));
+}
+@media (min-width: 1024px) {
+  .toast {
+    bottom: 32px;
+  }
+  body:has(.v2-savebar.dirty, .v2-savebar.stale, .v2-savebar.selected, .v2-savebar.invalid) .toast {
+    bottom: 120px;
+  }
+}
+
+/* ==== 對話框：標題列＋✕、內容可捲動、底部固定動作；手機的 sheet 從底部滑出 ==== */
+.v2-modal-overlay {
+  padding: 16px;
+  background: rgba(20, 22, 51, 0.62);
+}
+.v2-modal {
+  width: min(440px, 100%);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  border: 3px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 6px 0 var(--ink);
+  color: var(--ink);
+  overflow: hidden;
+  animation: modal-pop 0.2s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.v2-modal.wide {
+  width: min(600px, 100%);
+}
+.v2-modal-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 12px 16px;
+  border-bottom: 1.5px solid var(--line);
+}
+.v2-modal-head .modal-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 900;
+}
+.v2-modal-x {
+  flex: none;
+  align-self: flex-start;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v2-modal-x:focus-visible {
+  outline: 3px solid var(--v2-blue, #2d7cff);
+  outline-offset: 2px;
+}
+.v2-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.v2-modal-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  border-top: 1.5px solid var(--line);
+  background: #fff;
+}
+.v2-modal-bottom {
+  width: 100%;
+}
+.v2-sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .v2-modal-overlay:has(.v2-modal.sheet) {
+    padding: 32px 0 0;
+    align-items: end;
+    place-items: end stretch;
+  }
+  .v2-modal.sheet {
+    width: 100%;
+    max-height: calc(100dvh - 32px);
+    height: calc(100dvh - 32px);
+    border-bottom: 0;
+    border-radius: 22px 22px 0 0;
+    box-shadow: none;
+    animation: v2-sheet-in 0.26s ease-out;
+  }
+  .v2-modal.sheet .v2-modal-foot {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+}
+@media (min-width: 641px) {
+  .v2-modal.sheet {
+    width: min(600px, 100%);
+    max-height: calc(100dvh - 80px);
+  }
+}
+@keyframes v2-sheet-in {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-modal,
+  .v2-modal.sheet {
+    animation: none;
+  }
+}
+
+/* ==== 球員養成（手機底部面板／電腦置中） ==== */
+.v2-detail-head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.v2-detail-face {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+.v2-detail-avatar {
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid var(--home);
+  overflow: hidden;
+  background: #fff;
+}
+.v2-detail-avatar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.v2-detail-words {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.v2-detail-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.v2-detail-name strong {
+  min-width: 0;
+  font-size: 20px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-level.big {
+  padding: 0 7px;
+  border-radius: 7px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  line-height: 20px;
+}
+.v2-detail-where {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v2-detail-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.v2-detail-chips .arch-chip,
+.v2-detail-chips .trait {
+  height: 20px;
+  font-size: 11px;
+}
+.v2-player-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.v2-upgrade-done {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 10px 40px;
+  position: relative;
+  border-radius: 14px;
+  background: #e3f7e9;
+  border: 2px solid var(--v2-win);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #33385e;
+}
+.v2-upgrade-done::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  width: 18px;
+  height: 18px;
+  background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%231E7A3C' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.v2-upgrade-done strong {
+  font-size: 15px;
+  font-weight: 900;
+  color: #1e7a3c;
+}
+.v2-upgrade-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--v2-soft);
+}
+.v2-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-preview-title {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-preview-levels {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 400;
+}
+.v2-preview-levels .to {
+  color: #1e7a3c;
+}
+.v2-preview-list,
+.v2-preview-sum {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-preview-list li {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+}
+.v2-preview-sum {
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid #d4d7ee;
+}
+.v2-preview-sum li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-preview-name {
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-preview-val {
+  font-family: var(--font-display);
+  font-size: 14px;
+}
+.v2-preview-sum .v2-preview-val {
+  font-size: 13px;
+}
+.v2-diff {
+  font-family: var(--font-display);
+  font-size: 13px;
+  text-align: right;
+  color: var(--v2-faint);
+}
+.v2-diff.up {
+  color: #1e7a3c;
+}
+.v2-preview-note {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-faint);
+}
+.v2-rating-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-rating-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.v2-rating-table th,
+.v2-rating-table td {
+  padding: 0;
+  height: 40px;
+  text-align: left;
+  border-top: 1px solid var(--line);
+}
+.v2-rating-table thead th {
+  height: auto;
+  padding-bottom: 6px;
+  border-top: 0;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-faint);
+}
+.v2-rating-table thead th:first-child,
+.v2-rating-table tbody th {
+  width: 52px;
+}
+.v2-rating-table tbody th {
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-rating-table td.base {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--v2-faint);
+}
+.v2-rating-table td.current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.v2-num {
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+.v2-num.up {
+  color: #1e7a3c;
+}
+.v2-tip {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #eaf2ff;
+  border: 1.5px solid #9bbeff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-link);
+}
+.v2-detail-traits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-detail-sub {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-release {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.v2-release-btn {
+  height: 44px;
+  font-size: 14px;
+  box-shadow: none;
+}
+.v2-release-btn:disabled {
+  border: 1.5px dashed #b4b9cc;
+  background: var(--v2-soft);
+}
+.v2-modal.sheet,
+.v2-player-sheet {
+  position: relative;
+}
+.v2-release-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: rgba(20, 22, 51, 0.5);
+}
+.v2-release-confirm {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(360px, calc(100% - 32px));
+  box-sizing: border-box;
+  padding: 20px;
+  border-radius: 20px;
+  background: #fff;
+  border: 3px solid var(--ink);
+  box-shadow: 0 6px 0 var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.v2-release-icon {
+  color: #e5383b;
+}
+.v2-release-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 900;
+}
+.v2-release-warn {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #33385e;
+}
+.v2-release-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.v2-release-row button {
+  height: 52px;
+}
+.btn-danger.solid {
+  border: 2.5px solid var(--ink);
+  background: #e5383b;
+  color: #fff;
+  box-shadow: 0 3px 0 #8e1f21;
+}
+.v2-detail-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-cost {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.v2-cost-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 10px;
   border-radius: 12px;
-  border: 2px solid currentColor;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.5;
+  background: var(--v2-soft);
+  border: 1.5px solid transparent;
 }
-.v2-recruit-block.full {
-  color: var(--indigo);
+.v2-cost-item.short {
+  background: #ffe3e6;
+  border-color: #d9283c;
+  color: #b01e30;
+}
+.v2-cost-text {
+  display: flex;
+  flex-direction: column;
+}
+.v2-cost-need {
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.1;
+}
+.v2-cost-have {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--v2-faint);
+}
+.v2-cost-short {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 900;
+  color: #b01e30;
+}
+.v2-upgrade-btn {
+  width: 100%;
+}
+
+/* ==== 招募市場 ==== */
+.v2-recruit-head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v2-recruit-title {
+  font-size: 20px;
+  font-weight: 900;
+}
+.v2-recruit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.v2-recruit-info {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.v2-info-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--v2-soft);
+  border: 1.5px solid transparent;
+  min-width: 0;
+}
+.v2-info-cell.short {
+  background: #ffe3e6;
+  border-color: #d9283c;
+}
+.v2-info-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--v2-faint);
+}
+.v2-info-value {
+  font-family: var(--font-display);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.v2-info-cell.short .v2-info-value {
+  color: #b01e30;
+}
+.v2-recruit-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.v2-role-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 10px;
+  border-radius: 18px;
+  border: 3px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 4px 0 var(--ink);
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v2-role-card:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: none;
+}
+.v2-role-face .avatar {
+  display: block;
+  width: 56px;
+  height: 56px;
+}
+.v2-role-face svg {
+  width: 100%;
+  height: 100%;
+}
+.v2-role-title {
+  font-size: 17px;
+  font-weight: 900;
+}
+.v2-role-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-recruit-warn {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff0f2;
+  border: 1.5px solid #d9283c;
+  color: #b01e30;
+}
+.v2-recruit-warn-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-recruit-warn-words strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-recruit-block {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #33385e;
 }
 .v2-recruit-roles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  align-self: flex-start;
+  display: flex;
+  height: 44px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.v2-role-tab {
+  width: 96px;
+  border: 0;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v2-role-tab + .v2-role-tab {
+  border-left: 2px solid var(--ink);
+}
+.v2-role-tab[aria-checked='true'] {
+  background: var(--yellow);
+}
+.v2-recruit-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: var(--v2-muted);
 }
 .v2-cand-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 14px;
+  padding: 6px 4px 10px;
 }
 .v2-cand {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 2.5px solid var(--line);
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 2px solid var(--ink);
   background: #fff;
-  color: var(--ink);
+  box-shadow: 0 3px 0 var(--ink);
   font-family: inherit;
+  color: var(--ink);
   text-align: left;
   cursor: pointer;
 }
 .v2-cand.selected {
-  border-color: var(--ink);
-  background: #fff6cf;
-  box-shadow: 0 3px 0 var(--ink);
-}
-.v2-cand:focus-visible {
-  outline: 3px solid var(--indigo);
-  outline-offset: 2px;
+  border-width: 3px;
+  box-shadow: 0 0 0 4px var(--yellow), 0 5px 0 4px var(--ink);
 }
 .v2-cand-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+.v2-cand-face {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+}
+.v2-cand-face.lg {
+  width: 80px;
+  height: 80px;
+}
+.v2-cand-avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2.5px solid var(--home);
+  overflow: hidden;
+  background: #fff;
+}
+.v2-cand-face.lg .v2-cand-avatar {
+  border-width: 3px;
+}
+.v2-cand-avatar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .v2-cand-names {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 2px;
+}
+.v2-cand-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .v2-cand-name {
-  overflow: hidden;
-  font-size: 17px;
+  min-width: 0;
+  font-size: 16px;
   font-weight: 900;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .v2-cand-sub {
   font-size: 12px;
-  font-weight: 800;
-  color: var(--ink-faint);
+  font-weight: 700;
+  color: var(--v2-muted);
 }
 .v2-cand-ovr {
   flex: none;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.v2-cand-ovr-num {
+  font-family: var(--font-display);
+  font-size: 12px;
+}
+.v2-cand-ratings {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.v2-cand-rating {
+  display: flex;
   align-items: center;
   gap: 4px;
 }
-.v2-cand-ovr-num {
-  font-size: 12px;
+.v2-cand-rating-label {
+  font-size: 11px;
   font-weight: 900;
-  color: var(--ink-soft);
-  white-space: nowrap;
+  color: var(--v2-muted);
+}
+.v2-cand-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 .v2-cand-compare {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 6px 8px;
-  border-radius: 10px;
-  background: var(--paper);
+  gap: 5px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--v2-soft);
   font-size: 12px;
-  font-weight: 800;
-  line-height: 1.5;
+  font-weight: 900;
 }
 .v2-cand-compare-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.v2-cand-vs {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 .v2-cand-verdict {
-  flex: none;
-  padding: 1px 8px;
-  border-radius: 999px;
-  border: 2px solid var(--ink);
-  font-size: 12px;
-  font-weight: 900;
-  white-space: nowrap;
+  padding: 0 7px;
+  border-radius: 7px;
+  line-height: 20px;
+  border: 1.5px solid #8a8fae;
+  background: #eceef8;
+  color: var(--v2-muted);
 }
 .v2-cand-verdict.stronger {
-  background: var(--v2-win);
-  color: #fff;
-}
-.v2-cand-verdict.similar {
-  background: #fff;
+  background: #e3f7e9;
+  color: #1e7a3c;
+  border-color: #1e7a3c;
 }
 .v2-cand-verdict.weaker {
-  background: #5a5f86;
-  color: #fff;
-}
-.v2-cand-good {
-  color: var(--v2-win);
-}
-.v2-cand-bad {
-  color: var(--v2-loss);
+  background: #ffe3e6;
+  color: #b01e30;
+  border-color: #d9283c;
 }
 .v2-cand-note {
-  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-faint);
 }
-.v2-recruit-foot,
-.v2-recruit-actions {
+.v2-cand-good {
+  color: #1e7a3c;
+}
+.v2-cand-bad {
+  color: #b01e30;
+}
+.v2-recruit-foot {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.v2-recruit-foot.two {
+  grid-template-columns: 1fr 2fr;
+}
+.v2-recruit-foot button {
+  height: 54px;
+}
+.v2-recruit-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  text-align: center;
+}
+.v2-recruit-done-title {
+  font-size: 28px;
+  font-weight: 900;
+  color: #1e7a3c;
+}
+.v2-signed-card {
+  width: min(260px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+  background: #fff;
+  border: 3px solid var(--ink);
+  box-shadow: 0 0 0 4px var(--yellow), 0 6px 0 4px var(--ink);
 }
-.v2-recruit-foot .btn-white,
-.v2-recruit-actions .btn-white {
-  padding: 0 14px;
+.v2-signed-card .v2-player-name {
+  justify-content: center;
+  font-size: 20px;
 }
-.v2-recruit-confirm {
-  font-size: 16px;
+.v2-signed-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
 }
 .v2-recruit-money {
+  width: 100%;
+  text-align: left;
+}
+.v2-recruit-money .v2-stat-value {
+  font-size: 18px;
+}
+.v2-recruit-next {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #33385e;
+  line-height: 1.5;
+}
+@media (min-width: 1024px) {
+  .v2-modal.sheet.v2-recruit-modal {
+    width: min(1080px, calc(100vw - 80px));
+  }
+  .v2-recruit-modal .v2-recruit-info {
+    max-width: 520px;
+  }
+  .v2-cand-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+  .v2-recruit-modal .v2-recruit-buttons,
+  .v2-recruit-modal .v2-recruit-card {
+    max-width: 560px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .v2-recruit-modal .v2-recruit-foot.two {
+    max-width: 560px;
+    width: 100%;
+    margin-left: auto;
+  }
+}
+.v2-cand:focus-visible,
+.v2-role-card:focus-visible,
+.v2-role-tab:focus-visible,
+.v2-entry-btn:focus-visible,
+.v2-match:focus-visible {
+  outline: 3px solid var(--v2-blue, #2d7cff);
+  outline-offset: 2px;
+}
+/* 對話框開著時 Toast 改到畫面上方，不蓋住底部的主要按鈕 */
+body:has(.v2-modal-overlay) .toast {
+  top: calc(16px + env(safe-area-inset-top));
+  bottom: auto;
+}
+
+/* ==== 戰報列表 ==== */
+.v2-empty-dark {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--lilac);
+}
+.v2-report-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px 14px;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-day-label {
+  margin: 0;
+  padding: 8px 4px 2px;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--lilac);
+}
+.v2-match.v2-report-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 2px solid var(--ink);
+  box-shadow: 0 2px 0 var(--ink);
+}
+.v2-report-row .v2-result-badge {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
+}
+.v2-report-row .v2-match-body {
+  flex: 1;
+}
+.v2-report-row .v2-match-score {
+  font-size: 18px;
+}
+.v2-report-earned {
+  flex: none;
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  font-size: 11px;
+  font-weight: 900;
+  color: #1e7a3c;
+  white-space: nowrap;
+}
+.v2-report-chev {
+  color: #8a8fae;
+}
+.v2-list-end {
+  margin: 0;
+  padding: 10px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #a9ade0;
+}
+@media (min-width: 1024px) {
+  .v2-reports .v2-report-list,
+  .v2-reports .v2-list-end {
+    max-width: 880px;
+  }
+}
+
+/* ==== 單場戰報（底部面板）==== */
+.v2-report-modal .v2-modal-body {
+  background: var(--v2-soft, #f4f5ff);
+  padding: 12px;
+}
+.v2-report {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.v2-report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1.5px solid var(--ink);
+}
+.v2-report-card h3 {
+  margin: 0;
   font-size: 14px;
   font-weight: 900;
 }
-.v2-recruit-spent {
-  color: var(--v2-loss);
+.v2-report-card h3 + .v2-box,
+.v2-report-card .v2-box + h3 {
+  margin-top: 0;
+}
+.v2-report-card .v2-box + h3 {
+  margin-top: 6px;
+}
+.v2-report-score {
+  align-items: center;
+  padding: 14px;
+}
+.v2-report-result {
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--v2-win, #22a35a);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 26px;
+}
+.v2-report-score.lost .v2-report-result {
+  background: var(--v2-loss, #e5383b);
+}
+.v2-report-meta {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-faint, #6b7099);
+}
+.v2-report-line {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+.v2-report-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--v2-muted, #4a4f7a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-report-name.ours {
+  text-align: right;
+  font-weight: 900;
+  color: var(--ink);
+}
+.v2-report-runs {
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 1;
+}
+.v2-linescore-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 4px;
+}
+.v2-linescore {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-display);
+  font-size: 11px;
+  text-align: center;
+}
+.v2-linescore th,
+.v2-linescore td {
+  padding: 3px 2px;
+  font-weight: 400;
+}
+.v2-linescore tr:first-child th {
+  color: var(--v2-faint, #6b7099);
+}
+.v2-linescore th.team {
+  max-width: 64px;
+  font-family: 'Noto Sans TC', system-ui, sans-serif;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v2-linescore tr.ours th.team {
+  font-weight: 900;
+}
+.v2-linescore .total {
+  font-weight: 400;
+}
+.v2-highlights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.v2-highlights li {
+  position: relative;
+  padding-left: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.v2-highlights li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--home);
+}
+.v2-highlights li.theirs::before {
+  background: var(--away);
+}
+.v2-box {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: center;
+}
+.v2-box thead th {
+  padding-bottom: 2px;
+  font-weight: 900;
+  color: var(--v2-faint, #6b7099);
+}
+.v2-box .name {
+  text-align: left;
+}
+.v2-box tbody tr {
+  border-top: 1px solid var(--line);
+  font-weight: 700;
+}
+.v2-box tbody th {
+  padding: 5px 0;
+  font-weight: 900;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-report-old {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 16px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1.5px dashed #8a8fae;
+  text-align: center;
+  color: #8a8fae;
+}
+.v2-report-old strong {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink);
+}
+.v2-report-old span {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--v2-muted, #4a4f7a);
+}
+.v2-report-rewards {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.v2-report-rewards-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-report-amount {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: #1e7a3c;
+}
+.v2-report-note {
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-faint, #6b7099);
+}
+
+/* ==== 公告型對話框（歡迎回來、晉級挑戰） ==== */
+.v2-announce-overlay {
+  background: rgba(11, 12, 32, 0.72);
+  overflow-y: auto;
+}
+.v2-announce {
+  position: relative;
+  width: min(400px, 100%);
+  margin: 40px 0 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 18px 18px;
+  border-radius: 24px;
+  background: #fff;
+  border: 3px solid var(--ink);
+  box-shadow: 0 6px 0 var(--ink);
+  color: var(--ink);
+  overflow: visible;
+  animation: modal-pop 0.2s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.v2-announce.celebrate {
+  box-shadow: 0 6px 0 var(--ink), 0 0 0 6px rgba(255, 210, 63, 0.5);
+}
+.v2-announce-badge {
+  width: 76px;
+  height: 76px;
+  margin-top: -60px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+  background: #fff;
+  color: var(--ink);
+}
+.v2-announce-badge.yellow {
+  background: var(--yellow);
+  color: #22a35a;
+}
+.v2-announce-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+  text-align: center;
+}
+.v2-announce-sub {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--v2-muted, #4a4f7a);
+  text-align: center;
+}
+.v2-announce-buttons {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.v2-announce-buttons .btn-yellow {
+  height: 54px;
+  font-size: 16px;
+}
+.v2-announce-buttons .btn-white {
+  height: 48px;
+  font-size: 14px;
+}
+.v2-welcome,
+.v2-challenge-result,
+.v2-challenge-start {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.v2-welcome-stats {
+  display: grid;
+  grid-template-columns: 0.8fr 0.8fr 1.3fr 1.1fr;
+  gap: 6px;
+}
+.v2-welcome-stats .v2-stat {
+  align-items: center;
+  padding: 10px 2px;
+}
+.v2-welcome-stats .v2-stat-value {
+  font-size: 16px;
+}
+.v2-welcome-stats .wins .v2-stat-value,
+.v2-welcome-stats .losses .v2-stat-value {
+  font-size: 18px;
+}
+.v2-welcome-hl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.v2-welcome-h {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-muted, #4a4f7a);
+}
+.v2-challenge-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.v2-challenge-runs {
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1;
+}
+.v2-challenge-opp {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-faint, #6b7099);
+}
+.v2-challenge-lines {
+  list-style: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f0fbf4;
+  border: 1.5px solid #22a35a;
+}
+.v2-challenge-line {
+  position: relative;
+  padding-left: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.v2-challenge-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+.v2-advice {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #eaf1ff;
+  color: #1a4fb8;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.v2-advice-tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #1a4fb8;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 18px;
+}
+.v2-lock-note {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--v2-soft, #f4f5ff);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-muted, #4a4f7a);
+}
+.v2-confetti {
+  position: fixed;
+  inset: 0 0 auto;
+  height: 50vh;
+  pointer-events: none;
+  overflow: hidden;
+}
+.v2-confetti i {
+  position: absolute;
+  top: -20px;
+  left: var(--x);
+  width: 9px;
+  height: 15px;
+  border-radius: 2px;
+  border: 1.5px solid var(--ink);
+  background: var(--c);
+  animation: v2-confetti 2.4s ease-in var(--d) forwards;
+}
+@keyframes v2-confetti {
+  to {
+    transform: translateY(50vh) rotate(260deg);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-confetti {
+    display: none;
+  }
+  .v2-announce {
+    animation: none;
+  }
+}
+
+/* 最多羈絆排法：建議的換位 */
+.v2-auto-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.v2-moves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-moves li {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid #c9cce6;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.5;
+}
+
+/* ==== 觀戰（設計稿 v7）：深色頂列、比分條、球場、打者與投手、最新一球、紀錄、底部控制 ==== */
+.v2-replay-overlay {
+  background: #1e2170;
+}
+.v2-replay {
+  padding: 0 0 calc(8px + env(safe-area-inset-bottom));
+  gap: 8px;
+}
+.v2-replay > :not(.v2-replay-top):not(.v2-replay-controls) {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+.v2-replay-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+  background: #0b0c20;
+}
+.v2-replay-back {
+  flex: none;
+  height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.v2-replay-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+.v2-replay-title {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-replay-titles .v2-live-badge {
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+.v2-replay-titles .v2-live-badge.replay {
+  background: #8e4be0;
+}
+.v2-replay-titles .v2-live-badge:empty {
+  display: none;
+}
+.v2-replay-sound {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  background: transparent;
+  color: #fff;
+  box-shadow: none;
+}
+.v2-replay-board {
+  border-radius: 14px;
+  border-width: 1.5px;
+  box-shadow: none;
+}
+.v2-replay-field {
+  border-radius: 16px;
+  border: 2px solid var(--ink);
+  overflow: hidden;
+}
+.v2-replay-duel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.v2-replay-duel-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+}
+.v2-replay-duel-face {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--home);
+  overflow: hidden;
+  background: #fff;
+}
+.v2-replay-duel-card.opponent .v2-replay-duel-face {
+  border-color: var(--away);
+}
+.v2-replay-duel-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.v2-replay-duel-words {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+.v2-replay-duel-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--v2-faint, #6b7099);
+}
+.v2-replay-duel-card strong {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-replay-last {
+  margin: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.3;
+  text-align: center;
+}
+.v2-replay-last:empty {
+  visibility: hidden;
+}
+.v2-replay-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1.5px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+}
+.v2-replay-log li {
+  padding: 7px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.v2-replay-log li:first-child {
+  border-top: 0;
+}
+.v2-replay-log li.divider {
+  padding: 6px 12px;
+  background: var(--v2-soft, #f4f5ff);
+  color: var(--v2-faint, #6b7099);
+  font-size: 11px;
+  font-weight: 900;
+  text-align: left;
+}
+.v2-replay-log li.score,
+.v2-replay-log li.hr {
+  color: #1e7a3c;
+  font-weight: 900;
+}
+.v2-replay-log li.sub {
+  color: var(--v2-faint, #6b7099);
+}
+.v2-replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 8px;
+  background: #0b0c20;
+  margin-bottom: calc(-8px - env(safe-area-inset-bottom));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+.v2-replay-toggle {
+  flex: none;
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.v2-replay-toggle.resume {
+  flex: 1;
+  border: 3px solid var(--ink);
+  background: var(--yellow);
+  color: var(--ink);
+  justify-content: center;
+}
+.v2-toggle-ico {
+  display: inline-flex;
+}
+.v2-live-note {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #a9ade0;
+}
+.v2-replay-controls .v2-live-remain {
+  flex: none;
+  margin-left: auto;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-replay-controls.challenge {
+  display: grid;
+  grid-template-columns: auto 1fr;
+}
+.v2-replay-controls.challenge .v2-replay-skip {
+  grid-column: 1 / -1;
+  height: 44px;
+}
+.v2-replay-controls.challenge .v2-replay-toggle {
+  width: 48px;
+  padding: 0;
+  justify-content: center;
+}
+.v2-replay-final {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(330px, calc(100% - 24px));
+  padding: 16px;
+  gap: 8px;
+  border-radius: 20px;
+  border: 3px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 0 0 999px rgba(11, 12, 32, 0.7), 0 6px 0 var(--ink);
+}
+.v2-replay-verdict {
+  font-family: inherit;
+  font-size: 30px;
+  font-weight: 900;
+}
+.v2-final-extra:empty {
+  display: none;
+}
+.v2-final-extra {
+  width: 100%;
+}
+.v2-final-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 8px;
+}
+.v2-final-buttons button {
+  height: 48px;
+  font-size: 14px;
+}
+.v2-final-buttons [hidden] {
+  display: none;
+}
+.v2-final-buttons:has(.v2-live-next[hidden]) {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 1024px) {
+  .v2-replay {
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-rows: auto auto 1fr auto auto;
+    column-gap: 20px;
+    row-gap: 8px;
+    padding-bottom: 0;
+  }
+  .v2-replay-top {
+    grid-column: 1 / -1;
+    padding: 10px 24px;
+  }
+  .v2-replay > :not(.v2-replay-top):not(.v2-replay-controls) {
+    margin: 0;
+  }
+  .v2-replay-board {
+    grid-column: 1;
+    grid-row: 2;
+    margin-left: 24px !important;
+  }
+  .v2-replay-field {
+    grid-column: 1;
+    grid-row: 3 / span 2;
+    margin-left: 24px !important;
+    min-height: 0;
+  }
+  .v2-replay-duel {
+    grid-column: 2;
+    grid-row: 2;
+    margin-right: 24px !important;
+  }
+  .v2-replay-last {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: start;
+    margin-right: 24px !important;
+  }
+  .v2-replay-log {
+    grid-column: 2;
+    grid-row: 3 / span 2;
+    margin-top: 56px !important;
+    margin-right: 24px !important;
+  }
+  .v2-replay-controls {
+    grid-column: 1 / -1;
+    grid-row: 5;
+    margin: 0;
+    padding: 10px 24px 14px;
+  }
+}
+
+/* ==== 建立球團、讀取中、無法讀取 ==== */
+.v2-header[hidden] {
+  display: none;
+}
+.v2-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 20px 4px;
+  text-align: center;
+}
+.v2-logo-mark {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1;
+  color: var(--yellow);
+  text-shadow: 0 3px 0 var(--ink);
+}
+.v2-logo-sub {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lilac);
+}
+.v2-logo-sub:empty {
+  display: none;
+}
+.v2-create-wrap,
+.v2-broken-wrap {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  min-height: calc(100dvh - 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+.v2-broken-wrap {
+  justify-content: center;
+}
+.v2-create {
+  gap: 14px;
+  padding: 18px 16px;
+  border-radius: 22px;
+}
+.v2-create-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+}
+.v2-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-label {
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-input {
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--ink);
+}
+.v2-input:focus-visible {
+  outline: 3px solid var(--v2-blue, #2d7cff);
+  outline-offset: 2px;
+}
+.v2-input[aria-invalid='true'] {
+  border-color: #e5383b;
+  background: #fff6f6;
+}
+.v2-input-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-faint, #6b7099);
+}
+.v2-form-error {
+  color: #c21f2b;
+  font-weight: 900;
+}
+.v2-create-intro {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--v2-muted, #4a4f7a);
+}
+.v2-create-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-create-points li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--v2-soft, #f4f5ff);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+.v2-create-error {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #ffecec;
+  border: 1.5px solid #e5383b;
+  color: #c21f2b;
+}
+.v2-create-error-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-create-error-words strong {
+  font-size: 14px;
+  font-weight: 900;
+  color: #a3141f;
+}
+.v2-create-error-words .v2-form-error {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #6b1a20;
+}
+.v2-create-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-create-btn {
+  height: 56px;
+  width: 100%;
+}
+.v2-create-note {
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #a9ade0;
+}
+.v2-loading {
+  min-height: calc(100dvh - 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: #fff;
+}
+.v2-loading .v2-logo {
+  padding: 0;
+}
+.v2-loading-ball svg {
+  display: block;
+  animation: v2-spin 1.2s linear infinite;
+}
+@keyframes v2-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.v2-loading-bar {
+  width: 220px;
+  height: 10px;
+  border-radius: 5px;
+  background: #1e2170;
+  border: 2px solid var(--ink);
+  overflow: hidden;
+}
+.v2-loading-bar span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: #fff;
+  animation: v2-bar 1.4s ease-in-out infinite;
+}
+@keyframes v2-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+.v2-loading-text {
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-loading-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: #a9ade0;
+}
+.v2-broken {
+  gap: 14px;
+  padding: 22px 18px;
+  border-radius: 24px;
+  border-width: 3px;
+  box-shadow: 0 6px 0 var(--ink);
+}
+.v2-broken-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffecec;
+  border: 2.5px solid #e5383b;
+  color: #c21f2b;
+}
+.v2-broken h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+}
+.v2-broken-msg {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--v2-muted, #4a4f7a);
+}
+.v2-broken-code {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--v2-soft, #f4f5ff);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted, #4a4f7a);
+}
+.v2-broken-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.v2-broken-actions .btn-yellow {
+  width: 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-loading-ball svg,
+  .v2-loading-bar span {
+    animation: none;
+  }
+}
+@media (min-width: 641px) {
+  .v2-create-wrap {
+    min-height: 0;
+    padding-top: 6vh;
+  }
+  .v2-create-foot {
+    margin-top: 0;
+  }
 }

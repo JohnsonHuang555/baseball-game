@@ -276,7 +276,7 @@ describe('從入口走一遍 V2 主要流程', () => {
     $<HTMLButtonElement>('[data-tab="lineup"]')!.click()
     $$('.v2-player')[0].click()
     $$('.v2-player')[9].click()
-    $<HTMLButtonElement>('.v2-savebar .btn-yellow')!.click()
+    $<HTMLButtonElement>('[data-action="save-draft"]')!.click()
     await flush()
     const benchFirst = saved.roster.bench[0]
     saved = JSON.parse(env.storage.getItem(CLUB_STORAGE_KEY)!)
@@ -285,7 +285,7 @@ describe('從入口走一遍 V2 主要流程', () => {
     const tacticsBefore = JSON.stringify(saved.strategy.coach)
     $<HTMLButtonElement>('[data-tab="tactics"]')!.click()
     $$('.v2-seg-btn')[2].click()
-    $<HTMLButtonElement>('.v2-savebar .btn-yellow')!.click()
+    $<HTMLButtonElement>('[data-action="save-draft"]')!.click()
     await flush()
     saved = JSON.parse(env.storage.getItem(CLUB_STORAGE_KEY)!)
     expect(JSON.stringify(saved.strategy.coach)).not.toBe(tacticsBefore)
@@ -294,7 +294,7 @@ describe('從入口走一遍 V2 主要流程', () => {
     expect($$('.v2-match')).toHaveLength(4)
     $$('.v2-match')[0].click()
     expect($('.v2-linescore')).not.toBeNull()
-    expect($$('.v2-box li').length).toBeGreaterThan(9)
+    expect($$('.v2-box tbody tr').length).toBeGreaterThan(9)
     $<HTMLButtonElement>('.v2-modal-close')!.click()
 
     $<HTMLButtonElement>('[data-tab="home"]')!.click()
