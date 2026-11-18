@@ -23,7 +23,9 @@ import { recentForm, teamPower } from '../domain/growthInfo'
 import type { ClubController, ControllerState } from './clubController'
 import { V2T } from './strings'
 import { icon, type IconName } from './icons'
-import { PROMOTION_CONFIG } from '../domain/leagueConfig'
+import { MAX_TIER, PROMOTION_CONFIG } from '../domain/leagueConfig'
+import { leagueBadge } from './leagueBadge'
+import { isRankedPreview, placeholderTag } from './leagueInfo'
 
 export interface DashboardActions {
   claim: () => void
@@ -45,6 +47,8 @@ export interface DashboardActions {
   challenge: (expected: { fromTier: number; challengeSeq: number }) => void
   /** 電腦版三欄 */
   desk?: boolean
+  /** 打開聯盟之路（首頁「下一個目標」卡） */
+  openRoad?: () => void
 }
 
 export { teamPower }
@@ -68,6 +72,7 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
 
   const live = liveSection(club, state, actions)
   const next = nextSection(suggestion, state, actions)
+  const goal = goalCard(club, actions)
   const onboard = onboardingSection(club, state, actions, suggestion.kind)
   const team = teamSection(club, state, actions)
   const league = leagueCard(state, actions)
@@ -80,9 +85,9 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
       for (const x of xs) if (x) c.append(x)
       return c
     }
-    page.append(col(live, next), col(team, rewards), col(league, onboard, recent))
+    page.append(col(live, next, goal), col(team, rewards), col(league, onboard, recent))
   } else {
-    page.append(live, next)
+    page.append(live, next, goal)
     if (onboard) page.append(onboard)
     page.append(team, league, rewards, recent)
   }
@@ -590,4 +595,92 @@ function rewardItem(label: string, value: number, kind: string, ico: IconName): 
   v.append(icon(ico, 20), el('span', 'v2-reward-value', value ? `+${fmt(value)}` : '0'))
   box.append(el('span', 'v2-stat-label', label), v)
   return box
+}
+
+/**
+ * 下一個目標（設計稿 p7 IdGoal）：目前聯盟、下一個聯盟要達成什麼、還差多少，以及「聯盟之路」入口。
+ * 條件全部來自 eligibility（正式規則）；競技積分還在規劃，只加一行「示意」的說明，不顯示任何積分
+ */
+export function goalCard(club: ClubSave, actions: Pick<DashboardActions, 'openRoad'>): HTMLElement {
+  const { league } = club
+  const def = leagueOf(league.tier)
+  const top = league.tier >= MAX_TIER
+  const e = eligibility(league, club.idle.nextMatchIndex)
+  const card = el('section', `v2-card v2-goal ${e.ok ? 'ready' : ''}`.trim())
+  card.dataset.tier = String(league.tier)
+  card.style.borderLeftColor = def.color
+  card.setAttribute('aria-label', V2T.goalLabel)
+  const head = el('div', 'v2-goal-head')
+  const names = el('div', 'v2-goal-names')
+  names.append(el('span', 'v2-goal-k', V2T.goalKicker(def.name)), el('strong', 'v2-goal-title', top ? V2T.goalTopTitle(def.name) : V2T.goalTitle(leagueOf(league.tier + 1).name)))
+  head.append(leagueBadge(league.tier, 'current', 44), names)
+  card.append(head)
+
+  if (top) {
+    card.append(el('p', 'v2-goal-text', V2T.goalTopText))
+  } else {
+    const rows = el('ul', 'v2-goal-conds')
+    const row = (key: string, ok: boolean, label: string, value: string, ratio: number, mark?: number) => {
+      const li = el('li', ok ? 'done' : '')
+      li.dataset.need = key
+      const line = el('span', 'v2-need-top')
+      const dot = el('span', 'v2-need-dot')
+      if (ok) dot.append(icon('check', 10))
+      line.append(dot, el('span', 'v2-need-text', label), el('span', 'v2-need-value', value))
+      const bar = el('span', 'v2-need-bar')
+      bar.setAttribute('role', 'progressbar')
+      bar.setAttribute('aria-label', label)
+      bar.setAttribute('aria-valuemin', '0')
+      bar.setAttribute('aria-valuemax', '100')
+      bar.setAttribute('aria-valuenow', String(Math.round(Math.min(1, ratio) * 100)))
+      const fill = el('span', 'v2-need-fill')
+      fill.style.width = `${Math.round(Math.min(1, ratio) * 100)}%`
+      bar.append(fill)
+      if (mark !== undefined) {
+        const m = el('span', 'v2-need-mark')
+        m.style.left = `${Math.round(mark * 100)}%`
+        bar.append(m)
+      }
+      li.append(line, bar)
+      rows.append(li)
+    }
+    const matchesOk = e.matches.have >= e.matches.need
+    const rateOk = e.winRate.games >= e.winRate.window && e.winRate.have >= e.winRate.need
+    row('matches', matchesOk, V2T.leagueMatchesLine(e.matches.have, e.matches.need), `${fmt(Math.min(e.matches.have, e.matches.need))} / ${fmt(e.matches.need)}`, e.matches.have / e.matches.need)
+    row('rate', rateOk, V2T.leagueRateLine(e.winRate.have, e.winRate.games, e.winRate.need, e.winRate.window), `${Math.round(e.winRate.have * 100)}%`, e.winRate.have, e.winRate.need)
+    card.append(rows)
+
+    const needs: string[] = []
+    if (!matchesOk) needs.push(V2T.goalNeedMatches(e.matches.need - e.matches.have))
+    if (e.winRate.games < e.winRate.window) needs.push(V2T.goalNeedWindow(e.winRate.window - e.winRate.games))
+    else if (!rateOk) needs.push(V2T.goalNeedRate(Math.ceil((e.winRate.need - e.winRate.have) * e.winRate.window - 1e-9)))
+    if (e.retryRemaining > 0) needs.push(V2T.leagueCooldownLine(e.retryRemaining))
+    const need = el('div', `v2-goal-need ${needs.length ? '' : 'done'}`.trim())
+    need.append(el('span', 'v2-goal-need-k', needs.length ? V2T.goalNeedTitle : V2T.goalReadyTitle))
+    if (needs.length) {
+      const ul = el('ul', '')
+      for (const x of needs) ul.append(el('li', '', x))
+      need.append(ul)
+    } else need.append(el('span', 'v2-goal-need-ready', V2T.goalReady))
+    card.append(need)
+  }
+  // 競技區（規劃中）：只用一行說明，不顯示積分
+  if (isRankedPreview(league.tier + 1) || isRankedPreview(league.tier)) {
+    const p = el('p', 'v2-goal-plan')
+    p.append(placeholderTag('示意'), isRankedPreview(league.tier) ? V2T.goalPlanRanked : V2T.goalPlanNext(leagueOf(league.tier + 1).name))
+    card.append(p)
+  }
+  if (actions.openRoad) {
+    const b = el('button', 'btn-white v2-goal-road')
+    b.type = 'button'
+    b.dataset.action = 'open-road'
+    b.append(icon('league', 20), V2T.goalRoad)
+    const open = actions.openRoad
+    b.onclick = () => {
+      b.focus({ preventScroll: true })
+      open()
+    }
+    card.append(b)
+  }
+  return card
 }

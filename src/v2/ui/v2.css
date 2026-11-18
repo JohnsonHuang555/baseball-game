@@ -4299,3 +4299,1138 @@ body:has(.v2-modal-overlay) .toast {
     margin-top: 0;
   }
 }
+
+/* ==== Phase 7：遊戲指南、聯盟之路、聯盟詳情、下一個目標（設計稿 p7） ==== */
+.v2-help-btn {
+  flex: none;
+  order: 3;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 3px 0 var(--ink);
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v2-help-btn[hidden] {
+  display: none;
+}
+.v2-help-btn:focus-visible {
+  outline: 3px solid #ffd23f;
+  outline-offset: 2px;
+}
+
+/* 示意標籤：規則未定的數字 */
+.v2-demo-tag {
+  flex: none;
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 5px;
+  border: 1.5px dashed #8e4be0;
+  color: #6a2ec0;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 16px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.v2-key-tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 18px;
+}
+
+/* 聯盟徽章 */
+.v2-lg-badge {
+  flex: none;
+  display: inline-block;
+  line-height: 0;
+}
+.v2-lg-badge svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* 全畫面視窗 */
+.v2-modal-overlay.full {
+  padding: 0;
+  place-items: stretch;
+  align-items: stretch;
+}
+.v2-modal.full {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background-color: #2b2f8f;
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 14px, transparent 14px 28px);
+  animation: none;
+}
+.v2-modal.full .v2-modal-head {
+  padding: calc(12px + env(safe-area-inset-top)) 14px 12px;
+  background: #1e2170;
+  border-bottom: 2px solid var(--ink);
+  color: #fff;
+}
+.v2-modal.full .v2-modal-body {
+  padding: 14px 12px calc(28px + env(safe-area-inset-bottom));
+}
+.v2-full-head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+.v2-full-title {
+  font-size: 22px;
+  font-weight: 900;
+}
+.v2-modal-x.labeled {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  align-self: center;
+  border-color: #fff;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-guide-q {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+/* ---- 遊戲指南 ---- */
+.v2-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.v2-guide-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: #141633;
+}
+.v2-guide-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--v2-muted);
+}
+.v2-guide-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.v2-guide-search:focus-within {
+  outline: 3px solid #ffd23f;
+  outline-offset: 1px;
+}
+.v2-guide-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.v2-guide-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.v2-guide-tab-no {
+  font-family: var(--font-display);
+  font-size: 12px;
+  opacity: 0.8;
+}
+.v2-guide-tab.on {
+  border-color: var(--ink);
+  background: #ffd23f;
+  color: var(--ink);
+}
+.v2-guide-tab:focus-visible {
+  outline: 3px solid #ffd23f;
+  outline-offset: 1px;
+}
+.v2-guide-panel {
+  min-width: 0;
+  outline: 0;
+}
+.v2-guide-chapter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.v2-guide-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 3px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 5px 0 var(--ink);
+}
+.v2-guide-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.v2-guide-hero-icon {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: #fff1b8;
+  border: 2px solid var(--ink);
+}
+.v2-guide-no {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--v2-muted);
+  letter-spacing: 0.06em;
+}
+.v2-guide-title {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+.v2-guide-summary {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #33385f;
+}
+.v2-guide-visual {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--v2-soft);
+}
+.v2-guide-visual.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  background: none;
+  padding: 0;
+}
+.v2-guide-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--v2-soft);
+}
+.v2-guide-stat strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.2;
+}
+.v2-guide-stat span {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-guide-node {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 52px;
+  font-size: 11px;
+  font-weight: 900;
+}
+.v2-guide-arrow {
+  font-weight: 900;
+  color: var(--v2-faint);
+}
+.v2-guide-visual.points {
+  flex-direction: column;
+  align-items: stretch;
+}
+.v2-guide-points-head,
+.v2-guide-points-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-guide-points-legend .danger {
+  color: #b8470a;
+}
+.v2-guide-points-legend .up {
+  color: #1e7a3c;
+}
+.v2-guide-cards {
+  display: grid;
+  gap: 10px;
+}
+.v2-guide-cards.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.v2-guide-card {
+  display: flex;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+}
+.v2-guide-card.demo {
+  border: 1.5px dashed #8e4be0;
+  background: #fbf8ff;
+}
+.v2-guide-card-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--v2-soft);
+}
+.v2-guide-card-text {
+  flex: 1;
+  min-width: 0;
+}
+.v2-guide-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 15px;
+  font-weight: 900;
+}
+.v2-guide-card-text p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--v2-muted);
+}
+.v2-guide-faq {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-faq-item {
+  border-radius: 14px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  overflow: hidden;
+}
+.v2-faq-item.open {
+  border-width: 3px;
+}
+.v2-faq-q {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.v2-faq-q > span:first-child {
+  flex: 1;
+}
+.v2-faq-chev {
+  transition: transform 0.15s;
+}
+.v2-faq-item.open .v2-faq-chev {
+  transform: rotate(90deg);
+}
+.v2-faq-a {
+  margin: 0;
+  padding: 0 14px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--v2-muted);
+}
+.v2-guide-pager {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.v2-guide-pager button {
+  height: 52px;
+}
+.v2-guide-pager button:disabled {
+  border-style: dashed;
+  box-shadow: none;
+  opacity: 0.6;
+}
+.v2-guide-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-guide-results-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+  color: #fff;
+}
+.v2-guide-results .v2-empty {
+  color: #fff;
+}
+.v2-guide-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  font-family: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.v2-guide-hit strong {
+  font-size: 14px;
+}
+.v2-guide-hit-ch {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-link);
+}
+.v2-guide-hit-text {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-muted);
+}
+@media (min-width: 1024px) {
+  .v2-guide.desk {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 24px;
+    max-width: 1240px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .v2-guide.desk .v2-guide-side {
+    flex: none;
+    width: 300px;
+    position: sticky;
+    top: 0;
+  }
+  .v2-guide.desk .v2-guide-tabs {
+    flex-direction: column;
+    overflow: visible;
+  }
+  .v2-guide.desk .v2-guide-tab {
+    height: 48px;
+    justify-content: flex-start;
+  }
+  .v2-guide.desk .v2-guide-panel {
+    flex: 1;
+    max-width: 900px;
+  }
+  .v2-guide.desk .v2-guide-visual.stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .v2-modal.full .v2-modal-body {
+    padding: 24px 32px 40px;
+  }
+}
+
+/* ---- 聯盟之路 ---- */
+.v2-road {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.v2-road-path {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--lilac);
+}
+.v2-road-where {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 3px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 4px 0 var(--ink);
+}
+.v2-road-where-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v2-road-where-names {
+  display: flex;
+  flex-direction: column;
+}
+.v2-road-where-k {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-road-where-names strong {
+  font-size: 18px;
+  font-weight: 900;
+}
+.v2-road-where-line,
+.v2-road-loading-note {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  line-height: 1.5;
+}
+.v2-skel {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #e3e6f5, #f4f5ff, #e3e6f5);
+  background-size: 200% 100%;
+  animation: v2-skel 1.2s linear infinite;
+}
+.v2-skel-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+.v2-skel-line {
+  height: 12px;
+  width: 70%;
+}
+@keyframes v2-skel {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-skel {
+    animation: none;
+  }
+}
+.v2-road-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.v2-road-zone {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+  font-size: 12px;
+  font-weight: 900;
+  color: #fff;
+}
+.v2-road-zone.ranked {
+  color: #e4d4ff;
+}
+.v2-road-zone.safe {
+  color: #c8f2d6;
+}
+.v2-road-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.v2-road-rail {
+  flex: none;
+  width: 52px;
+  display: flex;
+  justify-content: center;
+  padding-top: 10px;
+  background: linear-gradient(var(--lg), var(--lg)) center / 6px 100% no-repeat;
+}
+.v2-road-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  font-family: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.v2-road-card.locked {
+  background: #e6e8f7;
+}
+.v2-road-card.current {
+  border-width: 3px;
+  box-shadow: 0 4px 0 var(--ink);
+}
+.v2-road-card.selected {
+  box-shadow: 0 0 0 4px rgba(255, 210, 63, 0.85), 0 4px 0 var(--ink);
+}
+.v2-road-card:focus-visible {
+  outline: 3px solid #ffd23f;
+  outline-offset: 2px;
+}
+.v2-road-card-top,
+.v2-road-card-mid,
+.v2-road-card-risk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.v2-road-card-name {
+  font-size: 16px;
+  font-weight: 900;
+}
+.v2-road-mult {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+.v2-road-reward {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-road-card-mine {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-link);
+}
+.v2-state-chip {
+  padding: 0 7px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.v2-state-chip.reached {
+  background: #f0fbf4;
+  color: #1e7a3c;
+  border: 1.5px solid #22a35a;
+}
+.v2-state-chip.current {
+  color: #fff;
+  border: 1.5px solid var(--ink);
+  text-shadow: 0 1px 0 rgba(20, 22, 51, 0.45);
+}
+.v2-state-chip.locked {
+  background: #eceef8;
+  color: #6b7099;
+  border: 1.5px dashed #8a8fae;
+}
+.v2-risk-tag {
+  padding: 0 7px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 20px;
+}
+.v2-risk-tag.safe {
+  background: #f0fbf4;
+  color: #1e7a3c;
+  border: 1.5px solid #22a35a;
+}
+.v2-risk-tag.floor {
+  background: #f5eeff;
+  color: #6a2ec0;
+  border: 1.5px solid #8e4be0;
+}
+.v2-risk-tag.danger {
+  background: #fff4ea;
+  color: #b8470a;
+  border: 1.5px solid #ff7a1a;
+}
+.v2-pips {
+  display: inline-flex;
+  gap: 2px;
+}
+.v2-pips span {
+  width: 10px;
+  height: 7px;
+  border-radius: 2px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+}
+.v2-pips span.on {
+  background: var(--ink);
+}
+.v2-pips.big span {
+  width: 16px;
+  height: 10px;
+}
+.v2-road-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 4px 62px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 900;
+}
+.v2-road-link.safe {
+  color: #c8f2d6;
+}
+.v2-road-link.floor {
+  background: #8e4be0;
+  color: #fff;
+  justify-content: center;
+}
+.v2-road-link.danger {
+  color: #ffc9a8;
+}
+.v2-road-foot {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--lilac);
+}
+.v2-road-panel {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .v2-road.desk {
+    max-width: 1320px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .v2-road-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .v2-road-stage {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .v2-road-legend {
+    display: flex;
+    gap: 16px;
+  }
+  .v2-road-steps {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    align-items: end;
+  }
+  .v2-road-step {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .v2-road-block {
+    display: grid;
+    place-items: center;
+    border-radius: 12px 12px 0 0;
+    border: 2px solid var(--ink);
+    border-bottom: 0;
+    color: #fff;
+    font-weight: 900;
+    font-size: 14px;
+    text-shadow: 0 1px 0 rgba(20, 22, 51, 0.5);
+  }
+  .v2-road-panel {
+    display: block;
+    flex: none;
+    width: 440px;
+    position: sticky;
+    top: 0;
+    border-radius: 20px;
+    border: 3px solid var(--ink);
+    background: #fff;
+    box-shadow: 0 5px 0 var(--ink);
+    overflow: hidden;
+  }
+}
+
+/* ---- 聯盟詳情 ---- */
+.v2-league-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.v2-road-panel .v2-league-detail {
+  padding: 0 16px 18px;
+}
+.v2-ld-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -14px -16px 0;
+  padding: 16px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lg) 22%, #fff), #fff);
+}
+.v2-road-panel .v2-ld-head {
+  margin: 0 -16px;
+}
+.v2-ld-titles {
+  flex: 1;
+  min-width: 0;
+}
+.v2-ld-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.v2-ld-name {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 900;
+}
+.v2-ld-intro {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-muted);
+}
+.v2-ld-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.v2-ld-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--v2-soft);
+  min-width: 0;
+}
+.v2-ld-stat-k {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-ld-stat strong {
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.v2-ld-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-ld-h {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-ld-conds {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.v2-ld-section.planned {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1.5px dashed #8e4be0;
+  background: #fbf8ff;
+}
+.v2-ld-planned-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #6a2ec0;
+}
+.v2-ld-planned {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #33385f;
+}
+.v2-ld-rel {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1.5px solid;
+}
+.v2-ld-rel.safe {
+  background: #f0fbf4;
+  border-color: #22a35a;
+}
+.v2-ld-rel.floor {
+  background: #f5eeff;
+  border-color: #8e4be0;
+}
+.v2-ld-rel.danger {
+  background: #fff4ea;
+  border-color: #ff7a1a;
+}
+.v2-ld-rel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+.v2-ld-rel p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #33385f;
+}
+.v2-ld-rel-nodes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.v2-ld-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-ld-node-arrow {
+  color: var(--v2-faint);
+  font-weight: 900;
+}
+.v2-ld-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-ld-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 14px;
+}
+.v2-ld-link > span:nth-child(2) {
+  flex: 1;
+  text-align: left;
+}
+
+/* ---- 首頁：下一個目標 ---- */
+.v2-goal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left-width: 8px;
+}
+.v2-goal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.v2-goal-names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.v2-goal-k {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-goal-title {
+  font-size: 18px;
+  font-weight: 900;
+}
+.v2-goal-text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #33385f;
+}
+.v2-goal-conds {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-goal-conds li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.v2-goal-conds li.done .v2-need-dot {
+  border-color: var(--v2-win);
+  background: var(--v2-win);
+}
+.v2-goal-conds li.done .v2-need-fill {
+  background: var(--v2-win);
+}
+.v2-goal-need {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--v2-soft);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.v2-goal-need.done {
+  background: #f0fbf4;
+  color: #1e7a3c;
+}
+.v2-goal-need-k {
+  font-weight: 900;
+}
+.v2-goal-need ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.v2-goal-plan {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #6a2ec0;
+}
+.v2-goal-road {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+}
+
+/* 示意積分條（沒有玩家資料） */
+.v2-points-bar {
+  position: relative;
+  height: 16px;
+}
+.v2-points-track {
+  position: absolute;
+  inset: 3px 0;
+  display: flex;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #e3e6f5;
+}
+.v2-points-low {
+  background: #ffd6d6;
+}
+.v2-points-bar.floor .v2-points-low {
+  background: #e9ddfb;
+}
+.v2-points-mid {
+  flex: 1;
+}
+.v2-points-up {
+  background: #cdefd9;
+}
+.v2-points-fill {
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 5px 0 0 5px;
+  opacity: 0.9;
+}
+.v2-points-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--ink);
+}

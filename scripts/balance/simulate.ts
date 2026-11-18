@@ -12,7 +12,7 @@ import { isOffPosition } from '../../src/sim/positions'
 import type { Batter, Pitcher, Player } from '../../src/sim/types'
 import { createClubSafely } from '../../src/v2/application/clubLifecycle'
 import { canAfford, recruit, release, upgrade } from '../../src/v2/application/economyService'
-import { nearestUpgrade, suggestNextAction } from '../../src/v2/application/guidance'
+import { lineupCandidate, nearestUpgrade, suggestNextAction, upgradeCandidate } from '../../src/v2/application/guidance'
 import { challengeNextLeague } from '../../src/v2/application/leagueService'
 import { claim, settleDue, updateSettings } from '../../src/v2/application/settlementService'
 import type { ClubSave, Resources } from '../../src/v2/domain/club'
@@ -27,6 +27,7 @@ import { rewardFor } from '../../src/v2/domain/rewards'
 import { assignedIds, reserves, resolveRoster, toAssignment } from '../../src/v2/domain/roster'
 import { MemoryStorage } from '../../src/v2/infrastructure/clubRepository'
 import { FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab } from '../../src/v2/testkit'
+import type { RankedHook, RankedLog } from './ranked'
 
 export const STRATEGIES = ['A', 'B', 'C', 'D', 'E'] as const
 export type Strategy = (typeof STRATEGIES)[number]
@@ -165,6 +166,8 @@ export interface SimResult {
   ledger: Ledger
   milestones: Milestones
   recruits: RecruitLog[]
+  /** Phase 7 模擬專用的積分／降級紀錄（有指定 ranked 才有） */
+  ranked?: RankedLog
 }
 
 export interface SimOptions {
@@ -174,6 +177,8 @@ export interface SimOptions {
   days: number
   /** 改用指定的上線時間（開始後第幾分鐘），每次上線後記一筆快照（新手前 24 小時分析用） */
   sessionMinutes?: number[]
+  /** Phase 7：模擬專用的積分／降級規則（RFC 比較方案用，見 ranked.ts） */
+  ranked?: RankedHook
 }
 
 const zero = (): Resources => ({ funds: 0, experience: 0 })
@@ -285,23 +290,27 @@ export async function simulate(o: SimOptions): Promise<SimResult> {
 
   const tryChallenge = async () => {
     const c = load(d)
-    const e = eligibility(c.league, c.idle.nextMatchIndex)
-    if (!e.ok) return
-    const out = await challengeNextLeague(d, { challengeSeq: c.league.nextChallengeSeq, fromTier: c.league.tier })
+    const ok = o.ranked ? o.ranked.canChallenge(c) : eligibility(c.league, c.idle.nextMatchIndex).ok
+    if (!ok) return false
+    const finish = o.ranked?.prepareChallenge(d)
+    const out = await challengeNextLeague(d, { challengeSeq: load(d).league.nextChallengeSeq, fromTier: c.league.tier })
+    finish?.(out, day())
     actions++
     const t = tiers[c.league.tier]
     t.attempts++
     if (out.challenge.won) {
       t.successes++
-      tiers[out.challenge.toTier].reachedDay = day()
+      tiers[out.challenge.toTier].reachedDay ??= day()
       ledger.promotion.funds += out.challenge.reward.funds
       ledger.promotion.experience += out.challenge.reward.experience
     } else t.cooldownMatches += out.club.league.challengeReadyAt - out.club.idle.nextMatchIndex
+    return true
   }
 
   const session = async () => {
     sessions++
     const report = await settleDue(d)
+    o.ranked?.afterSettle(d, report.settled, day())
     for (const m of report.settled) {
       const t = m.result.leagueTier ?? 0
       tiers[t].games++
@@ -326,8 +335,8 @@ export async function simulate(o: SimOptions): Promise<SimResult> {
       actions++
     }
     c = load(d)
-    const e = eligibility(c.league, c.idle.nextMatchIndex)
-    if (e.ok && tiers[c.league.tier].firstEligibleDay === null) tiers[c.league.tier].firstEligibleDay = day()
+    const eligibleNow = o.ranked ? o.ranked.canChallenge(c) : eligibility(c.league, c.idle.nextMatchIndex).ok
+    if (eligibleNow && tiers[c.league.tier].firstEligibleDay === null) tiers[c.league.tier].firstEligibleDay = day()
     const active = (x: ClubSave) => activeRecords(x).map((r) => r.player.id)
     switch (o.strategy) {
       case 'A':
@@ -371,7 +380,13 @@ export async function simulate(o: SimOptions): Promise<SimResult> {
           } else if (s.kind === 'upgrade') {
             if (!(await doUpgrade(s.playerId))) break
           } else if (s.kind === 'challenge') {
-            await tryChallenge()
+            if (await tryChallenge()) continue
+            // 積分制（模擬）時現行的 eligibility 可能說可以、積分規則說還不行：改照建議的下一項（升級、陣容）做
+            const x = load(d)
+            const up = upgradeCandidate(x)
+            if (up && (await doUpgrade(up.playerId))) continue
+            if (lineupCandidate(x)) await promoteReserves()
+            break
           } else if (s.kind === 'lineup') {
             await promoteReserves()
             if (suggestNextAction(load(d), { canWrite: true }).kind === 'lineup') break
@@ -433,7 +448,7 @@ export async function simulate(o: SimOptions): Promise<SimResult> {
       snapshots.push(snap(dday))
     }
   }
-  return { strategy: o.strategy, seed: o.seed, sessionsPerDay: o.sessionsPerDay, days: o.days, snapshots, tiers, ledger, milestones: ms, recruits: recruitLog }
+  return { strategy: o.strategy, seed: o.seed, sessionsPerDay: o.sessionsPerDay, days: o.days, snapshots, tiers, ledger, milestones: ms, recruits: recruitLog, ranked: o.ranked?.log }
 }
 
 // ---- 統計 ----
