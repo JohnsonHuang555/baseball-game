@@ -1,0 +1,1108 @@
+/* 共用樣式：V2 畫面與觀戰球場仍在使用的部分（原本 V1 時期的 style／theme／team／match／decision／screens／desktop.css，
+   Phase 6D 刪掉 V1 專屬的規則後依原本順序合併；順序就是原本的載入順序，層疊結果不變） */
+
+/* ======== 色彩變數與全域基本樣式（原 style.css） ======== */
+:root {
+  /* 卡牌手遊風（設計稿 v2）：靛藍底、白色面板、深色粗外框與實色陰影 */
+  --ink: #141633;
+  --indigo: #2b2f8f;
+  --paper: #f4f5ff;
+  --lilac: #c9ccff;
+  --ink-soft: #4a4f7a;
+  --ink-faint: #5a5f86;
+  --line: #e3e6f5;
+  --yellow: #ffd23f;
+  --yellow-shadow: #b88a00;
+  --home: #2d7cff;
+  --away: #ff7a1a;
+  --font-display: 'Bungee', 'Arial Black', system-ui, sans-serif;
+  font-family: 'Noto Sans TC', system-ui, -apple-system, 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  color: #fff;
+  background: var(--indigo);
+  -webkit-tap-highlight-color: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--indigo);
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 14px, transparent 14px 28px);
+  min-height: 100dvh;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+/* ---- 按鈕 ---- */
+.btn-yellow,
+.btn-white,
+.btn-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 2.5px solid var(--ink);
+  border-radius: 14px;
+  font-family: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+.btn-yellow,
+.btn-white {
+  height: 54px;
+  padding: 0 16px;
+  font-size: 16px;
+}
+.btn-yellow {
+  background: var(--yellow);
+  color: var(--ink);
+  box-shadow: 0 4px 0 var(--yellow-shadow);
+}
+.btn-big {
+  font-size: 18px;
+}
+.btn-white {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+}
+.btn-small {
+  flex: none;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 15px;
+  background: var(--yellow);
+  color: var(--ink);
+  box-shadow: 0 3px 0 var(--ink);
+}
+.btn-yellow:disabled,
+.btn-white:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn-yellow:active:not(:disabled),
+.btn-white:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+
+/* ---- 字母等級：S 彩虹、A 到 G 由暖到冷，亮度也一路變化 ---- */
+.grade {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  border: 2px solid var(--ink);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1;
+}
+/* 列表裡的無色字母；守非本職時改成紅字底線，不加外框 */
+.grade-lite {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+}
+.grade-sm {
+  width: 20px;
+  height: 20px;
+  border-width: 1.5px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+.grade-md {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  font-size: 14px;
+}
+.grade-lg {
+  width: 50px;
+  height: 50px;
+  border-width: 3px;
+  border-radius: 13px;
+  font-size: 27px;
+  box-shadow: 0 3px 0 var(--ink);
+}
+.grade-xl {
+  width: 46px;
+  height: 46px;
+  border-width: 3px;
+  border-radius: 12px;
+  font-size: 25px;
+  box-shadow: 0 3px 0 var(--ink);
+}
+.grade-S {
+  background: linear-gradient(135deg, #ff5fa2, #ffd23f 35%, #5fe3a1 65%, #6fb6ff);
+  color: #fff;
+  text-shadow:
+    0 0 2px var(--ink),
+    0 1px 0 var(--ink),
+    1px 0 0 var(--ink),
+    -1px 0 0 var(--ink);
+}
+.grade-A {
+  background: #ff4f7b;
+}
+.grade-B {
+  background: #ff8a2a;
+}
+.grade-C {
+  background: #ffd23f;
+}
+.grade-D {
+  background: #8ee05a;
+}
+.grade-E {
+  background: #3fd0c9;
+}
+.grade-F {
+  background: #6e9bff;
+}
+.grade-G {
+  background: #b4b9cc;
+}
+.grade-line {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.gl-item {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+.gl-label {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--ink-faint);
+}
+
+/* ---- 特性：金特星號、藍特加號、紅特減號 ---- */
+.traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.trait {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.trait-gold {
+  background: var(--yellow);
+  color: var(--ink);
+}
+.trait-blue {
+  background: #2d6be0;
+  color: #fff;
+}
+.trait-red {
+  background: #d9283c;
+  color: #fff;
+}
+/* 潛能：還沒覺醒的「？」，虛線框表示未定 */
+.trait-potential {
+  background: #f1e6ff;
+  color: #5b2a9e;
+  border-style: dashed;
+  border-color: #7c3fd1;
+}
+
+/* ---- 頭像 ---- */
+.avatar {
+  display: block;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #fff;
+}
+.avatar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.avatar.sm {
+  width: 34px;
+  height: 34px;
+}
+
+/* ---- 特性列（球員養成畫面） ---- */
+.trait-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trait-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.trait-desc {
+  font-size: 13px;
+  color: #33385e;
+}
+
+/* ---- toast ---- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 24px;
+  background: var(--ink);
+  border: 2px solid var(--yellow);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  z-index: 30;
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  animation: toast-in 0.2s ease-out;
+  transition: opacity 0.4s;
+}
+.toast.leaving {
+  opacity: 0;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+}
+
+/* ---- 我方／對手標籤 ---- */
+.side-tag {
+  flex: none;
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 16px;
+  letter-spacing: 0;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+.side-tag.user {
+  background: var(--home);
+  color: #fff;
+}
+.side-tag.opponent {
+  background: var(--away);
+  color: var(--ink);
+}
+
+/* ---- 淡入（確認視窗的遮罩用） ---- */
+@keyframes tut-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---- 投手球種標籤：看家球種反白 ---- */
+.pitch-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 3px;
+  border-radius: 6px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.pitch-chip-label {
+  padding: 0 2px;
+  color: var(--ink-soft);
+}
+.pitch-chip-item {
+  padding: 0 2px;
+  border-radius: 4px;
+}
+.pitch-chip-item.primary {
+  background: var(--ink);
+  color: var(--yellow);
+}
+.pitch-chip-item.has-trait {
+  background: #b57bff;
+  color: #fff;
+}
+.pitch-chip.full {
+  gap: 3px;
+  font-size: 11px;
+  line-height: 18px;
+}
+.pitch-chip.full .pitch-chip-item {
+  padding: 0 4px;
+}
+
+/* ---- 確認視窗 ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(12, 13, 36, 0.65);
+  animation: tut-in 0.15s ease-out;
+}
+.modal-box {
+  width: min(400px, 100%);
+  box-sizing: border-box;
+  padding: 20px 18px 18px;
+  border-radius: 20px;
+  border: 3px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 0 6px 0 var(--ink);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: modal-pop 0.2s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes modal-pop {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+.modal-title {
+  font-size: 20px;
+  font-weight: 900;
+}
+.modal-message {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #33385e;
+}
+.modal-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+}
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 54px;
+  padding: 0 16px;
+  border: 2.5px solid var(--ink);
+  border-radius: 14px;
+  background: #e5383b;
+  color: #fff;
+  box-shadow: 0 4px 0 var(--ink);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.btn-danger:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+
+/* ---- 本職守位：本職標籤、非本職警示 ---- */
+.primary-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 6px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.offpos-icon {
+  flex: none;
+  display: inline-flex;
+}
+.offpos-icon svg {
+  display: block;
+}
+
+/* ---- 羈絆：流派徽章、隊長、追蹤欄、說明 ---- */
+.arch-icon,
+.captain-icon,
+.syn-icon {
+  flex: none;
+  display: inline-flex;
+}
+.syn-icon.off {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+.arch-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px 0 2px;
+  border-radius: 11px;
+  border: 2px solid var(--arch);
+  background: #fff;
+  color: var(--arch);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+/* 精簡標籤：陣容上方的羈絆徽章 */
+.syn-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.syn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 7px 0 3px;
+  border-radius: 8px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.syn-badge.max {
+  background: linear-gradient(135deg, #ffe58a, #ffc21a);
+}
+/* 最接近啟動的一個：灰虛線框 */
+.syn-badge.near {
+  border: 2px dashed #b4b9cc;
+  background: #fafbff;
+  color: var(--ink-soft);
+}
+.syn-badge-tier {
+  font-family: var(--font-display);
+  font-size: 10px;
+}
+.syn-badge.near .syn-badge-tier {
+  font-family: inherit;
+  font-size: 11px;
+}
+.syn-badge-hint {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lilac);
+}
+
+/* ---- 守位羈絆未成立：淡紅提示 ---- */
+.syn-icon.fail {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+/* ---- 球場圖 ---- */
+.pitch {
+  position: relative;
+  margin: 8px 12px 0;
+  aspect-ratio: 366 / 349;
+  background: #2e8c43;
+  border-radius: 18px;
+  border: 2.5px solid var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+  overflow: hidden;
+}
+.pitch > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- 板凳與後援 ---- */
+.reserves {
+  margin: 8px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* ---- 比分條 ---- */
+.match-header {
+  height: 60px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px 54px 66px;
+  align-items: center;
+  background: #fff;
+  border: 2.5px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 0 3px 0 var(--ink);
+  overflow: hidden;
+}
+.mh-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 10px 0 12px;
+  min-width: 0;
+}
+.mh-team {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.mh-swatch {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1.5px solid var(--ink);
+}
+.mh-swatch.user {
+  background: var(--home);
+}
+.mh-swatch.opponent {
+  background: var(--away);
+}
+.mh-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mh-team.batting .mh-name {
+  font-weight: 900;
+  color: var(--ink);
+}
+.mh-score {
+  font-family: var(--font-display);
+  font-size: 17px;
+}
+.mh-inning {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: #fff;
+}
+.mh-inning-num {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1;
+}
+.mh-inning-half {
+  font-size: 11px;
+  font-weight: 900;
+}
+.mh-bases {
+  display: grid;
+  place-items: center;
+  border-right: 1px solid var(--line);
+  height: 100%;
+}
+.mh-bases svg {
+  width: 44px;
+  height: 31px;
+}
+.mh-count {
+  display: grid;
+  grid-template-columns: 12px repeat(3, 10px);
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+.mh-count-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+}
+.mh-light {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+}
+.mh-light.on-ball {
+  background: #5fd068;
+}
+.mh-light.on-strike {
+  background: var(--yellow);
+}
+.mh-light.on-out {
+  background: #ff4f5e;
+}
+
+/* ---- 球場 ---- */
+.match-field {
+  position: relative;
+  border-radius: 18px;
+  border: 2.5px solid var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+  overflow: hidden;
+  background: #2e8c43;
+}
+.match-field .field {
+  display: block;
+  width: 100%;
+}
+.callout .burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 250px;
+  height: 150px;
+  margin: -75px 0 0 -125px;
+  fill: #fff;
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.callout-top {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1;
+  color: var(--ink);
+}
+.callout-label {
+  position: relative;
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: 900;
+  white-space: nowrap;
+  color: #ff4f7b;
+  text-shadow:
+    0 3px 0 var(--ink),
+    2px 0 0 var(--ink),
+    -2px 0 0 var(--ink),
+    0 -2px 0 var(--ink);
+}
+.callout.hr .callout-label {
+  color: var(--yellow);
+}
+.callout.score .callout-label {
+  color: #5fd068;
+}
+.callout.dp .callout-label {
+  color: #ff4f7b;
+}
+.callout.error .callout-label {
+  color: #ff8a2a;
+}
+
+/* ---- 控制列 ---- */
+.speed-toggle {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  height: 44px;
+  border-radius: 12px;
+  border: 2.5px solid var(--ink);
+  overflow: hidden;
+  background: #fff;
+}
+.speed-toggle button {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.speed-toggle button + button {
+  border-left: 2px solid var(--ink);
+}
+.speed-toggle button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--yellow);
+}
+
+/* ---- 全壘打數據卡：球場下緣的三格數字 ---- */
+.hr-stats {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 2;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  border-radius: 14px;
+  border: 3px solid var(--ink);
+  background: var(--ink);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  pointer-events: none;
+  animation: hr-stats-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) 0.25s both;
+}
+.hr-stats.leaving {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+@keyframes hr-stats-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px);
+  }
+}
+.hr-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 14px 7px;
+}
+.hr-stat + .hr-stat {
+  border-left: 2px solid #3a3e6e;
+}
+.hr-stat-label {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--lilac);
+  white-space: nowrap;
+}
+.hr-stat-value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--yellow);
+  white-space: nowrap;
+}
+.hr-stat-unit {
+  margin-left: 2px;
+  font-size: 11px;
+  color: #fff;
+}
+
+/* ---- 音效開關（比賽控制列與首頁共用） ---- */
+.sound-btn {
+  flex: none;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  background: transparent;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.sound-btn[aria-pressed='false'] {
+  color: #8a8fd8;
+  border-color: #8a8fd8;
+}
+
+/* ---- 球場左上角：我方進攻中／守備中 ---- */
+.mh-name .side-tag {
+  margin-left: 2px;
+}
+
+/* ---- 三振：跟全壘打一樣的爆炸框，中間一個大 K ---- */
+.callout.k .callout-label {
+  font-family: var(--font-display);
+  font-size: 72px;
+  line-height: 0.95;
+  color: #ff4f7b;
+  text-shadow:
+    0 4px 0 var(--ink),
+    3px 0 0 var(--ink),
+    -3px 0 0 var(--ink),
+    0 -3px 0 var(--ink);
+}
+.callout.k .callout-top {
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+}
+/* 站著被三振：K 換成藍色，下面的小字寫「站著被三振」 */
+.callout.k.looking .callout-label {
+  color: #6e9bff;
+}
+
+/* ---- 投球視角：球場左下角的小窗，從捕手後面看投過來的球 ---- */
+.pitch-cam {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  width: 118px;
+  aspect-ratio: 5 / 4;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: radial-gradient(circle at 50% 30%, #3a7f4a, #1d4a2b);
+  box-shadow: 0 3px 0 var(--ink);
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+.pitch-cam.show {
+  opacity: 1;
+  transform: none;
+}
+.pitch-cam-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pitch-cam-label {
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  font-size: 10.5px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 1px 0 var(--ink);
+  white-space: nowrap;
+}
+/* ---- 選項視窗（choiceModal：例如陣容的守位選擇） ---- */
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  padding: 2px;
+}
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 3px 0 var(--ink);
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.choice-option:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+.choice-option.current {
+  background: #fff4c7;
+  border-color: var(--ink);
+  outline: 3px solid var(--yellow);
+}
+.choice-option.locked {
+  background: #eceef8;
+  color: var(--ink-faint);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.choice-option.locked .choice-icon {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.choice-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  overflow: hidden;
+}
+.choice-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.choice-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.choice-label {
+  font-size: 16px;
+  font-weight: 900;
+}
+.choice-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.choice-cancel {
+  margin-top: 4px;
+}
+/* ---- 鍵帽：只在有實體鍵盤滑鼠的裝置顯示 ---- */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 2px solid var(--ink);
+  border-bottom-width: 3px;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0;
+  text-shadow: none;
+}
+button .kbd {
+  margin-left: 4px;
+}
+@media (hover: none), (pointer: coarse) {
+  .kbd {
+    display: none !important;
+  }
+}
+
+/* ================= 電腦版（1024px 以上） ================= */
+@media (min-width: 1024px) {
+  body {
+    background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 16px, transparent 16px 32px);
+  }
+
+  /* ---- 球場圖 ---- */
+  .pitch {
+    grid-area: pitch;
+    margin: 0;
+    aspect-ratio: 366 / 286;
+    border-width: 3px;
+    border-radius: 22px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .reserves {
+    grid-area: res;
+    margin: 0;
+  }
+
+  /* ---- 比賽：頂部完整記分板，左欄打線與紀錄，中間球場，決策時右邊多一欄面板 ---- */
+  .match-header {
+    flex: 0 0 auto;
+    height: auto;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 8px 20px;
+    border-width: 3px;
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+  .mh-teams {
+    display: none;
+  }
+  .mh-inning {
+    align-self: center;
+    background: none;
+    color: var(--ink);
+  }
+  .mh-inning-num {
+    font-size: 30px;
+  }
+  .mh-inning-half {
+    font-size: 12px;
+  }
+  .mh-bases {
+    border: 0;
+  }
+  .mh-bases svg {
+    width: 60px;
+    height: 44px;
+  }
+  .mh-count {
+    grid-template-columns: 14px repeat(3, 12px);
+    gap: 5px;
+  }
+  .mh-count-label {
+    font-size: 11px;
+  }
+  .mh-light {
+    width: 12px;
+    height: 12px;
+  }
+  .match-field {
+    display: flex;
+    justify-content: center;
+    border-width: 3px;
+    border-radius: 22px;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+  .match-field .field {
+    max-width: 580px;
+  }
+  .speed-toggle {
+    flex: none;
+    grid-template-columns: repeat(3, 60px);
+    height: 46px;
+    border-width: 3px;
+  }
+}
+
+/* 投球視角：電腦版放大 */
+@media (min-width: 1024px) {
+  .pitch-cam {
+    left: 14px;
+    bottom: 14px;
+    width: 180px;
+  }
+  .pitch-cam-label {
+    left: 8px;
+    top: 6px;
+    font-size: 13px;
+  }
+}

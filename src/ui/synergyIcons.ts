@@ -1,5 +1,4 @@
 // 羈絆系統的圖示：流派徽章、羈絆、隊長、羈絆秘技。形狀照設計稿（BdIcon），24 格的 SVG
-import type { RelicId } from '../sim/items'
 import type { Archetype } from '../sim/types'
 
 const INK = '#141633'
@@ -83,25 +82,4 @@ export function positionSynergySvg(kind: 'middle' | 'battery', size: number): st
 /** 隊長標記：深藍底、金框、白色 C，像隊長臂章 */
 export function captainSvg(size: number, label = ''): string {
   return svg(size, path('M5.5 3h13a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4h-13a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Z', INK, '#FFC21A', 2) + glyph('C'), label)
-}
-
-/** 羈絆相關的秘技：旗子，旗面放對應的流派記號；隊長臂章是深藍旗加金框 */
-const SYNERGY_RELICS: Partial<Record<RelicId, Archetype | 'captain'>> = {
-  powerFactory: 'power',
-  runSchool: 'speed',
-  hitClass: 'skill',
-  ironCurtain: 'defense',
-  captainBand: 'captain',
-}
-
-export function synergyRelicSvg(id: RelicId, size: number): string | null {
-  const kind = SYNERGY_RELICS[id]
-  if (!kind) return null
-  // 旗桿加燕尾旗，旗面放流派記號
-  const flag = 'M6 2.5h15.5l-3.6 5.5 3.6 5.5H6Z'
-  const captain = kind === 'captain'
-  return svg(
-    size,
-    path('M4.5 2v20', 'none', INK, 2) + path(flag, captain ? INK : ARCHETYPE_COLORS[kind], captain ? '#FFC21A' : INK, 1.6) + glyph(captain ? 'C' : kind, 'translate(5.6 1.6) scale(0.5)'),
-  )
 }

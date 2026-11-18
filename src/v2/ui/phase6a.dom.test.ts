@@ -54,7 +54,7 @@ async function open(env: Env, tabId = 'tab-a'): Promise<void> {
   document.body.replaceChildren()
   const root = document.createElement('div')
   document.body.append(root)
-  app = openV2(root, () => undefined, { deps: tab(env.storage, env.clock, env.locks), tickMs: 0, tabId, replayStage: stage, replayTimeScale: 0 })
+  app = openV2(root, { deps: tab(env.storage, env.clock, env.locks), tickMs: 0, tabId, replayStage: stage, replayTimeScale: 0 })
   await flush()
   // 關掉「歡迎回來」摘要與遷移提示
   $$('.v2-modal-close').forEach((b) => b.click())

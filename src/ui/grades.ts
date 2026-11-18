@@ -1,5 +1,3 @@
-import { overall } from '../sim/generate'
-import type { Player } from '../sim/types'
 import { el } from './playerCard'
 
 /** 野球魂式的字母等級，S 最強、G 最弱 */
@@ -25,8 +23,4 @@ export function gradeBadge(value: number, size: 'sm' | 'md' | 'lg' | 'xl' = 'md'
   const g = gradeOf(value)
   const plain = lite && g !== 'S' && g !== 'A'
   return el('span', `grade grade-${size} ${plain ? 'grade-lite' : `grade-${g}`}`, g)
-}
-
-export function overallBadge(p: Player, size: 'sm' | 'md' | 'lg' | 'xl' = 'md', lite = false): HTMLElement {
-  return gradeBadge(overall(p), size, lite)
 }

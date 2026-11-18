@@ -302,7 +302,6 @@ export class FieldRenderer {
 
   /**
    * 取消所有進行中的動畫（V2 觀戰暫停、跳過、關閉時用）：補間在下一幀直接結束，不再改畫面也不再繪製。
-   * V1 比賽畫面不會呼叫，行為不變
    */
   cancel(): void {
     this.generation++

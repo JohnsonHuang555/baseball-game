@@ -1,5 +1,4 @@
-// V1 比賽畫面與 V2 觀戰共用的動畫規則：節奏、事件分類、音效選擇、爆炸框圖形。
-// 兩邊用同一份數值，觀戰看到的就是 V1 的節奏與效果
+// 觀戰畫面的動畫規則：節奏、事件分類、音效選擇、爆炸框圖形（原本跟 V1 比賽畫面共用，數值沒變）
 import type { GameEvent, PlayKind } from '../sim/game'
 import type { SoundName } from './sound'
 

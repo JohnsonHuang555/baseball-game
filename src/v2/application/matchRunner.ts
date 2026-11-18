@@ -1,11 +1,11 @@
 // V2 Headless Match Runner：不經過畫面，用既有的 Game 引擎自動打完一整場。
-// 雙方 AI 設定透過 Adapter 對到 V1 引擎：AutoCoach 那一方當作 userSide，由自動教練下指令；
-// 另一方是引擎內建的 V1 AI。結果只由 setup（含種子、規則版本）與雙方 AI 設定決定，
-// 回傳的 replay 就是 V1 的 { setup, commands }，用 replay() 可以逐步重現。
+// 雙方 AI 設定透過 Adapter 對到模擬引擎（src/sim）：AutoCoach 那一方當作 userSide，由自動教練下指令；
+// 另一方是引擎內建的 AI。結果只由 setup（含種子、規則版本）與雙方 AI 設定決定，
+// 回傳的 replay 就是模擬引擎的 { setup, commands }，用 replay() 可以逐步重現。
 import { Game, RULES_VERSION, type Command, type GameEvent, type GameSetup, type Half, type PlayerLine, type Side } from '../../sim/game'
 import { AUTO_COACH_VERSION, AutoCoach, createPolicy, type CoachParams, type CoachStyle } from './autoCoach'
 
-/** 一方的 AI：自動教練（可選風格），或 V1 引擎內建的對手 AI */
+/** 一方的 AI：自動教練（可選風格），或引擎內建的對手 AI */
 export type SideAi = { kind: 'autoCoach'; style?: CoachStyle; params?: Partial<CoachParams> } | { kind: 'builtin' }
 
 export type MatchAi = Record<Side, SideAi>
@@ -49,7 +49,7 @@ export interface Highlight {
   score: { home: number; away: number }
 }
 
-/** 重現整場比賽所需的資訊：setup 已經寫明 userSide 與規則版本，直接交給 V1 的 replay() 即可 */
+/** 重現整場比賽所需的資訊：setup 已經寫明 userSide 與規則版本，直接交給 sim/game.ts 的 replay() 即可 */
 export interface MatchReplay {
   setup: GameSetup & { rules: number }
   commands: Command[]
@@ -95,7 +95,7 @@ export function defaultAi(userSide: Side = 'home'): MatchAi {
 }
 
 /**
- * 把 GameSetup 與雙方 AI 對到 V1 引擎的設定（Adapter）：
+ * 把 GameSetup 與雙方 AI 對到模擬引擎（src/sim）的設定（Adapter）：
  * 引擎同一場只有一個 userSide，所以 Phase 1 只能有一方是 autoCoach，另一方一定是 builtin。
  * 規則版本沒給就用目前版本，並且明確寫進設定，之後改版也能照原規則重現
  */
@@ -115,7 +115,7 @@ export function resolveSetup(setup: GameSetup, ai: MatchAi): MatchReplay['setup'
 
 export interface MatchRun {
   result: MatchResult
-  /** 打完的 Game：需要 V1 的賽後計算（例如 gameGrowth、synergyLog）時用；不可序列化 */
+  /** 打完的 Game：需要賽後計算（例如 synergyLog）時用；不可序列化 */
   game: Game
 }
 

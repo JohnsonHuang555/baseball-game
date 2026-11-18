@@ -75,7 +75,7 @@ export class PitchCam {
   }
 
   /** 播一球：回傳時球剛好進到本壘 */
-  /** 取消進行中的投球動畫並收起小窗（V2 觀戰暫停、跳過、關閉時用；V1 不呼叫） */
+  /** 取消進行中的投球動畫並收起小窗（觀戰暫停、跳過、關閉時用） */
   cancel(): void {
     this.generation++
     window.clearTimeout(this.hideTimer)

@@ -1,6 +1,6 @@
 // V2 自動教練：替 Game 的 userSide 那一方自動下指令（換投、代打、佈陣、盜壘、觸擊）。
 // 只讀比賽狀態、透過 game.issue() 下指令，不碰 DOM、畫面或動畫；指令會照常記進 game.commands，
-// 所以用 V1 的 replay(setup, commands) 就能重現整場。另一方由引擎內建的 V1 AI 負責（見 matchRunner）。
+// 所以用引擎的 replay(setup, commands) 就能重現整場。另一方由引擎內建的 AI 負責（見 matchRunner）。
 import { sameTactic, type Alignment, type Game, type GameEvent, type Tactic } from '../../sim/game'
 import { hasTrait } from '../../sim/traits'
 import type { Batter, Pitcher } from '../../sim/types'

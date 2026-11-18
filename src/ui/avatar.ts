@@ -1,7 +1,6 @@
 // 用 SVG 組出球員頭像：貓咪或小狗（玩家在首頁選），毛色、花紋、耳朵、眼睛、嘴巴由球員 id 決定，
 // 所以同一名球員永遠長一樣。戴著隊伍顏色的球帽、穿隊伍顏色的球衣，深色描邊跟卡牌風格一致
-import { loadAvatarSpecies, loadOutfit, saveAvatarSpecies, saveOutfit, type AvatarSpecies } from './prefs'
-import type { Outfit } from './progress'
+import { loadAvatarSpecies, loadOutfit, type AvatarSpecies, type Outfit } from './prefs'
 
 /** 頭像依隊伍換帽子和背景色：我方藍、對手橘 */
 export type AvatarTeam = 'user' | 'opponent'
@@ -36,27 +35,14 @@ const DOG_FURS: Fur[] = [
 ]
 
 let species: AvatarSpecies = loadAvatarSpecies()
-let outfit: Outfit = loadOutfit()
-
-export function avatarOutfit(): Outfit {
-  return outfit
-}
-
-export function setAvatarOutfit(next: Outfit): void {
-  outfit = next
-  saveOutfit(next)
-}
+/** 我方頭像的裝扮：沿用之前選好的（V2 沒有切換入口） */
+const outfit: Outfit = loadOutfit()
 
 /** 金色：黃金戰袍、金色球帽用 */
 const GOLD = { main: '#F2C230', dark: '#B8860B' }
 
 export function avatarSpecies(): AvatarSpecies {
   return species
-}
-
-export function setAvatarSpecies(next: AvatarSpecies): void {
-  species = next
-  saveAvatarSpecies(next)
 }
 
 function hash(s: string): number {

@@ -1,15 +1,11 @@
-// V2 放置經營的畫面文字（V1 的文字在 src/ui/strings.ts，這裡只放 V2 新增的）
+// 遊戲畫面的文字（播報、球種、守位等共用文字在 src/ui/strings.ts）
 import type { Baserunning } from '../domain/tactics'
 
 const n = (x: number) => x.toLocaleString('zh-Hant')
 
 export const V2T = {
-  modeTitle: '放置經營',
-  modeBadge: 'V2 新玩法',
-  modeDesc: '管理球團、調整陣容，球隊每 5 分鐘自動打完一場',
-  classicLabel: 'V1 原版棒球',
-
-  backToTitle: '回到首頁',
+  modeTitle: '骰子棒球',
+  modeBadge: '放置型棒球經營',
   createTitle: '建立你的球團',
   createIntro: '這是放置型的棒球經營：你負責管理球團、調整陣容與戰術，比賽由教練 AI 自動打完。',
   createPoints: ['球隊每 5 分鐘自動完成一場比賽', '離開網站也會繼續比，最多累積 8 小時', '回來領取資金與經驗，調整陣容讓球隊更強'],
@@ -20,7 +16,7 @@ export const V2T = {
   nameRequired: '請輸入球團名稱',
   nameTooLong: '球團名稱最多 12 個字',
   createdElsewhere: '其他分頁已經建立了球團，已幫你讀取',
-  alreadyExists: '已經有一份 V2 球團存檔，無法再建立新的',
+  alreadyExists: '已經有一份球團存檔，無法再建立新的',
   createWriteFailed: '建立失敗：存檔寫不進去（可能是儲存空間不足或被瀏覽器封鎖），請確認後再按一次建立',
 
   navHome: '球團',
@@ -34,8 +30,6 @@ export const V2T = {
   experience: '經驗',
   wins: '勝場',
   losses: '敗場',
-
-  settling: '結算比賽中…',
 
   rewardsTitle: '未領取收益',
   claimButton: '領取收益',
@@ -56,7 +50,6 @@ export const V2T = {
 
   welcomeTitle: '歡迎回來！',
   welcomeBody: (k: number) => `球隊在你離開期間完成了 ${n(k)} 場比賽。`,
-  welcomeEarned: '獲得',
   welcomeHighlights: '精彩時刻',
   welcomeClose: '回到球團',
   matchesFinished: (k: number) => `完成了 ${n(k)} 場比賽`,
@@ -76,8 +69,6 @@ export const V2T = {
   bench: '板凳',
   starterPitcher: '先發投手',
   relievers: '後援投手',
-  order: (i: number) => `${i}`,
-  captain: '隊長',
   offPosition: '非本職',
   autoArrange: '最多羈絆排法',
   autoArrangeHint: '從先發加板凳中，排出羈絆最多、盡量沒人守非本職的陣容。只看羈絆與守位，不看能力高低。',
@@ -97,7 +88,7 @@ export const V2T = {
   settingsSaved: (matchNo: number) => `已儲存，從第 ${n(matchNo)} 場比賽開始生效`,
 
   tacticsTitle: '戰術',
-  tacticsBeta: 'V2 初版戰術設定',
+  tacticsBeta: '初版戰術設定',
   tacticsBetaNote: '目前只有「均衡戰術」可以微調。之後會擴充為平衡型、強攻型、機動型與守備型四種完整戰術。',
   baserunningLabel: '跑壘',
   baserunningNames: { aggressive: '積極', balanced: '均衡', conservative: '保守' } as Record<Baserunning, string>,
@@ -118,7 +109,6 @@ export const V2T = {
   reportsTitle: '戰報',
   reportsHint: '只保留最近 50 場的戰報（每局比分、個人成績、精彩事件與收益），更早的比賽不再保留',
   reportTitle: (no: number) => `戰報・第 ${n(no)} 場`,
-  finalScore: '最終比分',
   rewards: '獲得獎勵',
   highlights: '精彩事件',
   noHighlights: '這場沒有特別的精彩事件',
@@ -126,10 +116,9 @@ export const V2T = {
   topPerformers: '我方打擊',
   pitching: '我方投手',
   noBoxScore: '這場是存檔升級前結算的比賽，只保留比分、精彩事件與收益（沒有每局比分與個人成績）',
-  settledAt: '結算時間',
   close: '關閉',
 
-  readOnlyBanner: '這個 V2 已經在其他分頁開啟，這個分頁目前只能查看',
+  readOnlyBanner: '遊戲已經在其他分頁開啟，這個分頁目前只能查看',
   takeOver: '在此分頁繼續',
   readOnly: '這個分頁目前只能查看，請按「在此分頁繼續」或回到原本的分頁',
   lostWriter: '其他分頁已經接手，這個分頁改為只能查看；進行中的結算已中斷，沒有寫入存檔',
@@ -144,14 +133,14 @@ export const V2T = {
   noClubAnymore: '球團存檔已被移除，請重新建立',
   unknownError: '發生未預期的錯誤，請重新整理頁面再試一次',
   retry: '重試',
-  corruptSave: 'V2 球團存檔已損壞，無法讀取。為了保護你的資料，遊戲不會自動清除它。',
-  unsupportedVersion: '這份 V2 球團存檔的版本跟目前的遊戲不相容（可能來自較新的版本）。為了保護你的資料，遊戲不會覆蓋它。',
-  storageUnavailable: '瀏覽器儲存無法使用（可能是無痕模式或封鎖了網站資料），V2 需要儲存空間才能保存進度。',
+  corruptSave: '球團存檔已損壞，無法讀取。為了保護你的資料，遊戲不會自動清除它。',
+  unsupportedVersion: '這份球團存檔的版本跟目前的遊戲不相容（可能來自較新的版本）。為了保護你的資料，遊戲不會覆蓋它。',
+  storageUnavailable: '瀏覽器儲存無法使用（可能是無痕模式或封鎖了網站資料），遊戲需要儲存空間才能保存進度。',
   brokenTitle: '無法讀取球團',
   downloadBackup: '下載存檔備份',
   resetBroken: '刪除存檔並重新開始',
-  resetConfirmTitle: '刪除 V2 球團存檔？',
-  resetConfirmMessage: '這會永久刪除 V2 的球團、球員與戰績（V1 的存檔不受影響）。建議先下載備份。',
+  resetConfirmTitle: '刪除球團存檔？',
+  resetConfirmMessage: '這會永久刪除球團、球員與戰績。建議先下載備份。',
   resetConfirm: '刪除',
   loading: '讀取中…',
 
@@ -194,12 +183,7 @@ export const V2T = {
   notEnoughResources: '資金或經驗不足',
   progressionNote: '「目前」就是比賽實際使用的能力；升級後從下一場尚未打的比賽開始生效',
   owned: '持有',
-  leaveUnsavedTitle: '有尚未儲存的變更',
-  leaveUnsavedMessage: '陣容或戰術的修改還沒儲存，離開 V2 之後這些修改會消失。',
-  leaveUnsavedConfirm: '不儲存，直接離開',
-
   // 聯盟與晉級
-  leagueTitle: '聯盟',
   leagueRecord: (w: number, l: number) => `本聯盟 ${n(w)} 勝 ${n(l)} 敗`,
   leagueNext: (name: string) => `下一級：${name}`,
   leagueTop: '已經是最高的聯盟',
@@ -316,7 +300,6 @@ export const V2T = {
   },
 
   teamTitle: '球隊',
-  teamAssets: '可用資源',
   upgradeShort: (exp: number, funds: number) =>
     `升級還差 ${[exp > 0 ? `${n(exp)} 經驗` : '', funds > 0 ? `${n(funds)} 資金` : ''].filter(Boolean).join('、')}`,
   growthHint: '比賽收益可以升級球員（能力提高）或招募新球員；陣容與戰術在下面的分頁調整',

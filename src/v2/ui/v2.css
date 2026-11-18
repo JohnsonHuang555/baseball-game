@@ -811,58 +811,6 @@
   gap: 8px;
 }
 
-/* ---- V1 首頁上的 V2 入口 ---- */
-.v2-entry {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 18px;
-  border: 3px solid var(--ink);
-  background: var(--yellow);
-  color: var(--ink);
-  box-shadow: 0 5px 0 var(--ink);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.v2-entry:active {
-  transform: translateY(3px);
-  box-shadow: 0 2px 0 var(--ink);
-}
-.v2-entry-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.v2-entry-title {
-  font-size: 19px;
-  font-weight: 900;
-}
-.v2-entry-desc {
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-.v2-entry-badge {
-  flex: none;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--ink);
-  color: var(--yellow);
-  font-size: 11px;
-  font-weight: 900;
-}
-.v1-label {
-  margin: 4px 0 -4px;
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--lilac);
-  text-align: center;
-  letter-spacing: 1px;
-}
 
 @media (min-width: 640px) {
   .v2-club .v2-stats {
@@ -1397,7 +1345,6 @@
 .v2-replay-speed {
   height: 48px;
 }
-.v2-replay-restart,
 .v2-replay-skip {
   height: 44px;
   font-size: 15px;
