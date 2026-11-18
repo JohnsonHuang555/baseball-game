@@ -128,7 +128,7 @@ describe('V2 畫面', () => {
     $<HTMLButtonElement>('.v2-modal-close')!.click()
     $$('.v2-match')[3].click()
     expect($('.v2-linescore')).not.toBeNull()
-    expect($$('.v2-box li').length).toBeGreaterThan(9)
+    expect($$('.v2-box tbody tr').length).toBeGreaterThan(9)
     expect($('[data-action="watch"]')).toBeNull()
   })
 

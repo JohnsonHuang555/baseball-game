@@ -89,7 +89,7 @@ describe('聯盟卡片', () => {
     expect(text('.v2-challenge-verdict')).toBe(V2T.challengeWin)
     expect(text('.v2-challenge-result')).toContain(V2T.challengePromoted(LEAGUES[1].name))
     expect(text('.v2-challenge-result')).toContain(V2T.challengeReward(LEAGUES[1].promotionReward.funds, LEAGUES[1].promotionReward.experience))
-    expect($$('.v2-modal')).toHaveLength(1)
+    expect($$('.v2-modal-overlay')).toHaveLength(1)
     $<HTMLButtonElement>('.v2-modal-close')!.click()
     await flush()
     expect($('.v2-modal')).toBeNull()

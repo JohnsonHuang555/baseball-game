@@ -344,7 +344,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     } else if (tab === 'tactics') {
       tactics ??= createTacticsView(controller)
       main.replaceChildren(tactics.render(state))
-    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!)))
+    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!), deps.clock.now()))
 
     if (state.notice) {
       toast(state.notice)
@@ -355,10 +355,17 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
       const result = state.challengeResult
       const reveal = () => {
         if (closed) return
-        challengeResultModal(result, () => {
-          shownChallenge = null
-          controller.dismissChallengeResult()
-        })
+        // 這次挑戰有保留 Replay：結果對話框多一個「觀看挑戰過程」（觀戰蓋在對話框上方，返回後回到這裡）
+        const kept = result.club.challengeReplay?.seq === result.challenge.seq
+        challengeResultModal(
+          result,
+          result.club.clubName,
+          () => {
+            shownChallenge = null
+            controller.dismissChallengeResult()
+          },
+          kept ? () => void watchChallenge() : undefined,
+        )
       }
       // 結果已經確定並存檔；先問要不要看比賽過程（不先揭曉），不想看就直接看結果
       if (result.club.challengeReplay?.seq === result.challenge.seq && !result.duplicate) {

@@ -30,7 +30,7 @@ import { recordOf, reserves as reservesOf, resolveRoster, toAssignment } from '.
 import type { ClubController, ControllerState } from './clubController'
 import { openPlayerDetail } from './playerView'
 import { openRecruit } from './recruitView'
-import { v2Modal } from './reportView'
+import { v2Modal } from './dialog'
 import { V2T } from './strings'
 import { icon } from './icons'
 import { barButton, draftBar } from './draftBar'

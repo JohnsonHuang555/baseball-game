@@ -294,7 +294,7 @@ describe('從入口走一遍 V2 主要流程', () => {
     expect($$('.v2-match')).toHaveLength(4)
     $$('.v2-match')[0].click()
     expect($('.v2-linescore')).not.toBeNull()
-    expect($$('.v2-box li').length).toBeGreaterThan(9)
+    expect($$('.v2-box tbody tr').length).toBeGreaterThan(9)
     $<HTMLButtonElement>('.v2-modal-close')!.click()
 
     $<HTMLButtonElement>('[data-tab="home"]')!.click()
