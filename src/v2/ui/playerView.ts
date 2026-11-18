@@ -271,6 +271,7 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
     header,
     footer,
     className: 'v2-player-sheet',
+    owner: controller,
     // 第二次確認開著時，Escape 只取消確認，不關閉整個面板
     onEscape: () => {
       if (!confirming) return false

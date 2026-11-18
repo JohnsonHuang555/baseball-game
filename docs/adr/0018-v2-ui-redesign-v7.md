@@ -44,3 +44,15 @@ Claude Design 的設計稿（畫布「骰子棒球 畫面設計」的「v7 放�
 - 戰報依比賽時間分組（`playedAt`），不用結算時間。存檔升級前的比賽沒有 `playedAt`，用同一次結算的最後一場往前推估。
 
 效能與版面驗收見 `docs/perf/v2-ui-v7-acceptance.md`。
+
+## 補充：App 關閉時的對話框清理（review P1）
+
+- **記錄開啟者**：每個對話框都記住是誰開的（`owner`，用該 App 的 ClubController）。
+- **App.close() 的關閉流程**：呼叫 `closeDialogs(controller)`，從最上層往下，每一層都走跟按 ✕ 相同的正式流程：
+  - 移除畫面、離開堆疊。
+  - 還原快捷鍵、最後一層關閉時移除 keydown 監聽。
+  - 呼叫 onClose（例如取消訂閱）。
+- **只關自己的**：不再直接移除所有 `.v2-modal-overlay`，所以另一個 App 的對話框不受影響。
+- **onClose 會收到原因**：`'user'` 或 `'dispose'`。
+  - App 關閉（dispose）時只做清理：不揭曉挑戰結果、不 dismiss 歡迎或挑戰結果、不重畫、不搬動焦點。
+  - 取消訂閱等清理照常執行。

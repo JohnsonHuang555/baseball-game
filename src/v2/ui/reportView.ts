@@ -7,7 +7,7 @@ import { leagueOf } from '../domain/league'
 import { IDLE_CONFIG } from '../domain/config'
 import type { ControllerState, WelcomeSummary } from './clubController'
 import { V2T } from './strings'
-import { announceModal, v2Modal } from './dialog'
+import { announceModal, v2Modal, type CloseReason } from './dialog'
 import { icon } from './icons'
 
 const fmt = (x: number) => x.toLocaleString('zh-Hant')
@@ -85,7 +85,7 @@ export function highlightText(h: SummaryHighlight): string {
 }
 
 /** 單場戰報：勝敗、聯盟、局數、日期、比分、每局比分、精彩時刻、我方打擊與投手成績、這場收益 */
-export function openMatchReport(m: SettledMatch, club: ClubSave): () => void {
+export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown): () => void {
   const r = m.result
   const body = el('div', 'v2-report')
   const score = el('section', `v2-report-card v2-report-score ${r.won ? 'won' : 'lost'}`)
@@ -121,7 +121,7 @@ export function openMatchReport(m: SettledMatch, club: ClubSave): () => void {
   }
   rewards.append(el('span', 'v2-report-rewards-label', V2T.rewards), amount('coin', m.earnedFunds), amount('exp', m.earnedExperience))
   body.append(rewards, el('p', 'v2-report-note', V2T.rewardsGoUnclaimed))
-  return v2Modal(V2T.reportTitle(m.matchIndex + 1), body, undefined, { sheet: true, noCloseButton: true, className: 'v2-report-modal' })
+  return v2Modal(V2T.reportTitle(m.matchIndex + 1), body, undefined, { sheet: true, noCloseButton: true, className: 'v2-report-modal', owner })
 }
 
 /** 每局比分（R／H／E） */
@@ -179,7 +179,7 @@ function boxTables(box: BoxScore): HTMLElement {
 }
 
 /** 離線回歸摘要：完成場次、勝敗、獲得資源（已加到未領取收益）、精彩時刻 */
-export function welcomeModal(w: WelcomeSummary, onClose: () => void): () => void {
+export function welcomeModal(w: WelcomeSummary, onClose: (reason: CloseReason) => void, owner?: unknown): () => void {
   const body = el('div', 'v2-welcome')
   const stats = el('div', 'v2-welcome-stats')
   const item = (label: string, value: string, kind: string) => {
@@ -206,6 +206,7 @@ export function welcomeModal(w: WelcomeSummary, onClose: () => void): () => void
     primary: { label: V2T.welcomeClose, closes: true },
     className: 'v2-welcome-modal',
     onClose,
+    owner,
   })
   // 測試與輔助科技用：說明文字也掛在 .v2-welcome-lead
   document.querySelector('.v2-welcome-modal .v2-announce-sub')?.classList.add('v2-welcome-lead')

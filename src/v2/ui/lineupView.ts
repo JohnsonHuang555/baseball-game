@@ -257,7 +257,7 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
     auto.type = 'button'
     auto.append(icon('lineup', 18), V2T.autoArrange)
     auto.disabled = !state.canWrite || state.saving
-    auto.onclick = () => openAutoArrange(d, (next) => apply(next))
+    auto.onclick = () => openAutoArrange(d, (next) => apply(next), controller)
     const recruitBtn = el('button', 'btn-white v2-head-btn')
     recruitBtn.type = 'button'
     recruitBtn.dataset.action = 'recruit'
@@ -356,13 +356,13 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
 }
 
 /** 最多羈絆排法（只在先發與板凳之間排）：先列出會改的人，玩家確認才套用到草稿 */
-function openAutoArrange(draft: LineupDraft, apply: (d: LineupDraft) => void): void {
+function openAutoArrange(draft: LineupDraft, apply: (d: LineupDraft) => void, owner: unknown): void {
   const best = autoArrange(draft.roster)
   const body = el('div', 'v2-auto-body')
   body.append(el('p', 'v2-hint', V2T.autoArrangeHint))
   if (!best) {
     body.append(el('p', 'v2-empty', V2T.autoArrangeNone))
-    v2Modal(V2T.autoArrange, body)
+    v2Modal(V2T.autoArrange, body, undefined, { owner })
     return
   }
   const ul = el('ul', 'v2-moves')
@@ -373,7 +373,7 @@ function openAutoArrange(draft: LineupDraft, apply: (d: LineupDraft) => void): v
   const applyBtn = el('button', 'btn-yellow', V2T.autoArrangeApply)
   applyBtn.type = 'button'
   body.append(applyBtn)
-  const close = v2Modal(V2T.autoArrange, body)
+  const close = v2Modal(V2T.autoArrange, body, undefined, { owner })
   applyBtn.onclick = () => {
     close()
     apply({ ...draft, roster: best.roster })

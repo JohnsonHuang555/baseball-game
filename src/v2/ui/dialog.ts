@@ -10,9 +10,16 @@ import { V2T } from './strings'
 // 「最上層」除了看堆疊，也看畫面：如果之後又蓋了別的 aria-modal（例如從挑戰結果打開的觀戰畫面），就讓給那一層處理。
 // 第一個對話框打開時把畫面的快捷鍵換成空的、最後一個關閉時還原，所以多層對話框不論用什麼順序關閉，快捷鍵都不會錯亂。
 
+/** 對話框為什麼關閉：user 是玩家或畫面流程關的；dispose 是整個 App 關閉時一起清掉（不要再觸發任何後續動作） */
+export type CloseReason = 'user' | 'dispose'
+
 interface Layer {
   /** 限制焦點的範圍（對話框本體） */
   box: HTMLElement
+  /** 誰開的（同一個 App 用同一個 owner）；App 關閉時只清掉自己的對話框 */
+  owner: unknown
+  /** 正式關閉這一層（跟按 ✕ 走同一條清理流程） */
+  close: (reason: CloseReason) => void
   /** Escape：通常是關閉這一層 */
   escape: () => void
   /** 打開前的焦點，關閉時還原 */
@@ -22,6 +29,7 @@ interface Layer {
 const stack: Layer[] = []
 let savedKeys: KeyMap | null = null
 let ownKeys: KeyMap | null = null
+let listening = false
 
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
 
@@ -80,6 +88,7 @@ export function refocusTopDialog(): void {
 function pushLayer(layer: Layer): void {
   if (!stack.length) {
     document.addEventListener('keydown', onKeydown, true)
+    listening = true
     // 對話框開著時，畫面的快捷鍵都不作用
     savedKeys = setKeys({})
     ownKeys = currentKeys()
@@ -107,7 +116,7 @@ function restoreFocus(layer: Layer): void {
   fallback?.focus({ preventScroll: true })
 }
 
-function popLayer(layer: Layer): void {
+function popLayer(layer: Layer, reason: CloseReason = 'user'): void {
   const i = stack.indexOf(layer)
   if (i < 0) return
   const wasTop = i === stack.length - 1
@@ -116,13 +125,30 @@ function popLayer(layer: Layer): void {
   stack.splice(i, 1)
   if (!stack.length) {
     document.removeEventListener('keydown', onKeydown, true)
+    listening = false
     // 只有快捷鍵還是我們設的那組時才還原（中間有別的畫面換過，就交給它自己還原）
     if (savedKeys && currentKeys() === ownKeys) setKeys(savedKeys)
     savedKeys = null
     ownKeys = null
   }
-  // 關掉的不是最上層（例如底下的對話框先被程式關掉）：焦點留在原本的最上層
-  if (wasTop) restoreFocus(layer)
+  // 關掉的不是最上層（例如底下的對話框先被程式關掉）：焦點留在原本的最上層；App 關閉時不搬動焦點
+  if (wasTop && reason === 'user') restoreFocus(layer)
+}
+
+/**
+ * 關閉某個 owner 開的所有對話框（App 關閉時用）：從最上層往下，每一層都走正式的關閉流程
+ * （移除畫面、離開堆疊、還原快捷鍵、移除鍵盤監聽、呼叫 onClose），onClose 會收到 'dispose'。
+ * 其他 owner（另一個 App）的對話框不受影響。回傳關掉幾層
+ */
+export function closeDialogs(owner: unknown): number {
+  const mine = stack.filter((l) => l.owner === owner).reverse()
+  for (const l of mine) l.close('dispose')
+  return mine.length
+}
+
+/** 測試用：堆疊與鍵盤監聽的狀態 */
+export function dialogDebug(): { layers: number; listening: boolean } {
+  return { layers: stack.length, listening }
 }
 
 /** 測試用：目前開著幾層 */
@@ -145,9 +171,11 @@ export interface V2ModalOptions {
   className?: string
   /** Escape 先交給它；回傳 true 代表已經處理（例如取消第二次確認），對話框不關 */
   onEscape?: () => boolean
+  /** 誰開的（App 關閉時用 closeDialogs(owner) 一起清掉） */
+  owner?: unknown
 }
 
-export function v2Modal(title: string, body: HTMLElement, onClose?: () => void, opts: string | V2ModalOptions = {}): () => void {
+export function v2Modal(title: string, body: HTMLElement, onClose?: (reason: CloseReason) => void, opts: string | V2ModalOptions = {}): () => void {
   const o: V2ModalOptions = typeof opts === 'string' ? { closeLabel: opts } : opts
   const overlay = el('div', 'modal-overlay v2-modal-overlay')
   const box = el('section', `v2-modal${o.sheet ? ' sheet' : ''}${o.className ? ` ${o.className}` : ''}`)
@@ -176,25 +204,25 @@ export function v2Modal(title: string, body: HTMLElement, onClose?: () => void, 
   }
   if (foot.childNodes.length) box.append(foot)
   overlay.append(box)
-  const layer: Layer = { box, opener: document.activeElement, escape: () => (o.onEscape?.() ? undefined : done()) }
+  const layer: Layer = { box, owner: o.owner, opener: document.activeElement, escape: () => (o.onEscape?.() ? undefined : done()), close: (r) => done(r) }
   document.body.append(overlay)
   pushLayer(layer)
   let closed = false
-  function done(): void {
+  function done(reason: CloseReason = 'user'): void {
     if (closed) return
     closed = true
     overlay.remove()
-    popLayer(layer)
-    onClose?.()
+    popLayer(layer, reason)
+    onClose?.(reason)
   }
-  x.onclick = done
+  x.onclick = () => done()
   overlay.onclick = (e) => {
     if (e.target === overlay) done()
   }
   // 焦點放在關閉鈕，但不要捲動：從頭開始看
   x.focus({ preventScroll: true })
   content.scrollTop = 0
-  return done
+  return () => done()
 }
 
 export interface AnnounceButton {
@@ -220,8 +248,9 @@ export interface AnnounceOptions {
   /** 彩帶（減少動態效果時不顯示） */
   celebrate?: boolean
   className?: string
-  /** Esc、點外面、或按了會關閉的按鈕 */
-  onClose?: () => void
+  /** Esc、點外面、或按了會關閉的按鈕；App 關閉時收到 'dispose' */
+  onClose?: (reason: CloseReason) => void
+  owner?: unknown
 }
 
 /**
@@ -269,20 +298,20 @@ export function announceModal(o: AnnounceOptions): () => void {
     overlay.append(confetti)
   }
   overlay.append(box)
-  const layer: Layer = { box, opener: document.activeElement, escape: () => done() }
+  const layer: Layer = { box, owner: o.owner, opener: document.activeElement, escape: () => done(), close: (r) => done(r) }
   document.body.append(overlay)
   pushLayer(layer)
   let closed = false
-  function done(): void {
+  function done(reason: CloseReason = 'user'): void {
     if (closed) return
     closed = true
     overlay.remove()
-    popLayer(layer)
-    o.onClose?.()
+    popLayer(layer, reason)
+    o.onClose?.(reason)
   }
   overlay.onclick = (e) => {
     if (e.target === overlay) done()
   }
   primary.focus({ preventScroll: true })
-  return done
+  return () => done()
 }

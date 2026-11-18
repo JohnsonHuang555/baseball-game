@@ -3,12 +3,12 @@ import { el } from '../../ui/playerCard'
 import type { ChallengeOutcome } from '../application/leagueService'
 import { leagueOf } from '../domain/league'
 import { PROMOTION_CONFIG } from '../domain/leagueConfig'
-import { announceModal } from './dialog'
+import { announceModal, type CloseReason } from './dialog'
 import { icon } from './icons'
 import { V2T } from './strings'
 
 /** watch 有給（這次挑戰有保留 Replay）就多一個「觀看挑戰過程」：觀戰畫面蓋在結果對話框上方，返回後回到這裡 */
-export function challengeResultModal(out: ChallengeOutcome, clubName: string, onClose: () => void, watch?: () => void): () => void {
+export function challengeResultModal(out: ChallengeOutcome, clubName: string, onClose: (reason: CloseReason) => void, watch?: () => void, owner?: unknown): () => void {
   const c = out.challenge
   const body = el('div', `v2-challenge-result ${c.won ? 'won' : 'lost'}`)
   const score = el('div', 'v2-challenge-score')
@@ -35,6 +35,7 @@ export function challengeResultModal(out: ChallengeOutcome, clubName: string, on
     celebrate: c.won,
     className: `v2-challenge-modal ${c.won ? 'won' : 'lost'}`,
     onClose,
+    owner,
   })
 }
 
@@ -42,7 +43,7 @@ export function challengeResultModal(out: ChallengeOutcome, clubName: string, on
  * 挑戰賽開打：結果已經確定並存檔，先不揭曉，讓玩家選要觀看比賽過程，或直接看結果。
  * 關掉這個對話框（Esc、點外面）等於直接看結果，結果不會消失
  */
-export function challengeStartModal(out: ChallengeOutcome, watch: () => void, reveal: () => void): () => void {
+export function challengeStartModal(out: ChallengeOutcome, watch: () => void, reveal: () => void, owner?: unknown): () => void {
   const body = el('div', 'v2-challenge-start')
   const note = el('p', 'v2-lock-note')
   note.append(icon('lock', 16), V2T.challengeLockedNote)
@@ -64,8 +65,10 @@ export function challengeStartModal(out: ChallengeOutcome, watch: () => void, re
     },
     secondary: { label: V2T.challengeShowResult, closes: true },
     className: 'v2-challenge-modal',
-    onClose: () => {
-      if (!chosen) reveal()
+    owner,
+    // App 關閉時（dispose）不揭曉結果：結果已經存檔，下次打開還在
+    onClose: (reason) => {
+      if (!chosen && reason === 'user') reveal()
     },
   })
   return close

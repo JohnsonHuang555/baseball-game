@@ -320,6 +320,6 @@ export function openRecruit(controller: ClubController, goToLineup: () => void):
 
   draw(controller.state)
   const unsubscribe = controller.subscribe(draw)
-  close = v2Modal(V2T.recruitTitle, body, unsubscribe, { sheet: true, noCloseButton: true, header, footer, className: 'v2-recruit-modal' })
+  close = v2Modal(V2T.recruitTitle, body, unsubscribe, { sheet: true, noCloseButton: true, header, footer, className: 'v2-recruit-modal', owner: controller })
   return close
 }

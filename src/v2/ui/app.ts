@@ -20,7 +20,7 @@ import { openMatchReport, renderReports, welcomeModal } from './reportView'
 import { openRecruit } from './recruitView'
 import { openPlayerDetail } from './playerView'
 import { V2T } from './strings'
-import { refocusTopDialog } from './dialog'
+import { closeDialogs, refocusTopDialog } from './dialog'
 import { icon, iconSvg, type IconName } from './icons'
 import { leagueOf } from '../domain/league'
 import { createTacticsView, type TacticsView } from './tacticsView'
@@ -323,7 +323,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
       main.replaceChildren(
         renderDashboard(state, controller, {
           claim: () => void claimWithToast(),
-          openReport: (m) => openMatchReport(m, state.club!),
+          openReport: (m) => openMatchReport(m, state.club!, controller),
           watchLive: () => void watchLive(),
           liveCard,
           allReports: () => show('reports'),
@@ -348,7 +348,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     } else if (tab === 'tactics') {
       tactics ??= createTacticsView(controller)
       main.replaceChildren(tactics.render(state))
-    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!), deps.clock.now()))
+    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!, controller), deps.clock.now()))
 
     if (state.notice) {
       toast(state.notice)
@@ -364,21 +364,23 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
         challengeResultModal(
           result,
           result.club.clubName,
-          () => {
+          (reason) => {
             shownChallenge = null
-            controller.dismissChallengeResult()
+            // App 關閉時（dispose）只清掉對話框，不改狀態、不重畫
+            if (reason === 'user') controller.dismissChallengeResult()
           },
           kept ? () => void watchChallenge() : undefined,
+          controller,
         )
       }
       // 結果已經確定並存檔；先問要不要看比賽過程（不先揭曉），不想看就直接看結果
       if (result.club.challengeReplay?.seq === result.challenge.seq && !result.duplicate) {
-        challengeStartModal(result, () => void watchChallenge(reveal), reveal)
+        challengeStartModal(result, () => void watchChallenge(reveal), reveal, controller)
       } else reveal()
     }
     if (state.welcome && state.welcome.key !== shownWelcome) {
       shownWelcome = state.welcome.key
-      welcomeModal(state.welcome, () => controller.dismissWelcome())
+      welcomeModal(state.welcome, (reason) => reason === 'user' && controller.dismissWelcome(), controller)
     }
   }
 
@@ -540,13 +542,15 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     closed = true
     if (timer) clearInterval(timer)
     viewer?.close()
+    // 這個 App 開的對話框都走正式的關閉流程（離開堆疊、還原快捷鍵、移除鍵盤監聽、取消訂閱）；
+    // closed 已經是 true，onClose 收到 'dispose'，不會再揭曉結果、重畫或改狀態。別的 App 的對話框不受影響
+    closeDialogs(controller)
     deskQuery?.removeEventListener?.('change', onDeskChange)
     doc?.removeEventListener('visibilitychange', onVisible)
     win?.removeEventListener('focus', onFocus)
     unsubscribe()
     controller.dispose()
     guard.dispose()
-    document.querySelectorAll('.v2-modal-overlay').forEach((n) => n.remove())
   }
 
   return {
