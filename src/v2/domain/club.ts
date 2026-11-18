@@ -69,6 +69,8 @@ export interface SpendRecord {
   fromLevel?: number
   toLevel?: number
   recruitIndex?: number
+  /** 招募：簽下的是候選名單的第幾位（0～2）。舊版的隨機招募沒有這個欄位 */
+  candidateIndex?: number
 }
 
 /**
@@ -278,7 +280,7 @@ export function matchIdFor(club: Pick<ClubSave, 'clubId'>, matchIndex: number): 
 
 /** 用途區分：同一場的比賽種子和對手種子不能相同 */
 /** 不同用途的種子用不同的 salt：晉級挑戰賽用自己的序號與 salt，跟一般比賽的種子永遠不會重疊 */
-export const SEED_SALT = { match: 0, opponent: 1, recruit: 2, challenge: 3, challengeOpponent: 4 } as const
+export const SEED_SALT = { match: 0, opponent: 1, recruit: 2, challenge: 3, challengeOpponent: 4, recruitCandidate: 5 } as const
 
 /** 由球團種子與場次序號穩定推導出 32 位元種子（不靠任何亂數狀態，第幾場永遠是同一個種子） */
 export function deriveSeed(clubSeed: number, matchIndex: number, salt = 0): number {
@@ -493,6 +495,11 @@ function validateEconomy(economy: Obj): void {
     const cost = obj(op, 'cost', path)
     num(cost, 'funds', `${path}.cost`)
     num(cost, 'experience', `${path}.cost`)
+    // 選用欄位（舊版沒有）：有的話要是 0～2 的整數
+    if (op.candidateIndex !== undefined) {
+      int(op, 'candidateIndex', path)
+      if ((op.candidateIndex as number) < 0 || (op.candidateIndex as number) > 2) throw invalid(`${path}.candidateIndex`, '必須是 0～2')
+    }
   })
   const violations = economyViolations(economy as unknown as EconomyState)
   if (violations.length > 0) throw invalid('economy', `帳務對不起來：${violations.join('；')}`)

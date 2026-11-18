@@ -308,27 +308,46 @@ describe('Phase 4：養成與招募', () => {
     expect($$('.v2-player-name .v2-level')[0].textContent).toBe('Lv.2')
   })
 
-  it('從首頁招募：顯示成本與人數，招募後出現球員卡片、預備名單多一人、可以前往陣容', async () => {
+  it('從首頁招募：選角色 → 三位候選人 → 選一位 → 確認簽約才扣款；新球員在預備名單，可以前往陣容', async () => {
     const { storage } = await richClub()
     $<HTMLButtonElement>('[data-action="recruit"]')!.click()
     expect(text('.v2-recruit-count')).toBe(V2T.rosterCount(14, 30))
+    expect(text('.v2-recruit-cost')).toBe(V2T.recruitCost(2000))
     $<HTMLButtonElement>('.v2-recruit [data-role="pitcher"]')!.click()
     await flush()
+    expect($$('.v2-cand')).toHaveLength(3)
+    // 還沒選：確認按鈕停用，也沒有扣款
+    expect($<HTMLButtonElement>('[data-action="recruit-confirm"]')!.disabled).toBe(true)
+    expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).players).toHaveLength(14)
+    const picked = $$('.v2-cand')[1]
+    const id = picked.dataset.player!
+    picked.click()
+    expect($$('.v2-cand')[1].getAttribute('aria-pressed')).toBe('true')
+    expect(text('[data-action="recruit-confirm"]')).toBe(V2T.recruitConfirm(2000))
+    $<HTMLButtonElement>('[data-action="recruit-confirm"]')!.click()
+    await flush()
     expect($('.v2-recruit-card')).not.toBeNull()
+    expect(text('.v2-recruit-spent')).toBe(V2T.recruitSpent(2000))
     expect(text('.v2-recruit-count')).toBe(V2T.rosterCount(15, 30))
     const saved = JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!)
     expect(saved.players).toHaveLength(15)
-    $<HTMLButtonElement>('.v2-recruit-card .btn-white')!.click()
+    expect(saved.players.at(-1).player.id).toBe(id)
+    expect(saved.economy.spent.funds).toBe(2000)
+    expect(text('.v2-recruit-remain')).toBe(V2T.recruitRemain(saved.economy.assets.funds))
+    $<HTMLButtonElement>('[data-action="go-lineup"]')!.click()
     await flush()
     expect($('.v2-modal')).toBeNull()
     expect($$('.v2-reserves .v2-player')).toHaveLength(1)
   })
 
-  it('資金不足：招募按鈕停用、不扣款', async () => {
+  it('資金不足：候選人可以看，但不能簽約、清楚提示、不扣款', async () => {
     const { storage } = await richClub(100, 0)
     $<HTMLButtonElement>('[data-action="recruit"]')!.click()
-    expect($$<HTMLButtonElement>('.v2-recruit [data-role]').every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
-    expect(text('.v2-recruit')).toContain(V2T.notEnoughFunds)
+    expect(text('.v2-recruit-block')).toBe(V2T.recruitShort(1900))
+    $<HTMLButtonElement>('.v2-recruit [data-role="batter"]')!.click()
+    $$('.v2-cand')[0].click()
+    expect($<HTMLButtonElement>('[data-action="recruit-confirm"]')!.disabled).toBe(true)
+    expect(text('.v2-recruit-block')).toBe(V2T.recruitShort(1900))
     expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).economy.spent.funds).toBe(0)
   })
 })

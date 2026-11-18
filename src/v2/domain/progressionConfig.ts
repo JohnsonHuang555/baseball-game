@@ -33,10 +33,13 @@ export const UPGRADE_COST = {
   fundsPerExp: 8,
 } as const
 
-/** 招募：第 n 次（從 0 起算）招募要 base + n × step 資金，不花經驗 */
+/**
+ * 招募：第 n 次（從 0 起算）簽約要 base + n × step 資金，不花經驗。
+ * 招募市場（三選一、確認簽約才扣款）起改成 2,000 起、每次 +400（原本 4,000 起、每次 +800），評估見 ADR-0017
+ */
 export const RECRUIT_CONFIG = {
-  baseFunds: 4000,
-  stepFunds: 800,
+  baseFunds: 2000,
+  stepFunds: 400,
   /** 整個球團最多幾名球員（初始 14 人） */
   maxPlayers: 30,
   /** 招募到的球員能力分布中心（跟初始球員、對手一樣） */

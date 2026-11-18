@@ -2,7 +2,8 @@
 // 正式採用的方案要另外改 src/v2/domain 的 Config。
 import { REWARD_CONFIG } from '../../src/v2/domain/config'
 import { LEAGUES, PROMOTION_CONFIG } from '../../src/v2/domain/leagueConfig'
-import { UPGRADE_COST } from '../../src/v2/domain/progressionConfig'
+import { RECRUIT_CONFIG, UPGRADE_COST } from '../../src/v2/domain/progressionConfig'
+import { setRecruitPick } from './simulate'
 
 /** 改寫一個（readonly、字面型別的）設定值：只在模擬程序裡 */
 const set = (obj: object, key: string, value: number) => ((obj as Record<string, number>)[key] = value)
@@ -57,6 +58,33 @@ export const CANDIDATES: Record<string, { label: string; apply: () => void }> = 
     apply: () => {
       set(REWARD_CONFIG.win, 'experience', 15)
       set(REWARD_CONFIG.loss, 'experience', 10)
+    },
+  },
+  /** 招募市場的比較 A：舊制（4,000 起、每次 +800、付錢後隨機得到一位：只看第 0 位候選人） */
+  recruitOld: {
+    label: '招募舊制：4,000 起、每次 +800、隨機一位',
+    apply: () => {
+      set(RECRUIT_CONFIG, 'baseFunds', 4000)
+      set(RECRUIT_CONFIG, 'stepFunds', 800)
+      setRecruitPick('first')
+    },
+  },
+  /** 招募市場的比較 B：新制（2,000 起、每次 +400、三選一挑最能補強的）＝目前的正式數值 */
+  recruitNew: {
+    label: '招募新制：2,000 起、每次 +400、三選一',
+    apply: () => {
+      set(RECRUIT_CONFIG, 'baseFunds', 2000)
+      set(RECRUIT_CONFIG, 'stepFunds', 400)
+      setRecruitPick('best')
+    },
+  },
+  /** 招募市場的比較 C：折衷（3,000 起、每次 +500、三選一） */
+  recruitMid: {
+    label: '招募折衷：3,000 起、每次 +500、三選一',
+    apply: () => {
+      set(RECRUIT_CONFIG, 'baseFunds', 3000)
+      set(RECRUIT_CONFIG, 'stepFunds', 500)
+      setRecruitPick('best')
     },
   },
 }

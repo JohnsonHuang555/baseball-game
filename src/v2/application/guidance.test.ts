@@ -90,7 +90,7 @@ describe('新手任務', () => {
     const { deps, load } = await fresh()
     const rich = give(load(), 50_000, 0)
     deps.store.saveClub(rich, rich.revision)
-    const out = await recruit(deps, { opSeq: load().economy.nextOpSeq, role: 'batter' })
+    const out = await recruit(deps, { opSeq: load().economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: load().recruitment.count })
     await release(deps, { opSeq: load().economy.nextOpSeq, playerId: out.op.playerId })
     expect(tasks(load()).upgrade).toBe(false)
     const more = give(load(), 0, 100)
@@ -222,7 +222,7 @@ describe('目前建議（規則與優先序）', () => {
     expect(lineupCandidate(load())).toBeNull()
     const rich = give(load(), 50_000, 0)
     deps.store.saveClub(rich, rich.revision)
-    const out = await recruit(deps, { opSeq: load().economy.nextOpSeq, role: 'batter' })
+    const out = await recruit(deps, { opSeq: load().economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: load().recruitment.count })
     let club = load()
     const strong = structuredClone(club)
     strong.players.find((r) => r.player.id === out.op.playerId)!.level = 20

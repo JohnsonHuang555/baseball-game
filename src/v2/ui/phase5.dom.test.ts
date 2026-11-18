@@ -138,7 +138,7 @@ describe('過期畫面的挑戰按鈕', () => {
 describe('釋出球員', () => {
   it('預備球員：按「釋出球員」→ 顯示警告 → 取消不會釋出；確定後才釋出並關閉', async () => {
     const { storage, deps } = await mountClub(8, (c) => ({ ...c, economy: { ...c.economy, assets: { funds: 1e6, experience: 0 }, earned: { funds: 1e6, experience: 0 } } }))
-    const { op } = await recruit(deps, { opSeq: deps.store.loadClub()!.economy.nextOpSeq, role: 'batter' })
+    const { op } = await recruit(deps, { opSeq: deps.store.loadClub()!.economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: deps.store.loadClub()!.recruitment.count })
     otherTabWrote()
     await flush()
     $<HTMLButtonElement>('[data-tab="lineup"]')!.click()

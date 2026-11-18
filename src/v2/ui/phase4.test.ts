@@ -51,7 +51,7 @@ describe('完整遊玩流程', () => {
       await c.claim()
     }
     expect(c.state.club!.economy.assets.funds).toBeGreaterThanOrEqual(recruitCost(0).funds)
-    const rec = await c.recruit('batter')
+    const rec = await c.recruit('batter', 0, c.state.club!.recruitment.count)
     expect(rec.ok).toBe(true)
     const newId = rec.outcome!.op.playerId
     expect(reserves(c.state.club!).map((p) => p.id)).toContain(newId)
@@ -93,7 +93,7 @@ describe('控制器：升級與招募', () => {
     const results = await Promise.all([c.upgrade(id, 1), c.upgrade(id, 1), c.upgrade(id, 1)])
     expect(results.every((r) => r.ok)).toBe(true)
     expect(recordOf(c.state.club!, id)!.level).toBe(2)
-    await Promise.all([c.recruit('pitcher'), c.recruit('pitcher')])
+    await Promise.all([c.recruit('pitcher', 0, c.state.club!.recruitment.count), c.recruit('pitcher', 1, c.state.club!.recruitment.count)])
     expect(c.state.club!.players).toHaveLength(15)
   })
 

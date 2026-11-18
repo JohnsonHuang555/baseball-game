@@ -3,9 +3,10 @@ import * as gameConfig from '../../src/v2/domain/config'
 import * as leagueConfig from '../../src/v2/domain/leagueConfig'
 import * as progressionConfig from '../../src/v2/domain/progressionConfig'
 import { CLUB_SCHEMA_VERSION } from '../../src/v2/domain/club'
+import { currentRecruitPick, type RecruitPick } from './simulate'
 
 /** 結果檔的格式版本：模擬邏輯或輸出欄位改變時 +1 */
-export const MATRIX_FORMAT = 2
+export const MATRIX_FORMAT = 3
 
 export interface Experiment {
   format: number
@@ -14,6 +15,8 @@ export interface Experiment {
   days: number
   /** 球團存檔版本 */
   schema: number
+  /** 招募時怎麼選人（first：舊制隨機一位；best：三選一挑最能補強的） */
+  recruitPick: RecruitPick
   /** 套用候選方案「之後」的所有平衡設定（聯盟、獎勵、成長、成本、晉級）的指紋：同一個名稱、不同數值也會被發現 */
   config: string
 }
@@ -27,14 +30,14 @@ export function configFingerprint(): string {
 }
 
 export function currentExperiment(candidate: string, days: number): Experiment {
-  return { format: MATRIX_FORMAT, candidate, days, schema: CLUB_SCHEMA_VERSION, config: configFingerprint() }
+  return { format: MATRIX_FORMAT, candidate, days, schema: CLUB_SCHEMA_VERSION, recruitPick: currentRecruitPick(), config: configFingerprint() }
 }
 
 const describe = (e: Partial<Experiment> | undefined) =>
-  e ? `候選方案 ${e.candidate}、${e.days} 天、格式 ${e.format}、存檔 v${e.schema}、設定 ${e.config}` : '沒有實驗設定（舊格式）'
+  e ? `候選方案 ${e.candidate}、${e.days} 天、格式 ${e.format}、存檔 v${e.schema}、招募 ${e.recruitPick ?? '—'}、設定 ${e.config}` : '沒有實驗設定（舊格式）'
 
 export function sameExperiment(a: Partial<Experiment> | undefined, b: Experiment): boolean {
-  return !!a && a.format === b.format && a.candidate === b.candidate && a.days === b.days && a.schema === b.schema && a.config === b.config
+  return !!a && a.format === b.format && a.candidate === b.candidate && a.days === b.days && a.schema === b.schema && a.recruitPick === b.recruitPick && a.config === b.config
 }
 
 export const jobKey = (strategy: string, sessionsPerDay: number, seed: number) => `${strategy}:${sessionsPerDay}:${seed}`
