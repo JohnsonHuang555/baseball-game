@@ -5,6 +5,10 @@ import { LEAGUES, MAX_TIER, PROMOTION_CONFIG } from '../domain/leagueConfig'
 import { MAX_LEVEL, RECRUIT_CONFIG } from '../domain/progressionConfig'
 import type { IconName } from './icons'
 import { RANKED_CONFIG } from '../domain/leagueConfig'
+import { POSITION_SYNERGY_FIELDING, SYNERGY_KEYS, captainWeight, thresholds } from '../../sim/synergy'
+import { gradeOf } from '../../ui/grades'
+import { ARCHETYPE_NAMES, SYNERGY_NAMES } from '../../ui/strings'
+import { SYNERGY_DESC, synergyEffects } from '../../ui/synergyInfo'
 
 export interface GuideCard {
   icon: IconName
@@ -126,6 +130,7 @@ export function guideChapters(): GuideChapter[] {
         { icon: 'tactics', title: '戰術是比賽中的選擇', text: '例如 7 局後比分接近時依左右投打換投、派代打，或 8 局後讓弱打者觸擊推進。' },
       ],
     },
+    synergyChapter(),
     {
       id: 'promotion',
       short: '晉級',
@@ -193,4 +198,40 @@ export function searchGuide(chapters: readonly GuideChapter[], query: string): G
     for (const f of c.faq ?? []) if (has(f.q) || has(f.a)) hits.push({ chapter: c, title: f.q, text: f.a })
   }
   return hits
+}
+
+/** 球員流派、羈絆與隊長：門檻、隊長權重、守備門檻、加成都從 sim/synergy.ts 與 SYNERGY_EFFECT 讀 */
+function synergyChapter(): GuideChapter {
+  const [low, high] = thresholds('power', [])
+  const w = captainWeight([])
+  const grade = gradeOf(POSITION_SYNERGY_FIELDING)
+  const types = (['power', 'speed', 'skill', 'defense'] as const).map((a) => ARCHETYPE_NAMES[a]).join('、')
+  const exact = SYNERGY_KEYS.map((k) => {
+    const t1 = synergyEffects(k, 1).join('、')
+    return k === 'middle' || k === 'battery' ? `${SYNERGY_NAMES[k]}：${t1}` : `${SYNERGY_NAMES[k]}：${low} 人階 ${t1}；${high} 人階 ${synergyEffects(k, 2).join('、')}`
+  }).join('\n')
+  return {
+    id: 'synergy',
+    short: '羈絆',
+    title: '球員流派、羈絆與隊長',
+    icon: 'league',
+    summary: `每位打者都有一種流派（${types}）。先發 9 人裡同流派的人數夠多就會啟動羈絆；另外兩個羈絆看守位。隊長在自己流派算 ${w} 人。`,
+    visual: { kind: 'stats', items: [{ value: String(low), label: '人啟動' }, { value: String(high), label: '人升級' }, { value: `×${w}`, label: '隊長人數' }, { value: String(SYNERGY_KEYS.length), label: '種羈絆' }] },
+    cards: [
+      { icon: 'lineup', title: '只算先發 9 人', text: `同流派先發達 ${low} 人啟動第一階、${high} 人升到第二階；板凳與預備不算。陣容頁的「羈絆說明」可以看目前人數、還差幾人與怎麼改善。`, tag: 'key' },
+      { icon: 'league', title: '隊長（頭像上的 C）', text: `C 是 Captain。隊長在自己流派算 ${w} 人，對其他流派沒有影響；隊長一定要是先發，換到板凳就沒有隊長，要在「羈絆說明」重新指定。換隊長可能讓羈絆啟動、升級或掉階。` },
+      { icon: 'upgrade', title: SYNERGY_NAMES.power, text: SYNERGY_DESC.power },
+      { icon: 'fast', title: SYNERGY_NAMES.speed, text: SYNERGY_DESC.speed },
+      { icon: 'check', title: SYNERGY_NAMES.skill, text: SYNERGY_DESC.skill },
+      { icon: 'lock', title: SYNERGY_NAMES.defense, text: `${SYNERGY_DESC.defense}防守型當指定打擊不算。` },
+      { icon: 'swap', title: SYNERGY_NAMES.middle, text: `${SYNERGY_DESC.middle}條件：二壘手、游擊手都守本職，守備都 ${grade} 以上（含裝備）。` },
+      { icon: 'tactics', title: SYNERGY_NAMES.battery, text: `${SYNERGY_DESC.battery}條件：捕手守本職，守備 ${grade} 以上（含裝備）。` },
+    ],
+    faq: [
+      { q: '每個羈絆的精確效果是多少？', a: exact },
+      { q: '防守型當指定打擊為什麼不算鐵壁球隊？', a: '鐵壁球隊加強的是全隊守備，指定打擊不上場守備，所以不算人數。把他換到守備位置就會算進來。' },
+      { q: '隊長被換下來會怎樣？', a: `先發裡就沒有隊長，原本多算的 ${w - 1} 人消失，羈絆可能掉階。到陣容頁的「羈絆說明」指定新的隊長，儲存陣容後生效。` },
+      { q: '有秘技可以改變隊長或門檻嗎？', a: `錦標賽的「隊長臂章」讓隊長算 ${captainWeight(['captainBand'])} 人；各流派的「門檻 −1」秘技讓門檻變成 ${thresholds('power', ['powerFactory']).join('／')} 人。放置經營模式沒有秘技。` },
+    ],
+  }
 }

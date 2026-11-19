@@ -6,7 +6,10 @@
 import { gradeBadge } from '../../ui/grades'
 import { el } from '../../ui/playerCard'
 import { RATING_FULL } from '../../ui/strings'
-import { archetypeChip } from '../../ui/synergyUi'
+import { archetypeChip, captainIcon } from '../../ui/synergyUi'
+import { captainIn, captainWeight } from '../../sim/synergy'
+import { ARCHETYPE_NAMES } from '../../ui/strings'
+import { resolveRoster } from '../domain/roster'
 import { pitchChip, toast, traitList } from '../../ui/visual'
 import { traitTag } from '../../ui/playerCard'
 import { avatar } from '../../ui/avatar'
@@ -156,6 +159,12 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
     const chips = el('span', 'v2-detail-chips')
     chips.append(base.role === 'batter' ? archetypeChip(base) : pitchChip(base))
     if (base.traits.length) chips.append(traitTag(base.traits[0]))
+    // 隊長（存檔裡的陣容）：頭像上的 C，加上看得懂的中文說明
+    const isCaptain = base.role === 'batter' && captainIn(resolveRoster(club).lineup, club.roster.captain) === base.id
+    if (isCaptain) {
+      face.append(captainIcon(18))
+      chips.append(el('span', 'v2-captain-chip', '隊長 C'))
+    }
     words.append(titleLine, el('span', 'v2-detail-where', whereText(club, base)), chips)
     header.replaceChildren(face, words)
 
@@ -269,6 +278,11 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
     footer.replaceChildren(...foot)
 
     body.replaceChildren(tabsBar(false))
+    if (isCaptain) {
+      const note = el('p', 'v2-captain-note')
+      note.append(captainIcon(16), `隊長（Captain）：在${ARCHETYPE_NAMES[base.archetype as keyof typeof ARCHETYPE_NAMES]}的人數算 ${captainWeight([])} 人，可能讓羈絆啟動或升級。換到板凳或預備就沒有隊長，可以在陣容頁的「羈絆說明」重新指定。`)
+      body.append(note)
+    }
     if (done) body.append(doneBox(base.name, done))
     if (next) body.append(preview)
     else body.append(el('p', 'v2-hint', V2T.maxLevel))
