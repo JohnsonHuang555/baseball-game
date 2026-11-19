@@ -15,6 +15,7 @@ import {
   type PitchType,
 } from './pitches'
 import { Rng, clamp } from './rng'
+import { Scorekeeper, type ScoreLine } from './scoring'
 import type { RelicId } from './items'
 import { fieldingAtPosition } from './positions'
 import { SYNERGY_KEYS, archetypeCounts, captainIn, positionSynergies, tierOf, type SynergyKey, type SynergyTier } from './synergy'
@@ -413,6 +414,8 @@ export class Game {
   private readonly rosters: Record<Side, Set<string>>
   /** 每位球員這場的成績，用來選 MVP 和錦標賽成長 */
   readonly box: Record<string, PlayerLine> = {}
+  /** 正式記分（Phase 8）：完整的個人原始數據、跑者責任與自責分。只記錄，不影響比賽 */
+  private readonly scorer = new Scorekeeper()
   private readonly players = new Map<string, Player>()
 
   constructor(setup: GameSetup) {
@@ -431,7 +434,16 @@ export class Game {
     this.strictSynergy = (setup.rules ?? RULES_VERSION) >= 9
     this.seed = setup.seed
     this.trackSynergies()
+    for (const side of ['home', 'away'] as const) {
+      for (const s of this.teams[side].lineup) this.scorer.appearBatter(s.player.id)
+      this.scorer.appearPitcher(this.teams[side].pitcher.id)
+    }
     this.prepareAtBat()
+  }
+
+  /** 每位有出場的球員這場的完整記分（打者、投手分開；沒出場的人沒有） */
+  get stats(): Readonly<Record<string, ScoreLine>> {
+    return this.scorer.lines
   }
 
   /** 打席開始：AI 守備時決定佈陣，讓玩家下指令前就看得到 */
@@ -471,6 +483,7 @@ export class Game {
       .sort((a, b) => batterValue(b.p) - batterValue(a.p))[0]
     if (!pick) return []
     const out = this.benchIn(team, spot, pick.i)
+    this.scorer.pinchHit(out.id, spot.player.id, this.strikes)
     return [{ type: 'substitution', side: this.battingSide, kind: 'pinchHit', inId: spot.player.id, outId: out.id }]
   }
 
@@ -885,6 +898,7 @@ export class Game {
         const team = this.batting
         const spot = team.lineup[team.battingIndex]
         const out = this.benchIn(team, spot, tactic.benchIndex)
+        this.scorer.pinchHit(out.id, spot.player.id, this.strikes)
         // 換了打者，AI 重新判斷佈陣，也可能換投回應
         const sub: GameEvent = { type: 'substitution', side: this.battingSide, kind: 'pinchHit', inId: spot.player.id, outId: out.id }
         return [sub, ...this.prepareAtBat()]
@@ -895,6 +909,7 @@ export class Game {
         const spot = team.lineup.find((s) => s.player.id === runner.id)!
         this.benchIn(team, spot, tactic.benchIndex)
         this.bases[tactic.base - 1] = spot.player
+        this.scorer.pinchRun(runner.id, spot.player.id)
         return [{ type: 'substitution', side: this.battingSide, kind: 'pinchRun', inId: spot.player.id, outId: runner.id }]
       }
       case 'changePitcher':
@@ -906,6 +921,7 @@ export class Game {
         const team = this.fielding
         const spot = team.lineup[tactic.lineupIndex]
         const out = this.benchIn(team, spot, tactic.benchIndex)
+        this.scorer.defensiveSub(spot.player.id)
         return [{ type: 'substitution', side: this.fieldingSide, kind: 'defense', inId: spot.player.id, outId: out.id }]
       }
     }
@@ -916,6 +932,8 @@ export class Game {
     team.pitcher = team.relievers.splice(relieverIndex, 1)[0]
     team.pitchCount = 0
     team.pitcherSincePa = this.paIndex
+    // 換的是守備方的投手（換投只會在守備時發生），球數就是目前這個打席的球數
+    this.scorer.pitcherIn(out.id, team.pitcher.id, this.balls, this.strikes)
     return [{ type: 'substitution', side, kind: 'pitcher', inId: team.pitcher.id, outId: out.id }]
   }
 
@@ -1494,6 +1512,7 @@ export class Game {
     if (success && runner.archetype === 'speed') this.synergyStats[this.battingSide].speedSB++
     if (!success) this.synergyStats[this.fieldingSide].caughtStealing++
     const moves: RunnerMove[] = [{ runnerId: runner.id, from, to: success ? ((from + 1) as BaseNumber) : 'out' }]
+    this.scorer.steal(moves, this.pitcher.id, this.outs)
     this.applyMoves(moves)
     const assist = this.pendingAssist ?? undefined
     this.pendingAssist = null
@@ -1535,6 +1554,7 @@ export class Game {
     if (HIT_KINDS.includes(kind)) this.hits[this.battingSide]++
     if (kind === 'error') this.errors[this.fieldingSide]++
     const outsBefore = this.outs
+    this.scorer.play({ kind, batterId, pitcherId, ballType: ball?.type ?? null, moves, outsBefore })
     const runs = this.applyMoves(moves)
     this.record(batterId, pitcherId, kind, runs, Math.min(3, this.outs) - outsBefore)
     this.recordSynergyStats(kind)
@@ -1599,6 +1619,7 @@ export class Game {
     this.bases = [null, null, null]
     this.queued = null
     this.halfStartPa = this.paIndex
+    this.scorer.halfEnd()
     if (this.half === 'top') {
       if (this.inning >= 9 && this.score.home > this.score.away) return [...events, this.endGame('home')]
       this.half = 'bottom'
@@ -1615,6 +1636,7 @@ export class Game {
     if (this.inning >= 10) {
       const team = this.batting
       this.bases[1] = team.lineup[(team.battingIndex + 8) % 9].player
+      this.scorer.placeRunner(this.bases[1].id, this.pitcher.id)
     }
     return events
   }
