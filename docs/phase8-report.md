@@ -9,7 +9,7 @@
 | 模擬 Golden（`src/sim/__golden__/sim-golden.json`） | 160 場，規則版本 1、3～9，含 14 場延長賽、疲勞換投；比對事件流、教練指令、比分、局數、步數、H／E、舊 PlayerLine | 加入記分前後一字不差 |
 | 球團 Golden（`src/v2/application/__golden__/club-golden.json`） | 3 個球團共 336 場（新秀、挑戰者保底、職業積分）每場勝負、比分、局數、資金、經驗、積分前後，最終戰績與聯盟狀態 | 一字不差 |
 | `npm run balance:v2` | 4 種策略 × 多種子的長期模擬 | 輸出與 main 完全相同（只差 npm 標頭） |
-| `npm run balance:v2:ranked` | Phase 7B 的積分與降級長期模擬 | 見下方第 6 節 |
+| `npm run balance:v2:ranked` | Phase 7B 的積分與降級長期模擬（84 組：策略 × 天數 × 種子） | 除了耗時欄位（`settleMs`）以外，與 `docs/balance/data/phase7b-ranked.json` 完全相同 |
 | Replay | 用 `replay()` 重播 40 場，記分與原本完全相同 | 通過 |
 
 Golden 檔是用 **main（加入記分之前）** 的程式產生的，之後只能在「有意改變比賽」時重新產生（`scripts/golden-sim.ts`、`scripts/golden-club.ts`）。
@@ -61,7 +61,7 @@ localStorage 一般上限 5 MB，目前用不到 3%。
 ## 6. 平衡模擬
 
 - `balance:v2`：與 main 輸出相同。
-- `balance:v2:ranked`：見 PR 說明（同樣的種子與設定，結果與 Phase 7B 的資料檔比對）。
+- `balance:v2:ranked`：84 組模擬的每日聯盟、積分、降級、勝敗與收益，除了耗時欄位以外與 Phase 7B 的資料檔完全相同（資料檔不更新）。
 
 ## 7. UI 與設計稿對照
 
