@@ -10,7 +10,7 @@ describe('平衡矩陣的接續：實驗設定檢查', () => {
 
   it('實驗設定包含候選方案、天數、格式、存檔版本與數值指紋', () => {
     const e = currentExperiment('S', 30)
-    expect(e).toMatchObject({ format: MATRIX_FORMAT, candidate: 'S', days: 30, schema: 8 })
+    expect(e).toMatchObject({ format: MATRIX_FORMAT, candidate: 'S', days: 30, schema: 9 })
     expect(e.config).toMatch(/^[0-9a-f]{8}$/)
   })
 

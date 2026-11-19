@@ -43,3 +43,23 @@ export const PROMOTION_CONFIG = {
   /** 保留最近幾次挑戰的紀錄 */
   historyLimit: 10,
 } as const
+
+/**
+ * 競技積分與降級（Phase 7B，方案 D，見 docs/phase7-ranked-league-rfc.md）：
+ * - 挑戰者（tier 2）起有積分；挑戰者是保底，積分歸零不降級
+ * - 職業、傳奇（tier 3、4）積分歸零降一級
+ * - 積分不影響晉級：晉級仍是 PROMOTION_CONFIG 的 100 場＋最近 60 場 60%＋挑戰賽
+ * - 晉級或降級後積分重設為 initialPoints；晉級後前 promotionProtectionMatches 場積分最低停在 1
+ */
+export const RANKED_CONFIG = {
+  enabledFromTier: 2,
+  relegationFloorTier: 2,
+  relegationTiers: [3, 4] as readonly number[],
+  minPoints: 0,
+  maxPoints: 100,
+  initialPoints: 50,
+  winPoints: 3,
+  lossPoints: -2,
+  dangerThreshold: 20,
+  promotionProtectionMatches: 20,
+} as const

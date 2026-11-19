@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { economyViolations, validateClub, type ClubSave } from '../domain/club'
-import { eligibility, newLeagueState, recentWinRate, recordLeagueResult } from '../domain/league'
+import { eligibility, leagueAtTier, newLeagueState, recentWinRate, recordLeagueResult } from '../domain/league'
 import { LEAGUES, MAX_TIER, PROMOTION_CONFIG } from '../domain/leagueConfig'
 import { rewardFor } from '../domain/rewards'
 import { ClubSaveError, MemoryStorage } from '../infrastructure/clubRepository'
@@ -28,8 +28,7 @@ function forceEligible(deps: Deps, tier?: number): ClubSave {
   const c = load(deps)
   const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
   const t = tier ?? c.league.tier
-  const rewardedTiers = Array.from({ length: t }, (_, i) => i + 1)
-  const league = { ...c.league, tier: t, highestTier: t, promotions: t, rewardedTiers, matches: n, wins: n, losses: 0, recent: 'W'.repeat(PROMOTION_CONFIG.window) }
+  const league = t === c.league.tier ? { ...c.league, matches: n, wins: n, losses: 0, recent: 'W'.repeat(PROMOTION_CONFIG.window) } : leagueAtTier(c.league, t, { matches: n, wins: n, losses: 0, recent: 'W'.repeat(PROMOTION_CONFIG.window) })
   return deps.store.saveClub({ ...c, league, idle: { ...c.idle, nextMatchIndex: Math.max(n, c.idle.nextMatchIndex) } }, c.revision)
 }
 
@@ -75,7 +74,7 @@ describe('聯盟與一般比賽', () => {
     const { deps } = await setup()
     const c = load(deps)
     const low = planMatch(c, 3)
-    const high = planMatch({ ...c, league: { ...c.league, tier: 3, highestTier: 3, promotions: 3 } }, 3)
+    const high = planMatch({ ...c, league: leagueAtTier(c.league, 3) }, 3)
     expect([low.leagueTier, high.leagueTier]).toEqual([0, 3])
     expect(high.seed).toBe(low.seed)
     const avg = (p: typeof low) => {

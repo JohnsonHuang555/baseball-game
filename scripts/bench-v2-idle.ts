@@ -1,5 +1,6 @@
 // V2 放置結算的效能量測：npm run bench:v2:idle
 // 量 1、10、96、1,000 場「做計畫 → 批次模擬 → 記帳 → 存檔」各段的耗時，以及存檔大小
+import { leagueAtTier } from '../src/v2/domain/league'
 import { planMatches, runBatch, yieldToMain } from '../src/v2/application/batchRunner'
 import { settleOutcomes } from '../src/v2/application/settlementService'
 import { ClubRepository, MemoryStorage, CLUB_STORAGE_KEY } from '../src/v2/infrastructure/clubRepository'
@@ -105,7 +106,7 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
       economy: { ...c0.economy, assets: rich, earned: rich },
       idle: { ...c0.idle, nextMatchIndex: 20_000 },
       record: { wins: 11_000, losses: 9_000, runsFor: 90_000, runsAgainst: 85_000 },
-      league: { ...c0.league, tier: MAX_TIER - 1, highestTier: MAX_TIER - 1, promotions: MAX_TIER - 1, rewardedTiers: [1, 2, 3], matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window), nextChallengeSeq: 50, challenges },
+      league: leagueAtTier(c0.league, MAX_TIER - 1, { matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window), nextChallengeSeq: 50, challenges }),
     },
     c0.revision,
   )
@@ -125,7 +126,7 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   // 還沒晉級就直接放到最高聯盟（只為了量最高聯盟的結算與存檔大小）
   {
     const c = load()
-    if (c.league.tier < MAX_TIER) deps.store.saveClub({ ...c, league: { ...c.league, tier: MAX_TIER, highestTier: MAX_TIER, promotions: MAX_TIER, rewardedTiers: [1, 2, 3, 4], matches: 0, wins: 0, losses: 0, recent: '' } }, c.revision)
+    if (c.league.tier < MAX_TIER) deps.store.saveClub({ ...c, league: leagueAtTier(c.league, MAX_TIER, { matches: 0, wins: 0, losses: 0, recent: '', nextChallengeSeq: c.league.nextChallengeSeq, challenges: c.league.challenges }) }, c.revision)
   }
   let t = performance.now()
   t = performance.now()

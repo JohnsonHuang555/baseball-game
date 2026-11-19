@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { v8League } from '../testkit'
 import { describe, expect, it } from 'vitest'
 import fixture from './__fixtures__/club-v3-phase3.json'
 import fixtureV4 from './__fixtures__/club-v4-phase4.json'
@@ -120,8 +121,8 @@ describe('V4 → V7 遷移（經過 V5、V6）', () => {
   })
 
   it('已經是目前格式或未知版本：不是可遷移的舊版', () => {
-    expect(sourceVersion({ schemaVersion: 9 })).toBeNull()
-    expect(() => migrateToLatest({ schemaVersion: 9 })).toThrow(MigrationError)
+    expect(sourceVersion({ schemaVersion: 10 })).toBeNull()
+    expect(() => migrateToLatest({ schemaVersion: 10 })).toThrow(MigrationError)
   })
 })
 
@@ -138,13 +139,13 @@ describe('V5 → V7 遷移（經過 V6）', () => {
     const club = migrateToLatest(old)
     const { schemaVersion, revision, migratedFrom, challengeReplay, liveMatch, onboarding: _o, ...rest } = withoutBox(club)
     const { schemaVersion: _s, revision: oldRevision, ...oldRest } = old
-    expect(rest).toEqual(oldRest)
+    expect({ ...rest, league: v8League(rest.league) }).toEqual(oldRest)
     expect(liveMatch).toBeNull()
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(challengeReplay).toBeNull()
     expect(revision).toBe(oldRevision + 1)
     expect(migratedFrom).toEqual({ schemaVersion: 5, revision: oldRevision })
-    expect(club.league).toEqual(old.league)
+    expect(v8League(club.league)).toEqual(old.league)
     expect(club.idle).toEqual(old.idle)
     expect(club.economy).toEqual(old.economy)
     expect(economyViolations(club.economy)).toEqual([])
@@ -170,7 +171,7 @@ describe('V6 → V7 遷移', () => {
     const club = migrateToLatest(old)
     const { schemaVersion, revision, migratedFrom, liveMatch, onboarding: _o, ...rest } = withoutBox(club)
     const { schemaVersion: _s, revision: oldRevision, ...oldRest } = old
-    expect(rest).toEqual(oldRest)
+    expect({ ...rest, league: v8League(rest.league) }).toEqual(oldRest)
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(liveMatch).toBeNull()
     expect(revision).toBe(oldRevision + 1)

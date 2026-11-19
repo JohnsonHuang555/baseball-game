@@ -15,7 +15,7 @@ import { leagueDetail, openLeagueRoad } from './leagueRoadView'
 import { linkText, riskOf } from './leagueInfo'
 import { badgeStateFor, leagueBadgeSvg } from './leagueBadge'
 import { rateProgress } from './dashboardView'
-import { eligibility, recordLeagueResult } from '../domain/league'
+import { eligibility, leagueAtTier, newLeagueState, recordLeagueResult } from '../domain/league'
 
 let app: V2App | null = null
 afterEach(() => {
@@ -64,10 +64,7 @@ async function setup(edit?: (c: ClubSave) => ClubSave, mobile = true) {
   return { storage, clock }
 }
 
-const atTier = (tier: number, extra: Partial<ClubSave['league']> = {}) => (c: ClubSave): ClubSave => ({
-  ...c,
-  league: { ...c.league, tier, highestTier: tier, promotions: tier, rewardedTiers: Array.from({ length: tier }, (_, i) => i + 1), ...extra },
-})
+const atTier = (tier: number, extra: Partial<ClubSave['league']> = {}) => (c: ClubSave): ClubSave => ({ ...c, league: leagueAtTier(c.league, tier, extra) })
 
 describe('遊戲指南', () => {
   it('首頁標題列的「?」打開全畫面指南；9 章、可切換；Esc 關閉後焦點回到「?」；不寫入存檔', async () => {
@@ -214,7 +211,7 @@ describe('首頁：下一個目標', () => {
     expect(need).toContain('最舊的一場會被擠出去')
     expect(need).not.toMatch(/再(多)?贏/)
     // 驗證這個提示為什麼不能寫成「再贏 1 場」：真的再贏一場，勝場數還是 target − 1，仍然沒有資格
-    const base = { tier: 0, matches: 120, wins: 80, losses: 40, recent, promotions: 0, highestTier: 0, nextChallengeSeq: 0, challengeReadyAt: 0, challenges: [], rewardedTiers: [] }
+    const base = { ...newLeagueState(), matches: 120, wins: 80, losses: 40, recent }
     expect(rateProgress(eligibility(base, 0))).toMatchObject({ wins: target - 1, gap: 1 })
     const after = recordLeagueResult(base, true)
     const p = rateProgress(eligibility(after, 0))
@@ -232,7 +229,7 @@ describe('首頁：下一個目標', () => {
   it('rateProgress 跟 eligibility 的門檻一致：剛好 target 勝就達標', () => {
     const W = PROMOTION_CONFIG.window
     const target = Math.ceil(PROMOTION_CONFIG.winRate * W - 1e-9)
-    const base = { tier: 0, matches: 200, wins: 0, losses: 0, promotions: 0, highestTier: 0, nextChallengeSeq: 0, challengeReadyAt: 0, challenges: [], rewardedTiers: [] }
+    const base = { ...newLeagueState(), matches: 200 }
     const at = (wins: number) => eligibility({ ...base, recent: 'W'.repeat(wins) + 'L'.repeat(W - wins) }, 0)
     expect(at(target).ok).toBe(true)
     expect(at(target - 1).ok).toBe(false)
