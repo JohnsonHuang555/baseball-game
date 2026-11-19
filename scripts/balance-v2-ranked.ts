@@ -5,6 +5,7 @@
 //   npm run balance:v2:ranked                          # 45 天：每天 1／3／6 次 × B／E／D × 種子 1～8，再加 90 天長跑（每天 3 次 × B／E／D × 種子 1～4）
 //   npm run balance:v2:ranked -- --days=45 --sessions=3 --strategies=E --seeds=1,2 --long=0 --jobs=1 --out=x.json
 //   npm run balance:v2:ranked -- --report=docs/balance/data/phase7b-ranked.json
+// 中斷後再執行同一個指令會接著跑（已完成的工作記在 <out>.partN）；--fresh 從頭跑
 import { spawn } from 'node:child_process'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -120,9 +121,18 @@ async function runOne(j: Job): Promise<RunSummary> {
 }
 
 async function runJobs(todo: Job[], out: string): Promise<void> {
-  const rows: RunSummary[] = []
+  // 接續：輸出檔已經有的工作不重跑（行程被中斷後重新執行同一個指令即可）
+  const rows: RunSummary[] = args.fresh === 'true' ? [] : (() => {
+    try {
+      return load(out)
+    } catch {
+      return []
+    }
+  })()
+  const done = new Set(rows.map((r) => `${r.days}|${r.sessions}|${r.strategy}|${r.seed}`))
   const t0 = Date.now()
   for (const j of todo) {
+    if (done.has(`${j.days}|${j.sessions}|${j.strategy}|${j.seed}`)) continue
     rows.push(await runOne(j))
     const last = rows.at(-1)!
     console.error(`${j.days}d ${j.sessions}x ${j.strategy} s${j.seed}: 聯盟 ${last.tierByDay.join('')}  降級 ${last.relegations.length}  (${((Date.now() - t0) / 1000).toFixed(0)}s)`)
@@ -150,6 +160,8 @@ async function runParallel(n: number, out: string): Promise<void> {
   writeFileSync(out, JSON.stringify(rows))
   for (const f of parts) rmSync(f, { force: true })
 }
+
+const load = (f: string) => JSON.parse(readFileSync(f, 'utf8')) as RunSummary[]
 
 // ---- 統計 ----
 
@@ -292,7 +304,6 @@ export function report(rows: RunSummary[]): string {
   return out.join('\n')
 }
 
-const load = (f: string) => JSON.parse(readFileSync(f, 'utf8')) as RunSummary[]
 
 if (args.report) {
   console.log(report(load(args.report)))
