@@ -1,22 +1,21 @@
 // 聯盟之路（設計稿 p7 IdRoad）與聯盟詳情（IdLeague）。
 // 手機：由上到下傳奇 → 新秀的爬梯，點一個聯盟從底部滑出詳情；電腦版：左邊五階台階、右邊 440px 詳情面板。
-// 規則與數字從 LEAGUES／PROMOTION_CONFIG 讀（見 leagueInfo.ts）；競技積分、降級只顯示「示意・待定」的規劃，不讀也不寫存檔。
+// 規則與數字從 LEAGUES／PROMOTION_CONFIG／RANKED_CONFIG 讀（見 leagueInfo.ts）；玩家的積分、位置、歷史最高聯盟只讀存檔（rankedView），不寫入。
 import { el } from '../../ui/playerCard'
 import type { ClubSave } from '../domain/club'
-import { eligibility, leagueOf } from '../domain/league'
+import { eligibility, leagueOf, rankedView } from '../domain/league'
 import { LEAGUES, MAX_TIER } from '../domain/leagueConfig'
 import { v2Modal, type CloseReason } from './dialog'
 import { icon, type IconName } from './icons'
 import { badgeStateFor, leagueBadge, type BadgeState } from './leagueBadge'
 import {
   difficultyPips,
-  isRankedPreview,
   LEAGUE_INTRO,
   linkText,
   multiplierText,
   officialConditions,
-  placeholderTag,
-  plannedConditions,
+  rankedCard,
+  rankedRules,
   relegationText,
   rewardText,
   riskLabel,
@@ -93,6 +92,9 @@ function whereCard(club: ClubSave | null): HTMLElement {
     const rate = Math.round(e.winRate.have * 100)
     card.append(el('p', 'v2-road-where-line', `本聯盟 ${e.matches.have} / ${e.matches.need} 場・最近 ${e.winRate.games} 場勝率 ${rate}%${e.ok ? '・可以挑戰晉級' : ''}`))
   }
+  const ranked = rankedCard(rankedView(club.league), { compact: true })
+  if (ranked) card.append(ranked)
+  if (club.league.highestTier > t) card.append(el('p', 'v2-road-where-line', `歷史最高：${leagueOf(club.league.highestTier).name}`))
   return card
 }
 
@@ -110,7 +112,6 @@ function leagueCardButton(tier: number, club: ClubSave | null, onPick: (t: numbe
   mid.append(difficultyPips(tier), el('span', 'v2-road-reward', tier ? `首次晉級 ${rewardText(tier)}` : '起點'))
   const risk = el('span', 'v2-road-card-risk')
   risk.append(riskTag(tier))
-  if (isRankedPreview(tier)) risk.append(placeholderTag('尚未上線'))
   b.append(top, mid, risk)
   if (state === 'current') b.append(el('span', 'v2-road-card-mine', '查看我的位置與晉級條件 ›'))
   b.onclick = () => {
@@ -146,7 +147,7 @@ export function leagueDetail(tier: number, club: ClubSave | null, actions: RoadA
   }
   stat('對手難度', difficultyPips(tier, true))
   stat('比賽收益', multiplierText(tier))
-  stat('首次晉級獎勵', tier ? rewardText(tier) : '—')
+  stat('首次晉級獎勵', !tier ? '—' : club?.league.rewardedTiers.includes(tier) ? `已領取（${rewardText(tier)}）` : rewardText(tier))
   box.append(stats)
 
   const section = (title: string, ...children: HTMLElement[]) => {
@@ -160,21 +161,22 @@ export function leagueDetail(tier: number, club: ClubSave | null, actions: RoadA
   for (const c of officialConditions(tier)) conds.append(el('li', '', c))
   section(tier >= MAX_TIER ? '晉級條件' : `晉級到${leagueOf(tier + 1).name}（目前規則）`, conds)
 
-  const planned = plannedConditions(tier)
-  if (planned.length) {
-    const list = el('ul', 'v2-ld-planned')
-    for (const c of planned) list.append(el('li', '', c))
-    const head2 = el('div', 'v2-ld-planned-head')
-    head2.append(el('span', '', '規劃中的競技積分'), placeholderTag('尚未上線・示意'))
-    const s = section('之後可能的變化（尚未上線）', head2, list)
-    s.classList.add('planned')
+  if (state === 'current' && club) {
+    const mine = rankedCard(rankedView(club.league))
+    if (mine) section('你在這裡・競技積分', mine)
+  }
+
+  const rules = rankedRules(tier)
+  if (rules.length) {
+    const list = el('ul', 'v2-ld-ranked-rules')
+    for (const c of rules) list.append(el('li', '', c))
+    section('競技積分', list)
   }
 
   const rel = relegationText(tier)
-  const relBox = el('div', `v2-ld-rel ${rel.risk}${rel.planned ? ' planned' : ''}`)
+  const relBox = el('div', `v2-ld-rel ${rel.risk}`)
   const relHead = el('div', 'v2-ld-rel-head')
   relHead.append(el('strong', '', rel.title))
-  if (rel.planned) relHead.append(placeholderTag('規劃尚未上線'))
   relBox.append(relHead, el('p', '', rel.text))
   section('降級規則', relBox)
 
@@ -240,7 +242,7 @@ export function openLeagueRoad(o: RoadOptions): () => void {
     const legend = el('div', 'v2-road-legend')
     const lg1 = el('span', 'v2-road-zone safe', '新手養成區・只升不降')
     const lg2 = el('span', 'v2-road-zone ranked')
-    lg2.append('競技區・積分升降級（規劃）', placeholderTag('尚未上線'))
+    lg2.append('競技區・積分升降級（挑戰者起）')
     legend.append(lg1, lg2)
     const steps = el('div', 'v2-road-steps')
     const cards: HTMLElement[] = []
@@ -270,11 +272,10 @@ export function openLeagueRoad(o: RoadOptions): () => void {
     const zone = (text: string, ranked: boolean) => {
       const z = el('div', `v2-road-zone ${ranked ? 'ranked' : 'safe'}`)
       z.append(text)
-      if (ranked) z.append(placeholderTag('尚未上線'))
       return z
     }
     for (let t = MAX_TIER; t >= 0; t--) {
-      if (t === MAX_TIER) ladder.append(zone('競技區・積分升降級（規劃）', true))
+      if (t === MAX_TIER) ladder.append(zone('競技區・積分升降級（挑戰者起）', true))
       if (t === 1) ladder.append(zone('新手養成區・只升不降', false))
       const row = el('div', 'v2-road-row')
       const rail = el('span', 'v2-road-rail')
@@ -286,13 +287,12 @@ export function openLeagueRoad(o: RoadOptions): () => void {
         const l = linkText(t)
         const link = el('div', `v2-road-link ${l.tone}`)
         link.append(el('span', '', l.text))
-        if (l.planned) link.append(placeholderTag('尚未上線'))
         ladder.append(link)
       }
     }
     body.append(ladder)
   }
-  body.append(el('p', 'v2-road-foot', '點任一聯盟看詳細規則・紫色虛線標記的是尚未上線的規劃，數字只是示意；目前所有聯盟都只升不降'))
+  body.append(el('p', 'v2-road-foot', '點任一聯盟看詳細規則・競技積分只影響保級，晉級一律看場數、勝率與挑戰賽'))
 
   const head = el('div', 'v2-full-head')
   head.append(icon('league', 32), el('span', 'v2-full-title', '聯盟之路'))

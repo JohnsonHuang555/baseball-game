@@ -1,8 +1,10 @@
 // 晉級挑戰賽的結果對話框：對手、比分、成功或失敗、新聯盟、獎勵、下一步建議
 import { el } from '../../ui/playerCard'
 import type { ChallengeOutcome } from '../application/leagueService'
-import { leagueOf } from '../domain/league'
-import { PROMOTION_CONFIG } from '../domain/leagueConfig'
+import type { ClubSave } from '../domain/club'
+import { canRelegate, leagueOf, rankedEnabled } from '../domain/league'
+import { PROMOTION_CONFIG, RANKED_CONFIG } from '../domain/leagueConfig'
+import { leagueBadge } from './leagueBadge'
 import { announceModal, type CloseReason } from './dialog'
 import { icon } from './icons'
 import { V2T } from './strings'
@@ -18,6 +20,10 @@ export function challengeResultModal(out: ChallengeOutcome, clubName: string, on
     const lines = el('ul', 'v2-challenge-lines')
     lines.append(el('li', 'v2-challenge-line', V2T.challengePromoted(leagueOf(c.toTier).name)))
     if (c.reward.funds || c.reward.experience) lines.append(el('li', 'v2-challenge-line reward', V2T.challengeReward(c.reward.funds, c.reward.experience)))
+    else lines.append(el('li', 'v2-challenge-line', V2T.challengeRewardTaken))
+    // 競技積分（挑戰者以上）：重設為起始值、開啟保護；職業、傳奇有降級風險
+    if (rankedEnabled(c.toTier)) lines.append(el('li', 'v2-challenge-line ranked', V2T.challengeRankedStart(RANKED_CONFIG.initialPoints, RANKED_CONFIG.promotionProtectionMatches)))
+    if (canRelegate(c.toTier)) lines.append(el('li', 'v2-challenge-line ranked', V2T.challengeRelegationRisk(leagueOf(c.toTier).name, leagueOf(c.toTier - 1).name)))
     body.append(lines)
   }
   const advice = el('p', 'v2-advice')
@@ -70,6 +76,60 @@ export function challengeStartModal(out: ChallengeOutcome, watch: () => void, re
     onClose: (reason) => {
       if (!chosen && reason === 'user') reveal()
     },
+  })
+  return close
+}
+
+export interface RelegationNotice {
+  /** 這次要通知的降級次數（一次離線可能降兩級） */
+  count: number
+  /** 第一次降級前的聯盟 */
+  fromTier: number
+}
+
+/**
+ * 降級結果（設計稿 p7 IdRank relegate）：原本聯盟 → 降級後聯盟、原因、保留的東西、新的目標。
+ * 只讀存檔裡的 league.lastRelegation；什麼時候開、會不會重複開由 App 決定（見 app.ts 的 relegation 去重）
+ */
+export function relegationModal(club: ClubSave, notice: RelegationNotice, actions: { openRoad: () => void }, onClose?: (reason: CloseReason) => void, owner?: unknown): () => void {
+  const last = club.league.lastRelegation!
+  const to = club.league.tier
+  const body = el('div', 'v2-relegation')
+  const badges = el('div', 'v2-relegation-badges')
+  const from = leagueBadge(notice.fromTier, 'reached', 48)
+  from.classList.add('faded')
+  badges.append(from, el('span', 'v2-relegation-arrow', '↓'), leagueBadge(to, 'current', 72))
+  body.append(badges)
+  const keep = el('div', 'v2-relegation-keep')
+  keep.append(el('span', 'v2-relegation-k', V2T.relegationKeepTitle))
+  const ul = el('ul', '')
+  for (const t of V2T.relegationKeeps(leagueOf(club.league.highestTier).name)) ul.append(el('li', '', t))
+  keep.append(ul)
+  const goal = el('div', 'v2-relegation-goal')
+  goal.style.borderLeftColor = leagueOf(to).color
+  goal.append(el('span', 'v2-relegation-k', V2T.relegationGoalTitle), el('strong', '', V2T.relegationGoal(leagueOf(last.fromTier).name)), el('p', '', canRelegate(to) ? V2T.relegationGoalAgain(RANKED_CONFIG.initialPoints, leagueOf(to - 1).name) : V2T.relegationGoalFloor(leagueOf(to).name, PROMOTION_CONFIG.minMatches, Math.round(PROMOTION_CONFIG.winRate * 100))))
+  body.append(keep, goal)
+  const sub = notice.count > 1 ? V2T.relegationSubMulti(notice.count, leagueOf(notice.fromTier).name, leagueOf(to).name) : V2T.relegationSub(leagueOf(last.fromTier).name, leagueOf(to).name)
+  let close: () => void = () => {}
+  close = announceModal({
+    icon: 'alert',
+    badge: 'white',
+    title: V2T.relegationTitle(leagueOf(to).name),
+    titleClass: 'v2-relegation-title',
+    sub,
+    content: [body],
+    primary: {
+      label: V2T.relegationRoad,
+      action: 'relegation-road',
+      run: () => {
+        close()
+        actions.openRoad()
+      },
+    },
+    secondary: { label: V2T.relegationHome, closes: true },
+    className: 'v2-relegation-modal',
+    onClose,
+    owner,
   })
   return close
 }

@@ -1,17 +1,17 @@
 // 遊戲指南（設計稿 p7 IdGuide）的章節內容。數字一律從 config 讀，改 config 指南會跟著變；
-// 競技積分／降級還沒定案，第 8 章與相關卡片都標成「示意」，不寫成正式規則。
+// 第 8 章是正式的競技積分與降級規則（Phase 7B），數字都從 RANKED_CONFIG 讀。
 import { IDLE_CONFIG, REWARD_CONFIG } from '../domain/config'
 import { LEAGUES, MAX_TIER, PROMOTION_CONFIG } from '../domain/leagueConfig'
 import { MAX_LEVEL, RECRUIT_CONFIG } from '../domain/progressionConfig'
 import type { IconName } from './icons'
-import { RANKED_PREVIEW } from './leagueInfo'
+import { RANKED_CONFIG } from '../domain/leagueConfig'
 
 export interface GuideCard {
   icon: IconName
   title: string
   text: string
-  /** 重點：黑底白字；demo：示意（規則未定） */
-  tag?: 'key' | 'demo'
+  /** 重點：黑底白字 */
+  tag?: 'key'
 }
 
 export type GuideVisual =
@@ -45,7 +45,8 @@ export function guideChapters(): GuideChapter[] {
   const P = PROMOTION_CONFIG
   const rc = RECRUIT_CONFIG
   const top = LEAGUES[MAX_TIER]
-  const rp = RANKED_PREVIEW
+  const rk = RANKED_CONFIG
+  const name = (t: number) => LEAGUES[t].name
   return [
     {
       id: 'intro',
@@ -130,27 +131,30 @@ export function guideChapters(): GuideChapter[] {
       short: '晉級',
       title: '聯盟晉級',
       icon: 'league',
-      summary: `一共 ${LEAGUES.length} 個聯盟。達成條件後可以挑戰晉級，贏了就升上下一級；對手更強，收益也更高。`,
+      summary: `一共 ${LEAGUES.length} 個聯盟。達成條件後可以挑戰晉級，贏了就升上下一級；對手更強，收益也更高。${name(rk.enabledFromTier)}起有競技積分，${name(rk.relegationTiers[0])}、${name(rk.relegationTiers[1])}積分歸零會降級（見下一章）。`,
       visual: { kind: 'leagues' },
       cards: [
         { icon: 'report', title: `${P.minMatches} 場・勝率 ${pct(P.winRate)}`, text: `在本聯盟完成 ${P.minMatches} 場，而且最近 ${P.window} 場勝率 ${pct(P.winRate)} 以上，就能挑戰晉級。`, tag: 'key' },
         { icon: 'challenge', title: '晉級挑戰賽', text: '挑戰賽用目前儲存的陣容，對手比下一級的一般對手更強。結果一開打就決定並存檔。' },
         { icon: 'clock', title: `失敗後 ${P.retryAfterMatches} 場冷卻`, text: `挑戰失敗不會有損失，再完成 ${P.retryAfterMatches} 場一般比賽就能再挑戰。` },
-        { icon: 'coin', title: '首次晉級獎勵', text: '第一次升上某個聯盟會得到一次性的資金與經驗，同一個聯盟只發一次。' },
+        { icon: 'coin', title: '首次晉級獎勵', text: '第一次升上某個聯盟會得到一次性的資金與經驗，同一個聯盟只發一次；降級後再升回去不會再發。' },
+        { icon: 'challenge', title: '積分不影響晉級', text: `就算積分很低也能挑戰晉級；積分滿 ${rk.maxPoints} 分也不代表可以晉級。晉級只看場數、勝率與挑戰賽。`, tag: 'key' },
       ],
     },
     {
       id: 'ranked',
       short: '積分',
-      title: '積分與降級（尚未上線）',
+      title: '競技積分與降級',
       icon: 'challenge',
-      summary: '這一章是尚未上線的規劃：目前沒有競技積分，所有聯盟（包含職業、傳奇）都只升不降。下面的數字都是示意，不是正式規則。',
+      summary: `從${name(rk.enabledFromTier)}開始，每場一般比賽會加減競技積分（${rk.minPoints}～${rk.maxPoints}）。${name(rk.relegationTiers[0])}、${name(rk.relegationTiers[1])}積分歸零會降一級；${name(rk.relegationFloorTier)}是保底，不會降回${name(rk.enabledFromTier - 1)}。`,
       visual: { kind: 'points' },
       cards: [
-        { icon: 'challenge', title: '競技積分（尚未上線）', text: `規劃中的 0～${rp.max} 積分，例如勝 +${rp.win}／敗 −${rp.loss}；怎麼影響晉級還在討論。`, tag: 'demo' },
-        { icon: 'league', title: '晉級區（尚未上線）', text: `示意：積分 ${rp.promoteAt} 分以上是晉級區。目前晉級只看「${P.minMatches} 場・勝率 ${pct(P.winRate)}」與挑戰賽。`, tag: 'demo' },
-        { icon: 'alert', title: '降級與保底（尚未上線）', text: '規劃中：職業、傳奇聯盟才可能降級，挑戰者是保底；降級時球員、資金、經驗都會保留。目前不會發生。', tag: 'demo' },
-        { icon: 'lock', title: '正式規則確認前', text: '你的存檔不會有積分，也不會被降級。規則確定後會先公告再上線。', tag: 'key' },
+        { icon: 'challenge', title: `勝 +${rk.winPoints}／敗 −${-rk.lossPoints}`, text: `只有一般比賽計分，晉級挑戰賽不計分。積分最高 ${rk.maxPoints}、最低 ${rk.minPoints}；晉級或降級後從 ${rk.initialPoints} 分開始。`, tag: 'key' },
+        { icon: 'league', title: `${name(rk.relegationFloorTier)}是保底`, text: `${name(rk.relegationFloorTier)}積分 ${rk.minPoints} 分也不會降回${name(rk.enabledFromTier - 1)}，新秀、業餘沒有積分、只升不降。` },
+        { icon: 'alert', title: '積分歸零會降級', text: `${name(rk.relegationTiers[0])}歸零降回${name(rk.relegationFloorTier)}、${name(rk.relegationTiers[1])}歸零降回${name(rk.relegationTiers[0])}，一次只降一級。${rk.dangerThreshold} 分以下是危險區，首頁會提醒。`, tag: 'key' },
+        { icon: 'lock', title: `晉級後 ${rk.promotionProtectionMatches} 場保護`, text: `剛升上去的前 ${rk.promotionProtectionMatches} 場一般比賽，輸球照樣扣分，但積分最低停在 1 分，不會馬上掉回去。` },
+        { icon: 'club', title: '降級不會失去任何東西', text: '球員、資金、經驗、陣容、戰術、總戰績、歷史最高聯盟都會保留；新聯盟的場數與勝率重新累積，首次晉級獎勵不會重發。' },
+        { icon: 'clock', title: '離線也會計分', text: '離線時打完的比賽一樣計分；如果中途降級，後面的比賽就用新聯盟的對手與收益。' },
       ],
     },
     {
@@ -164,7 +168,7 @@ export function guideChapters(): GuideChapter[] {
         { q: '離線很久，比賽會一直累積嗎？', a: `最多累積 ${offlineH} 小時（${IDLE_CONFIG.MAX_BATCH_MATCHES} 場），超過的部分不會再打。` },
         { q: '開兩個分頁會重複拿獎勵嗎？', a: '不會。每場比賽只會結算一次、收益只會領一次。大部分瀏覽器支援跨分頁鎖，每個分頁都可以操作，存檔會依序寫入；不支援的瀏覽器同一時間只有一個分頁可以操作，其他分頁只能查看。' },
         { q: '晉級挑戰失敗會怎樣？', a: `不會失去任何東西，只要再完成 ${P.retryAfterMatches} 場一般比賽就能再挑戰。` },
-        { q: '現在會被降級嗎？', a: '不會。競技積分與降級都還沒上線，職業、傳奇聯盟目前也只升不降。之後若要上線，會先公告規則。' },
+        { q: '會被降級嗎？降級會失去什麼？', a: `只有${name(rk.relegationTiers[0])}、${name(rk.relegationTiers[1])}積分歸零才會降一級，${name(rk.relegationFloorTier)}以下不會降級。球員、資金、經驗都不會失去，只是新聯盟的場數與勝率要重新累積。` },
         { q: '重看比賽會改變結果嗎？', a: 'Replay 只是重播已經存好的結果，不會重算，也不會再發獎勵。' },
       ],
     },

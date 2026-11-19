@@ -13,7 +13,7 @@ import { gradeBadge } from '../../ui/grades'
 import { canAfford } from '../application/economyService'
 import { nearestUpgrade, suggestNextAction, type Suggestion, type SuggestionKind } from '../application/guidance'
 import type { ClubSave, SettledMatch } from '../domain/club'
-import { eligibility, leagueOf } from '../domain/league'
+import { eligibility, leagueOf, rankedView } from '../domain/league'
 import { onboardingProgress, type OnboardingTaskId } from '../domain/onboarding'
 import { upgradeCost } from '../domain/progression'
 import { RECRUIT_CONFIG } from '../domain/progressionConfig'
@@ -23,9 +23,9 @@ import { recentForm, teamPower } from '../domain/growthInfo'
 import type { ClubController, ControllerState } from './clubController'
 import { V2T } from './strings'
 import { icon, type IconName } from './icons'
-import { MAX_TIER, PROMOTION_CONFIG } from '../domain/leagueConfig'
+import { MAX_TIER, PROMOTION_CONFIG, RANKED_CONFIG } from '../domain/leagueConfig'
 import { leagueBadge } from './leagueBadge'
-import { isRankedPreview, placeholderTag } from './leagueInfo'
+import { rankedCard, rankedDeltaChip } from './leagueInfo'
 
 export interface DashboardActions {
   claim: () => void
@@ -418,6 +418,8 @@ export function leagueCard(state: ControllerState, actions: Pick<DashboardAction
   names.append(nameRow, line)
   head.append(badge, names)
   card.append(head)
+  const ranked = rankedCard(rankedView(league), { compact: true })
+  if (ranked) card.append(ranked)
 
   if (!e.atMaxTier) {
     const need = el('ul', 'v2-league-need')
@@ -572,6 +574,8 @@ export function matchList(matches: readonly SettledMatch[], open: (m: SettledMat
       el('span', 'v2-match-opp', V2T.vs(r.opponentName)),
       el('span', 'v2-match-sub', `${V2T.matchNo(m.matchIndex + 1)}・${V2T.innings(r.innings)}・${V2T.earned(m.earnedFunds, m.earnedExperience)}`),
     )
+    const chip = rankedDeltaChip(m)
+    if (chip) body.append(chip)
     b.append(badge, body, el('span', 'v2-match-score', `${r.runsFor} : ${r.runsAgainst}`))
     b.onclick = () => open(m)
     li.append(b)
@@ -638,8 +642,22 @@ export function goalCard(club: ClubSave, actions: Pick<DashboardActions, 'openRo
   head.append(leagueBadge(league.tier, 'current', 44), names)
   card.append(head)
 
+  // 競技積分（挑戰者以上）：只讀存檔，跟晉級條件分開顯示
+  const rv = rankedView(league)
+  const ranked = rankedCard(rv)
+  if (ranked) card.append(ranked)
+
   if (top) {
     card.append(el('p', 'v2-goal-text', V2T.goalTopText))
+    const form = leagueForm(club.recentMatches.filter((m) => m.result.leagueTier === league.tier).slice(-10))
+    if (form) card.append(form)
+    const keep = el('div', 'v2-goal-need')
+    keep.append(el('span', 'v2-goal-need-k', V2T.goalKeepTitle))
+    const ul = el('ul', '')
+    if (rv.points !== null) ul.append(el('li', '', rv.zone === 'danger' ? V2T.goalInDanger(rv.points, leagueOf(rv.relegateTo!).name) : V2T.goalAboveDanger(rv.aboveDanger!, rv.dangerThreshold)))
+    ul.append(el('li', '', V2T.goalTopKeepGrowing))
+    keep.append(ul)
+    card.append(keep)
   } else {
     const rows = el('ul', 'v2-goal-conds')
     const row = (key: string, ok: boolean, label: string, value: string, ratio: number, mark?: number) => {
@@ -689,12 +707,8 @@ export function goalCard(club: ClubSave, actions: Pick<DashboardActions, 'openRo
     if (rp.full && !rateOk) need.append(el('span', 'v2-goal-need-note', V2T.goalRollingNote(rp.window)))
     card.append(need)
   }
-  // 競技區（規劃中）：只用一行說明，不顯示積分
-  if (isRankedPreview(league.tier + 1) || isRankedPreview(league.tier)) {
-    const p = el('p', 'v2-goal-plan')
-    p.append(placeholderTag('尚未上線'), isRankedPreview(league.tier) ? V2T.goalPlanRanked : V2T.goalPlanNext(leagueOf(league.tier + 1).name))
-    card.append(p)
-  }
+  if (league.tier + 1 === RANKED_CONFIG.enabledFromTier) card.append(el('p', 'v2-goal-plan', V2T.goalNextRanked(leagueOf(league.tier + 1).name, RANKED_CONFIG.winPoints, -RANKED_CONFIG.lossPoints)))
+  if (rv.canRelegate && !top) card.append(el('p', 'v2-goal-plan danger', V2T.goalRelegationRisk(leagueOf(rv.relegateTo!).name)))
   if (actions.openRoad) {
     const b = el('button', 'btn-white v2-goal-road')
     b.type = 'button'
@@ -708,4 +722,17 @@ export function goalCard(club: ClubSave, actions: Pick<DashboardActions, 'openRo
     card.append(b)
   }
   return card
+}
+
+/** 傳奇聯盟目標卡的近期戰績：本聯盟最近 10 場（舊的在左） */
+function leagueForm(matches: readonly SettledMatch[]): HTMLElement | null {
+  if (!matches.length) return null
+  const box = el('div', 'v2-goal-form')
+  const wins = matches.filter((m) => m.result.won).length
+  box.append(el('span', 'v2-goal-form-k', V2T.goalRecentForm(matches.length, wins, matches.length - wins)))
+  const dots = el('span', 'v2-goal-form-dots')
+  dots.setAttribute('aria-hidden', 'true')
+  for (const m of matches) dots.append(el('span', m.result.won ? 'w' : 'l'))
+  box.append(dots)
+  return box
 }

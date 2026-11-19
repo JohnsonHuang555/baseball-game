@@ -135,37 +135,28 @@ describe('遊戲指南', () => {
     expect($$('.v2-faq-a').filter((a) => !a.hidden)).toHaveLength(0)
   })
 
-  it('數字來自 config；未定案的積分規則一律標示「示意」', () => {
+  it('數字來自 config；競技積分章節是正式規則（Phase 7B），沒有「示意」或「尚未上線」', () => {
     const chapters = guideChapters()
     const byId = Object.fromEntries(chapters.map((c) => [c.id, c]))
     expect(JSON.stringify(byId.match)).toContain(String(IDLE_CONFIG.MAX_BATCH_MATCHES))
     expect(byId.promotion.cards[0].title).toContain(String(PROMOTION_CONFIG.minMatches))
     expect(byId.promotion.summary).toContain(String(LEAGUES.length))
-    const ranked = byId.ranked
-    expect(ranked.title).toContain('尚未上線')
-    // 寫到積分數字的卡片都是 demo；說明「目前不會降級」的是重點
-    for (const c of ranked.cards) if (/[+−]\d|\d+ 分/.test(c.text)) expect(c.tag).toBe('demo')
-    expect(ranked.cards.some((c) => c.tag === 'key' && c.text.includes('不會被降級'))).toBe(true)
-    // 其他章節不提積分數字
-    for (const c of chapters.filter((x) => x.id !== 'ranked')) for (const card of c.cards) expect(card.tag).not.toBe('demo')
+    const text = JSON.stringify(chapters)
+    expect(text).not.toMatch(/示意|尚未上線|規劃中|只升不降。下面/)
+    expect(byId.ranked.title).toBe('競技積分與降級')
     expect(searchGuide(chapters, '  ')).toEqual([])
     expect(searchGuide(chapters, '離線').length).toBeGreaterThan(0)
   })
 
-  it('多分頁與降級的文案：不暗示有 Web Locks 時只能單分頁操作；職業、傳奇不寫成現在就會降級', () => {
+  it('多分頁的文案：有 Web Locks 時每個分頁都能操作；降級問答寫正式規則', () => {
     const chapters = guideChapters()
     const faq = chapters.find((c) => c.id === 'faq')!.faq!
     const tabs = faq.find((f) => f.q.includes('分頁'))!.a
     expect(tabs).toContain('每個分頁都可以操作')
     expect(tabs).toContain('不支援的瀏覽器')
-    expect(faq.find((f) => f.q.includes('降級'))!.a).toMatch(/職業、傳奇聯盟目前也只升不降/)
-    for (const t of [3, 4]) {
-      const text = leagueDetail(t, null).textContent!
-      expect(text).toContain('目前不會降級')
-      expect(text).toContain('尚未上線的規劃')
-    }
-    const ranked = chapters.find((c) => c.id === 'ranked')!
-    for (const c of ranked.cards.filter((x) => x.tag === 'demo')) expect(c.title).toContain('尚未上線')
+    const rel = faq.find((f) => f.q.includes('降級'))!.a
+    expect(rel).toContain(`${LEAGUES[3].name}、${LEAGUES[4].name}積分歸零才會降一級`)
+    expect(rel).toContain('不會失去')
   })
 
   it('指南在其他分頁不顯示「?」', async () => {
@@ -188,15 +179,17 @@ describe('首頁：下一個目標', () => {
     expect(goal.querySelector('.v2-demo-tag')).toBeNull()
   })
 
-  it('業餘聯盟：多一行「示意」說明下一級規劃的積分；挑戰者：說明規則確定前仍用正式條件', async () => {
+  it('業餘聯盟：說明下一級開始有競技積分；挑戰者：顯示存檔裡的積分與保底，晉級條件照舊', async () => {
     await setup(atTier(1))
-    expect($('.v2-goal-plan')!.textContent).toContain('尚未上線')
-    expect($('.v2-goal-plan')!.textContent).toContain(LEAGUES[2].name)
+    expect($('.v2-goal-plan')!.textContent).toContain(`升上${LEAGUES[2].name}後開始有競技積分`)
+    expect($('.v2-goal .v2-ranked')).toBeNull()
     app?.close()
     document.body.replaceChildren()
-    await setup(atTier(2))
-    expect($('.v2-goal-plan')!.textContent).toContain('目前不會降級')
-    expect($('.v2-goal .v2-points-bar')).toBeNull()
+    await setup(atTier(2, { points: 37 }))
+    expect($('.v2-goal .v2-ranked')!.dataset.points).toBe('37')
+    expect($('.v2-goal .v2-ranked')!.dataset.zone).toBe('floor')
+    expect($('.v2-goal .v2-ranked')!.textContent).toContain('保底')
+    expect($$('.v2-goal .v2-goal-conds li')).toHaveLength(2)
   })
 
   it('最近 60 場是滾動視窗：只顯示目前勝場與目標勝場，不承諾「再贏 N 場」', async () => {
@@ -274,15 +267,16 @@ describe('聯盟之路與聯盟詳情', () => {
     const cards = $$('.v2-road-card')
     expect(cards.map((c) => c.dataset.tier)).toEqual(['4', '3', '2', '1', '0'])
     expect(cards.map((c) => c.classList.contains('locked') ? 'locked' : c.classList.contains('current') ? 'current' : 'reached')).toEqual(['locked', 'locked', 'locked', 'current', 'reached'])
-    // 競技區的卡片都有示意標籤；新手區沒有
-    for (const c of cards) expect(!!c.querySelector('.v2-demo-tag')).toBe(Number(c.dataset.tier) >= 2)
+    // 沒有任何「示意」標籤（正式規則）；風險標籤照聯盟
+    expect(document.querySelectorAll('.v2-road-modal .v2-demo-tag')).toHaveLength(0)
+    expect(cards.map((c) => c.querySelector('.v2-risk-tag')!.className.split(' ').pop())).toEqual(['danger', 'danger', 'floor', 'safe', 'safe'])
     cards[1].click()
     await flush()
     const sheet = $('.v2-modal.sheet.v2-league-detail-modal')!
     expect(sheet.querySelector('.v2-league-detail')!.getAttribute('data-tier')).toBe('3')
-    expect(sheet.querySelector('.v2-ld-rel.danger .v2-demo-tag')).toBeTruthy()
-    expect(sheet.textContent).toContain('目前不會降級')
-    expect(sheet.textContent).toContain('尚未上線')
+    expect(sheet.querySelector('.v2-ld-rel.danger')!.textContent).toContain(`積分歸零會降回${LEAGUES[2].name}`)
+    expect(sheet.textContent).toContain('積分不影響晉級')
+    expect(sheet.textContent).not.toMatch(/晉級區|示意|尚未上線/)
     key('Escape')
     await flush()
     expect($('.v2-league-detail-modal')).toBeNull()
@@ -331,8 +325,9 @@ describe('聯盟之路與聯盟詳情', () => {
       if (def.tier < MAX_TIER) expect(d.textContent).toContain(`${PROMOTION_CONFIG.minMatches} 場`)
     }
     expect(LEAGUES.map((l) => riskOf(l.tier))).toEqual(['safe', 'safe', 'floor', 'danger', 'danger'])
-    expect(linkText(1).planned).toBe(false)
-    expect(linkText(2).planned).toBe(true)
+    expect(linkText(1).tone).toBe('safe')
+    expect(linkText(2).tone).toBe('floor')
+    expect(linkText(3).tone).toBe('danger')
   })
 
   it('徽章：星數等於等級、未到達是鎖', () => {
