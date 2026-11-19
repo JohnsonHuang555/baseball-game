@@ -16,6 +16,7 @@ import { ClubController, type ControllerState } from './clubController'
 import { renderDashboard, updateCountdown } from './dashboardView'
 import { createLineupView, type LineupView } from './lineupView'
 import { challengeResultModal, challengeStartModal, relegationModal } from './leagueView'
+import { parseSeen, pendingRelegation } from './relegationNotice'
 import { openMatchReport, renderReports, welcomeModal } from './reportView'
 import { openRecruit } from './recruitView'
 import { openPlayerDetail } from './playerView'
@@ -87,8 +88,10 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   let viewerLoading = false
   /** 建立表單裡輸入的名稱：重繪表單（例如建立失敗）時保留，重試不用重打 */
   let draftName = ''
-  /** 降級對話框開著（Phase 7B） */
+  /** 降級對話框開著（Phase 7B）：重畫時不會再開第二個 */
   let relegationOpen = false
+  /** localStorage 不能用時，這個 App 內已經通知過的降級次數 */
+  const sessionSeen = new Map<string, number>()
   /** 上一次畫面時的競技狀態（危險區 Toast 用） */
   let lastZone: { key: string; zone: string; points: number | null } | null = null
 
@@ -428,33 +431,48 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   }
 
   // ---- 降級通知（Phase 7B） ----
-  // 事件的身分是 league.relegations（累計降級次數，只增不減）：已經通知到第幾次存在 localStorage（跟存檔分開的 UI 狀態，
-  // 不用寫存檔、唯讀分頁也能記），所以重畫、重新整理、其他分頁都不會再開同一次；一次離線降兩級合併成一個對話框。
-  // 讀不到紀錄（第一次用這個裝置）時，只要存檔有降級就會通知最近那一次
-  function seenRelegations(clubId: string): number {
+  // 通知內容由 relegationNotice.ts 從存檔裡可驗證的事件決定（不從目前聯盟與累計次數反推）。
+  // 已讀紀錄（已經通知到第幾次降級）存在 localStorage，跟存檔分開；只在玩家真的關掉對話框時寫入，
+  // App 關閉（dispose）時不寫，所以還沒看到的事件下次會再通知。localStorage 不能用時，同一個 App 內用記憶體記，不會重複彈出
+  function seenRelegations(clubId: string): number | null {
+    let stored: number | null = null
     try {
-      const raw = deps.storage?.getItem(SEEN_RELEGATIONS_KEY)
-      const v = raw ? (JSON.parse(raw) as { clubId?: string; count?: number }) : null
-      return v && v.clubId === clubId && Number.isInteger(v.count) ? (v.count as number) : 0
+      stored = parseSeen(deps.storage?.getItem(SEEN_RELEGATIONS_KEY) ?? null, clubId)
     } catch {
-      return 0
+      stored = null
+    }
+    const mem = sessionSeen.get(clubId)
+    return mem === undefined ? stored : Math.max(mem, stored ?? 0)
+  }
+  function markRelegationsSeen(clubId: string, count: number): void {
+    sessionSeen.set(clubId, Math.max(count, sessionSeen.get(clubId) ?? 0))
+    try {
+      const prev = parseSeen(deps.storage?.getItem(SEEN_RELEGATIONS_KEY) ?? null, clubId) ?? 0
+      deps.storage?.setItem(SEEN_RELEGATIONS_KEY, JSON.stringify({ clubId, count: Math.max(prev, count) }))
+    } catch {
+      // 寫不進去：這個 App 內已經用記憶體記住，重新整理後會再通知一次
     }
   }
   function notifyRelegation(club: ClubSave): void {
-    const { relegations, lastRelegation } = club.league
-    if (relegationOpen || !lastRelegation) return
+    if (relegationOpen || closed) return
     const seen = seenRelegations(club.clubId)
-    if (relegations <= seen) return
-    try {
-      deps.storage?.setItem(SEEN_RELEGATIONS_KEY, JSON.stringify({ clubId: club.clubId, count: relegations }))
-    } catch {
-      // 寫不進去也只會在下次重新整理時再通知一次
+    const notice = pendingRelegation(club, seen)
+    if (!notice) {
+      // 這個裝置第一次看到這個球團、而且沒有要通知的事：把目前的降級次數記成基準，之後的降級都能算出確切的次數
+      if (seen === null) markRelegationsSeen(club.clubId, club.league.relegations)
+      return
     }
-    // 這次要通知的降級：從「沒通知過的第一次」之前的聯盟一路降到目前（最多到歷史最高；中間重返過的就只說最後一次）
-    const fromTier = Math.min(club.league.highestTier, club.league.tier + (relegations - seen))
-    const count = Math.max(1, fromTier - club.league.tier)
     relegationOpen = true
-    relegationModal(club, { count, fromTier: count > 1 ? fromTier : lastRelegation.fromTier }, { openRoad: () => openRoad() }, () => (relegationOpen = false), controller)
+    relegationModal(
+      club,
+      notice,
+      { openRoad: () => openRoad() },
+      (reason) => {
+        relegationOpen = false
+        if (reason === 'user') markRelegationsSeen(club.clubId, notice.seq)
+      },
+      controller,
+    )
   }
 
   // 危險區提示：同一個聯盟裡，積分從危險區以上掉進危險區、或離開危險區時 Toast 一次（第一次畫面不提示，卡片已經顯示）

@@ -186,10 +186,12 @@ describe('降級對話框', () => {
     expect(modal.textContent).toContain('資金、經驗與未領取收益')
     expect(modal.textContent).toContain(`重返${LEAGUES[3].name}`)
     expect(modal.querySelectorAll('.v2-lg-badge')).toHaveLength(2)
-    expect(JSON.parse(env.storage.getItem(SEEN_RELEGATIONS_KEY)!)).toEqual({ clubId: 'club-p7b', count: 1 })
+    // 已讀只在玩家真的關掉時才寫入
+    expect(env.storage.getItem(SEEN_RELEGATIONS_KEY)).toBeNull()
     key('Escape')
     await flush()
     expect($('.v2-relegation-modal')).toBeNull()
+    expect(JSON.parse(env.storage.getItem(SEEN_RELEGATIONS_KEY)!)).toEqual({ clubId: 'club-p7b', count: 1 })
     // 重畫（切分頁再回來）
     $<HTMLButtonElement>('[data-tab="lineup"]')!.click()
     await flush()
@@ -231,20 +233,69 @@ describe('降級對話框', () => {
     await flush()
     const modal = $('.v2-relegation-modal')!
     expect(modal).toBeTruthy()
-    if (c.league.relegations > 1) expect(modal.textContent).toContain(`離線期間降級 ${c.league.relegations} 次`)
+    // 連降兩級：找得到兩次的比賽紀錄就合併；第一次已經超出近期比賽保留範圍時，只說最後一次並照實註明還有幾次沒有細節
+    if (c.league.relegations > 1) expect(modal.textContent).toMatch(new RegExp(`離線期間降級 ${c.league.relegations} 次|另外還有 ${c.league.relegations - 1} 次較早的降級`))
+    // 不會出現同一個聯盟「降到」自己
+    expect(modal.textContent).not.toContain(`${LEAGUES[c.league.tier].name}的競技積分降到 0，從下一場比賽開始在${LEAGUES[c.league.tier].name}`)
     $$('.v2-relegation-modal button').find((b) => b.textContent === '回到首頁')!.click()
     await flush()
     expect($('.v2-relegation-modal')).toBeNull()
     expect(dialogDebug().layers).toBe(0)
   })
 
-  it('App 關閉時一起清掉降級對話框', async () => {
-    await open(await create(relegatedTo2), false)
+  it('App 關閉時一起清掉降級對話框，而且不算已讀：下次打開還會通知', async () => {
+    const env = await create(relegatedTo2)
+    await open(env, false)
     expect(dialogDebug().layers).toBeGreaterThan(0)
     app!.close()
     app = null
     expect(dialogDebug().layers).toBe(0)
     expect($$('.v2-relegation-modal')).toHaveLength(0)
+    expect(env.storage.getItem(SEEN_RELEGATIONS_KEY)).toBeNull()
+    document.body.replaceChildren()
+    await open(env, false)
+    expect($$('.v2-relegation-modal')).toHaveLength(1)
+  })
+
+  it('對話框開著時重畫好幾次：只有一個對話框（不重入）', async () => {
+    await open(await create(relegatedTo2), false)
+    for (const t of ['lineup', 'home', 'reports', 'home']) {
+      $<HTMLButtonElement>(`[data-tab="${t}"]`)!.click()
+      await flush()
+    }
+    expect($$('.v2-relegation-modal')).toHaveLength(1)
+  })
+
+  it('localStorage 寫不進去：關掉後同一個 App 內不再彈出（記憶體記住）；重新整理才會再通知一次', async () => {
+    class NoSeenStorage extends MemoryStorage {
+      override setItem(k: string, v: string): void {
+        if (k === SEEN_RELEGATIONS_KEY) throw new Error('quota')
+        super.setItem(k, v)
+      }
+    }
+    const env = { storage: new NoSeenStorage(), clock: new ManualClock(T0), locks: new FakeLockManager() }
+    const deps = tab(env.storage, env.clock, env.locks)
+    await createClubSafely(deps, { clubName: '積分隊', clubSeed: 11, clubId: 'club-p7b' })
+    const c = deps.store.loadClub()!
+    deps.store.saveClub(relegatedTo2(c), c.revision)
+    await open(env, false)
+    key('Escape')
+    await flush()
+    $<HTMLButtonElement>('[data-tab="lineup"]')!.click()
+    await flush()
+    $<HTMLButtonElement>('[data-tab="home"]')!.click()
+    await flush()
+    expect($('.v2-relegation-modal')).toBeNull()
+  })
+
+  it('降級後已經重新晉級（另一台裝置、沒有已讀紀錄）：不通知', async () => {
+    const env = await create((c) => {
+      const r = relegatedTo2(c)
+      // 挑戰者 → 職業：重新晉級（晉級次數 +1）
+      return { ...r, league: { ...r.league, tier: 3, promotions: r.league.promotions + 1, points: RANKED_CONFIG.initialPoints, protectionRemaining: 0 } }
+    })
+    await open(env, false)
+    expect($('.v2-relegation-modal')).toBeNull()
   })
 })
 
@@ -274,5 +325,105 @@ describe('晉級對話框', () => {
     expect($('.v2-challenge-modal')!.textContent).not.toContain('競技積分')
     close()
     expect(dialogDebug().layers).toBe(0)
+  })
+})
+
+describe('降級通知的基準', () => {
+  it('第一次在這個裝置打開、沒有要通知的事：把目前的降級次數記成基準（之後的降級才能算出確切次數）', async () => {
+    const env = await create(at(3))
+    await open(env, false)
+    expect(JSON.parse(env.storage.getItem(SEEN_RELEGATIONS_KEY)!)).toEqual({ clubId: 'club-p7b', count: 0 })
+  })
+})
+
+describe('危險區 Toast（PR #17 review P3）', () => {
+  /** 收集這段期間出現過的 Toast 文字（新的 Toast 會取代舊的，所以用 MutationObserver 記下每一則） */
+  function toasts() {
+    const seen: string[] = []
+    const mo = new MutationObserver((list) => {
+      for (const r of list) for (const n of r.addedNodes) if (n instanceof HTMLElement && n.classList.contains('toast')) seen.push(n.textContent ?? '')
+    })
+    mo.observe(document.body, { childList: true })
+    return { list: seen, ranked: () => seen.filter((t) => t.includes('危險區')), stop: () => mo.disconnect() }
+  }
+  /** 模擬另一個分頁改了存檔：直接改儲存，發 storage 事件，App 重新讀取並重畫 */
+  async function otherTab(env: Env, edit: (c: ClubSave) => ClubSave) {
+    const c = saved(env)
+    env.storage.setItem(CLUB_STORAGE_KEY, JSON.stringify({ ...edit(c), revision: c.revision + 1 }))
+    window.dispatchEvent(Object.assign(new Event('storage'), { key: CLUB_STORAGE_KEY, newValue: null }))
+    await flush()
+  }
+  const points = (p: number) => (c: ClubSave): ClubSave => ({ ...c, league: { ...c.league, points: p } })
+
+  it('職業 21 → 19：只提示一次進入危險區；同樣的資料再重畫不再提示', async () => {
+    const env = await create(at(3, { points: 21 }))
+    await open(env)
+    const t = toasts()
+    await otherTab(env, points(19))
+    expect(t.ranked()).toEqual([`進入降級危險區：積分 19 / ${RANKED_CONFIG.maxPoints}`])
+    await otherTab(env, (c) => c)
+    $<HTMLButtonElement>('[data-tab="lineup"]')!.click()
+    await flush()
+    $<HTMLButtonElement>('[data-tab="home"]')!.click()
+    await flush()
+    expect(t.ranked()).toHaveLength(1)
+    t.stop()
+  })
+
+  it('職業 19 → 22：只提示一次離開危險區', async () => {
+    const env = await create(at(3, { points: 19 }))
+    await open(env)
+    const t = toasts()
+    await otherTab(env, points(22))
+    await otherTab(env, (c) => c)
+    expect(t.ranked()).toEqual([`已離開危險區・積分 22 / ${RANKED_CONFIG.maxPoints}`])
+    t.stop()
+  })
+
+  it('挑戰者 0 分（保底）不提示；新秀、業餘沒有積分，不提示', async () => {
+    for (const [tier, from, to] of [
+      [2, 25, 0],
+      [1, null, null],
+      [0, null, null],
+    ] as const) {
+      const env = await create(at(tier, from === null ? {} : { points: from }))
+      await open(env)
+      const t = toasts()
+      await otherTab(env, (c) => (to === null ? { ...c, record: { ...c.record } } : points(to)(c)))
+      expect(t.ranked()).toEqual([])
+      t.stop()
+      app?.close()
+      app = null
+      document.body.replaceChildren()
+    }
+  })
+
+  it('晉級後積分重設（危險區 → 新聯盟 50 分）：不當成離開危險區', async () => {
+    const env = await create(at(3, { points: 12 }))
+    await open(env)
+    const t = toasts()
+    await otherTab(env, (c) => ({ ...c, league: { ...c.league, tier: 4, highestTier: 4, promotions: 4, rewardedTiers: [1, 2, 3, 4], points: 50, protectionRemaining: 20 } }))
+    expect(t.ranked()).toEqual([])
+    t.stop()
+  })
+
+  it('降級後積分重設（危險區 → 新聯盟 50 分）：不當成離開危險區', async () => {
+    const env = await create(at(4, { points: 2 }))
+    await open(env)
+    const t = toasts()
+    await otherTab(env, (c) => ({ ...c, league: { ...c.league, tier: 3, relegations: 1, lastRelegation: { fromTier: 4, toTier: 3, matchIndex: 0, at: T0 }, points: 50 } }))
+    expect(t.ranked()).toEqual([])
+    t.stop()
+  })
+
+  it('App 關閉之後，存檔再變也不會提示', async () => {
+    const env = await create(at(3, { points: 21 }))
+    await open(env)
+    const t = toasts()
+    app!.close()
+    app = null
+    await otherTab(env, points(19))
+    expect(t.list).toEqual([])
+    t.stop()
   })
 })

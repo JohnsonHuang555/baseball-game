@@ -5,6 +5,7 @@ import type { ClubSave } from '../domain/club'
 import { canRelegate, leagueOf, rankedEnabled } from '../domain/league'
 import { PROMOTION_CONFIG, RANKED_CONFIG } from '../domain/leagueConfig'
 import { leagueBadge } from './leagueBadge'
+import type { RelegationNotice } from './relegationNotice'
 import { announceModal, type CloseReason } from './dialog'
 import { icon } from './icons'
 import { V2T } from './strings'
@@ -80,20 +81,13 @@ export function challengeStartModal(out: ChallengeOutcome, watch: () => void, re
   return close
 }
 
-export interface RelegationNotice {
-  /** 這次要通知的降級次數（一次離線可能降兩級） */
-  count: number
-  /** 第一次降級前的聯盟 */
-  fromTier: number
-}
-
 /**
  * 降級結果（設計稿 p7 IdRank relegate）：原本聯盟 → 降級後聯盟、原因、保留的東西、新的目標。
- * 只讀存檔裡的 league.lastRelegation；什麼時候開、會不會重複開由 App 決定（見 app.ts 的 relegation 去重）
+ * 內容來自 relegationNotice.ts 從存檔驗證過的事件；什麼時候開、會不會重複開由 App 決定（見 app.ts）
  */
 export function relegationModal(club: ClubSave, notice: RelegationNotice, actions: { openRoad: () => void }, onClose?: (reason: CloseReason) => void, owner?: unknown): () => void {
   const last = club.league.lastRelegation!
-  const to = club.league.tier
+  const to = notice.toTier
   const body = el('div', 'v2-relegation')
   const badges = el('div', 'v2-relegation-badges')
   const from = leagueBadge(notice.fromTier, 'reached', 48)
@@ -110,6 +104,8 @@ export function relegationModal(club: ClubSave, notice: RelegationNotice, action
   goal.append(el('span', 'v2-relegation-k', V2T.relegationGoalTitle), el('strong', '', V2T.relegationGoal(leagueOf(last.fromTier).name)), el('p', '', canRelegate(to) ? V2T.relegationGoalAgain(RANKED_CONFIG.initialPoints, leagueOf(to - 1).name) : V2T.relegationGoalFloor(leagueOf(to).name, PROMOTION_CONFIG.minMatches, Math.round(PROMOTION_CONFIG.winRate * 100), PROMOTION_CONFIG.window)))
   body.append(keep, goal)
   const sub = notice.count > 1 ? V2T.relegationSubMulti(notice.count, leagueOf(notice.fromTier).name, leagueOf(to).name) : V2T.relegationSub(leagueOf(last.fromTier).name, leagueOf(to).name)
+  // 較早還有沒通知、但已經找不到紀錄的降級：照實說，不猜路徑
+  if (notice.unverified > 0) body.append(el('p', 'v2-hint v2-relegation-unverified', V2T.relegationUnverified(notice.unverified)))
   let close: () => void = () => {}
   close = announceModal({
     icon: 'alert',

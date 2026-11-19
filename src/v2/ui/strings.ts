@@ -298,6 +298,7 @@ export const V2T = {
   relegationTitle: (to: string) => `降到${to}`,
   relegationSub: (from: string, to: string) => `${from}的競技積分降到 0，從下一場比賽開始在${to}出賽`,
   relegationSubMulti: (count: number, from: string, to: string) => `離線期間降級 ${count} 次：從${from}降到${to}。從下一場比賽開始在${to}出賽`,
+  relegationUnverified: (n: number) => `另外還有 ${n} 次較早的降級沒有通知過，詳細紀錄已經不在近期比賽裡。`,
   relegationKeepTitle: '這些都會保留',
   relegationKeeps: (highest: string) => ['全部球員、陣容與戰術', '資金、經驗與未領取收益', `總戰績與歷史最高聯盟（${highest}）`, '首次晉級獎勵已經領過，重返時不再發放'],
   relegationGoalTitle: '新的目標',
