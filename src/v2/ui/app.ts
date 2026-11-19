@@ -15,14 +15,16 @@ import type { LiveCard } from './dashboardView'
 import { ClubController, type ControllerState } from './clubController'
 import { renderDashboard, updateCountdown } from './dashboardView'
 import { createLineupView, type LineupView } from './lineupView'
-import { challengeResultModal, challengeStartModal } from './leagueView'
+import { challengeResultModal, challengeStartModal, relegationModal } from './leagueView'
+import { parseSeen, pendingRelegation } from './relegationNotice'
 import { openMatchReport, renderReports, welcomeModal } from './reportView'
 import { openRecruit } from './recruitView'
 import { openPlayerDetail } from './playerView'
 import { V2T } from './strings'
 import { closeDialogs, refocusTopDialog } from './dialog'
 import { icon, iconSvg, type IconName } from './icons'
-import { leagueOf } from '../domain/league'
+import { leagueOf, rankedView } from '../domain/league'
+import { RANKED_CONFIG } from '../domain/leagueConfig'
 import { createTacticsView, type TacticsView } from './tacticsView'
 import { openGuide } from './guideView'
 import { openLeagueRoad } from './leagueRoadView'
@@ -63,6 +65,9 @@ export interface V2App {
  * 開啟 V2（整個網站就是 V2，沒有可以「離開」的上一層）。
  * close() 只給測試與重新掛載用：畫面上沒有任何會呼叫它的按鈕或按鍵
  */
+/** 已經通知過幾次降級（localStorage，跟存檔分開的 UI 狀態） */
+export const SEEN_RELEGATIONS_KEY = `${CLUB_STORAGE_KEY}.seen-relegations`
+
 export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   const deps = opts.deps ?? createV2Deps()
   const win = opts.events ?? (globalThis.window as V2AppOptions['events'])
@@ -83,6 +88,12 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   let viewerLoading = false
   /** 建立表單裡輸入的名稱：重繪表單（例如建立失敗）時保留，重試不用重打 */
   let draftName = ''
+  /** 降級對話框開著（Phase 7B）：重畫時不會再開第二個 */
+  let relegationOpen = false
+  /** localStorage 不能用時，這個 App 內已經通知過的降級次數 */
+  const sessionSeen = new Map<string, number>()
+  /** 上一次畫面時的競技狀態（危險區 Toast 用） */
+  let lastZone: { key: string; zone: string; points: number | null } | null = null
 
   const screen = el('div', 'v2-screen')
   const body = el('div', 'v2-body')
@@ -412,6 +423,67 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
       shownWelcome = state.welcome.key
       welcomeModal(state.welcome, (reason) => reason === 'user' && controller.dismissWelcome(), controller)
     }
+    if (state.status.kind === 'ready' && state.club) {
+      notifyDanger(state.club)
+      // 通知順序：挑戰結果 → 歡迎回來（離線摘要）→ 降級。前面兩個還開著時先不開降級，關掉後重畫時再開
+      if (!state.challengeResult && !state.welcome) notifyRelegation(state.club)
+    }
+  }
+
+  // ---- 降級通知（Phase 7B） ----
+  // 通知內容由 relegationNotice.ts 從存檔裡可驗證的事件決定（不從目前聯盟與累計次數反推）。
+  // 已讀紀錄（已經通知到第幾次降級）存在 localStorage，跟存檔分開；只在玩家真的關掉對話框時寫入，
+  // App 關閉（dispose）時不寫，所以還沒看到的事件下次會再通知。localStorage 不能用時，同一個 App 內用記憶體記，不會重複彈出
+  function seenRelegations(clubId: string): number | null {
+    let stored: number | null = null
+    try {
+      stored = parseSeen(deps.storage?.getItem(SEEN_RELEGATIONS_KEY) ?? null, clubId)
+    } catch {
+      stored = null
+    }
+    const mem = sessionSeen.get(clubId)
+    return mem === undefined ? stored : Math.max(mem, stored ?? 0)
+  }
+  function markRelegationsSeen(clubId: string, count: number): void {
+    sessionSeen.set(clubId, Math.max(count, sessionSeen.get(clubId) ?? 0))
+    try {
+      const prev = parseSeen(deps.storage?.getItem(SEEN_RELEGATIONS_KEY) ?? null, clubId) ?? 0
+      deps.storage?.setItem(SEEN_RELEGATIONS_KEY, JSON.stringify({ clubId, count: Math.max(prev, count) }))
+    } catch {
+      // 寫不進去：這個 App 內已經用記憶體記住，重新整理後會再通知一次
+    }
+  }
+  function notifyRelegation(club: ClubSave): void {
+    if (relegationOpen || closed) return
+    const seen = seenRelegations(club.clubId)
+    const notice = pendingRelegation(club, seen)
+    if (!notice) {
+      // 這個裝置第一次看到這個球團、而且沒有要通知的事：把目前的降級次數記成基準，之後的降級都能算出確切的次數
+      if (seen === null) markRelegationsSeen(club.clubId, club.league.relegations)
+      return
+    }
+    relegationOpen = true
+    relegationModal(
+      club,
+      notice,
+      { openRoad: () => openRoad() },
+      (reason) => {
+        relegationOpen = false
+        if (reason === 'user') markRelegationsSeen(club.clubId, notice.seq)
+      },
+      controller,
+    )
+  }
+
+  // 危險區提示：同一個聯盟裡，積分從危險區以上掉進危險區、或離開危險區時 Toast 一次（第一次畫面不提示，卡片已經顯示）
+  function notifyDanger(club: ClubSave): void {
+    const v = rankedView(club.league)
+    const key = `${club.clubId}:${club.league.tier}:${club.league.relegations}:${club.league.promotions}`
+    const prev = lastZone
+    lastZone = { key, zone: v.zone, points: v.points }
+    if (!prev || prev.key !== key || !v.canRelegate || v.points === null || prev.zone === v.zone) return
+    if (v.zone === 'danger') toast(V2T.dangerEnter(v.points, RANKED_CONFIG.maxPoints))
+    else if (prev.zone === 'danger') toast(V2T.dangerLeave(v.points, RANKED_CONFIG.maxPoints))
   }
 
   /** 首次進入、讀取中、錯誤畫面上方的標誌 */

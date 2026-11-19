@@ -61,6 +61,8 @@ ui/dashboardView.ts goalCard → openRoad
 
 ## 4. 第二階段（RFC 確認後）
 
+> 已在 Phase 7B 完成（方案 D），實際設計見 [ADR-0019](adr/0019-v2-ranked-leagues.md)。跟下面的草案不同的地方：有積分的聯盟從挑戰者開始（D），挑戰者積分不影響任何結果。
+
 1. `domain/leagueConfig.ts` 新增 `RANKED_CONFIG`（定案的數字）。
 2. `LeagueState` 新增 `points`、`protectLeft`、`relegations`、`lastRelegation?`；`recordLeagueResult` 改成同時更新積分。
 3. 降級在 `settleOutcomes` 逐場判定；判定後同一批剩下的比賽要用新聯盟重新規劃（`settleDueUnsaved` 把一批切成兩段：降級點之前、之後）。這是唯一需要動結算流程的地方。

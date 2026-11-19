@@ -10,7 +10,7 @@ import { upgrade } from '../application/economyService'
 import { resolveRoster } from '../domain/roster'
 import { validateClubV3 } from '../domain/legacyV3'
 import { CLUB_SCHEMA_VERSION } from '../domain/club'
-import { FakeLockManager, HOUR, ManualClock, tab } from '../testkit'
+import { FakeLockManager, HOUR, ManualClock, tab, v8League } from '../testkit'
 import { CLUB_BACKUP_KEY_V3, CLUB_BACKUP_KEY_V4, CLUB_BACKUP_KEY_V5, CLUB_BACKUP_KEY_V6, CLUB_STORAGE_KEY, ClubRepository, ClubSaveError, MemoryStorage, type KeyValueStorage } from './clubRepository'
 
 const RAW_V3 = JSON.stringify(fixture)
@@ -234,7 +234,7 @@ describe('存檔遷移', () => {
   it('壞掉的 V3、不支援的版本：明確報錯，不覆蓋原本的存檔', async () => {
     const cases: [string, string][] = [
       [JSON.stringify({ ...fixture, economy: { ...fixture.economy, assets: { funds: -5, experience: 0 } } }), 'migration-failed'],
-      [JSON.stringify({ ...fixture, schemaVersion: 9 }), 'unsupported-version'],
+      [JSON.stringify({ ...fixture, schemaVersion: 10 }), 'unsupported-version'],
       ['{oops', 'invalid-json'],
     ]
     for (const [raw, code] of cases) {
@@ -355,7 +355,7 @@ describe('V5 → V7 存檔遷移', () => {
     expect(storage.getItem(CLUB_BACKUP_KEY_V5)).toBe(RAW_V5)
     expect(storage.getItem(CLUB_BACKUP_KEY_V3)).toBe(RAW_V3)
     expect(storage.getItem(CLUB_BACKUP_KEY_V4)).toBe(JSON.stringify(fixtureV4))
-    expect(club.league).toEqual(fixtureV5.league)
+    expect(v8League(club.league)).toEqual(fixtureV5.league)
     expect(club.players).toEqual(fixtureV5.players)
     expect(club.economy).toEqual(fixtureV5.economy)
     expect(club.idle).toEqual(fixtureV5.idle)
@@ -412,7 +412,7 @@ describe('V6（PR #9 草稿）→ V7 存檔遷移', () => {
     expect(club.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(storage.getItem(CLUB_BACKUP_KEY_V6)).toBe(RAW_V6)
     expect(club.challengeReplay).toEqual(fixtureV6.challengeReplay)
-    expect(club.league).toEqual(fixtureV6.league)
+    expect(v8League(club.league)).toEqual(fixtureV6.league)
     expect(club.economy).toEqual(fixtureV6.economy)
     expect((await settleDue(deps)).settled).toHaveLength(0)
     clock.advance(HOUR)

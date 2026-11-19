@@ -15,7 +15,6 @@ import { canAfford, recruit, release, upgrade } from '../../src/v2/application/e
 import { lineupCandidate, nearestUpgrade, suggestNextAction, upgradeCandidate } from '../../src/v2/application/guidance'
 import { challengeNextLeague } from '../../src/v2/application/leagueService'
 import { claim, settleDue, updateSettings } from '../../src/v2/application/settlementService'
-import { dueMatches, MATCH_INTERVAL_MS, MAX_OFFLINE_MS } from '../../src/v2/application/idleEngine'
 import type { ClubSave, Resources } from '../../src/v2/domain/club'
 import { eligibility } from '../../src/v2/domain/league'
 import { LEAGUES } from '../../src/v2/domain/leagueConfig'
@@ -28,7 +27,7 @@ import { rewardFor } from '../../src/v2/domain/rewards'
 import { assignedIds, reserves, resolveRoster, toAssignment } from '../../src/v2/domain/roster'
 import { MemoryStorage } from '../../src/v2/infrastructure/clubRepository'
 import { FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab } from '../../src/v2/testkit'
-import type { RankedHook, RankedLog } from './ranked'
+import type { SettledMatch } from '../../src/v2/domain/club'
 
 export const STRATEGIES = ['A', 'B', 'C', 'D', 'E'] as const
 export type Strategy = (typeof STRATEGIES)[number]
@@ -167,8 +166,6 @@ export interface SimResult {
   ledger: Ledger
   milestones: Milestones
   recruits: RecruitLog[]
-  /** Phase 7 模擬專用的積分／降級紀錄（有指定 ranked 才有） */
-  ranked?: RankedLog
 }
 
 export interface SimOptions {
@@ -178,10 +175,10 @@ export interface SimOptions {
   days: number
   /** 改用指定的上線時間（開始後第幾分鐘），每次上線後記一筆快照（新手前 24 小時分析用） */
   sessionMinutes?: number[]
-  /** Phase 7：模擬專用的積分／降級規則（RFC 比較方案用，見 ranked.ts） */
-  ranked?: RankedHook
-  /** Phase 7：用舊的整批近似（一次上線整批結算完才算積分）；預設是分段結算，降級後的比賽用新聯盟規劃 */
-  rankedApprox?: boolean
+  /** 觀察者（Phase 7B 平衡分析用）：每次上線結算完、做任何事之前呼叫，帶這次新結算的比賽與結算耗時 */
+  onSession?: (info: { day: number; settled: readonly SettledMatch[]; before: ClubSave; after: ClubSave; settleMs: number }) => void
+  /** 每次晉級挑戰之後呼叫 */
+  onChallenge?: (info: { day: number; fromTier: number; toTier: number; won: boolean }) => void
 }
 
 const zero = (): Resources => ({ funds: 0, experience: 0 })
@@ -293,11 +290,9 @@ export async function simulate(o: SimOptions): Promise<SimResult> {
 
   const tryChallenge = async () => {
     const c = load(d)
-    const ok = o.ranked ? o.ranked.canChallenge(c) : eligibility(c.league, c.idle.nextMatchIndex).ok
-    if (!ok) return false
-    const finish = o.ranked?.prepareChallenge(d)
-    const out = await challengeNextLeague(d, { challengeSeq: load(d).league.nextChallengeSeq, fromTier: c.league.tier })
-    finish?.(out, day())
+    if (!eligibility(c.league, c.idle.nextMatchIndex).ok) return false
+    const out = await challengeNextLeague(d, { challengeSeq: c.league.nextChallengeSeq, fromTier: c.league.tier })
+    o.onChallenge?.({ day: day(), fromTier: out.challenge.fromTier, toTier: out.challenge.toTier, won: out.challenge.won })
     actions++
     const t = tiers[c.league.tier]
     t.attempts++
@@ -310,41 +305,12 @@ export async function simulate(o: SimOptions): Promise<SimResult> {
     return true
   }
 
-  /**
-   * 分段結算（Phase 7 模擬）：跟正式的 settleDue 結果一樣（同樣的場次、種子、離線上限），
-   * 只是每段最多結算 hook.chunk() 場，降級後下一段就用新聯盟的對手強度與收益倍率規劃。
-   * 先把錨點拉到 now − 8 小時（正式 advanceAnchor 結算時也會這樣捨棄超過上限的時間），再把時鐘停在每段的結束時間
-   */
-  const settleInChunks = async (hook: RankedHook) => {
-    const T = clock.now()
-    const c0 = load(d)
-    const floor = T - MAX_OFFLINE_MS
-    if (c0.idle.anchorMs < floor) d.store.saveClub({ ...c0, idle: { ...c0.idle, anchorMs: floor } }, c0.revision)
-    const all: Awaited<ReturnType<typeof settleDue>>['settled'] = []
-    try {
-      for (let guard = 0; guard < 500; guard++) {
-        const c = load(d)
-        const due = dueMatches(c.idle, T).matches
-        if (due <= 0) break
-        const k = Math.min(due, hook.chunk())
-        clock.set(c.idle.anchorMs + k * MATCH_INTERVAL_MS)
-        const r = await settleDue(d)
-        if (!r.settled.length) break
-        hook.afterSettle(d, r.settled, day())
-        all.push(...r.settled)
-      }
-    } finally {
-      clock.set(T)
-    }
-    return all
-  }
-
   const session = async () => {
     sessions++
-    o.ranked?.startSession()
-    const settled = o.ranked && !o.rankedApprox ? await settleInChunks(o.ranked) : (await settleDue(d)).settled
-    if (o.ranked && o.rankedApprox) o.ranked.afterSettle(d, settled, day())
-    if (o.ranked) o.ranked.observe(load(d))
+    const before = load(d)
+    const t0 = performance.now()
+    const { settled } = await settleDue(d)
+    o.onSession?.({ day: day(), settled, before, after: load(d), settleMs: performance.now() - t0 })
     for (const m of settled) {
       const t = m.result.leagueTier ?? 0
       tiers[t].games++
@@ -369,7 +335,7 @@ export async function simulate(o: SimOptions): Promise<SimResult> {
       actions++
     }
     c = load(d)
-    const eligibleNow = o.ranked ? o.ranked.canChallenge(c) : eligibility(c.league, c.idle.nextMatchIndex).ok
+    const eligibleNow = eligibility(c.league, c.idle.nextMatchIndex).ok
     if (eligibleNow && tiers[c.league.tier].firstEligibleDay === null) tiers[c.league.tier].firstEligibleDay = day()
     const active = (x: ClubSave) => activeRecords(x).map((r) => r.player.id)
     switch (o.strategy) {
@@ -482,7 +448,7 @@ export async function simulate(o: SimOptions): Promise<SimResult> {
       snapshots.push(snap(dday))
     }
   }
-  return { strategy: o.strategy, seed: o.seed, sessionsPerDay: o.sessionsPerDay, days: o.days, snapshots, tiers, ledger, milestones: ms, recruits: recruitLog, ranked: o.ranked?.log }
+  return { strategy: o.strategy, seed: o.seed, sessionsPerDay: o.sessionsPerDay, days: o.days, snapshots, tiers, ledger, milestones: ms, recruits: recruitLog }
 }
 
 // ---- 統計 ----

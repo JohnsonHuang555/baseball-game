@@ -7,7 +7,8 @@ import { v2Modal, type CloseReason } from './dialog'
 import { guideChapters, searchGuide, type GuideChapter, type GuideVisual } from './guideContent'
 import { icon } from './icons'
 import { leagueBadge } from './leagueBadge'
-import { placeholderTag, previewPointsBar, RANKED_PREVIEW } from './leagueInfo'
+import { pointsBar } from './leagueInfo'
+import { RANKED_CONFIG } from '../domain/leagueConfig'
 
 export interface GuideOptions {
   desk?: boolean
@@ -42,12 +43,13 @@ function visual(v: GuideVisual): HTMLElement {
       box.append(node)
     })
   } else {
-    const r = RANKED_PREVIEW
+    const r = RANKED_CONFIG
+    const t = r.relegationTiers[0]
     const head = el('div', 'v2-guide-points-head')
-    head.append(el('span', '', `示意：職業聯盟 ${r.start} / ${r.max}`), placeholderTag())
+    head.append(el('span', '', `例：${LEAGUES[t].name} ${r.initialPoints} / ${r.maxPoints}（剛晉級的起始積分）`))
     const legend = el('div', 'v2-guide-points-legend')
-    legend.append(el('span', 'danger', `危險區 ≤ ${r.dangerAt}`), el('span', 'up', `晉級區 ≥ ${r.promoteAt}`), el('span', '', `勝 +${r.win}／敗 −${r.loss}`))
-    box.append(head, previewPointsBar(3, r.start), legend)
+    legend.append(el('span', 'danger', `危險區 ≤ ${r.dangerThreshold}`), el('span', '', `勝 +${r.winPoints}／敗 −${-r.lossPoints}`), el('span', '', `歸零降級・${LEAGUES[r.relegationFloorTier].name}保底`))
+    box.append(head, pointsBar(t, r.initialPoints, `例：${LEAGUES[t].name}積分 ${r.initialPoints} / ${r.maxPoints}`), legend)
   }
   return box
 }
@@ -75,7 +77,6 @@ function chapterView(c: GuideChapter, index: number, total: number, go: (i: numb
       const head = el('div', 'v2-guide-card-head')
       head.append(el('strong', '', card.title))
       if (card.tag === 'key') head.append(el('span', 'v2-key-tag', '重點'))
-      if (card.tag === 'demo') head.append(placeholderTag('尚未上線'))
       const text = el('div', 'v2-guide-card-text')
       text.append(head, el('p', '', card.text))
       item.append(ci, text)

@@ -11,7 +11,7 @@ import { onboardingProgress } from '../domain/onboarding'
 import { upgradeCost } from '../domain/progression'
 import { assignedIds } from '../domain/roster'
 import { CLUB_BACKUP_KEY_V7, CLUB_STORAGE_KEY, ClubSaveError, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab } from '../testkit'
+import { FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab, v8League } from '../testkit'
 import { createClubSafely, openClubSafely } from './clubLifecycle'
 import { recruit, release, upgrade } from './economyService'
 import { lineupCandidate, nearestUpgrade, suggestNextAction, upgradeCandidate } from './guidance'
@@ -254,7 +254,7 @@ describe('V7 → V8 遷移', () => {
     const club = migrateToLatest(old)
     const { schemaVersion, revision, migratedFrom, onboarding, ...rest } = club
     const { schemaVersion: _s, revision: oldRevision, ...oldRest } = old
-    expect(rest).toEqual(oldRest)
+    expect({ ...rest, league: v8League(rest.league) }).toEqual(oldRest)
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(revision).toBe(oldRevision + 1)
     expect(migratedFrom).toEqual({ schemaVersion: 7, revision: oldRevision })

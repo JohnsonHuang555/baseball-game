@@ -7,6 +7,7 @@ import { leagueOf } from '../domain/league'
 import { IDLE_CONFIG } from '../domain/config'
 import type { ControllerState, WelcomeSummary } from './clubController'
 import { V2T } from './strings'
+import { rankedDeltaChip, rankedReport } from './leagueInfo'
 import { announceModal, v2Modal, type CloseReason } from './dialog'
 import { icon } from './icons'
 
@@ -75,6 +76,8 @@ function reportRow(m: SettledMatch, open: (m: SettledMatch) => void): HTMLElemen
   body.append(el('span', 'v2-match-opp', V2T.vs(r.opponentName)), el('span', 'v2-match-sub', `${V2T.matchNo(m.matchIndex + 1)}・${V2T.innings(r.innings)}`))
   const earned = el('span', 'v2-report-earned')
   earned.append(el('span', '', `+${fmt(m.earnedFunds)} ${V2T.funds}`), el('span', '', `+${fmt(m.earnedExperience)} ${V2T.experience}`))
+  const chip = rankedDeltaChip(m)
+  if (chip) body.append(chip)
   b.append(el('span', 'v2-result-badge', r.won ? V2T.win : V2T.loss), body, el('span', 'v2-match-score', `${r.runsFor} : ${r.runsAgainst}`), earned, icon('chev', 16, 'v2-report-chev'))
   b.onclick = () => open(m)
   return b
@@ -111,6 +114,8 @@ export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown
     hl.append(ul)
   } else hl.append(el('p', 'v2-hint', V2T.noHighlights))
   body.append(hl)
+  const ranked = rankedReport(m)
+  if (ranked) body.append(ranked)
   if (m.box) body.append(boxTables(m.box))
   const rewards = el('section', 'v2-report-card v2-report-rewards')
   rewards.setAttribute('aria-label', `${V2T.rewards} ${V2T.earned(m.earnedFunds, m.earnedExperience)}`)

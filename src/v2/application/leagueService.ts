@@ -17,7 +17,7 @@
 // - 存檔寫入失敗：丟 ClubSaveError，什麼都沒變，不會回報成功
 import type { Side } from '../../sim/game'
 import { SEED_SALT, deriveSeed, userSideFor, type ClubSave, type Resources } from '../domain/club'
-import { eligibility, leagueOf, type ChallengeRecord } from '../domain/league'
+import { promotedRanked, eligibility, leagueOf, type ChallengeRecord } from '../domain/league'
 import { MAX_TIER, PROMOTION_CONFIG } from '../domain/leagueConfig'
 import { buildPlan, runBatch, type MatchOutcome, type MatchPlan } from './batchRunner'
 import { SettlementError, settleDueUnsaved, type SettlementDeps } from './settlementService'
@@ -142,6 +142,9 @@ export function applyChallenge(club: ClubSave, req: ChallengeRequest, outcome: M
     league.losses = 0
     league.recent = ''
     league.challengeReadyAt = 0
+    // 競技積分：重設為起始值、開啟晉級保護（挑戰賽本身不計分）
+    Object.assign(league, promotedRanked(toTier))
+    // 首次晉級獎勵看 rewardedTiers（不看目前或最高階級）：降級後重返不會再發
     if (!league.rewardedTiers.includes(toTier)) {
       reward = { ...leagueOf(toTier).promotionReward }
       league.rewardedTiers = [...league.rewardedTiers, toTier]

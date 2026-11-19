@@ -368,7 +368,7 @@ describe('多分頁與存檔錯誤', () => {
   })
 
   it('存檔損壞或版本不相容：顯示錯誤，不會清除存檔', async () => {
-    for (const raw of ['{broken', JSON.stringify({ schemaVersion: 9 })]) {
+    for (const raw of ['{broken', JSON.stringify({ schemaVersion: 10 })]) {
       const storage = new MemoryStorage()
       storage.setItem(CLUB_STORAGE_KEY, raw)
       const { c } = controllerFor(storage)

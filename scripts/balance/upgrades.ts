@@ -1,6 +1,7 @@
 // 升級效益的對照實驗：同一個球團種子、同一批比賽（場次序號、種子、對手完全相同）、同樣的戰術與陣容配置，
 // 只改球員等級。比賽用正式的 planMatches + runBatch（MatchRunner），所以差異只來自養成後的能力。
 // 每種配置花「同樣多的經驗」（資金固定是經驗的 8 倍，不是限制），比較平均養成、集中打者、集中投手、打投各半、集中主力。
+import { leagueAtTier } from '../../src/v2/domain/league'
 import { overall } from '../../src/sim/generate'
 import { planMatches, runBatch } from '../../src/v2/application/batchRunner'
 import type { ClubSave } from '../../src/v2/domain/club'
@@ -24,7 +25,7 @@ export const VARIANT_NAMES: Record<Variant, string> = {
 
 export function baseClub(seed: number, tier: number): ClubSave {
   const club = new ClubRepository(new MemoryStorage()).createClub({ clubName: '對照', clubSeed: seed, clubId: `up-${seed}`, now: T0 })
-  return { ...club, league: { ...club.league, tier, highestTier: tier, promotions: tier } }
+  return { ...club, league: leagueAtTier(club.league, tier) }
 }
 
 /** 在 pool 裡的球員之間，從等級最低的開始升級，直到花完 budget 經驗（下一級付不起就停） */

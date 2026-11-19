@@ -1,5 +1,6 @@
 // V2 放置結算的效能量測：npm run bench:v2:idle
 // 量 1、10、96、1,000 場「做計畫 → 批次模擬 → 記帳 → 存檔」各段的耗時，以及存檔大小
+import { leagueAtTier } from '../src/v2/domain/league'
 import { planMatches, runBatch, yieldToMain } from '../src/v2/application/batchRunner'
 import { settleOutcomes } from '../src/v2/application/settlementService'
 import { ClubRepository, MemoryStorage, CLUB_STORAGE_KEY } from '../src/v2/infrastructure/clubRepository'
@@ -105,7 +106,7 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
       economy: { ...c0.economy, assets: rich, earned: rich },
       idle: { ...c0.idle, nextMatchIndex: 20_000 },
       record: { wins: 11_000, losses: 9_000, runsFor: 90_000, runsAgainst: 85_000 },
-      league: { ...c0.league, tier: MAX_TIER - 1, highestTier: MAX_TIER - 1, promotions: MAX_TIER - 1, rewardedTiers: [1, 2, 3], matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window), nextChallengeSeq: 50, challenges },
+      league: leagueAtTier(c0.league, MAX_TIER - 1, { matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window), nextChallengeSeq: 50, challenges }),
     },
     c0.revision,
   )
@@ -125,7 +126,7 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   // 還沒晉級就直接放到最高聯盟（只為了量最高聯盟的結算與存檔大小）
   {
     const c = load()
-    if (c.league.tier < MAX_TIER) deps.store.saveClub({ ...c, league: { ...c.league, tier: MAX_TIER, highestTier: MAX_TIER, promotions: MAX_TIER, rewardedTiers: [1, 2, 3, 4], matches: 0, wins: 0, losses: 0, recent: '' } }, c.revision)
+    if (c.league.tier < MAX_TIER) deps.store.saveClub({ ...c, league: leagueAtTier(c.league, MAX_TIER, { matches: 0, wins: 0, losses: 0, recent: '', nextChallengeSeq: c.league.nextChallengeSeq, challenges: c.league.challenges }) }, c.revision)
   }
   let t = performance.now()
   t = performance.now()
@@ -208,4 +209,58 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   }
   const per = (performance.now() - t) / frames
   console.log(`\n精彩時刻判定＋關鍵打席：每格 ${(per * 1000).toFixed(1)} µs（${frames} 格）；一場約 ${ms(per * (frames / 20))}`)
+}
+
+// ---- Phase 7B：分段結算的成本（降級可能發生時，一批 96 場會切成好幾段規劃） ----
+{
+  const { settleDueUnsaved, settleIdle } = await import('../src/v2/application/settlementService')
+  const { matchesBeforePossibleRelegation } = await import('../src/v2/domain/league')
+  const { FakeLockManager, HOUR, ManualClock, tab } = await import('../src/v2/testkit')
+  const scenario = async (label: string, tier: number, points: number | null, weak: boolean) => {
+    const storage = new MemoryStorage()
+    const clock = new ManualClock(T0)
+    const deps = tab(storage, clock, new FakeLockManager())
+    deps.batch.yieldControl = null
+    const c0 = deps.store.createClub({ clubName: '分段', clubSeed: 5, clubId: `seg-${label}`, now: T0 })
+    let club = { ...c0, league: leagueAtTier(c0.league, tier, points === null ? {} : { points }) }
+    if (weak) club = { ...club, players: club.players.map((r) => ({ ...r, player: { ...r.player, ratings: Object.fromEntries(Object.keys(r.player.ratings).map((k) => [k, 1])) } as unknown as typeof r.player })) }
+    club = deps.store.saveClub(club, c0.revision)
+    clock.advance(8 * HOUR)
+    const now = clock.now()
+    const runs = 5
+    let tNew = 0
+    let tOld = 0
+    let segments = 0
+    let relegations = 0
+    for (let i = 0; i < runs; i++) {
+      let t = performance.now()
+      const { next } = await settleDueUnsaved(club, now, deps)
+      tNew += performance.now() - t
+      relegations = next.club.league.relegations
+      // 數段數：照同樣的規則重走一次
+      let s = 0
+      let c = club
+      let left = 96
+      while (left > 0) {
+        const k = Math.min(left, matchesBeforePossibleRelegation(c.league))
+        const seg = next.settled.slice(96 - left, 96 - left + k)
+        left -= seg.length
+        s++
+        if (!seg.length) break
+        c = { ...c, league: { ...c.league, ...(seg.at(-1)!.ranked?.relegatedTo != null ? { tier: seg.at(-1)!.ranked!.relegatedTo!, points: 50, protectionRemaining: 0 } : { points: seg.at(-1)!.ranked?.after ?? c.league.points }) } }
+      }
+      segments = s
+      // 對照：加入競技系統前的做法（一次規劃整批 96 場，同一個聯盟打完）
+      t = performance.now()
+      settleIdle(club, (await runBatch(planMatches(club, 0, 96), { yieldControl: null })).outcomes, now)
+      tOld += performance.now() - t
+    }
+    console.log(`${label} | ${ms(tNew / runs)} | ${ms(tOld / runs)} | ${((tNew / tOld - 1) * 100).toFixed(1)}% | ${segments} | ${relegations}`)
+  }
+  console.log('\nPhase 7B 分段結算（一次結算 96 場，平均 5 次）')
+  console.log('情境 | 分段結算 | 一次規劃整批（7A 以前的做法） | 差異 | 段數 | 降級次數')
+  await scenario('新秀（不會降級）', 0, null, false)
+  await scenario('挑戰者（保底）', 2, 50, false)
+  await scenario('職業 50 分、一般球隊', 3, 50, false)
+  await scenario('傳奇 10 分、全隊能力 1（中途降級）', 4, 10, true)
 }

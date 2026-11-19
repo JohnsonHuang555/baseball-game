@@ -1,14 +1,14 @@
-// V2 球團存檔（schemaVersion 8）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度、
+// V2 球團存檔（schemaVersion 9）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度、
 // 進行中比賽的固定計畫、近期比賽（含 Box Score）、最近一次晉級挑戰的 Replay 與新手任務的旗標。
 // 不沿用 V1 的 Tournament：錦標賽是一輪一輪的 roguelike，V2 的球團要一直存在、一直累積。
-// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → 5 → 6 → 7 → 8）見 migration.ts
+// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → 5 → 6 → 7 → 8 → 9）見 migration.ts
 import type { Side } from '../../sim/game'
 import type { Player, Position, Roster } from '../../sim/types'
 import type { CoachParams, CoachStyle } from '../application/autoCoach'
 import type { MatchPlan } from '../application/batchRunner'
 import type { MatchReplay } from '../application/matchRunner'
 import { lineupIssues } from './lineup'
-import { leagueViolations, newLeagueState, type LeagueState } from './league'
+import { leagueViolations, newLeagueState, type LeagueState, type RankedMatchRecord } from './league'
 import { MAX_TIER } from './leagueConfig'
 import { newOnboarding, type OnboardingState } from './onboarding'
 import { MAX_LEVEL, RECRUIT_CONFIG, SPEND_LOG_LIMIT } from './progressionConfig'
@@ -18,7 +18,7 @@ import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, v
 
 export { ClubValidationError, type ClubValidationCode } from './validation'
 
-export const CLUB_SCHEMA_VERSION = 8
+export const CLUB_SCHEMA_VERSION = 9
 
 /**
  * 換算好的陣容：先發、板凳、投手都是完整的球員物件（養成後的能力），也就是模擬引擎吃的 Roster。
@@ -166,6 +166,8 @@ export interface SettledMatch {
   playedAt?: number
   /** Box Score；schemaVersion 7 以前、而且沒有保留完整 Replay 的比賽沒有 */
   box?: BoxScore
+  /** 這場的競技積分變化（schemaVersion 9 起、挑戰者以上的比賽才有；舊比賽沒有，畫面顯示「未記錄」） */
+  ranked?: RankedMatchRecord
 }
 
 /**
@@ -185,7 +187,7 @@ export interface ChallengeReplay {
   replay: MatchReplay
 }
 
-export interface ClubSaveV8 {
+export interface ClubSaveV9 {
   schemaVersion: typeof CLUB_SCHEMA_VERSION
   clubId: string
   clubName: string
@@ -214,13 +216,13 @@ export interface ClubSaveV8 {
   /** 新手任務裡推導不出來的部分（schemaVersion 8 起），見 onboarding.ts */
   onboarding: OnboardingState
   /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄；從 3 升上來時是 3） */
-  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7; revision: number }
+  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7 | 8; revision: number }
   /** 每存一次加 1：用來發現別的分頁已經改過存檔 */
   revision: number
 }
 
 /** 目前格式的球團存檔 */
-export type ClubSave = ClubSaveV8
+export type ClubSave = ClubSaveV9
 
 export interface NewClubInput {
   clubId: string
@@ -364,6 +366,7 @@ export function validateClub(value: unknown): ClubSave {
     const match = m as Obj
     if (match.playedAt !== undefined) num(match, 'playedAt', path)
     if (match.box !== undefined) validateBox(match.box, `${path}.box`)
+    if (match.ranked !== undefined) validateRankedRecord(match.ranked, `${path}.ranked`)
   })
   const idle = obj(value, 'idle')
   num(idle, 'anchorMs', 'idle')
@@ -425,6 +428,15 @@ function validateLiveMatch(value: unknown, idle: Obj, clubId: string): void {
   if (plan.matchId !== `${clubId}#${value.matchIndex}`) throw invalid('liveMatch.plan.matchId', '不屬於這個球團')
 }
 
+function validateRankedRecord(value: unknown, path: string): void {
+  if (!isObj(value)) throw invalid(path, '格式不對')
+  for (const key of ['tier', 'before', 'after', 'protectionRemaining']) int(value, key, path)
+  if (!Number.isInteger(value.delta)) throw invalid(`${path}.delta`, '必須是整數')
+  if (typeof value.protected !== 'boolean') throw invalid(`${path}.protected`, '必須是 true 或 false')
+  if (value.relegatedTo !== null) int(value, 'relegatedTo', path)
+  if ((value.after as number) - (value.before as number) !== value.delta) throw invalid(`${path}.delta`, '跟前後積分對不起來')
+}
+
 function validateBox(value: unknown, path: string): void {
   if (!isObj(value)) throw invalid(path, '格式不對')
   const ls = obj(value, 'linescore', path)
@@ -452,7 +464,13 @@ function validateChallengeReplay(value: unknown, league: Obj): void {
 }
 
 function validateLeague(league: Obj): void {
-  for (const key of ['tier', 'matches', 'wins', 'losses', 'promotions', 'highestTier', 'nextChallengeSeq', 'challengeReadyAt']) int(league, key, 'league')
+  for (const key of ['tier', 'matches', 'wins', 'losses', 'promotions', 'highestTier', 'nextChallengeSeq', 'challengeReadyAt', 'protectionRemaining', 'relegations']) int(league, key, 'league')
+  if (league.points !== null) int(league, 'points', 'league')
+  if (league.lastRelegation !== null) {
+    const r = obj(league, 'lastRelegation', 'league')
+    for (const key of ['fromTier', 'toTier', 'matchIndex']) int(r, key, 'league.lastRelegation')
+    num(r, 'at', 'league.lastRelegation')
+  }
   if ((league.tier as number) > MAX_TIER) throw invalid('league.tier', `必須是 0～${MAX_TIER}`)
   if (typeof league.recent !== 'string') throw invalid('league.recent', '必須是字串')
   arr(league, 'challenges', 'league').forEach((c, i) => {

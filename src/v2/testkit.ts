@@ -61,3 +61,9 @@ export const microYield = () => Promise.resolve()
 export function tab(storage: KeyValueStorage, clock: Clock, locks?: LockManagerLike): V2Deps {
   return createV2Deps({ storage, clock, navigator: locks ? { locks } : {}, batch: { yieldControl: microYield, chunkSize: 4 } })
 }
+
+/** 拿掉 schemaVersion 9 新增的聯盟欄位（競技積分），用來跟 8 以前的舊聯盟比較「其他欄位一個字都沒動」 */
+export function v8League<T extends object>(league: T): Omit<T, 'points' | 'protectionRemaining' | 'relegations' | 'lastRelegation'> {
+  const { points: _p, protectionRemaining: _r, relegations: _n, lastRelegation: _l, ...rest } = league as T & Record<string, unknown>
+  return rest as Omit<T, 'points' | 'protectionRemaining' | 'relegations' | 'lastRelegation'>
+}

@@ -5444,3 +5444,211 @@ body:has(.v2-modal-overlay) .toast {
   border-color: #8e4be0;
   background: #fbf8ff;
 }
+
+/* 手機：頁首跟著內容捲走，不再固定在最上面蓋住目前比賽與卡片（電腦版本來就不固定） */
+@media (max-width: 1023px) {
+  .v2-header {
+    position: relative;
+  }
+}
+
+/* ==== Phase 7B：競技積分、降級 ==== */
+.v2-ranked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--v2-soft);
+}
+.v2-ranked.danger {
+  background: #fff4ea;
+  border: 2px solid #e5383b;
+}
+.v2-ranked.compact {
+  padding: 8px 10px;
+}
+.v2-ranked-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.v2-ranked-k {
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-ranked-pts {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1;
+}
+.v2-ranked-max {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--v2-faint);
+}
+.v2-ranked-tag {
+  margin-left: auto;
+  padding: 0 7px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.v2-ranked-tag.safe {
+  background: #f0fbf4;
+  color: #1e7a3c;
+  border: 1.5px solid #22a35a;
+}
+.v2-ranked-tag.floor {
+  background: #f5eeff;
+  color: #6a2ec0;
+  border: 1.5px solid #8e4be0;
+}
+.v2-ranked-tag.danger {
+  background: #ffecec;
+  color: #c21f2b;
+  border: 1.5px solid #e5383b;
+}
+.v2-ranked-line {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #33385f;
+}
+.v2-ranked.danger .v2-ranked-line:first-of-type {
+  color: #b8470a;
+  font-weight: 900;
+}
+.v2-points-bar.danger .v2-points-low {
+  background: #ffd6d6;
+}
+.v2-pts-chip {
+  align-self: flex-start;
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  line-height: 18px;
+}
+.v2-pts-chip.up {
+  background: #22a35a;
+  color: #fff;
+}
+.v2-pts-chip.down {
+  background: #fff;
+  color: #c21f2b;
+  border: 1.5px solid #e5383b;
+}
+.v2-pts-chip.flat {
+  background: var(--v2-soft);
+  color: var(--v2-muted);
+}
+.v2-pts-chip.none {
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 10px;
+  background: var(--v2-soft);
+  color: var(--v2-faint);
+}
+.v2-pts-chip.relegated {
+  outline: 2px solid #8e4be0;
+}
+.v2-report-ranked-line {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+.v2-goal-plan.danger {
+  color: #b8470a;
+}
+.v2-goal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.v2-goal-form-dots {
+  display: flex;
+  gap: 3px;
+}
+.v2-goal-form-dots span {
+  flex: 1;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--v2-loss);
+}
+.v2-goal-form-dots span.w {
+  background: var(--v2-win);
+}
+.v2-ld-ranked-rules {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.v2-relegation {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.v2-relegation-badges {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.v2-relegation-badges .faded {
+  opacity: 0.55;
+}
+.v2-relegation-arrow {
+  font-size: 22px;
+  font-weight: 900;
+}
+.v2-relegation-keep {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f4f5ff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.v2-relegation-keep ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.v2-relegation-k {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-relegation-goal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1.5px solid var(--ink);
+  border-left-width: 8px;
+}
+.v2-relegation-goal strong {
+  font-size: 16px;
+}
+.v2-relegation-goal p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: #33385f;
+}

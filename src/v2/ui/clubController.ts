@@ -202,8 +202,8 @@ export class ClubController {
     try {
       const report = await settleDue(this.deps, { signal: this.abort.signal })
       if (this.disposed) return
-      this.set({ club: report.club, status: { kind: 'ready' } })
-      this.afterSettle(report, trigger)
+      // 存檔與歡迎回來摘要在同一次更新：畫面不會先看到「降級了、卻還沒有摘要」的中間狀態（降級通知排在摘要之後）
+      this.afterSettle(report, trigger, { club: report.club, status: { kind: 'ready' } })
     } catch (e) {
       if (this.disposed) return
       // 模擬失敗時，失敗前的場次已經存檔
@@ -215,15 +215,19 @@ export class ClubController {
     }
   }
 
-  private afterSettle(report: SettlementReport, trigger: SettleTrigger): void {
+  private afterSettle(report: SettlementReport, trigger: SettleTrigger, base: Partial<ControllerState>): void {
     const settled = report.settled
-    if (settled.length === 0) return
+    if (settled.length === 0) {
+      this.set(base)
+      return
+    }
     const key = `${settled[0].matchId}..${settled[settled.length - 1].matchId}`
     // 剛進入或回到這個分頁：顯示離開期間的摘要；同一份摘要只顯示一次
     if ((trigger === 'enter' || trigger === 'resume') && key !== this.lastWelcomeKey) {
       this.lastWelcomeKey = key
       const wins = settled.filter((m) => m.result.won).length
       this.set({
+        ...base,
         welcome: {
           key,
           matches: settled.length,
@@ -238,7 +242,7 @@ export class ClubController {
         },
       })
     } else {
-      this.set({ notice: V2T.matchesFinished(settled.length) })
+      this.set({ ...base, notice: V2T.matchesFinished(settled.length) })
     }
     if (report.status === 'aborted') this.set({ notice: V2T.settleInterrupted })
   }
