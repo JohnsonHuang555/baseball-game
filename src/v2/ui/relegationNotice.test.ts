@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { ClubSave, SettledMatch } from '../domain/club'
 import { leagueAtTier, type RankedMatchRecord } from '../domain/league'
 import { ClubRepository, MemoryStorage } from '../infrastructure/clubRepository'
-import { T0 } from '../testkit'
+import { atMatch, T0 } from '../testkit'
 import type { ChallengeRecord } from '../domain/league'
 import { parseSeen, pendingRelegation } from './relegationNotice'
 
@@ -57,7 +57,7 @@ function club(startTier: number, events: (['R' | 'P', number, number])[], now: n
   // 近期比賽只保留 keepFrom 以後（用一場普通比賽標出保留範圍的起點）
   const kept = recent.filter((m) => m.matchIndex >= keepFrom)
   if (keepFrom > 0) kept.unshift(match(keepFrom, league.tier, null))
-  return { ...c, league: { ...league, challenges, nextChallengeSeq: challenges.length }, recentMatches: kept, idle: { ...c.idle, nextMatchIndex: now } }
+  return { ...c, league: { ...league, challenges, nextChallengeSeq: challenges.length }, recentMatches: kept, ...atMatch(c, now) }
 }
 
 describe('pendingRelegation', () => {

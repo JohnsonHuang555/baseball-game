@@ -2,7 +2,7 @@
 // Phase 6A 的畫面：首頁層級、目前建議、新手任務（完成、收合、重新整理）、升級預覽與回饋、聯盟目標、唯讀分頁、挑戰中
 import { afterEach, describe, expect, it } from 'vitest'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab } from '../testkit'
+import { atMatch, FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab } from '../testkit'
 import { createClubSafely } from '../application/clubLifecycle'
 import { updateSettings } from '../application/settlementService'
 import type { ClubSave } from '../domain/club'
@@ -227,7 +227,7 @@ describe('新手任務', () => {
 
   it('只儲存一模一樣的陣容不算完成；任務不阻擋其他功能（還沒完成也能挑戰聯盟）', async () => {
     const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
-    const env = await setup((c) => ({ ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, idle: { ...c.idle, nextMatchIndex: n } }))
+    const env = await setup((c) => ({ ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, ...atMatch(c, n) }))
     await updateSettings(tab(env.storage, env.clock, env.locks), { roster: structuredClone(load(env).roster) })
     otherTabWrote()
     await flush()
@@ -240,7 +240,7 @@ describe('新手任務', () => {
 describe('目前建議', () => {
   it('前往聯盟挑戰：只把焦點帶到挑戰按鈕，不替玩家挑戰；挑戰進行中按鈕停用', async () => {
     const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
-    const env = await setup((c) => ({ ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, idle: { ...c.idle, nextMatchIndex: n } }))
+    const env = await setup((c) => ({ ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, ...atMatch(c, n) }))
     const seq = load(env).league.nextChallengeSeq
     expect(text('.v2-league')).toContain(V2T.leagueReady)
     await click('[data-action="next-challenge"]')
@@ -268,7 +268,7 @@ describe('目前建議', () => {
 
 describe('聯盟目標', () => {
   it('還差什麼：場數還差幾場、勝率目前多少與門檻、冷卻還要幾場', async () => {
-    await setup((c) => ({ ...c, league: { ...c.league, matches: 18, wins: 11, losses: 7, recent: 'WWWWWWWWWWWLLLLLLL', challengeReadyAt: 0 }, idle: { ...c.idle, nextMatchIndex: 18 } }))
+    await setup((c) => ({ ...c, league: { ...c.league, matches: 18, wins: 11, losses: 7, recent: 'WWWWWWWWWWWLLLLLLL', challengeReadyAt: 0 }, ...atMatch(c, 18) }))
     const need = PROMOTION_CONFIG.minMatches
     expect(text('[data-need="matches"]')).toContain(V2T.leagueMatchesLine(18, need))
     expect(text('[data-need="matches"]')).toContain(`還差 ${need - 18} 場`)
@@ -279,7 +279,7 @@ describe('聯盟目標', () => {
 
   it('冷卻中：說明再完成幾場', async () => {
     const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
-    await setup((c) => ({ ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window), challengeReadyAt: n + 4 }, idle: { ...c.idle, nextMatchIndex: n } }))
+    await setup((c) => ({ ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window), challengeReadyAt: n + 4 }, ...atMatch(c, n) }))
     expect(text('[data-need="cooldown"]')).toContain(V2T.leagueCooldownLine(4))
     expect($('[data-action="challenge"]')).toBeNull()
   })

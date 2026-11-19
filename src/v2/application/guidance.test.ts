@@ -11,7 +11,7 @@ import { onboardingProgress } from '../domain/onboarding'
 import { upgradeCost } from '../domain/progression'
 import { assignedIds } from '../domain/roster'
 import { CLUB_BACKUP_KEY_V7, CLUB_STORAGE_KEY, ClubSaveError, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab, v8League } from '../testkit'
+import { atMatch, FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab, v8League } from '../testkit'
 import { createClubSafely, openClubSafely } from './clubLifecycle'
 import { recruit, release, upgrade } from './economyService'
 import { lineupCandidate, nearestUpgrade, suggestNextAction, upgradeCandidate } from './guidance'
@@ -183,7 +183,7 @@ describe('目前建議（規則與優先序）', () => {
     const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
     let club = give(load(), 100_000, 5_000)
     club = give(club, 0, 0)
-    club = { ...club, league: { ...club.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, idle: { ...club.idle, nextMatchIndex: n } }
+    club = { ...club, league: { ...club.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, ...atMatch(club, n) }
     const withUnclaimed = give(club, 10, 1, 'unclaimed')
     expect(eligibility(withUnclaimed.league, withUnclaimed.idle.nextMatchIndex).ok).toBe(true)
     expect(suggestNextAction(withUnclaimed, { canWrite: true }).kind).toBe('claim')
@@ -252,7 +252,8 @@ describe('V7 → V8 遷移', () => {
     const old = v7()
     expect(sourceVersion(old)).toBe(7)
     const club = migrateToLatest(old)
-    const { schemaVersion, revision, migratedFrom, onboarding, ...rest } = club
+    const { schemaVersion, stats: newStats, revision, migratedFrom, onboarding, ...rest } = club
+    expect(newStats).toEqual({ sinceMatch: club.idle.nextMatchIndex, throughMatch: club.idle.nextMatchIndex, players: {} })
     const { schemaVersion: _s, revision: oldRevision, ...oldRest } = old
     expect({ ...rest, league: v8League(rest.league) }).toEqual(oldRest)
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)

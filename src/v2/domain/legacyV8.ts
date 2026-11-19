@@ -1,10 +1,11 @@
 // schemaVersion 8 的存檔格式（Phase 6～7A）：凍結在這裡只給遷移用，之後不要再改。
 // 跟 9 的差別只有：聯盟沒有競技積分（points、protectionRemaining、relegations、lastRelegation），比賽沒有 ranked
-import type { ClubSaveV9, SettledMatch } from './club'
+import type { SettledMatch } from './club'
+import type { ClubSaveV9 } from './legacyV9'
 import type { LeagueState } from './league'
 
 export type LeagueStateV8 = Omit<LeagueState, 'points' | 'protectionRemaining' | 'relegations' | 'lastRelegation'>
-export type SettledMatchV8 = Omit<SettledMatch, 'ranked'>
+export type SettledMatchV8 = Omit<SettledMatch, 'ranked' | 'lines'>
 
 export interface ClubSaveV8 extends Omit<ClubSaveV9, 'schemaVersion' | 'league' | 'recentMatches' | 'migratedFrom'> {
   schemaVersion: 8

@@ -3,6 +3,7 @@
 // 另一方是引擎內建的 AI。結果只由 setup（含種子、規則版本）與雙方 AI 設定決定，
 // 回傳的 replay 就是模擬引擎的 { setup, commands }，用 replay() 可以逐步重現。
 import { Game, RULES_VERSION, type Command, type GameEvent, type GameSetup, type Half, type PlayerLine, type Side } from '../../sim/game'
+import type { ScoreLine } from '../../sim/scoring'
 import { AUTO_COACH_VERSION, AutoCoach, createPolicy, type CoachParams, type CoachStyle } from './autoCoach'
 
 /** 一方的 AI：自動教練（可選風格），或引擎內建的對手 AI */
@@ -27,6 +28,8 @@ export interface PlayerStat {
   side: Side
   role: 'batter' | 'pitcher'
   line: PlayerLine
+  /** 完整的正式記分（Phase 8）：有出場就有，包含沒有打席的代跑、守備替補 */
+  stats: ScoreLine
 }
 
 export type HighlightKind = 'homeRun' | 'clutchHit' | 'walkOff' | 'pitchingChange'
@@ -173,15 +176,23 @@ export function runMatch(setup: GameSetup, ai?: MatchAi, options?: MatchOptions)
   return runMatchWithGame(setup, ai, options).result
 }
 
-/** 每位有上場紀錄的球員，依主隊、客隊排序 */
+/** 每位有上場紀錄的球員（打席、投球或出場），依主隊、客隊排序 */
 function playerStats(game: Game): PlayerStat[] {
   const stats: PlayerStat[] = []
   for (const side of ['home', 'away'] as const) {
     for (const id of game.rosterIds(side)) {
       const line = game.box[id]
+      const score = game.stats[id]
       const player = game.player(id)
-      if (!line || !player) continue
-      stats.push({ playerId: id, name: player.name, side, role: player.role, line: { ...line } })
+      if ((!line && !score) || !player) continue
+      stats.push({
+        playerId: id,
+        name: player.name,
+        side,
+        role: player.role,
+        line: line ? { ...line } : { pa: 0, hits: 0, hr: 0, rbi: 0, so: 0, outs: 0, runs: 0, k: 0 },
+        stats: structuredClone(score ?? { batting: null, pitching: null }),
+      })
     }
   }
   return stats

@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { setKeys } from '../../ui/keys'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, ManualClock, tab } from '../testkit'
+import { atMatch, FakeLockManager, ManualClock, tab } from '../testkit'
 import { createClubSafely } from '../application/clubLifecycle'
 import { recruit } from '../application/economyService'
 import { planChallenge } from '../application/leagueService'
@@ -336,7 +336,7 @@ describe('球員養成與釋出確認', () => {
 describe('聯盟挑戰結果與觀戰切換', () => {
   const eligible = (c: ClubSave): ClubSave => {
     const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
-    return { ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, idle: { ...c.idle, nextMatchIndex: n } }
+    return { ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, ...atMatch(c, n) }
   }
   async function seedFor(want: boolean): Promise<number> {
     for (let seed = 1; seed < 200; seed++) {

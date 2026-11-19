@@ -2,7 +2,7 @@
 // Phase 5B：首頁「目前比賽」、直播觀戰（中途加入、暫停只停畫面、同步、比賽結束、下一場）、歷史 Box Score、晉級挑戰的觀看
 import { afterEach, describe, expect, it } from 'vitest'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, MINUTE, ManualClock, T0, tab } from '../testkit'
+import { atMatch, FakeLockManager, MINUTE, ManualClock, T0, tab } from '../testkit'
 import { createClubSafely } from '../application/clubLifecycle'
 import { upgrade } from '../application/economyService'
 import { challengeNextLeague, planChallenge } from '../application/leagueService'
@@ -340,7 +340,7 @@ describe('歷史戰報', () => {
 describe('晉級挑戰的觀看', () => {
   const eligible = (c: ClubSave): ClubSave => {
     const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
-    return { ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, idle: { ...c.idle, nextMatchIndex: n } }
+    return { ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, ...atMatch(c, n) }
   }
   async function seedFor(want: boolean): Promise<number> {
     for (let seed = 1; seed < 200; seed++) {

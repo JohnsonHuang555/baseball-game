@@ -2,7 +2,7 @@
 // Phase 5 的畫面：首頁聯盟卡片、挑戰下一聯盟與結果對話框、釋出預備球員（二次確認）
 import { afterEach, describe, expect, it } from 'vitest'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, ManualClock, tab } from '../testkit'
+import { atMatch, FakeLockManager, ManualClock, tab } from '../testkit'
 import { recruit } from '../application/economyService'
 import { challengeNextLeague, planChallenge } from '../application/leagueService'
 import { runMatch } from '../application/matchRunner'
@@ -48,7 +48,7 @@ async function mountClub(clubSeed: number, edit?: (c: ClubSave) => ClubSave) {
 
 const eligible = (c: ClubSave): ClubSave => {
   const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
-  return { ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, idle: { ...c.idle, nextMatchIndex: n } }
+  return { ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, ...atMatch(c, n) }
 }
 
 /** 找一個第一次挑戰會贏（或輸）的球團種子 */

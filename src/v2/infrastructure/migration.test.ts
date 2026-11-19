@@ -234,7 +234,7 @@ describe('存檔遷移', () => {
   it('壞掉的 V3、不支援的版本：明確報錯，不覆蓋原本的存檔', async () => {
     const cases: [string, string][] = [
       [JSON.stringify({ ...fixture, economy: { ...fixture.economy, assets: { funds: -5, experience: 0 } } }), 'migration-failed'],
-      [JSON.stringify({ ...fixture, schemaVersion: 10 }), 'unsupported-version'],
+      [JSON.stringify({ ...fixture, schemaVersion: 11 }), 'unsupported-version'],
       ['{oops', 'invalid-json'],
     ]
     for (const [raw, code] of cases) {
