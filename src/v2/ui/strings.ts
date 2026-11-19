@@ -302,7 +302,7 @@ export const V2T = {
   relegationKeeps: (highest: string) => ['全部球員、陣容與戰術', '資金、經驗與未領取收益', `總戰績與歷史最高聯盟（${highest}）`, '首次晉級獎勵已經領過，重返時不再發放'],
   relegationGoalTitle: '新的目標',
   relegationGoal: (back: string) => `重返${back}`,
-  relegationGoalFloor: (league: string, matches: number, rate: number) => `${league}是保底，不會再往下降。在這裡完成 ${matches} 場、最近 60 場勝率 ${rate}% 以上，再贏得晉級挑戰賽就能回去。`,
+  relegationGoalFloor: (league: string, matches: number, rate: number, window: number) => `${league}是保底，不會再往下降。在這裡完成 ${matches} 場、最近 ${window} 場勝率 ${rate}% 以上，再贏得晉級挑戰賽就能回去。`,
   relegationGoalAgain: (points: number, lower: string) => `積分從 ${points} 分重新開始，保持在危險區以上（歸零會再降回${lower}）；晉級條件在這個聯盟重新累積。`,
   relegationRoad: '查看聯盟之路',
   relegationHome: '回到首頁',

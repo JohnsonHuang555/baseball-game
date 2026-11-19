@@ -107,7 +107,7 @@ export function relegationModal(club: ClubSave, notice: RelegationNotice, action
   keep.append(ul)
   const goal = el('div', 'v2-relegation-goal')
   goal.style.borderLeftColor = leagueOf(to).color
-  goal.append(el('span', 'v2-relegation-k', V2T.relegationGoalTitle), el('strong', '', V2T.relegationGoal(leagueOf(last.fromTier).name)), el('p', '', canRelegate(to) ? V2T.relegationGoalAgain(RANKED_CONFIG.initialPoints, leagueOf(to - 1).name) : V2T.relegationGoalFloor(leagueOf(to).name, PROMOTION_CONFIG.minMatches, Math.round(PROMOTION_CONFIG.winRate * 100))))
+  goal.append(el('span', 'v2-relegation-k', V2T.relegationGoalTitle), el('strong', '', V2T.relegationGoal(leagueOf(last.fromTier).name)), el('p', '', canRelegate(to) ? V2T.relegationGoalAgain(RANKED_CONFIG.initialPoints, leagueOf(to - 1).name) : V2T.relegationGoalFloor(leagueOf(to).name, PROMOTION_CONFIG.minMatches, Math.round(PROMOTION_CONFIG.winRate * 100), PROMOTION_CONFIG.window)))
   body.append(keep, goal)
   const sub = notice.count > 1 ? V2T.relegationSubMulti(notice.count, leagueOf(notice.fromTier).name, leagueOf(to).name) : V2T.relegationSub(leagueOf(last.fromTier).name, leagueOf(to).name)
   let close: () => void = () => {}
