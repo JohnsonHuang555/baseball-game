@@ -15,6 +15,8 @@ import { icon } from './icons'
 import type { ClubSave } from '../domain/club'
 import { RECRUIT_CONFIG } from '../domain/progressionConfig'
 import { compareCandidate, type CandidateComparison } from '../domain/recruitCompare'
+import { recruitStatsBlock } from './statsView'
+import { openPlayerDetail } from './playerView'
 import { recruitCandidates, recruitCost, rosterFull, type RecruitRole } from '../domain/recruitment'
 import { recordOf } from '../domain/roster'
 import type { ClubController, ControllerState } from './clubController'
@@ -315,6 +317,11 @@ export function openRecruit(controller: ClubController, goToLineup: () => void):
     const parts: HTMLElement[] = [info(club), roles]
     if (block) parts.push(block)
     parts.push(notes, list)
+    // 比賽數據（Phase 8）：候選人沒有本隊比賽數據（不估算），被比較的現有球員顯示真實的最近 30 場
+    if (v.selected !== null && candidates[v.selected]) {
+      const target = compareCandidate(club, candidates[v.selected]).target
+      parts.push(recruitStatsBlock(club, target?.playerId ?? null, v.role, (id) => void openPlayerDetail(controller, id, { tab: 'stats', period: 'last30' })))
+    }
     body.replaceChildren(...parts)
   }
 
