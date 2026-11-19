@@ -5652,3 +5652,817 @@ body:has(.v2-modal-overlay) .toast {
   line-height: 1.55;
   color: #33385f;
 }
+
+/* ==== Phase 8：球員比賽數據（設計稿「Phase 8 球員數據」） ==== */
+
+/* 縮寫按鈕與說明：點一下打開（同時只開一個），電腦版 hover／focus 也顯示 */
+.v2-abbr-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.v2-abbr {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--v2-muted);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+.v2-abbr[aria-expanded='true'] {
+  background: #fff0b3;
+  color: var(--ink);
+  outline: 2px solid var(--ink);
+}
+.v2-abbr-tip {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 4px 0 rgba(20, 22, 51, 0.35);
+}
+.v2-abbr-tip[hidden] {
+  display: none;
+}
+.v2-abbr-tip-key {
+  font-family: var(--font-display);
+  font-weight: 400;
+  color: var(--yellow);
+}
+@media (hover: hover) and (min-width: 1024px) {
+  .v2-abbr-wrap:hover .v2-abbr-tip,
+  .v2-abbr:focus-visible + .v2-abbr-tip {
+    display: flex !important;
+  }
+}
+
+/* 分段切換（期間、打者／投手）：選中的深藍底白字，黃色留給主要動作 */
+.v2-seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #eceef8;
+}
+.v2-seg-btn {
+  height: 40px;
+  min-height: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  color: #33385e;
+  cursor: pointer;
+}
+.v2-seg-btn.on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+.v2-seg-btn:disabled {
+  border: 1.5px dashed #b4b9cc;
+  color: #8a8fae;
+  cursor: not-allowed;
+}
+
+/* 球員詳情的分頁 */
+.v2-detail-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: -4px 0 14px;
+  border-bottom: 1.5px solid var(--line);
+}
+.v2-detail-tab {
+  height: 46px;
+  margin-bottom: -1.5px;
+  border: 0;
+  border-bottom: 4px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--v2-faint);
+  cursor: pointer;
+}
+.v2-detail-tab.on {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.v2-detail-tab:disabled {
+  color: #b4b9cc;
+  cursor: not-allowed;
+}
+.v2-detail-face.released {
+  filter: grayscale(0.8);
+}
+.v2-ability-note {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #eaf2ff;
+  border: 1.5px solid #9bbeff;
+  color: var(--v2-link) !important;
+}
+@media (min-width: 1024px) {
+  .v2-modal.sheet.v2-player-sheet {
+    width: min(760px, 100%);
+  }
+}
+
+/* 比賽數據分頁 */
+.v2-stats-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.v2-stats-banner {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+.v2-stats-banner-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-stats-banner strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-stats-banner.legacy {
+  background: #eaf2ff;
+  border: 1.5px solid #9bbeff;
+  color: var(--v2-link);
+}
+.v2-stats-banner.released {
+  background: #eceef8;
+  border: 1.5px solid #b4b9cc;
+  color: #33385e;
+}
+.v2-stats-period {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-stats-caption {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-stats-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 16px;
+  border-radius: 16px;
+  border: 1.5px dashed #8a8fae;
+  background: #fff;
+  text-align: center;
+  color: #8a8fae;
+}
+.v2-stats-empty strong {
+  font-size: 15px;
+  color: var(--ink);
+}
+.v2-stats-empty span {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--v2-muted);
+}
+.v2-stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.v2-stat-tile {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px 10px;
+  border-radius: 14px;
+  background: var(--v2-soft);
+  border: 1.5px solid transparent;
+}
+.v2-stat-tile .v2-abbr-wrap {
+  align-self: flex-start;
+  margin-left: -4px;
+}
+.v2-stat-num {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.v2-stat-tile.small {
+  background: #fff;
+  border: 1.5px dashed #c9a200;
+}
+.v2-stat-tile.small .v2-stat-num {
+  color: var(--v2-faint);
+}
+.v2-stat-tile.none .v2-stat-num {
+  color: #8a8fae;
+}
+.v2-stat-zh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-small-tag {
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: #fff0b3;
+  color: #6b4e00;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 18px;
+}
+.v2-stats-small {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff6d6;
+  border: 1.5px solid #e0b000;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: #6b4e00;
+}
+.v2-stats-sub {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.v2-stats-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 2px 8px;
+  border-radius: 10px;
+  background: var(--v2-soft);
+}
+.v2-stats-cell-num {
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.v2-stats-cell-zh {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-stats-log {
+  display: flex;
+  flex-direction: column;
+}
+.v2-stats-log-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v2-stats-log-no {
+  flex: none;
+  width: 130px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v2-stats-log-line {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 900;
+}
+@media (min-width: 1024px) {
+  .v2-stat-tiles.bat {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .v2-stat-tiles.pit {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .v2-stat-num {
+    font-size: 28px;
+  }
+  .v2-stats-grid.bat {
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+  }
+}
+
+/* 陣容頁：打線與守位／球員數據 */
+.v2-lineup-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  max-width: 360px;
+  margin: 0 0 12px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--ink);
+}
+.v2-lineup-tab {
+  min-height: 40px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  color: #fff;
+  cursor: pointer;
+}
+.v2-lineup-tab.on {
+  border-color: var(--ink);
+  background: #fff;
+  color: var(--ink);
+}
+
+/* 隊內排行 */
+.v2-board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.v2-board-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.v2-board-top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-board-sorts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+}
+.v2-board-sort-label {
+  flex: none;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-sort-chip {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 18px;
+  border: 1.5px solid #b4b9cc;
+  background: #fff;
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: #33385e;
+  cursor: pointer;
+}
+.v2-sort-chip.on {
+  border: 2px solid var(--ink);
+  background: #fff0b3;
+  color: var(--ink);
+}
+.v2-board-caption {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-board-table {
+  padding: 0;
+  overflow: hidden;
+}
+.v2-board-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) repeat(3, 48px) 14px;
+  align-items: center;
+  column-gap: 6px;
+  width: 100%;
+  min-height: 60px;
+  padding: 6px 10px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: #fff;
+  font-family: inherit;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.v2-board-row.head {
+  min-height: 0;
+  padding: 4px 10px;
+  border-top: 0;
+  background: var(--v2-soft);
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-muted);
+  cursor: default;
+}
+.v2-board-row .wide {
+  display: none;
+}
+.v2-board-rank {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 12px;
+}
+.v2-board-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.v2-board-face {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.v2-board-face .v2-board-avatar {
+  width: 100%;
+  height: 100%;
+}
+.v2-board-words {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v2-board-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.v2-board-name-text {
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v2-board-status {
+  align-self: flex-start;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: #eceef8;
+  color: #33385e;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 18px;
+}
+.v2-board-status.lineup,
+.v2-board-status.starter {
+  background: var(--ink);
+  color: #fff;
+}
+.v2-board-status.bullpen {
+  background: #dde8ff;
+  color: var(--v2-link);
+}
+.v2-board-num {
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #33385e;
+}
+.v2-board-row.head .v2-board-num {
+  display: flex;
+  justify-content: flex-end;
+}
+.v2-board-row.head .v2-board-num.wide {
+  display: none;
+}
+.v2-board-num.cur {
+  font-size: 15px;
+  color: var(--ink);
+}
+.v2-board-row:not(.head) .v2-board-num.cur:not(.faded) {
+  border-radius: 6px;
+  background: #fff0b3;
+  padding: 2px 2px;
+}
+.v2-board-num.faded {
+  color: #8a8fae;
+}
+.v2-board-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 6px;
+  background: #fff6d6;
+  border-top: 1.5px solid #e0b000;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b4e00;
+}
+.v2-board-group strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-board-note {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lilac);
+  line-height: 1.6;
+}
+@media (min-width: 1024px) {
+  .v2-board-top {
+    flex-direction: row;
+    align-items: center;
+  }
+  .v2-board-role {
+    min-width: 200px;
+  }
+  .v2-board-period {
+    flex: 1;
+  }
+  .v2-board-row {
+    grid-template-columns: 36px minmax(0, 1fr) repeat(var(--cols, 7), 72px) 14px;
+    padding: 6px 16px;
+  }
+  .v2-board-row .wide {
+    display: block;
+  }
+  .v2-board-row.head .wide {
+    display: flex;
+  }
+}
+
+/* 戰報：打擊與投手表（名字欄固定、其他可左右滑；數字等寬靠右） */
+.v2-box-card {
+  position: relative;
+}
+.v2-box-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.v2-box-head h3 {
+  flex: 1;
+}
+.v2-box-hint {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-box-scroll {
+  overflow-x: auto;
+  margin: 0 -14px 6px;
+  padding: 0 0 4px;
+  -webkit-overflow-scrolling: touch;
+  background:
+    linear-gradient(90deg, #fff 30%, rgba(255, 255, 255, 0)) left / 24px 100% no-repeat local,
+    linear-gradient(270deg, #fff 30%, rgba(255, 255, 255, 0)) right / 24px 100% no-repeat local,
+    linear-gradient(270deg, rgba(20, 22, 51, 0.12), rgba(20, 22, 51, 0)) right / 14px 100% no-repeat scroll;
+}
+.v2-box8 {
+  width: 100%;
+  min-width: 470px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.v2-box8 th.name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 92px;
+  padding: 0 8px 0 14px;
+  background: #fff;
+  box-shadow: 2px 0 0 var(--line);
+  text-align: left;
+}
+.v2-box8 thead th {
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-box8 th.num,
+.v2-box8 td.num {
+  width: 44px;
+  padding: 0 6px;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.v2-box8 thead th.num {
+  padding: 0 2px;
+}
+.v2-box8 thead th.num .v2-abbr-wrap {
+  justify-content: flex-end;
+  width: 100%;
+}
+.v2-box8 td.zero {
+  color: #8a8fae;
+}
+.v2-box8 td.unrec {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  color: #8a8fae;
+  white-space: nowrap;
+}
+.v2-box8 tbody tr {
+  border-top: 1px solid var(--line);
+  height: 44px;
+}
+.v2-box8 tbody tr.total {
+  border-top: 2px solid var(--ink);
+}
+.v2-box8 tr.total td.num {
+  color: var(--ink);
+}
+.v2-box-name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--v2-link);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.v2-box-name.plain {
+  color: var(--ink);
+  text-decoration: none;
+  cursor: default;
+}
+.v2-box-note {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  line-height: 1.6;
+}
+@media (min-width: 1024px) {
+  .v2-modal.sheet.v2-report-modal {
+    width: min(820px, 100%);
+  }
+  .v2-box8 th.num,
+  .v2-box8 td.num {
+    width: 64px;
+  }
+  .v2-box-hint {
+    display: none;
+  }
+}
+
+/* 招募：實際比賽數據 */
+.v2-recruit-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1.5px solid var(--ink);
+}
+.v2-recruit-stats-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-recruit-stats-head h4 {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-recruit-stats-period {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-recruit-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.v2-recruit-stats-cand {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1.5px dashed #8a8fae;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  line-height: 1.5;
+}
+.v2-recruit-stats-cand strong {
+  font-size: 13px;
+}
+.v2-recruit-stats-cur {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 2px solid var(--ink);
+  background: var(--v2-soft);
+  font-family: inherit;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v2-recruit-stats-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-recruit-stats-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--font-display);
+}
+.v2-recruit-stats-line .k {
+  font-size: 11px;
+  color: var(--v2-muted);
+}
+.v2-recruit-stats-line .v {
+  font-size: 15px;
+}
+.v2-recruit-stats-n {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}

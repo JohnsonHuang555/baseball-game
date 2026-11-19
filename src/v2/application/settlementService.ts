@@ -22,7 +22,8 @@ import { LineupError, lineupIssues } from '../domain/lineup'
 import { assignmentIssues, resolveRoster } from '../domain/roster'
 import { applyRankedResult, leagueOf, matchesBeforePossibleRelegation, recordLeagueResult } from '../domain/league'
 import { rewardFor } from '../domain/rewards'
-import { boxScoreOf } from '../domain/boxScore'
+import { matchRecordOf } from '../domain/boxScore'
+import { addMatchToCareer } from '../domain/stats'
 import { stableJson } from '../domain/fingerprint'
 import { coachParamIssues } from '../domain/tactics'
 import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome } from './batchRunner'
@@ -156,6 +157,7 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
       if (applied.record) ranked = applied.record
       if (applied.record?.relegatedTo != null) relegated = true
     }
+    const record = matchRecordOf(result, plan.userSide)
     const match: SettledMatch = {
       matchId: plan.matchId,
       matchIndex: plan.matchIndex,
@@ -165,9 +167,13 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
       earnedExperience: reward.experience,
       settledAt: now,
       playedAt: at,
-      box: boxScoreOf(result, plan.userSide),
+      box: record.box,
       ...(ranked ? { ranked } : {}),
+      lines: record.lines,
     }
+    // 球員數據跟結算游標在同一次轉換裡前進：同一場只會記一次（stats.throughMatch 一定等於 nextMatchIndex）
+    const info = new Map(result.players.filter((p) => p.side === plan.userSide).map((p) => [p.playerId, { name: p.name, role: p.role }]))
+    next.stats = addMatchToCareer(next.stats, plan.matchIndex, record.lines, (id) => info.get(id))
     settled.push(match)
     const r = next.record
     if (summary.won) r.wins++

@@ -2,7 +2,7 @@
 // Phase 5B：首頁「目前比賽」、直播觀戰（中途加入、暫停只停畫面、同步、比賽結束、下一場）、歷史 Box Score、晉級挑戰的觀看
 import { afterEach, describe, expect, it } from 'vitest'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, MINUTE, ManualClock, T0, tab } from '../testkit'
+import { atMatch, FakeLockManager, MINUTE, ManualClock, T0, tab } from '../testkit'
 import { createClubSafely } from '../application/clubLifecycle'
 import { upgrade } from '../application/economyService'
 import { challengeNextLeague, planChallenge } from '../application/leagueService'
@@ -331,7 +331,10 @@ describe('歷史戰報', () => {
     const totals = $$('.v2-linescore tr.ours .total').map((x) => x.textContent)
     expect(totals[0]).toBe(String(m.result.runsFor))
     expect(totals[1]).toBe(String(m.box!.hits[m.result.userSide]))
-    expect($$('.v2-box tbody tr').length).toBe(m.box!.batters.length + m.box!.pitchers.length)
+    // Phase 8 起：個人成績在 lines（有打席的打者＋合計列、有投球的投手）
+    const batRows = m.lines!.bat.filter((r) => (r[1] ?? 0) > 0).length
+    const pitRows = m.lines!.pit.filter((r) => (r[1] ?? 0) + (r[2] ?? 0) > 0).length
+    expect($$('.v2-box tbody tr').length).toBe(batRows + 1 + pitRows)
     expect($('.v2-report-rewards')!.getAttribute('aria-label')).toContain(V2T.earned(m.earnedFunds, m.earnedExperience))
     expect($('[data-action="watch"]')).toBeNull()
   })
@@ -340,7 +343,7 @@ describe('歷史戰報', () => {
 describe('晉級挑戰的觀看', () => {
   const eligible = (c: ClubSave): ClubSave => {
     const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
-    return { ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, idle: { ...c.idle, nextMatchIndex: n } }
+    return { ...c, league: { ...c.league, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) }, ...atMatch(c, n) }
   }
   async function seedFor(want: boolean): Promise<number> {
     for (let seed = 1; seed < 200; seed++) {

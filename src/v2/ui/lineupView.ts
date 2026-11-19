@@ -34,6 +34,8 @@ import { v2Modal } from './dialog'
 import { V2T } from './strings'
 import { icon } from './icons'
 import { barButton, draftBar } from './draftBar'
+import { defaultBoard, renderStatsBoard, type BoardState } from './statsView'
+import { ST } from './statsStrings'
 
 export interface LineupView {
   render(state: ControllerState): HTMLElement
@@ -55,6 +57,9 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
   let selected: DraftSlot | null = null
   let lastState: ControllerState = controller.state
   let container: HTMLElement | null = null
+  /** 陣容頁的分頁：打線與守位（編輯）／球員數據（排行，Phase 8）；排行的設定留在這個畫面裡 */
+  let view: 'lineup' | 'stats' = 'lineup'
+  let board: BoardState = defaultBoard()
 
   /** 草稿跟存檔的配置不同（只比球員編號與守位，能力變化不算修改） */
   const dirty = () => !!club && !!draft && stableJson(toAssignment(draft.roster)) !== stableJson(club.roster)
@@ -265,9 +270,49 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
     recruitBtn.onclick = () => openRecruit(controller, goToLineup)
     actions.append(auto, recruitBtn)
     head.append(actions)
+    const tabs = el('div', 'v2-lineup-tabs')
+    tabs.setAttribute('role', 'tablist')
+    tabs.setAttribute('aria-label', ST.lineupTabsLabel)
+    for (const [key, label] of [['lineup', ST.lineupTab], ['stats', ST.boardTab]] as const) {
+      const t = el('button', `v2-lineup-tab${view === key ? ' on' : ''}`, label)
+      t.type = 'button'
+      t.setAttribute('role', 'tab')
+      t.setAttribute('aria-selected', String(view === key))
+      t.dataset.view = key
+      t.onclick = () => {
+        if (view === key) return
+        view = key
+        rerender()
+        container?.querySelector<HTMLButtonElement>(`[data-view="${key}"]`)?.focus({ preventScroll: true })
+      }
+      tabs.append(t)
+    }
+    if (view === 'stats' && club) {
+      page.classList.add('v2-lineup-stats')
+      const refocus = (sel: string) => container?.querySelector<HTMLButtonElement>(sel)?.focus({ preventScroll: true })
+      page.append(
+        head,
+        tabs,
+        renderStatsBoard(
+          club,
+          board,
+          (next) => {
+            const changed = (Object.keys(next) as (keyof BoardState)[]).find((k) => next[k] !== board[k])
+            board = next
+            rerender()
+            if (changed === 'role') refocus(`.v2-board-role [data-value="${next.role}"]`)
+            else if (changed === 'period') refocus(`.v2-board-period [data-value="${next.period}"]`)
+            else refocus(`[data-sort="${next.role === 'batter' ? next.batSort : next.pitSort}"]`)
+          },
+          (id, period) => void openPlayerDetail(controller, id, { tab: 'stats', period }),
+        ),
+      )
+      if (dirty()) page.append(saveBar(state, d))
+      return page
+    }
     const bonds = el('div', 'v2-bond-row')
     bonds.append(el('span', 'v2-bond-label', V2T.bondsActive), synergyBadges(r.lineup, r.captain, [], { full: true }))
-    page.append(head, bonds, el('p', 'v2-page-hint', V2T.lineupHint))
+    page.append(head, tabs, bonds, el('p', 'v2-page-hint', V2T.lineupHint))
 
     const starters = group(
       V2T.starters,

@@ -6,7 +6,7 @@ import { leagueAtTier, leagueViolations } from '../domain/league'
 import { LEAGUES, PROMOTION_CONFIG, RANKED_CONFIG } from '../domain/leagueConfig'
 import { rewardFor } from '../domain/rewards'
 import { MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab } from '../testkit'
+import { atMatch, FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab } from '../testkit'
 import { planMatches, runBatch, type MatchPlan } from './batchRunner'
 import { upgrade } from './economyService'
 import { challengeNextLeague } from './leagueService'
@@ -248,7 +248,7 @@ describe('其他寫入操作前的結算也包含降級', () => {
         {
           ...c,
           league: { ...base, tier: 3, relegations: 1, lastRelegation: { fromTier: 4, toTier: 3, matchIndex: 0, at: T0 }, points: 33, matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window) },
-          idle: { ...c.idle, nextMatchIndex: n },
+          ...atMatch(c, n),
         },
         10,
       )

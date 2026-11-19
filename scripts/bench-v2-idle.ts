@@ -105,6 +105,8 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
       ...c0,
       economy: { ...c0.economy, assets: rich, earned: rich },
       idle: { ...c0.idle, nextMatchIndex: 20_000 },
+      // 從舊版本遷移上來的長期存檔：球員數據從這裡開始記錄
+      stats: { ...c0.stats, sinceMatch: 20_000, throughMatch: 20_000 },
       record: { wins: 11_000, losses: 9_000, runsFor: 90_000, runsAgainst: 85_000 },
       league: leagueAtTier(c0.league, MAX_TIER - 1, { matches: n, wins: n, recent: 'W'.repeat(PROMOTION_CONFIG.window), nextChallengeSeq: 50, challenges }),
     },
@@ -263,4 +265,54 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   await scenario('挑戰者（保底）', 2, 50, false)
   await scenario('職業 50 分、一般球隊', 3, 50, false)
   await scenario('傳奇 10 分、全隊能力 1（中途降級）', 4, 10, true)
+}
+
+// ---- Phase 8：球員數據的存檔大小與耗時 ----
+{
+  const { createClubSafely } = await import('../src/v2/application/clubLifecycle')
+  const { recruit, release } = await import('../src/v2/application/economyService')
+  const { settleDue } = await import('../src/v2/application/settlementService')
+  const { leaderboard, periodTotals } = await import('../src/v2/application/statsQuery')
+  const { reserves } = await import('../src/v2/domain/roster')
+  const { FakeLockManager, HOUR, ManualClock, tab } = await import('../src/v2/testkit')
+  const storage = new MemoryStorage()
+  const clock = new ManualClock(T0)
+  const deps = tab(storage, clock, new FakeLockManager())
+  deps.batch.yieldControl = null
+  await createClubSafely(deps, { clubName: '長期', clubSeed: 88, clubId: 'stats-bench' })
+  const load = () => deps.store.loadClub()!
+  const c0 = load()
+  const rich = { funds: 1e12, experience: 1e11 }
+  deps.store.saveClub({ ...c0, economy: { ...c0.economy, assets: rich, earned: rich } }, c0.revision)
+  // 3,000 場：每 96 場招募 2 位、把預備名單的人釋出（只有上場過的人才有生涯紀錄；大量釋出的容量見 npm run bench:v2:stats）
+  let settleMs = 0
+  let batches = 0
+  while (load().idle.nextMatchIndex < 3000) {
+    clock.advance(8 * HOUR)
+    const t = performance.now()
+    await settleDue(deps)
+    settleMs += performance.now() - t
+    batches++
+    for (let i = 0; i < 2; i++) {
+      const c = load()
+      if (c.players.length >= 30) break
+      await recruit(deps, { opSeq: c.economy.nextOpSeq, role: 'batter', candidateIndex: 0, expectedCount: c.recruitment.count })
+    }
+    for (const v of reserves(load()).slice(0, 2)) await release(deps, { opSeq: load().economy.nextOpSeq, playerId: v.id })
+  }
+  const c = load()
+  const lineBytes = c.recentMatches.reduce((a, m) => a + JSON.stringify(m.lines ?? null).length, 0)
+  const careerBytes = JSON.stringify(c.stats).length
+  const released = Object.values(c.stats.players).filter((r) => r.releasedAt !== undefined).length
+  const size = storage.getItem(CLUB_STORAGE_KEY)!.length
+  let t = performance.now()
+  for (let i = 0; i < 200; i++) {
+    periodTotals(c, 'last30')
+    leaderboard(c, 'batter', 'last30', 'ops')
+  }
+  const tQuery = (performance.now() - t) / 200
+  console.log(`\nPhase 8 球員數據（${c.idle.nextMatchIndex} 場、${batches} 次離線結算，每次 96 場）`)
+  console.log(`近期 ${c.recentMatches.length} 場的 lines 共 ${(lineBytes / 1024).toFixed(1)} KB（每場 ${(lineBytes / c.recentMatches.length).toFixed(0)} bytes）`)
+  console.log(`生涯紀錄 ${Object.keys(c.stats.players).length} 位（其中已釋出 ${released} 位，全部保留），共 ${(careerBytes / 1024).toFixed(1)} KB`)
+  console.log(`存檔大小 ${(size / 1024).toFixed(1)} KB；每次 96 場結算平均 ${ms(settleMs / batches)}；最近 30 場聚合＋排行每次 ${ms(tQuery)}`)
 }

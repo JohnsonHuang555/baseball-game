@@ -23,7 +23,8 @@ export const CLUB_BACKUP_KEY_V5 = 'dice-baseball.club.v3.backup-schema5'
 export const CLUB_BACKUP_KEY_V6 = 'dice-baseball.club.v3.backup-schema6'
 export const CLUB_BACKUP_KEY_V7 = 'dice-baseball.club.v3.backup-schema7'
 export const CLUB_BACKUP_KEY_V8 = 'dice-baseball.club.v3.backup-schema8'
-const BACKUP_KEYS: Record<MigratableVersion, string> = { 3: CLUB_BACKUP_KEY_V3, 4: CLUB_BACKUP_KEY_V4, 5: CLUB_BACKUP_KEY_V5, 6: CLUB_BACKUP_KEY_V6, 7: CLUB_BACKUP_KEY_V7, 8: CLUB_BACKUP_KEY_V8 }
+export const CLUB_BACKUP_KEY_V9 = 'dice-baseball.club.v3.backup-schema9'
+const BACKUP_KEYS: Record<MigratableVersion, string> = { 3: CLUB_BACKUP_KEY_V3, 4: CLUB_BACKUP_KEY_V4, 5: CLUB_BACKUP_KEY_V5, 6: CLUB_BACKUP_KEY_V6, 7: CLUB_BACKUP_KEY_V7, 8: CLUB_BACKUP_KEY_V8, 9: CLUB_BACKUP_KEY_V9 }
 export const CLUB_LOCK_NAME = 'dice-baseball.club.v3.settlement'
 
 /** Storage 的最小子集，localStorage 與記憶體版都符合 */
@@ -162,7 +163,7 @@ export class ClubRepository implements ClubStore {
    * 2. 在記憶體裡遷移（純函式），失敗丟 migration-failed，什麼都不寫
    * 3. 碰備份之前，再讀一次主存檔：跟第 1 步不同（別的分頁已經遷移、或舊版分頁又存了一次）就丟 conflict，
    *    備份、主存檔都不寫。所以競爭中較晚的那一方，永遠不會覆寫已經存在、對應到真正遷移結果的備份
-   * 4. 把原始文字逐字寫進來源版本的備份 key（backup-schema3 / 4 / 5 / 6 / 7 / 8），再讀回來確認一字不差；
+   * 4. 把原始文字逐字寫進來源版本的備份 key（backup-schema3 / 4 / … / 9），再讀回來確認一字不差；
    *    寫入失敗丟 write-failed，主存檔不動。備份 key 已經有「別的」內容（例如重設後的另一個球團、更早的遷移）
    *    就不覆寫，改寫到 `<備份 key>.r<revision>`，所以有價值的舊備份不會被蓋掉
    * 5. 寫主存檔前最後再讀一次主存檔，還是第 1 步的原始文字才寫入升級後的存檔

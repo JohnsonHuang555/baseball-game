@@ -1,7 +1,7 @@
-// V2 球團存檔（schemaVersion 9）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度、
-// 進行中比賽的固定計畫、近期比賽（含 Box Score）、最近一次晉級挑戰的 Replay 與新手任務的旗標。
+// V2 球團存檔（schemaVersion 10）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度、
+// 進行中比賽的固定計畫、近期比賽（含 Box Score 與球員原始數據）、球員生涯數據、最近一次晉級挑戰的 Replay 與新手任務的旗標。
 // 不沿用 V1 的 Tournament：錦標賽是一輪一輪的 roguelike，V2 的球團要一直存在、一直累積。
-// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → 5 → 6 → 7 → 8 → 9）見 migration.ts
+// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → … → 9 → 10）見 migration.ts
 import type { Side } from '../../sim/game'
 import type { Player, Position, Roster } from '../../sim/types'
 import type { CoachParams, CoachStyle } from '../application/autoCoach'
@@ -13,12 +13,13 @@ import { MAX_TIER } from './leagueConfig'
 import { newOnboarding, type OnboardingState } from './onboarding'
 import { MAX_LEVEL, RECRUIT_CONFIG, SPEND_LOG_LIMIT } from './progressionConfig'
 import { resolveRoster } from './roster'
+import { BAT_STORE, PIT_STORE, newClubStats, type ClubStats, type MatchLines } from './stats'
 import { coachParamIssues } from './tactics'
 import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, validateMatches, type Obj } from './validation'
 
 export { ClubValidationError, type ClubValidationCode } from './validation'
 
-export const CLUB_SCHEMA_VERSION = 9
+export const CLUB_SCHEMA_VERSION = 10
 
 /**
  * 換算好的陣容：先發、板凳、投手都是完整的球員物件（養成後的能力），也就是模擬引擎吃的 Roster。
@@ -168,6 +169,11 @@ export interface SettledMatch {
   box?: BoxScore
   /** 這場的競技積分變化（schemaVersion 9 起、挑戰者以上的比賽才有；舊比賽沒有，畫面顯示「未記錄」） */
   ranked?: RankedMatchRecord
+  /**
+   * 我方每位出場球員的完整原始數據（schemaVersion 10 起的比賽才有，以 playerId 為 key）。
+   * 有這個欄位時 box.batters／box.pitchers 是空陣列（不重複存）；舊比賽沒有，戰報缺的欄位顯示「未記錄」
+   */
+  lines?: MatchLines
 }
 
 /**
@@ -187,7 +193,7 @@ export interface ChallengeReplay {
   replay: MatchReplay
 }
 
-export interface ClubSaveV9 {
+export interface ClubSaveV10 {
   schemaVersion: typeof CLUB_SCHEMA_VERSION
   clubId: string
   clubName: string
@@ -215,14 +221,16 @@ export interface ClubSaveV9 {
   liveMatch: LiveMatch | null
   /** 新手任務裡推導不出來的部分（schemaVersion 8 起），見 onboarding.ts */
   onboarding: OnboardingState
+  /** 球員比賽數據（schemaVersion 10 起）：生涯累計與記錄起點，見 stats.ts */
+  stats: ClubStats
   /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄；從 3 升上來時是 3） */
-  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7 | 8; revision: number }
+  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7 | 8 | 9; revision: number }
   /** 每存一次加 1：用來發現別的分頁已經改過存檔 */
   revision: number
 }
 
 /** 目前格式的球團存檔 */
-export type ClubSave = ClubSaveV9
+export type ClubSave = ClubSaveV10
 
 export interface NewClubInput {
   clubId: string
@@ -271,6 +279,7 @@ export function newClub(input: NewClubInput): ClubSave {
     challengeReplay: null,
     liveMatch: null,
     onboarding: newOnboarding(),
+    stats: newClubStats(0),
     revision: 0,
   }
 }
@@ -367,6 +376,7 @@ export function validateClub(value: unknown): ClubSave {
     if (match.playedAt !== undefined) num(match, 'playedAt', path)
     if (match.box !== undefined) validateBox(match.box, `${path}.box`)
     if (match.ranked !== undefined) validateRankedRecord(match.ranked, `${path}.ranked`)
+    if (match.lines !== undefined) validateLines(match.lines, `${path}.lines`)
   })
   const idle = obj(value, 'idle')
   num(idle, 'anchorMs', 'idle')
@@ -375,7 +385,54 @@ export function validateClub(value: unknown): ClubSave {
   const record = obj(value, 'record')
   for (const key of ['wins', 'losses', 'runsFor', 'runsAgainst']) int(record, key, 'record')
   validateMatches(value)
+  validateStats(value)
   return value as unknown as ClubSave
+}
+
+const isCountList = (x: unknown, max: number) => Array.isArray(x) && x.length <= max && x.every((n) => Number.isInteger(n) && (n as number) >= 0)
+
+function validateLines(value: unknown, path: string): void {
+  if (!isObj(value)) throw invalid(path, '格式不對')
+  for (const [key, max] of [['bat', BAT_STORE.length], ['pit', PIT_STORE.length]] as const) {
+    const ids = new Set<string>()
+    arr(value, key, path).forEach((row, i) => {
+      if (!Array.isArray(row) || typeof row[0] !== 'string' || !isCountList(row.slice(1), max)) throw invalid(`${path}.${key}[${i}]`, '格式不對')
+      if (ids.has(row[0] as string)) throw invalid(`${path}.${key}[${i}]`, `同一場出現兩次：${row[0] as string}`)
+      ids.add(row[0] as string)
+    })
+  }
+}
+
+/**
+ * 球員數據：生涯已經算到結算游標（同一場不會記兩次）、記錄起點不晚於游標、
+ * 最近比賽裡出現的球員一定有生涯紀錄（被釋出也一樣，戰報才叫得出名字）
+ */
+function validateStats(value: Obj): void {
+  const stats = obj(value, 'stats')
+  int(stats, 'sinceMatch', 'stats')
+  int(stats, 'throughMatch', 'stats')
+  const idle = value.idle as Obj
+  if (stats.throughMatch !== idle.nextMatchIndex) throw invalid('stats.throughMatch', `必須等於結算游標 ${String(idle.nextMatchIndex)}`)
+  if ((stats.sinceMatch as number) > (stats.throughMatch as number) || (stats.sinceMatch as number) < 0) throw invalid('stats.sinceMatch', '不能晚於結算游標')
+  const players = obj(stats, 'players', 'stats')
+  for (const [id, rec] of Object.entries(players)) {
+    const path = `stats.players.${id}`
+    if (!isObj(rec)) throw invalid(path, '格式不對')
+    str(rec, 'name', path)
+    if (rec.role !== 'batter' && rec.role !== 'pitcher') throw invalid(`${path}.role`, '不認識的角色')
+    for (const key of ['bg', 'pg', 'first', 'last']) int(rec, key, path)
+    if (rec.releasedAt !== undefined) int(rec, 'releasedAt', path)
+    if (rec.bat !== null && !(isCountList(rec.bat, BAT_STORE.length) && (rec.bat as unknown[]).length === BAT_STORE.length)) throw invalid(`${path}.bat`, '格式不對')
+    if (rec.pit !== null && !(isCountList(rec.pit, PIT_STORE.length) && (rec.pit as unknown[]).length === PIT_STORE.length)) throw invalid(`${path}.pit`, '格式不對')
+    if ((rec.bat === null) !== (rec.bg === 0) || (rec.pit === null) !== (rec.pg === 0)) throw invalid(path, '出場數跟數據對不起來')
+    if ((rec.first as number) < (stats.sinceMatch as number) || (rec.last as number) >= (stats.throughMatch as number) || (rec.first as number) > (rec.last as number)) throw invalid(path, '出場場次不在記錄範圍內')
+  }
+  ;(value.recentMatches as Obj[]).forEach((m, i) => {
+    const lines = m.lines as MatchLines | undefined
+    if (!lines) return
+    if ((m.matchIndex as number) < (stats.sinceMatch as number)) throw invalid(`recentMatches[${i}].lines`, '記錄起點之前的比賽不該有球員數據')
+    for (const row of [...lines.bat, ...lines.pit]) if (!isObj(players[row[0]])) throw invalid(`recentMatches[${i}].lines`, `找不到球員 ${row[0]} 的生涯紀錄`)
+  })
 }
 
 function validatePlayers(value: Obj): void {

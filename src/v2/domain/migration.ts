@@ -1,4 +1,4 @@
-// 存檔遷移：schemaVersion 3 → 4 → 5 → 6 → 7 → 8 → 9（目前格式）。
+// 存檔遷移：schemaVersion 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10（目前格式）。
 // - 3 → 4：陣容裡內嵌的球員搬進永久名單（players），陣容只存 ID，加上等級、支出帳務
 // - 4 → 5：加上聯盟進度（league）；其他欄位一個字都不動
 // - 5 → 6：加上最近一次晉級挑戰的 Replay（challengeReplay），舊存檔沒有挑戰 Replay，一律是 null；其他欄位一個字都不動
@@ -10,6 +10,9 @@
 // - 8 → 9：加上競技積分（Phase 7B）。挑戰者以上一律從 RANKED_CONFIG.initialPoints 開始，並給 promotionProtectionMatches 場適應保護；
 //   新秀、業餘沒有積分。不補算歷史積分、不重新模擬、不降級、不發獎勵；階級、最高階級、晉級次數、已發獎勵、挑戰紀錄、比賽都原樣保留，
 //   降級次數 0、沒有降級紀錄。舊比賽沒有 ranked（戰報顯示「未記錄」）
+// - 9 → 10：加上球員數據（Phase 8）。記錄起點＝遷移當時的結算游標，生涯從 0 開始累積；
+//   舊比賽的 Box Score 欄位不夠（沒有打數、保送、二／三壘安打、被安打、自責分），不回填、不重新模擬、不假裝完整。
+//   其他欄位（球員、能力、陣容、戰術、資源、聯盟、積分、戰績、近期比賽、Replay）一個字都不動
 // 遷移是純函式、確定性（不讀時間、不抽亂數）：同一份舊存檔不管遷移幾次、在哪個分頁遷移，結果都一模一樣。
 // 舊版本串接各段升到目前版本，中間版本不單獨驗證，只驗證最後的結果
 import type { ClubSave } from './club'
@@ -23,6 +26,8 @@ import type { ClubSaveV5 } from './legacyV5'
 import type { ClubSaveV6 } from './legacyV6'
 import type { ClubSaveV7 } from './legacyV7'
 import type { ClubSaveV8, LeagueStateV8 } from './legacyV8'
+import type { ClubSaveV9 } from './legacyV9'
+import { newClubStats } from './stats'
 import { replay as replayGame } from '../../sim/game'
 import { boxScoreOf } from './boxScore'
 import { isObj } from './validation'
@@ -33,7 +38,7 @@ export class MigrationError extends Error {
 }
 
 /** 可以遷移的舊版本 */
-export const MIGRATABLE_VERSIONS = [3, 4, 5, 6, 7, 8] as const
+export const MIGRATABLE_VERSIONS = [3, 4, 5, 6, 7, 8, 9] as const
 export type MigratableVersion = (typeof MIGRATABLE_VERSIONS)[number]
 
 /** 讀進來的存檔需要遷移嗎：只看 schemaVersion */
@@ -41,7 +46,7 @@ export function needsMigration(value: unknown): boolean {
   return sourceVersion(value) !== null
 }
 
-/** 舊存檔的版本（3～8）；不是可遷移的舊版本就是 null */
+/** 舊存檔的版本（3～9）；不是可遷移的舊版本就是 null */
 export function sourceVersion(value: unknown): MigratableVersion | null {
   if (!isObj(value)) return null
   return (MIGRATABLE_VERSIONS as readonly unknown[]).includes(value.schemaVersion) ? (value.schemaVersion as MigratableVersion) : null
@@ -55,6 +60,7 @@ export function migrateToLatest(value: unknown): ClubSave {
   const origin = { schemaVersion: version, revision: original.revision }
   try {
     // 中間版本沒有單獨驗證：缺欄位時這裡可能丟 TypeError，一樣當成遷移失敗
+    if (version === 9) return validateClub(toV10(value as ClubSaveV9, origin))
     const v8 =
       version === 8
         ? (value as ClubSaveV8)
@@ -67,7 +73,7 @@ export function migrateToLatest(value: unknown): ClubSave {
                     : toV6(version === 5 ? (value as ClubSaveV5) : toV5(version === 3 ? migrateV3ToV4(value) : (value as ClubSaveV4))),
                 ),
           )
-    return validateClub(toV9(v8, origin))
+    return validateClub(toV10(toV9(v8), origin))
   } catch (e) {
     if (e instanceof MigrationError) throw e
     throw new MigrationError(`遷移後的存檔驗證失敗：${(e as Error).message}`, { cause: e })
@@ -170,10 +176,10 @@ function toV8(v7: ClubSaveV7): ClubSaveV8 {
 }
 
 /**
- * V8 → V9：加上競技積分。revision 接著原始存檔加 1（從儲存的角度只是一次寫入），migratedFrom 記原始版本。
+ * V8 → V9（不驗證，給 migrateToLatest 串接用）：加上競技積分。
  * 挑戰者以上：積分 = 起始值、適應保護 = 晉級保護場數；新秀、業餘：沒有積分。降級次數 0、沒有降級紀錄
  */
-export function toV9(v8: ClubSaveV8, origin: { schemaVersion: MigratableVersion; revision: number }): ClubSave {
+export function toV9(v8: ClubSaveV8): ClubSaveV9 {
   const { migratedFrom: _old, ...rest } = structuredClone(v8)
   const ranked = rankedEnabled(rest.league.tier)
   const league = {
@@ -183,7 +189,16 @@ export function toV9(v8: ClubSaveV8, origin: { schemaVersion: MigratableVersion;
     relegations: 0,
     lastRelegation: null,
   }
-  return { ...rest, league, schemaVersion: CLUB_SCHEMA_VERSION, migratedFrom: origin, revision: origin.revision + 1 }
+  return { ...rest, league, schemaVersion: 9 }
+}
+
+/**
+ * V9 → V10：加上球員數據。revision 接著原始存檔加 1（從儲存的角度只是一次寫入），migratedFrom 記原始版本。
+ * 記錄起點 = 目前的結算游標：之前的比賽沒有完整原始數據，不回填、不重新模擬；之後的正式比賽開始累積生涯
+ */
+export function toV10(v9: ClubSaveV9, origin: { schemaVersion: MigratableVersion; revision: number }): ClubSave {
+  const { migratedFrom: _old, ...rest } = structuredClone(v9)
+  return { ...rest, stats: newClubStats(rest.idle.nextMatchIndex), schemaVersion: CLUB_SCHEMA_VERSION, migratedFrom: origin, revision: origin.revision + 1 }
 }
 
 function seededLeague(v4: ClubSaveV4): LeagueStateV8 {

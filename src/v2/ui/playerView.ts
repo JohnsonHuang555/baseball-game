@@ -22,6 +22,10 @@ import { betterUpgrade, teamPower, teamPowerIf } from '../domain/growthInfo'
 import type { ClubController, ControllerState } from './clubController'
 import { v2Modal } from './dialog'
 import { V2T } from './strings'
+import { ST } from './statsStrings'
+import { statsPanel } from './statsView'
+import { openMatchReport } from './reportView'
+import type { StatPeriod } from '../application/statsQuery'
 
 const fmt = (x: number) => x.toLocaleString('zh-Hant')
 const fmt2 = (x: number) => (Math.round(x * 100) / 100).toFixed(2)
@@ -51,7 +55,18 @@ function whereText(club: ControllerState['club'] & object, p: Player): string {
   return p.role === 'batter' ? V2T.whereReserve(native) : V2T.whereReservePitcher
 }
 
-export function openPlayerDetail(controller: ClubController, playerId: string): () => void {
+export interface PlayerDetailOptions {
+  /** 一開始停在哪個分頁：從養成入口進來是能力（預設），從數據入口（排行、戰報）進來是比賽數據 */
+  tab?: 'ability' | 'stats'
+  period?: StatPeriod
+}
+
+/**
+ * 球員詳情（Phase 8 起分成「球員能力」「比賽數據」兩個分頁）。已釋出的球員沒有能力資料，只顯示比賽數據（唯讀）
+ */
+export function openPlayerDetail(controller: ClubController, playerId: string, opts: PlayerDetailOptions = {}): () => void {
+  let tab: 'ability' | 'stats' = opts.tab ?? 'ability'
+  let period: StatPeriod = opts.period ?? 'last30'
   const body = el('div', 'v2-player-detail')
   const header = el('div', 'v2-detail-head')
   const footer = el('div', 'v2-detail-foot')
@@ -66,9 +81,56 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
     draw(controller.state)
     body.querySelector<HTMLButtonElement>('[data-action="release"]')?.focus({ preventScroll: true })
   }
+  /** 分頁列：球員能力／比賽數據；已釋出的球員沒有能力分頁 */
+  const tabsBar = (released: boolean) => {
+    const bar = el('div', 'v2-detail-tabs')
+    bar.setAttribute('role', 'tablist')
+    bar.setAttribute('aria-label', ST.tabsLabel)
+    for (const [key, label] of [['stats', ST.tabStats], ['ability', ST.tabAbility]] as const) {
+      const b = el('button', `v2-detail-tab${tab === key ? ' on' : ''}`, label)
+      b.type = 'button'
+      b.setAttribute('role', 'tab')
+      b.setAttribute('aria-selected', String(tab === key))
+      b.dataset.tab = key
+      b.disabled = released && key === 'ability'
+      b.onclick = () => {
+        if (tab === key) return
+        tab = key
+        draw(controller.state)
+        body.querySelector<HTMLButtonElement>(`[data-tab="${key}"]`)?.focus({ preventScroll: true })
+      }
+      bar.append(b)
+    }
+    return bar
+  }
+  const statsBody = (club: NonNullable<ControllerState['club']>) =>
+    statsPanel(club, playerId, {
+      period,
+      onPeriod: (p) => {
+        period = p
+        draw(controller.state)
+        body.querySelector<HTMLButtonElement>(`.v2-period [data-value="${p}"]`)?.focus({ preventScroll: true })
+      },
+      onOpenMatch: (m) => void openMatchReport(m, club, controller, (id) => void openPlayerDetail(controller, id, { tab: 'stats', period })),
+    })
   const draw = (state: ControllerState) => {
     const club = state.club
     const record = club ? recordOf(club, playerId) : undefined
+    const career = club?.stats.players[playerId]
+    if (club && !record && career) {
+      // 已釋出：名字、狀態，只有比賽數據
+      tab = 'stats'
+      const face = el('span', 'v2-detail-face released')
+      face.append(avatar(playerId, 'user', 'v2-detail-avatar'))
+      const words = el('span', 'v2-detail-words')
+      const titleLine = el('span', 'v2-detail-name')
+      titleLine.append(el('strong', '', career.name))
+      words.append(titleLine, el('span', 'v2-detail-where', ST.releasedStatus))
+      header.replaceChildren(face, words)
+      footer.replaceChildren()
+      body.replaceChildren(tabsBar(true), statsBody(club), el('p', 'v2-hint', ST.releasedNoAbility))
+      return
+    }
     if (!club || !record) {
       header.replaceChildren()
       footer.replaceChildren()
@@ -96,6 +158,13 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
     if (base.traits.length) chips.append(traitTag(base.traits[0]))
     words.append(titleLine, el('span', 'v2-detail-where', whereText(club, base)), chips)
     header.replaceChildren(face, words)
+
+    if (tab === 'stats') {
+      footer.replaceChildren()
+      body.classList.remove('max')
+      body.replaceChildren(tabsBar(false), statsBody(club))
+      return
+    }
 
     // 能力表：原始（Lv.1）、目前（比賽實際用的）、下一級
     const table = el('table', 'v2-rating-table')
@@ -199,13 +268,13 @@ export function openPlayerDetail(controller: ClubController, playerId: string): 
     foot.push(button)
     footer.replaceChildren(...foot)
 
-    body.replaceChildren()
+    body.replaceChildren(tabsBar(false))
     if (done) body.append(doneBox(base.name, done))
     if (next) body.append(preview)
     else body.append(el('p', 'v2-hint', V2T.maxLevel))
     const tableBox = el('section', 'v2-rating-box')
     tableBox.setAttribute('aria-label', V2T.ratingTable)
-    tableBox.append(table, el('p', 'v2-hint', V2T.progressionNote))
+    tableBox.append(table, el('p', 'v2-hint', V2T.progressionNote), el('p', 'v2-hint v2-ability-note', ST.abilityNote))
     body.append(tableBox)
     if (better) {
       const tip = el('p', 'v2-tip v2-better-upgrade')

@@ -67,3 +67,11 @@ export function v8League<T extends object>(league: T): Omit<T, 'points' | 'prote
   const { points: _p, protectionRemaining: _r, relegations: _n, lastRelegation: _l, ...rest } = league as T & Record<string, unknown>
   return rest as Omit<T, 'points' | 'protectionRemaining' | 'relegations' | 'lastRelegation'>
 }
+
+/**
+ * 測試用：把結算游標直接搬到第 n 場（球員數據的 throughMatch 跟著搬，維持「同一場只記一次」的不變量）。
+ * 正式程式只會在結算時一場一場前進
+ */
+export function atMatch<T extends { idle: { nextMatchIndex: number }; stats: { sinceMatch: number; throughMatch: number } }>(c: T, n: number): Pick<T, 'idle' | 'stats'> {
+  return { idle: { ...c.idle, nextMatchIndex: n }, stats: { ...c.stats, sinceMatch: Math.min(c.stats.sinceMatch, n), throughMatch: n } } as Pick<T, 'idle' | 'stats'>
+}

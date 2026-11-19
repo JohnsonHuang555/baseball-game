@@ -18,6 +18,7 @@ import { MAX_LEVEL, upgradeCost } from '../domain/progression'
 import { SPEND_LOG_LIMIT } from '../domain/progressionConfig'
 import { isCandidateIndex, recruitCandidateAt, recruitCost, rosterFull, type RecruitRole } from '../domain/recruitment'
 import { assignedIds, recordOf } from '../domain/roster'
+import { markReleased } from '../domain/stats'
 import { SettlementError, settleDueUnsaved, type SettlementDeps } from './settlementService'
 import { freezeLiveMatch } from './liveMatch'
 
@@ -170,6 +171,8 @@ export function releasePlayer(club: ClubSave, req: ReleaseRequest, now: number):
   }
   const out = spend(club, { kind: 'release', playerId: req.playerId, cost: { funds: 0, experience: 0 }, at: now, requestKey })
   out.club.players = out.club.players.filter((r) => r.player.id !== req.playerId)
+  // 生涯數據永久留著（唯讀）：歷史戰報與球員詳情還找得到他；之後不會再累加（他不會再出場）
+  out.club.stats = markReleased(out.club.stats, req.playerId, out.club.idle.nextMatchIndex)
   return { ...out, duplicate: false }
 }
 

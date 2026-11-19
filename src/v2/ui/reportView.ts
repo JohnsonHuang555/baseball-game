@@ -10,6 +10,7 @@ import { V2T } from './strings'
 import { rankedDeltaChip, rankedReport } from './leagueInfo'
 import { announceModal, v2Modal, type CloseReason } from './dialog'
 import { icon } from './icons'
+import { boxStatTables } from './statsView'
 
 const fmt = (x: number) => x.toLocaleString('zh-Hant')
 
@@ -87,8 +88,11 @@ export function highlightText(h: SummaryHighlight): string {
   return V2T.highlight[h.kind](h.playerName || '—', h.runs, V2T.inningHalf(h.inning, h.half))
 }
 
-/** 單場戰報：勝敗、聯盟、局數、日期、比分、每局比分、精彩時刻、我方打擊與投手成績、這場收益 */
-export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown): () => void {
+/**
+ * 單場戰報：勝敗、聯盟、局數、日期、比分、每局比分、精彩時刻、我方打擊與投手成績、這場收益。
+ * openPlayer：點打擊／投手表上的名字打開球員詳情（Phase 8 起的比賽才有球員編號；已釋出的球員也可以）
+ */
+export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown, openPlayer: (id: string) => void = () => undefined): () => void {
   const r = m.result
   const body = el('div', 'v2-report')
   const score = el('section', `v2-report-card v2-report-score ${r.won ? 'won' : 'lost'}`)
@@ -116,7 +120,8 @@ export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown
   body.append(hl)
   const ranked = rankedReport(m)
   if (ranked) body.append(ranked)
-  if (m.box) body.append(boxTables(m.box))
+  const tables = boxStatTables(m, club, openPlayer)
+  if (tables) body.append(tables)
   const rewards = el('section', 'v2-report-card v2-report-rewards')
   rewards.setAttribute('aria-label', `${V2T.rewards} ${V2T.earned(m.earnedFunds, m.earnedExperience)}`)
   const amount = (name: 'coin' | 'exp', v: number) => {
@@ -151,36 +156,6 @@ function linescore(box: BoxScore, ours: string, theirs: string, userSide: 'home'
   }
   wrap.append(table)
   return wrap
-}
-
-/** 我方打擊、我方投手 */
-function boxTables(box: BoxScore): HTMLElement {
-  const sec = el('section', 'v2-report-card')
-  const table = (cols: readonly string[], rows: (string | number)[][]) => {
-    const t = el('table', 'v2-box')
-    const head = el('thead')
-    const hr = el('tr')
-    cols.forEach((c, i) => hr.append(el('th', i ? '' : 'name', c)))
-    head.append(hr)
-    const tb = el('tbody')
-    for (const r of rows) {
-      const tr = el('tr')
-      r.forEach((v, i) => tr.append(el(i ? 'td' : 'th', i ? '' : 'name', String(v))))
-      tb.append(tr)
-    }
-    t.append(head, tb)
-    return t
-  }
-  sec.append(
-    el('h3', '', V2T.topPerformers),
-    table(V2T.battingCols, box.batters.map(([name, pa, hits, hr, rbi, so]) => [name, pa, hits, hr, rbi, so])),
-    el('h3', '', V2T.pitching),
-    table(
-      V2T.pitchingCols,
-      box.pitchers.map(([name, outs, runs, k]) => [name, `${Math.floor(outs / 3)}${outs % 3 ? `.${outs % 3}` : ''}`, runs, k]),
-    ),
-  )
-  return sec
 }
 
 /** 離線回歸摘要：完成場次、勝敗、獲得資源（已加到未領取收益）、精彩時刻 */

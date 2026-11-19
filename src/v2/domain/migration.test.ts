@@ -83,7 +83,8 @@ describe('V4 → V7 遷移（經過 V5、V6）', () => {
   it('除了 league、challengeReplay、liveMatch、Box Score、schemaVersion、revision、migratedFrom 以外，每個欄位都一模一樣', () => {
     const old = v4()
     const club = migrateToLatest(old)
-    const { schemaVersion, league, revision, migratedFrom, challengeReplay, liveMatch, onboarding: _o, ...rest } = withoutBox(club)
+    const { schemaVersion, stats: newStats, league, revision, migratedFrom, challengeReplay, liveMatch, onboarding: _o, ...rest } = withoutBox(club)
+    expect(newStats).toEqual({ sinceMatch: club.idle.nextMatchIndex, throughMatch: club.idle.nextMatchIndex, players: {} })
     expect(challengeReplay).toBeNull()
     expect(liveMatch).toBeNull()
     const { schemaVersion: _s, revision: oldRevision, migratedFrom: _m, ...oldRest } = old as typeof old & { migratedFrom?: unknown }
@@ -137,7 +138,8 @@ describe('V5 → V7 遷移（經過 V6）', () => {
   it('只加上 challengeReplay、liveMatch = null 與 Box Score；其他每個欄位都一模一樣（聯盟、挑戰紀錄、支出、游標、錨點）', () => {
     const old = v5()
     const club = migrateToLatest(old)
-    const { schemaVersion, revision, migratedFrom, challengeReplay, liveMatch, onboarding: _o, ...rest } = withoutBox(club)
+    const { schemaVersion, stats: newStats, revision, migratedFrom, challengeReplay, liveMatch, onboarding: _o, ...rest } = withoutBox(club)
+    expect(newStats).toEqual({ sinceMatch: club.idle.nextMatchIndex, throughMatch: club.idle.nextMatchIndex, players: {} })
     const { schemaVersion: _s, revision: oldRevision, ...oldRest } = old
     expect({ ...rest, league: v8League(rest.league) }).toEqual(oldRest)
     expect(liveMatch).toBeNull()
@@ -169,7 +171,8 @@ describe('V6 → V7 遷移', () => {
     const old = v6()
     expect(sourceVersion(old)).toBe(6)
     const club = migrateToLatest(old)
-    const { schemaVersion, revision, migratedFrom, liveMatch, onboarding: _o, ...rest } = withoutBox(club)
+    const { schemaVersion, stats: newStats, revision, migratedFrom, liveMatch, onboarding: _o, ...rest } = withoutBox(club)
+    expect(newStats).toEqual({ sinceMatch: club.idle.nextMatchIndex, throughMatch: club.idle.nextMatchIndex, players: {} })
     const { schemaVersion: _s, revision: oldRevision, ...oldRest } = old
     expect({ ...rest, league: v8League(rest.league) }).toEqual(oldRest)
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)

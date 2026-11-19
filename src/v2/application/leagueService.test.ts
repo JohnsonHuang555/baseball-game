@@ -5,7 +5,7 @@ import { eligibility, leagueAtTier, newLeagueState, recentWinRate, recordLeagueR
 import { LEAGUES, MAX_TIER, PROMOTION_CONFIG } from '../domain/leagueConfig'
 import { rewardFor } from '../domain/rewards'
 import { ClubSaveError, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, FlakyStorage, HOUR, ManualClock, tab } from '../testkit'
+import { atMatch, FakeLockManager, FlakyStorage, HOUR, ManualClock, tab } from '../testkit'
 import { planMatch, planMatches, runBatch } from './batchRunner'
 import { createClubSafely } from './clubLifecycle'
 import { LeagueError, applyChallenge, challengeNextLeague, planChallenge } from './leagueService'
@@ -29,7 +29,7 @@ function forceEligible(deps: Deps, tier?: number): ClubSave {
   const n = Math.max(PROMOTION_CONFIG.window, PROMOTION_CONFIG.minMatches)
   const t = tier ?? c.league.tier
   const league = t === c.league.tier ? { ...c.league, matches: n, wins: n, losses: 0, recent: 'W'.repeat(PROMOTION_CONFIG.window) } : leagueAtTier(c.league, t, { matches: n, wins: n, losses: 0, recent: 'W'.repeat(PROMOTION_CONFIG.window) })
-  return deps.store.saveClub({ ...c, league, idle: { ...c.idle, nextMatchIndex: Math.max(n, c.idle.nextMatchIndex) } }, c.revision)
+  return deps.store.saveClub({ ...c, league, ...atMatch(c, Math.max(n, c.idle.nextMatchIndex)) }, c.revision)
 }
 
 /** 找一個挑戰會贏（或會輸）的狀態：換球團種子直到第一場挑戰的結果符合 */
