@@ -64,11 +64,39 @@ const AT_BAT: ReadonlySet<PlayKind> = new Set(['single', 'double', 'triple', 'ho
 /** 打席中途換投時，這些球數之下的保送記給前一位投手（OBR 9.16(h)） */
 const PITCHER_BEHIND = new Set(['2-0', '2-1', '3-0', '3-1', '3-2'])
 
+/** 跑者怎麼上壘的：安打／保送等（hit）、失誤上壘（error）、延長賽突破僵局放上二壘（tiebreak） */
+export type ReachKind = 'batted' | 'error' | 'tiebreak'
+
 interface RunnerInfo {
   /** 要為這位跑者負責的投手 */
   pitcherId: string
   /** 不是因為失誤（或延長賽規則）上壘 */
   earnedReach: boolean
+  reach: ReachKind
+  /** 在失誤上壘那一球多推進的壘包數（自責分的已知限制，見規格 §6） */
+  errorBases: number
+}
+
+/**
+ * 一分的記分明細（只在記憶體裡，給測試與分析用，不存檔）：哪個半局、哪一球、誰得分、算誰的、自責與否與判斷依據
+ */
+export interface RunRecord {
+  /** 第幾個半局（從 0 數） */
+  half: number
+  kind: PlayKind | 'steal'
+  runnerId: string
+  /** 失分記給誰（放他上壘的投手） */
+  pitcherId: string
+  /** 得分當下在投的投手 */
+  moundId: string
+  reach: ReachKind
+  errorBases: number
+  outsBefore: number
+  /** 這一球造成的出局數 */
+  outsAdded: number
+  /** 重建後這一球之前的出局數（實際出局＋該投手上場後的失誤機會） */
+  reconstructedOuts: number
+  earned: boolean
 }
 
 export interface PlayInput {
@@ -84,6 +112,9 @@ export interface PlayInput {
 
 export class Scorekeeper {
   readonly lines: Record<string, ScoreLine> = {}
+  /** 每一分的記分明細（只在記憶體裡） */
+  readonly runLog: RunRecord[] = []
+  private halfIndex = 0
   private readonly runners = new Map<string, RunnerInfo>()
   /** 本半局的失誤上壘次數（重建半局時每一次都當作本來該有的出局） */
   private chances = 0
@@ -146,7 +177,7 @@ export class Scorekeeper {
 
   /** 延長賽放在二壘的跑者：視同因失誤上壘，屬於當時在場的投手 */
   placeRunner(runnerId: string, pitcherId: string): void {
-    this.runners.set(runnerId, { pitcherId, earnedReach: false })
+    this.runners.set(runnerId, { pitcherId, earnedReach: false, reach: 'tiebreak', errorBases: 0 })
   }
 
   /** 一個打席結束。回傳不影響比賽，只是記錄 */
@@ -192,7 +223,9 @@ export class Scorekeeper {
     const next = new Map(this.runners)
     for (const m of moves) {
       const info: RunnerInfo =
-        m.from === 0 ? { pitcherId: chargedId, earnedReach: kind !== 'error' } : (this.runners.get(m.runnerId) ?? { pitcherId, earnedReach: true })
+        m.from === 0
+          ? { pitcherId: chargedId, earnedReach: kind !== 'error', reach: kind === 'error' ? 'error' : 'batted', errorBases: 0 }
+          : (this.runners.get(m.runnerId) ?? { pitcherId, earnedReach: true, reach: 'batted', errorBases: 0 })
       next.delete(m.runnerId)
       if (m.to === 'out') continue
       if (m.to === 4) {
@@ -201,10 +234,13 @@ export class Scorekeeper {
         const charged = this.pit(info.pitcherId)
         charged.r++
         const reconstructedOuts = outsBefore + this.chances - (this.entryChances.get(info.pitcherId) ?? 0)
-        if (info.earnedReach && kind !== 'error' && reconstructedOuts < 3) charged.er++
+        // 重建後，這一球本身造成的出局也要算：例如重建已經 2 出局時的高飛犧牲打，接殺就是第三出局，跑者不會回來
+        const earned = info.earnedReach && kind !== 'error' && reconstructedOuts + outsAdded < 3
+        if (earned) charged.er++
+        this.runLog.push({ half: this.halfIndex, kind, runnerId: m.runnerId, pitcherId: info.pitcherId, moundId: pitcherId, reach: info.reach, errorBases: info.errorBases, outsBefore, outsAdded, reconstructedOuts, earned })
         continue
       }
-      next.set(m.runnerId, info)
+      next.set(m.runnerId, kind === 'error' && m.from > 0 ? { ...info, errorBases: info.errorBases + (m.to - m.from) } : info)
     }
     this.runners.clear()
     for (const [id, info] of next) this.runners.set(id, info)
@@ -228,7 +264,9 @@ export class Scorekeeper {
           const charged = this.pit(info.pitcherId)
           charged.r++
           const reconstructedOuts = outsBefore + this.chances - (this.entryChances.get(info.pitcherId) ?? 0)
-          if (info.earnedReach && reconstructedOuts < 3) charged.er++
+          const earned = info.earnedReach && reconstructedOuts < 3
+          if (earned) charged.er++
+          this.runLog.push({ half: this.halfIndex, kind: 'steal', runnerId: m.runnerId, pitcherId: info.pitcherId, moundId: pitcherId, reach: info.reach, errorBases: info.errorBases, outsBefore, outsAdded: 0, reconstructedOuts, earned })
         }
       }
     }
@@ -236,6 +274,7 @@ export class Scorekeeper {
 
   /** 半局結束：壘包、失誤機會、打席中的換人都清掉 */
   halfEnd(): void {
+    this.halfIndex++
     this.runners.clear()
     this.chances = 0
     this.entryChances.clear()

@@ -15,7 +15,7 @@ import {
   type PitchType,
 } from './pitches'
 import { Rng, clamp } from './rng'
-import { Scorekeeper, type ScoreLine } from './scoring'
+import { Scorekeeper, type RunRecord, type ScoreLine } from './scoring'
 import type { RelicId } from './items'
 import { fieldingAtPosition } from './positions'
 import { SYNERGY_KEYS, archetypeCounts, captainIn, positionSynergies, tierOf, type SynergyKey, type SynergyTier } from './synergy'
@@ -444,6 +444,11 @@ export class Game {
   /** 每位有出場的球員這場的完整記分（打者、投手分開；沒出場的人沒有） */
   get stats(): Readonly<Record<string, ScoreLine>> {
     return this.scorer.lines
+  }
+
+  /** 每一分的記分明細（只在記憶體裡，給測試與分析用） */
+  get runLog(): readonly RunRecord[] {
+    return this.scorer.runLog
   }
 
   /** 打席開始：AI 守備時決定佈陣，讓玩家下指令前就看得到 */
