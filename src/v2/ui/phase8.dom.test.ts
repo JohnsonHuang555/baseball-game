@@ -9,9 +9,13 @@ import { createClubSafely } from '../application/clubLifecycle'
 import { releasePlayer } from '../application/economyService'
 import { leaderboard, periodTotals } from '../application/statsQuery'
 import type { ClubSave } from '../domain/club'
-import { battingRates, fmtEra, fmtRate, pitchingRates } from '../domain/stats'
+import { battingRates, batOf, fmtEra, fmtRate, pitchingRates, type CareerRecord } from '../domain/stats'
+
+const batOfCareer = (r: CareerRecord) => batOf(r.bat ?? [])
 import { openV2, type V2App } from './app'
 import { ST } from './statsStrings'
+import { openPlayerDetail } from './playerView'
+import { richClub, rotateNinth, settleMatches } from '../longRunKit'
 
 let app: V2App | null = null
 afterEach(() => {
@@ -324,3 +328,46 @@ describe('招募比較', () => {
     }
   })
 })
+
+describe('已釋出球員超過 60 位（PR #18 review P2 的畫面回歸）', () => {
+  it('很早就釋出、最近戰報裡已經找不到的球員：詳情照常打開（唯讀、只有比賽數據），排行與陣容都沒有他', async () => {
+    const env = await create(0)
+    const deps = tab(env.storage, env.clock, env.locks)
+    const c0 = deps.store.loadClub()!
+    let club = await settleMatches(richClub(c0), 2, T0)
+    const released: string[] = []
+    for (let i = 0; i < 62; i++) {
+      const r = rotateNinth(club, T0)
+      released.push(r.releasedId)
+      club = await settleMatches(r.club, 1, T0)
+    }
+    deps.store.saveClub(club, c0.revision)
+    await open(env)
+    const saved0 = saved(env)
+    const oldest = released[0]
+    const rec = saved0.stats.players[oldest]
+    expect(rec.releasedAt).toBeDefined()
+    expect(saved0.recentMatches.some((m) => m.lines!.bat.some((x) => x[0] === oldest))).toBe(false)
+    openPlayerDetail(app!.controller, oldest, { tab: 'stats' })
+    await flush()
+    expect(text('.v2-detail-name')).toContain(rec.name)
+    expect(text('.v2-detail-where')).toBe(ST.releasedStatus)
+    expect(($('[data-tab="ability"]') as HTMLButtonElement).disabled).toBe(true)
+    expect($('.v2-upgrade-btn')).toBeNull()
+    expect($('[data-action="release"]')).toBeNull()
+    expect($('.v2-stats-panel')!.dataset.period).toBe('career')
+    expect(text('.v2-stat-tile[data-metric="AVG"] .v2-stat-num')).toBe(fmtRate(battingRates(batOfCareer(rec)).avg))
+    expect(text('.v2-stats-caption')).toContain('在隊期間')
+    // 從期間切換點不到最近 10／30 場（他已經不在隊上）
+    expect(($('.v2-period [data-value="last30"]') as HTMLButtonElement).disabled).toBe(true)
+    key('Escape')
+    await flush()
+    await goBoard()
+    for (const id of released) expect($(`.v2-board-row[data-player="${id}"]`)).toBeNull()
+    await click('[data-view="lineup"]')
+    // 陣容頁（先發、板凳、投手、預備）列的就是目前名單上的人，已釋出的不在裡面、也不能被排進陣容
+    expect($$('.v2-player-list .v2-player')).toHaveLength(saved0.players.length)
+    expect(saved0.players.some((p) => released.includes(p.player.id))).toBe(false)
+  })
+})
+

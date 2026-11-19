@@ -17,7 +17,6 @@ import {
   pitOf,
   pitRow,
   pitchingRates,
-  pruneReleased,
   totalsByPlayer,
   type MatchLines,
 } from './stats'
@@ -147,14 +146,16 @@ describe('生涯累計', () => {
     expect(s.players.a.bg).toBe(2)
   })
 
-  it('釋出：保留紀錄並標記；超過上限時刪最早釋出、而且戰報裡已經找不到的', () => {
+  it('釋出：保留紀錄並標記（只標一次）；釋出超過 60 位、之後又打了很多場，紀錄一筆都不少', () => {
     let s = newClubStats(0)
-    for (let i = 0; i < 5; i++) s = addMatchToCareer(s, i, { bat: [batRow(`r${i}`, bat({ pa: 1, ab: 1 }))], pit: [] }, info)
-    for (let i = 0; i < 5; i++) s = markReleased(s, `r${i}`, i + 1)
+    for (let i = 0; i < 75; i++) s = addMatchToCareer(s, i, { bat: [batRow(`r${i}`, bat({ pa: 4, ab: 4, h: 1 }))], pit: [] }, info)
+    for (let i = 0; i < 75; i++) s = markReleased(s, `r${i}`, i + 1)
     expect(markReleased(s, 'r0', 99)).toBe(s)
-    const pruned = pruneReleased(s, new Set(['r0']), 2)
-    // r0 還在戰報裡 → 保留；其他留最近釋出的 2 位
-    expect(Object.keys(pruned.players).sort()).toEqual(['r0', 'r3', 'r4'])
-    expect(pruneReleased(s, new Set(), 10)).toBe(s)
+    const before = structuredClone(s.players)
+    // 之後 200 場都沒有他們
+    for (let i = 75; i < 275; i++) s = addMatchToCareer(s, i, { bat: [batRow('new', bat({ pa: 4, ab: 3, bb: 1 }))], pit: [] }, info)
+    for (let i = 0; i < 75; i++) expect(s.players[`r${i}`]).toEqual(before[`r${i}`])
+    expect(Object.keys(s.players)).toHaveLength(76)
+    expect(s.players.r0).toMatchObject({ releasedAt: 1, first: 0, last: 0, bg: 1 })
   })
 })

@@ -284,7 +284,7 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   const c0 = load()
   const rich = { funds: 1e12, experience: 1e11 }
   deps.store.saveClub({ ...c0, economy: { ...c0.economy, assets: rich, earned: rich } }, c0.revision)
-  // 3,000 場：每 96 場招募 2 位、把預備名單的人釋出（只有上場過的人才有生涯紀錄；已釋出紀錄的上限另有單元測試）
+  // 3,000 場：每 96 場招募 2 位、把預備名單的人釋出（只有上場過的人才有生涯紀錄；大量釋出的容量見 npm run bench:v2:stats）
   let settleMs = 0
   let batches = 0
   while (load().idle.nextMatchIndex < 3000) {
@@ -313,6 +313,6 @@ console.log(`96（yieldToMain）| ${ms(real.total)} | ${(real.total / 96).toFixe
   const tQuery = (performance.now() - t) / 200
   console.log(`\nPhase 8 球員數據（${c.idle.nextMatchIndex} 場、${batches} 次離線結算，每次 96 場）`)
   console.log(`近期 ${c.recentMatches.length} 場的 lines 共 ${(lineBytes / 1024).toFixed(1)} KB（每場 ${(lineBytes / c.recentMatches.length).toFixed(0)} bytes）`)
-  console.log(`生涯紀錄 ${Object.keys(c.stats.players).length} 位（其中已釋出 ${released} 位，上限 60＋戰報裡還在的），共 ${(careerBytes / 1024).toFixed(1)} KB`)
+  console.log(`生涯紀錄 ${Object.keys(c.stats.players).length} 位（其中已釋出 ${released} 位，全部保留），共 ${(careerBytes / 1024).toFixed(1)} KB`)
   console.log(`存檔大小 ${(size / 1024).toFixed(1)} KB；每次 96 場結算平均 ${ms(settleMs / batches)}；最近 30 場聚合＋排行每次 ${ms(tQuery)}`)
 }

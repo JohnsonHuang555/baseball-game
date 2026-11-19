@@ -38,7 +38,10 @@ export interface CareerRecord {
   /** 第一次、最後一次出場的場次 */
   first: number
   last: number
-  /** 被釋出時的結算游標；還在隊上是 undefined */
+  /**
+   * 被釋出時的結算游標；還在隊上是 undefined。
+   * 釋出的球員紀錄永久保留（不刪除、不封存）：每位固定約 170 bytes，1,000 位也只有約 170 KB（見 docs/phase8-report.md 的容量測試）
+   */
   releasedAt?: number
 }
 
@@ -50,9 +53,6 @@ export interface ClubStats {
   throughMatch: number
   players: Record<string, CareerRecord>
 }
-
-/** 已釋出、而且最近 50 場都沒出現的球員，最多保留幾位的生涯紀錄（最早釋出的先刪） */
-export const RELEASED_STATS_LIMIT = 60
 
 export const newClubStats = (sinceMatch = 0): ClubStats => ({ sinceMatch, throughMatch: sinceMatch, players: {} })
 
@@ -134,20 +134,6 @@ export function markReleased(stats: ClubStats, playerId: string, atMatch: number
   const rec = stats.players[playerId]
   if (!rec || rec.releasedAt !== undefined) return stats
   return { ...stats, players: { ...stats.players, [playerId]: { ...rec, releasedAt: atMatch } } }
-}
-
-/**
- * 控制存檔大小：已釋出、而且最近的比賽裡已經不會出現的球員，只保留最近 RELEASED_STATS_LIMIT 位。
- * referenced 是最近比賽（戰報）裡還找得到的球員，永遠保留
- */
-export function pruneReleased(stats: ClubStats, referenced: ReadonlySet<string>, limit = RELEASED_STATS_LIMIT): ClubStats {
-  const gone = Object.entries(stats.players)
-    .filter(([id, r]) => r.releasedAt !== undefined && !referenced.has(id))
-    .sort(([, a], [, b]) => (b.releasedAt ?? 0) - (a.releasedAt ?? 0) || b.last - a.last)
-  if (gone.length <= limit) return stats
-  const players = { ...stats.players }
-  for (const [id] of gone.slice(limit)) delete players[id]
-  return { ...stats, players }
 }
 
 // ---- 聚合 ----

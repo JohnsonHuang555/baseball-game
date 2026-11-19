@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "bench:v2": "vite-node scripts/bench-v2.ts",
     "bench:v2:idle": "vite-node scripts/bench-v2-idle.ts",
+    "bench:v2:stats": "vite-node scripts/bench-v2-stats.ts",
     "balance:v2": "vite-node scripts/balance-v2.ts",
     "balance:v2:matrix": "vite-node scripts/balance/matrix.ts",
     "balance:v2:analyze": "vite-node scripts/balance/analyze.ts",

@@ -23,7 +23,7 @@ import { assignmentIssues, resolveRoster } from '../domain/roster'
 import { applyRankedResult, leagueOf, matchesBeforePossibleRelegation, recordLeagueResult } from '../domain/league'
 import { rewardFor } from '../domain/rewards'
 import { matchRecordOf } from '../domain/boxScore'
-import { addMatchToCareer, pruneReleased } from '../domain/stats'
+import { addMatchToCareer } from '../domain/stats'
 import { stableJson } from '../domain/fingerprint'
 import { coachParamIssues } from '../domain/tactics'
 import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome } from './batchRunner'
@@ -190,16 +190,8 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
     next.idle.lastSettledAt = now
     next.recentMatches = [...next.recentMatches, ...settled].slice(-RETENTION_CONFIG.recentMatches)
     next.replays = replays.slice(-RETENTION_CONFIG.replays)
-    next.stats = pruneReleased(next.stats, referencedPlayers(next.recentMatches))
   }
   return { club: next, settled, duplicates, relegated }
-}
-
-/** 最近比賽（戰報）裡出現過的球員：被釋出也要留著生涯紀錄，戰報才叫得出名字、點得進詳情 */
-export function referencedPlayers(matches: readonly SettledMatch[]): Set<string> {
-  const out = new Set<string>()
-  for (const m of matches) for (const row of [...(m.lines?.bat ?? []), ...(m.lines?.pit ?? [])]) out.add(row[0])
-  return out
 }
 
 /** 放置結算：記進比賽之後，時間錨點依實際新結算的場數推進（規則見 idleEngine.ts） */

@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import golden from './__golden__/club-golden.json'
 import { GOLDEN_CLUBS, clubGolden } from './__golden__/clubGolden'
-import { type ClubSave, type SettledMatch } from '../domain/club'
+import type { ClubSave, SettledMatch } from '../domain/club'
 import { leagueAtTier } from '../domain/league'
 import { battingRates, careerTotals, pitchingRates, totalsByPlayer, type Totals } from '../domain/stats'
 import { MemoryStorage } from '../infrastructure/clubRepository'
@@ -13,6 +13,11 @@ import { planMatches } from './batchRunner'
 import { releasePlayer, upgrade } from './economyService'
 import { leaderboard, periodTotals, playerStats } from './statsQuery'
 import { applySettingsChange, settleDue, settleOutcomes } from './settlementService'
+import { runBatch } from './batchRunner'
+import { richClub, rotateNinth } from '../longRunKit'
+import { validateClub, newClub } from '../domain/club'
+import { generateRoster } from '../../sim/generate'
+import { Rng } from '../../sim/rng'
 
 type Deps = ReturnType<typeof tab>
 
@@ -238,3 +243,58 @@ describe('排行', () => {
     expect(periodTotals(c, 'last10').info).toMatchObject({ matches: 0, fromMatch: null })
   })
 })
+
+describe('已釋出球員的生涯紀錄永久保留（PR #18 review P2）', () => {
+  it('長期招募、釋出 65 位（都上過場），之後又打 60 場：每一位的紀錄都在、數字等於他出場的每一場加總', async () => {
+    let club = richClub(newClub({ clubId: 'keep', clubName: '保留', clubSeed: 77, roster: generateRoster(new Rng(77)), now: T0 }))
+    const all: SettledMatch[] = []
+    const released: string[] = []
+    const settle = async (n: number) => {
+      const batch = await runBatch(planMatches(club, club.idle.nextMatchIndex, n), { yieldControl: null })
+      const out = settleOutcomes(club, batch.outcomes, T0)
+      // 同一批結果再送一次：不會重複累加
+      expect(settleOutcomes(out.club, batch.outcomes, T0).club.stats).toEqual(out.club.stats)
+      club = out.club
+      all.push(...out.settled)
+    }
+    await settle(2)
+    for (let i = 0; i < 65; i++) {
+      const r = rotateNinth(club, T0)
+      club = r.club
+      released.push(r.releasedId)
+      await settle(2)
+    }
+    await settle(60)
+    // 跟存檔驗證一致；playerId 不重複（招募編號只增不減，新人不會蓋掉舊紀錄）
+    expect(() => validateClub(club)).not.toThrow()
+    expect(new Set(released).size).toBe(65)
+    const recentIds = new Set(club.recentMatches.flatMap((m) => [...m.lines!.bat, ...m.lines!.pit].map((x) => x[0])))
+    const gone = released.filter((id) => !recentIds.has(id))
+    expect(gone.length).toBeGreaterThan(60)
+    const sums = totalsByPlayer(all)
+    for (const id of released) {
+      const rec = club.stats.players[id]
+      expect(rec, id).toBeDefined()
+      expect(rec.releasedAt).toBeDefined()
+      expect(rec.role).toBe('batter')
+      expect(careerTotals(rec)).toEqual(sums.get(id))
+      // 詳情（已釋出、唯讀）
+      expect(playerStats(club, id, 'career')).toMatchObject({ status: 'released', name: rec.name })
+    }
+    // 生涯不依賴最近 50 場：還在隊上的球員，生涯也是全部比賽的加總
+    for (const [id, rec] of Object.entries(club.stats.players)) expect(careerTotals(rec)).toEqual(sums.get(id))
+    // 最近 10／30 場只看最近的比賽：早就釋出的人不在期間裡
+    for (const id of gone) {
+      expect(periodTotals(club, 'last30').byPlayer.has(id)).toBe(false)
+      expect(playerStats(club, id, 'last30')!.totals.g).toBe(0)
+    }
+    // 排行只列在隊上的人；已釋出的人不在名單裡（不能升級、不能排進陣容）
+    const board = leaderboard(club, 'batter', 'career', 'ops')
+    const listed = [...board.ranked, ...board.smallSample, ...board.none].map((r) => r.playerId)
+    for (const id of released) {
+      expect(listed).not.toContain(id)
+      expect(club.players.some((p) => p.player.id === id)).toBe(false)
+    }
+  })
+})
+
