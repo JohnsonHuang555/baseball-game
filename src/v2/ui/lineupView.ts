@@ -12,7 +12,7 @@ import { ARCHETYPE_NAMES, POSITION_FULL, POSITION_SPOT, RATING_LABELS } from '..
 import type { Position } from '../../sim/types'
 import { getSlot, type Slot } from '../../sim/setup'
 import { isOffPosition } from '../../sim/positions'
-import type { Player } from '../../sim/types'
+import type { Batter, Player } from '../../sim/types'
 import type { ClubSave } from '../domain/club'
 import { stableJson } from '../domain/fingerprint'
 import {
@@ -36,6 +36,8 @@ import { icon } from './icons'
 import { barButton, draftBar } from './draftBar'
 import { defaultBoard, renderStatsBoard, type BoardState } from './statsView'
 import { ST } from './statsStrings'
+import { draftChangesLine, openSynergyGuide } from './synergyView'
+import { setCaptain } from '../../sim/setup'
 
 export interface LineupView {
   render(state: ControllerState): HTMLElement
@@ -209,6 +211,8 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
     const main = el('span', 'v2-player-main')
     const name = el('span', 'v2-player-name')
     name.append(el('span', 'v2-player-name-text', p.name), el('span', 'v2-level', V2T.level(level)))
+    const isCaptain = draft?.roster.captain === p.id && slot.kind === 'lineup'
+    if (isCaptain) name.append(el('span', 'v2-captain-chip', '隊長'))
     const sub = el('span', 'v2-player-sub')
     if (off) sub.append(el('span', 'v2-offpos', V2T.offPositionNative(POSITION_SPOT[p.primary])))
     if (p.role === 'pitcher') sub.append(pitchChip(p))
@@ -216,7 +220,7 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
     else if (slot.kind === 'reserve' && !off) sub.append(el('span', 'v2-player-native', V2T.nativePosition(POSITION_SPOT[p.primary])))
     main.append(name, sub)
     b.append(face, main, gradeLetters(p, off))
-    b.setAttribute('aria-label', `${chip} ${p.name} ${V2T.level(level)}${off ? `，${V2T.offPosition}` : ''}`)
+    b.setAttribute('aria-label', `${chip} ${p.name} ${V2T.level(level)}${isCaptain ? '，隊長' : ''}${off ? `，${V2T.offPosition}` : ''}`)
     if (isSelected) b.append(el('span', 'v2-selected-note', V2T.selected))
     b.onclick = () => void pick(slot)
     const develop = el('button', 'v2-develop')
@@ -311,8 +315,17 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
       return page
     }
     const bonds = el('div', 'v2-bond-row')
-    bonds.append(el('span', 'v2-bond-label', V2T.bondsActive), synergyBadges(r.lineup, r.captain, [], { full: true }))
-    page.append(head, tabs, bonds, el('p', 'v2-page-hint', V2T.lineupHint))
+    const guide = el('button', 'btn-white v2-bond-help')
+    guide.type = 'button'
+    guide.dataset.action = 'synergy-guide'
+    guide.append(icon('help', 16), '羈絆說明')
+    guide.onclick = () => openGuide()
+    bonds.append(el('span', 'v2-bond-label', V2T.bondsActive), synergyBadges(r.lineup, r.captain, [], { full: true, near: true }), guide)
+    page.append(head, tabs, bonds)
+    // 編輯中：儲存後羈絆會怎麼變（只用草稿算，不動存檔）
+    const preview = dirty() ? draftChangesLine(club ? resolveRoster(club) : null, r) : null
+    if (preview) page.append(preview)
+    page.append(el('p', 'v2-page-hint', V2T.lineupHint))
 
     const starters = group(
       V2T.starters,
@@ -342,6 +355,24 @@ export function createLineupView(controller: ClubController, goToLineup: () => v
     page.append(grid)
     page.append(saveBar(state, d))
     return page
+  }
+
+  /** 羈絆說明：讀草稿與存檔；指定隊長只改草稿 */
+  function openGuide(): void {
+    openSynergyGuide({
+      saved: () => (club ? resolveRoster(club) : null),
+      draft: () => draft!.roster,
+      pool: () => [...draft!.roster.bench, ...draft!.reserves.filter((p): p is Batter => p.role === 'batter')],
+      setCaptain:
+        lastState.canWrite && !lastState.saving
+          ? (id) => {
+              if (!draft) return
+              const name = draft.roster.lineup.find((s) => s.player.id === id)?.player.name ?? ''
+              apply({ ...draft, roster: setCaptain(draft.roster, id) }, `${name} 設為隊長（儲存陣容後生效）`)
+            }
+          : null,
+      owner: controller,
+    })
   }
 
   /**

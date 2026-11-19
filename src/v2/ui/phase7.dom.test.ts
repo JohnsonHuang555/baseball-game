@@ -67,7 +67,7 @@ async function setup(edit?: (c: ClubSave) => ClubSave, mobile = true) {
 const atTier = (tier: number, extra: Partial<ClubSave['league']> = {}) => (c: ClubSave): ClubSave => ({ ...c, league: leagueAtTier(c.league, tier, extra) })
 
 describe('遊戲指南', () => {
-  it('首頁標題列的「?」打開全畫面指南；9 章、可切換；Esc 關閉後焦點回到「?」；不寫入存檔', async () => {
+  it('首頁標題列的「?」打開全畫面指南；10 章、可切換；Esc 關閉後焦點回到「?」；不寫入存檔', async () => {
     const env = await setup()
     const help = $<HTMLButtonElement>('[data-action="open-guide"]')!
     expect(help.hidden).toBe(false)
@@ -80,22 +80,22 @@ describe('遊戲指南', () => {
     expect(modal).toBeTruthy()
     expect(modal.getAttribute('aria-modal')).toBe('true')
     const tabs = $$('.v2-guide-tab')
-    expect(tabs).toHaveLength(9)
+    expect(tabs).toHaveLength(10)
     expect(tabs[0].getAttribute('aria-selected')).toBe('true')
     expect($('.v2-guide-chapter')!.dataset.chapter).toBe('intro')
-    tabs[6].click()
+    tabs[7].click()
     await flush()
     expect($('.v2-guide-chapter')!.dataset.chapter).toBe('promotion')
-    expect(tabs[6].getAttribute('aria-selected')).toBe('true')
+    expect(tabs[7].getAttribute('aria-selected')).toBe('true')
     // 下一章／上一章
     $<HTMLButtonElement>('.v2-guide-next')!.click()
     expect($('.v2-guide-chapter')!.dataset.chapter).toBe('ranked')
     $<HTMLButtonElement>('.v2-guide-prev')!.click()
     expect($('.v2-guide-chapter')!.dataset.chapter).toBe('promotion')
     // 方向鍵切章
-    key('ArrowRight', tabs[6])
+    key('ArrowRight', tabs[7])
     expect($('.v2-guide-chapter')!.dataset.chapter).toBe('ranked')
-    expect(document.activeElement).toBe(tabs[7])
+    expect(document.activeElement).toBe(tabs[8])
     key('Escape')
     await flush()
     expect($('.v2-guide-modal')).toBeNull()
@@ -124,7 +124,7 @@ describe('遊戲指南', () => {
     await setup()
     $<HTMLButtonElement>('[data-action="open-guide"]')!.click()
     await flush()
-    $$('.v2-guide-tab')[8].click()
+    $$('.v2-guide-tab')[9].click()
     const qs = $$('.v2-faq-q')
     expect(qs).toHaveLength(5)
     qs[0].click()
