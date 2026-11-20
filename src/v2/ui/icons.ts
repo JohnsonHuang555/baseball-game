@@ -30,6 +30,10 @@ export type IconName =
   | 'fast'
   | 'search'
   | 'help'
+  | 'styleBalanced'
+  | 'stylePower'
+  | 'styleSpeed'
+  | 'styleDefense'
 
 const INK = '#141633'
 const C = 'currentColor'
@@ -39,6 +43,11 @@ const fill = (d: string, f = C, stroke = 'none', w = 0) =>
 const SHIELD = 'M12 2.5 20 5.5v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10v-6Z'
 
 const PATHS: Record<IconName, string> = {
+  // 戰術風格（Phase 9 PR 2）：天平、球棒、閃電、手套盾牌
+  styleBalanced: line('M12 4v15M8 19.5h8M4.5 7.5h15', 2.2) + line('M4.5 7.5 2.5 12.5a2 2 0 0 0 4 0Z M19.5 7.5l-2 5a2 2 0 0 0 4 0Z', 1.8),
+  stylePower: line('M4.5 19.5 13 11', 3.4) + line('M12 12l6-6a2.2 2.2 0 0 1 3.1 3.1l-6 6Z', 2.2) + fill('M6 3.5a2.3 2.3 0 1 0 0 4.6a2.3 2.3 0 1 0 0-4.6Z'),
+  styleSpeed: fill('M13.5 2.5 5 13.5h6.2l-1.4 8 8.7-11.2h-6.2Z', C, C, 1.2),
+  styleDefense: line(SHIELD) + line('M8.3 12.2l2.6 2.6 4.8-5.2', 2.4),
   club: line(SHIELD) + line('M8.5 12.5h7M12 9v7', 2.2),
   lineup: line('M4 6h16M4 12h16M4 18h10', 2.6) + fill('M20 15.5l-3 2.5 3 2.5Z'),
   tactics:

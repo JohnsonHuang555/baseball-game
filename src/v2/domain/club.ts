@@ -1,12 +1,13 @@
-// V2 球團存檔（schemaVersion 10）：球團、永久球員名單、陣容配置、戰術、經濟、聯盟進度、放置進度、
-// 進行中比賽的固定計畫、近期比賽（含 Box Score 與球員原始數據）、球員生涯數據、最近一次晉級挑戰的 Replay 與新手任務的旗標。
+// V2 球團存檔（schemaVersion 11）：球團、永久球員名單、陣容配置、戰術（四種風格）、經濟、聯盟進度、放置進度、
+// 進行中比賽的固定計畫、近期比賽（含 Box Score、球員原始數據與戰術摘要）、球員生涯數據、最近一次晉級挑戰的 Replay 與新手任務的旗標。
 // 不沿用 V1 的 Tournament：錦標賽是一輪一輪的 roguelike，V2 的球團要一直存在、一直累積。
-// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → … → 9 → 10）見 migration.ts
+// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → … → 10 → 11）見 migration.ts
 import type { Side } from '../../sim/game'
 import type { Player, Position, Roster } from '../../sim/types'
-import type { CoachParams, CoachStyle } from '../application/autoCoach'
+import { COACH_STYLES, type CoachParams, type CoachStyle } from '../application/autoCoach'
 import type { MatchPlan } from '../application/batchRunner'
 import type { MatchReplay } from '../application/matchRunner'
+import { tacticsRecordIssue, type TacticsRecord } from './matchTactics'
 import { lineupIssues } from './lineup'
 import { leagueViolations, newLeagueState, type LeagueState, type RankedMatchRecord } from './league'
 import { MAX_TIER } from './leagueConfig'
@@ -19,7 +20,7 @@ import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, v
 
 export { ClubValidationError, type ClubValidationCode } from './validation'
 
-export const CLUB_SCHEMA_VERSION = 10
+export const CLUB_SCHEMA_VERSION = 11
 
 /**
  * 換算好的陣容：先發、板凳、投手都是完整的球員物件（養成後的能力），也就是模擬引擎吃的 Roster。
@@ -174,6 +175,8 @@ export interface SettledMatch {
    * 有這個欄位時 box.batters／box.pitchers 是空陣列（不重複存）；舊比賽沒有，戰報缺的欄位顯示「未記錄」
    */
   lines?: MatchLines
+  /** 我方這場實際執行的戰術（schemaVersion 11 起的比賽才有，精簡格式見 matchTactics.ts）；舊比賽沒有，戰報顯示「未記錄」，不用目前的戰術回填 */
+  tactics?: TacticsRecord
 }
 
 /**
@@ -193,7 +196,7 @@ export interface ChallengeReplay {
   replay: MatchReplay
 }
 
-export interface ClubSaveV10 {
+export interface ClubSaveV11 {
   schemaVersion: typeof CLUB_SCHEMA_VERSION
   clubId: string
   clubName: string
@@ -224,13 +227,13 @@ export interface ClubSaveV10 {
   /** 球員比賽數據（schemaVersion 10 起）：生涯累計與記錄起點，見 stats.ts */
   stats: ClubStats
   /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄；從 3 升上來時是 3） */
-  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7 | 8 | 9; revision: number }
+  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10; revision: number }
   /** 每存一次加 1：用來發現別的分頁已經改過存檔 */
   revision: number
 }
 
 /** 目前格式的球團存檔 */
-export type ClubSave = ClubSaveV10
+export type ClubSave = ClubSaveV11
 
 export interface NewClubInput {
   clubId: string
@@ -359,7 +362,7 @@ export function validateClub(value: unknown): ClubSave {
   validateAssignment(value)
   const strategy = obj(value, 'strategy')
   const coach = obj(strategy, 'coach', 'strategy')
-  if (coach.style !== 'balanced') throw invalid('strategy.coach.style', '不支援的戰術風格')
+  if (!(COACH_STYLES as readonly unknown[]).includes(coach.style)) throw invalid('strategy.coach.style', '不支援的戰術風格')
   if (coach.params !== undefined && !isObj(coach.params)) throw invalid('strategy.coach.params', '必須是物件')
   const paramIssues = coach.params === undefined ? [] : coachParamIssues(coach.params as Partial<CoachParams>)
   if (paramIssues.length) throw invalid('strategy.coach.params', paramIssues.join('；'))
@@ -377,6 +380,7 @@ export function validateClub(value: unknown): ClubSave {
     if (match.box !== undefined) validateBox(match.box, `${path}.box`)
     if (match.ranked !== undefined) validateRankedRecord(match.ranked, `${path}.ranked`)
     if (match.lines !== undefined) validateLines(match.lines, `${path}.lines`)
+    if (match.tactics !== undefined) validateTactics(match.tactics, `${path}.tactics`)
   })
   const idle = obj(value, 'idle')
   num(idle, 'anchorMs', 'idle')
@@ -483,6 +487,11 @@ function validateLiveMatch(value: unknown, idle: Obj, clubId: string): void {
   // 結算後就清掉：固定的一定是還沒結算的那一場
   if (value.matchIndex !== idle.nextMatchIndex || plan.matchIndex !== value.matchIndex) throw invalid('liveMatch.matchIndex', '不是進行中的那一場')
   if (plan.matchId !== `${clubId}#${value.matchIndex}`) throw invalid('liveMatch.plan.matchId', '不屬於這個球團')
+}
+
+function validateTactics(value: unknown, path: string): void {
+  const issue = tacticsRecordIssue(value)
+  if (issue) throw invalid(path, issue)
 }
 
 function validateRankedRecord(value: unknown, path: string): void {

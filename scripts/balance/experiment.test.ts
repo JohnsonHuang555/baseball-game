@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { CLUB_SCHEMA_VERSION } from '../../src/v2/domain/club'
 import { LEAGUES } from '../../src/v2/domain/leagueConfig'
 import { assertSingleExperiment, completedJobs, configFingerprint, currentExperiment, jobKey, MATRIX_FORMAT } from './experiment'
 
@@ -10,7 +11,7 @@ describe('平衡矩陣的接續：實驗設定檢查', () => {
 
   it('實驗設定包含候選方案、天數、格式、存檔版本與數值指紋', () => {
     const e = currentExperiment('S', 30)
-    expect(e).toMatchObject({ format: MATRIX_FORMAT, candidate: 'S', days: 30, schema: 10 })
+    expect(e).toMatchObject({ format: MATRIX_FORMAT, candidate: 'S', days: 30, schema: CLUB_SCHEMA_VERSION })
     expect(e.config).toMatch(/^[0-9a-f]{8}$/)
   })
 
