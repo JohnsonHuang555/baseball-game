@@ -706,7 +706,7 @@ export const V2T = {
   champWatchLast: (n: number) => `觀看第 ${n} 場 ›`,
   champRelegatedDuring: '你在系列賽中途降級了：這個系列賽仍然可以打完，打完後留在目前的聯盟',
   champGameDoneTitle: (n: number) => `第 ${n} 場已經打完`,
-  champGameDoneAsk: '結果已經確定並存檔。要觀看比賽過程，還是直接看結果？',
+  champGameDoneAsk: '要觀看比賽過程，還是直接看結果？',
   champWatch: '觀看比賽',
   champShowResult: '直接看結果',
   champGameWonTitle: (n: number) => `第 ${n} 場勝利！`,

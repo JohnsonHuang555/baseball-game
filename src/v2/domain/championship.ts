@@ -35,8 +35,12 @@ export const CHAMPIONSHIP_CONFIG = {
   maxGames: 7,
   /** 冠軍隊的能力中心（傳奇一般對手 6.6、傳奇的晉級挑戰 6.85）。見 docs/balance/v2-phase10-championship.md */
   opponentMean: 7.1,
-  /** 系列賽結束（不管輸贏）後，要再打幾場一般比賽才能再開始下一個系列賽 */
-  retryAfterMatches: 96,
+  /**
+   * 系列賽結束（不管輸贏）後，要再打幾場一般比賽才能再開始下一個系列賽：288 場＝24 小時。
+   * 96 場（8 小時）時強隊每次上線都能再打一輪（120 天最多 167 個系列賽），冠軍次數失去意義；
+   * 改成 24 小時，第一次奪冠的時間與挑戰次數幾乎不變（平衡報告 D 節）
+   */
+  retryAfterMatches: 288,
   /** 保留最近幾個已結束的系列賽 */
   historyLimit: 10,
   /** 冠軍隊的固定隊名 */
