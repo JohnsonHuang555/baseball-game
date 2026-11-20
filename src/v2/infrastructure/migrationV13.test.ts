@@ -64,11 +64,10 @@ describe('V12 → V13（純函式）', () => {
   it('只改版本：原生能力、等級、特性培養成果、進行中的訓練、戰術、聯盟、積分、帳務、招募、固定的比賽、Replay、生涯數據、比賽紀錄一個字都不動', () => {
     const old = v12()
     const club = migrateToLatest(old)
-    const { schemaVersion, revision, migratedFrom, ...rest } = club
+    const { schemaVersion, revision, migratedFrom, championship: _ch, ...rest } = club
     const { schemaVersion: _s, revision: oldRevision, migratedFrom: _m, ...oldRest } = old
     expect(rest).toEqual(oldRest)
-    expect(schemaVersion).toBe(13)
-    expect(CLUB_SCHEMA_VERSION).toBe(13)
+    expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(revision).toBe(oldRevision + 1)
     expect(migratedFrom).toEqual({ schemaVersion: 12, revision: oldRevision })
     // 舊球員 0 次、沒有加成；舊比賽沒有 MVP（不回填）
@@ -90,7 +89,7 @@ describe('V12 → V13（純函式）', () => {
       [fixtureV11, 11],
     ] as const) {
       const c = migrateToLatest(structuredClone(fx))
-      expect(c.schemaVersion).toBe(13)
+      expect(c.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
       expect(c.migratedFrom?.schemaVersion).toBe(from)
       expect(c.players.every((p) => p.mvp === undefined)).toBe(true)
       expect(c.recentMatches.every((m) => m.mvp === undefined)).toBe(true)
@@ -188,7 +187,7 @@ describe('V12 → V13（打開存檔）', () => {
     expect(value.migrated).toBe(true)
     expect(storage.getItem(CLUB_BACKUP_KEY_V12)).toBe(RAW_V12)
     expect(storage.getItem(CLUB_BACKUP_KEY_V11)).toBe('舊的 V11 備份')
-    expect(value.club!.schemaVersion).toBe(13)
+    expect(value.club!.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
   })
 
   it('寫入失敗（備份或主存檔）時原本的 V12 存檔不變，之後可以再遷移；重複打開不會再遷移', async () => {

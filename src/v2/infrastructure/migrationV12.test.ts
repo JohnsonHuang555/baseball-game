@@ -47,7 +47,7 @@ describe('V11 → V12（純函式）', () => {
   it('只加上空的訓練槽：球員、等級、原生能力與特性、生涯、戰術、帳務、招募次數、聯盟、積分、固定的比賽、Replay、比賽紀錄一個字都不動', () => {
     const old = v11()
     const club = migrateToLatest(old)
-    const { schemaVersion, revision, migratedFrom, training, ...rest } = club
+    const { schemaVersion, revision, migratedFrom, training, championship: _ch, ...rest } = club
     const { schemaVersion: _s, revision: oldRevision, migratedFrom: _m, ...oldRest } = old
     expect(rest).toEqual(oldRest)
     expect(training).toEqual({ potentialVersion: 1, active: null, recent: [] })

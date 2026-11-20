@@ -38,6 +38,8 @@ import type { ClubSaveV9 } from './legacyV9'
 import type { ClubSaveV10 } from './legacyV10'
 import type { ClubSaveV11 } from './legacyV11'
 import type { ClubSaveV12 } from './legacyV12'
+import type { ClubSaveV13 } from './legacyV13'
+import { newChampionshipState } from './championship'
 import { newTrainingState } from './traitTraining'
 import { newClubStats } from './stats'
 import { replay as replayGame } from '../../sim/game'
@@ -50,7 +52,7 @@ export class MigrationError extends Error {
 }
 
 /** 可以遷移的舊版本 */
-export const MIGRATABLE_VERSIONS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const
+export const MIGRATABLE_VERSIONS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] as const
 export type MigratableVersion = (typeof MIGRATABLE_VERSIONS)[number]
 
 /** 讀進來的存檔需要遷移嗎：只看 schemaVersion */
@@ -72,10 +74,11 @@ export function migrateToLatest(value: unknown): ClubSave {
   const origin = { schemaVersion: version, revision: original.revision }
   try {
     // 中間版本沒有單獨驗證：缺欄位時這裡可能丟 TypeError，一樣當成遷移失敗
-    if (version === 12) return validateClub(toV13(value as ClubSaveV12, origin))
-    if (version === 11) return validateClub(toV13(toV12(value as ClubSaveV11), origin))
-    if (version === 10) return validateClub(toV13(toV12(toV11(value as ClubSaveV10)), origin))
-    if (version === 9) return validateClub(toV13(toV12(toV11(toV10(value as ClubSaveV9))), origin))
+    if (version === 13) return validateClub(toV14(value as ClubSaveV13, origin))
+    if (version === 12) return validateClub(toV14(toV13(value as ClubSaveV12), origin))
+    if (version === 11) return validateClub(toV14(toV13(toV12(value as ClubSaveV11)), origin))
+    if (version === 10) return validateClub(toV14(toV13(toV12(toV11(value as ClubSaveV10))), origin))
+    if (version === 9) return validateClub(toV14(toV13(toV12(toV11(toV10(value as ClubSaveV9)))), origin))
     const v8 =
       version === 8
         ? (value as ClubSaveV8)
@@ -88,7 +91,7 @@ export function migrateToLatest(value: unknown): ClubSave {
                     : toV6(version === 5 ? (value as ClubSaveV5) : toV5(version === 3 ? migrateV3ToV4(value) : (value as ClubSaveV4))),
                 ),
           )
-    return validateClub(toV13(toV12(toV11(toV10(toV9(v8)))), origin))
+    return validateClub(toV14(toV13(toV12(toV11(toV10(toV9(v8))))), origin))
   } catch (e) {
     if (e instanceof MigrationError) throw e
     throw new MigrationError(`遷移後的存檔驗證失敗：${(e as Error).message}`, { cause: e })
@@ -237,12 +240,22 @@ export function toV12(v11: ClubSaveV11): ClubSaveV12 {
 }
 
 /**
- * V12 → V13：只改版本號。revision 接著原始存檔加 1（從儲存的角度只是一次寫入），migratedFrom 記原始版本。
+ * V12 → V13（不驗證，給 migrateToLatest 串接用）：只改版本號。
  * 球員沒有 MVP 紀錄（不寫 mvp＝0 次、沒有加成），舊比賽沒有 MVP（不回填）；其他欄位一個字都不動
  */
-export function toV13(v12: ClubSaveV12, origin: { schemaVersion: MigratableVersion; revision: number }): ClubSave {
+export function toV13(v12: ClubSaveV12): ClubSaveV13 {
   const { migratedFrom: _old, ...rest } = structuredClone(v12)
-  return { ...rest, schemaVersion: CLUB_SCHEMA_VERSION, migratedFrom: origin, revision: origin.revision + 1 }
+  return { ...rest, schemaVersion: 13 }
+}
+
+/**
+ * V13 → V14：加上空的傳奇總冠軍賽資料（沒有系列賽、沒有冠軍、沒有冷卻）。
+ * 不追溯補發冠軍：就算舊存檔早就符合資格也一樣，要自己打。其他欄位一個字都不動。
+ * revision 接著原始存檔加 1（從儲存的角度只是一次寫入），migratedFrom 記原始版本
+ */
+export function toV14(v13: ClubSaveV13, origin: { schemaVersion: MigratableVersion; revision: number }): ClubSave {
+  const { migratedFrom: _old, ...rest } = structuredClone(v13)
+  return { ...rest, championship: newChampionshipState(), schemaVersion: CLUB_SCHEMA_VERSION, migratedFrom: origin, revision: origin.revision + 1 }
 }
 
 function seededLeague(v4: ClubSaveV4): LeagueStateV8 {

@@ -252,7 +252,7 @@ describe('V7 → V8 遷移', () => {
     const old = v7()
     expect(sourceVersion(old)).toBe(7)
     const club = migrateToLatest(old)
-    const { schemaVersion, stats: newStats, revision, migratedFrom, onboarding, training: _t, ...rest } = club
+    const { schemaVersion, stats: newStats, revision, migratedFrom, onboarding, training: _t, championship: _ch, ...rest } = club
     expect(newStats).toEqual({ sinceMatch: club.idle.nextMatchIndex, throughMatch: club.idle.nextMatchIndex, players: {} })
     const { schemaVersion: _s, revision: oldRevision, ...oldRest } = old
     expect({ ...rest, league: v8League(rest.league) }).toEqual(oldRest)

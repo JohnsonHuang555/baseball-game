@@ -1,6 +1,7 @@
 // schemaVersion 12 的存檔格式（Phase 9 PR 3）：凍結在這裡只給遷移用，之後不要再改。
 // 跟 13 的差別只有：球員沒有 MVP 紀錄（mvp），比賽沒有 MVP（mvp）
-import type { ClubSaveV13, PlayerRecord, SettledMatch } from './club'
+import type { PlayerRecord, SettledMatch } from './club'
+import type { ClubSaveV13 } from './legacyV13'
 
 export type PlayerRecordV12 = Omit<PlayerRecord, 'mvp'>
 export type SettledMatchV12 = Omit<SettledMatch, 'mvp'>
