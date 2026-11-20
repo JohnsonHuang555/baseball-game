@@ -17,7 +17,7 @@ import { MAX_LEVEL, RECRUIT_CONFIG, SPEND_LOG_LIMIT } from './progressionConfig'
 import { resolveRoster } from './roster'
 import { BAT_STORE, PIT_STORE, newClubStats, type ClubStats, type MatchLines } from './stats'
 import { coachParamIssues } from './tactics'
-import { matchMvpIssue, mvpIssues, unpackMvp, type MatchMvpRecord, type MvpRecord } from './mvp'
+import { matchMvpIssue, mvpCursorIssues, mvpIssues, unpackMvp, type MatchMvpRecord, type MvpRecord } from './mvp'
 import { POTENTIAL_VERSION, TRAINING_CONFIG, TRAINING_RECENT_LIMIT, developmentIssues, newTrainingState, staticTrainingBlock, trainingClass, type TrainingKind, type TrainingState } from './traitTraining'
 import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, validateMatches, type Obj } from './validation'
 
@@ -520,7 +520,9 @@ function validatePlayers(value: Obj): void {
       if (issues.length) throw invalid(`${path}.dev`, issues.join('；'))
     }
     if (r.mvp !== undefined) {
-      const issues = mvpIssues(r as unknown as PlayerRecord)
+      // 球員自己的紀錄（次數、筆數、能力、場次嚴格遞增、不早於加入）＋球團游標（成長一定在已結算的比賽）
+      const cursor = isObj(value.idle) && Number.isSafeInteger(value.idle.nextMatchIndex) ? (value.idle.nextMatchIndex as number) : null
+      const issues = [...mvpIssues(r as unknown as PlayerRecord), ...(cursor === null ? [] : mvpCursorIssues(r as unknown as PlayerRecord, cursor))]
       if (issues.length) throw invalid(`${path}.mvp`, issues.join('；'))
     }
     const id = r.player.id as string

@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ClubSave, SettledMatch } from '../domain/club'
 import { leagueAtTier } from '../domain/league'
-import { MVP_CONFIG, mvpBonusUnits, unpackMvp } from '../domain/mvp'
+import { MVP_CONFIG, awardMvp, mvpBonusUnits, unpackMvp } from '../domain/mvp'
 import { recordOf } from '../domain/roster'
 import { effectiveTraits, trainingOptions } from '../domain/traitTraining'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
@@ -199,6 +199,25 @@ describe('離線 96 場：成長那一場切段', () => {
     expect(c.stats.throughMatch).toBe(c.idle.nextMatchIndex)
   })
 
+  it('MVP 成長與聯盟降級在同一批：兩者都套用、各自從下一場起；降級後的比賽用新聯盟規劃，每場只記一次', async () => {
+    const { deps, clock } = await setup(6)
+    save(deps, (c) => ({ ...c, ...atMatch(c, 800), league: { ...leagueAtTier(c.league, 4), points: 6, protectionRemaining: 0 }, players: c.players.map((r) => ({ ...r, mvp: { count: 9, grants: [] } })) }))
+    clock.advance(8 * HOUR)
+    const r = await settleDue(deps)
+    const c = load(deps)
+    expect(r.settled).toHaveLength(96)
+    expect(new Set(r.settled.map((m) => m.matchIndex)).size).toBe(96)
+    expect(c.league.relegations).toBeGreaterThan(0)
+    const relegatedAt = r.settled.find((m) => m.ranked?.relegatedTo != null)!.matchIndex
+    // 降級之後的比賽是新聯盟的
+    for (const m of r.settled) expect(m.result.leagueTier).toBe(m.matchIndex <= relegatedAt ? 4 : 3)
+    const grants = c.players.flatMap((p) => (p.mvp?.grants ?? []).map((g) => ({ id: p.player.id, ...g })))
+    expect(grants.length).toBeGreaterThan(0)
+    for (const g of grants) expect(unpackMvp(r.settled.find((m) => m.matchIndex === g.atMatch)!.mvp!)).toMatchObject({ playerId: g.id, growth: g.rating })
+    expect(c.players.reduce((a, p) => a + (p.mvp?.count ?? 0), 0)).toBe(9 * c.players.length + 96)
+    expect(c.stats.throughMatch).toBe(c.idle.nextMatchIndex)
+  })
+
   it('MVP 成長、訓練完成、降級在同一批離線比賽：三種都套用、各自從下一場起；每場只記一次', async () => {
     const { deps, clock } = await setup(5)
     // 傳奇聯盟、積分很低：很快就可能降級；第一棒差 4 場完成訓練；全隊都已經 9 次 MVP（第一場就會有人成長）
@@ -233,6 +252,80 @@ describe('離線 96 場：成長那一場切段', () => {
     // 第一棒：訓練完成（第 4 場）之後才有新特性
     const trait = c.training.recent.at(-1)!.trait
     for (const x of log) expect(x.traits.includes(trait)).toBe(x.index > 803)
+  })
+})
+
+describe('第 20、30、40 次 MVP（上限 +0.3）', () => {
+  /**
+   * 全隊都已經拿過 10n 次 MVP（照正式規則成長 n 次，場次在結算游標之前），再 10 次才會成長；
+   * 找一位先發在這批第 5 場第一次得獎，把他設成 10n + 9 次：他一定在第 5 場拿到第 10n + 10 次
+   */
+  async function nthGrowthAt(n: number) {
+    for (let seed = 1; seed < 60; seed++) {
+      const { deps, clock } = await setup(seed)
+      save(deps, (c) => {
+        const base = { ...c, ...atMatch(c, 700) }
+        return { ...base, players: base.players.map((r) => {
+          let x = r
+          for (let i = 0; i < 10 * n; i++) x = awardMvp(x, 600 + i).record
+          return x
+        }) }
+      })
+      clock.advance(8 * HOUR)
+      const club = load(deps)
+      const seq = mvpIds(await dryRun(club, clock.now()))
+      const id = seq[4]
+      if (!lineupOrStarter(club).has(id) || seq.indexOf(id) !== 4) continue
+      save(deps, (c) => ({ ...c, players: c.players.map((r) => (r.player.id === id ? { ...r, mvp: { ...r.mvp!, count: 10 * n + 9 } } : r)) }))
+      return { deps, id, seq }
+    }
+    throw new Error('找不到種子')
+  }
+
+  for (const n of [1, 2]) {
+    it(`第 ${10 * n + 10} 次 MVP：成長到 +0.${n + 1}，第 5 場用舊能力、第 6 場起生效`, async () => {
+      const { deps, id, seq } = await nthGrowthAt(n)
+      const first = load(deps).idle.nextMatchIndex
+      const units0 = recordOf(load(deps), id)!.mvp!.grants.length
+      expect(units0).toBe(n)
+      const { report, log } = await settleLogged(deps, id)
+      const c = load(deps)
+      expect(report.settled).toHaveLength(96)
+      expect(log.map((x) => x.index)).toEqual(Array.from({ length: 96 }, (_, i) => first + i))
+      expect(mvpIds(report.settled).slice(0, 5)).toEqual(seq.slice(0, 5))
+      const grow = unpackMvp(report.settled[4].mvp!)
+      expect(grow).toMatchObject({ playerId: id, count: 10 * n + 10 })
+      const k = grow.growth!
+      expect(k).not.toBeNull()
+      const rec = recordOf(c, id)!
+      expect(rec.mvp!.grants).toHaveLength(n + 1)
+      expect(rec.mvp!.grants[n]).toEqual({ rating: k, atMatch: first + 4 })
+      const before = log[0].ratings[k]
+      for (const x of log.slice(0, 5)) expect(x.ratings[k]).toBe(before)
+      expect(log[5].ratings[k]).toBeCloseTo(Math.min(10, before + 0.1), 6)
+      expect(c.players.reduce((a, p) => a + (p.mvp?.count ?? 0), 0)).toBe(10 * n * c.players.length + 9 + 96)
+      expect((await settleDue(deps)).settled).toEqual([])
+    })
+  }
+
+  it('第 40 次 MVP（已達 +0.3）：次數照樣累加、不再提升能力、也不需要因為成長而切段', async () => {
+    const { deps, id } = await nthGrowthAt(3)
+    expect(recordOf(load(deps), id)!.mvp!.grants).toHaveLength(MVP_CONFIG.maxUnits)
+    // 全隊都已經到上限：MVP 不會讓任何人成長，上限是 Infinity（新秀聯盟不會降級、沒有訓練）
+    expect(matchesBeforePossibleChange(load(deps))).toBe(Infinity)
+    const ratingsBefore = { ...(recordOf(load(deps), id)!.player.ratings as unknown as Record<string, number>) }
+    const { report, log } = await settleLogged(deps, id)
+    const c = load(deps)
+    expect(report.settled).toHaveLength(96)
+    expect(report.segments).toBe(1)
+    expect(unpackMvp(report.settled[4].mvp!)).toMatchObject({ playerId: id, count: 40, growth: null })
+    expect(report.settled.every((m) => unpackMvp(m.mvp!).growth === null)).toBe(true)
+    // 能力從頭到尾一樣；紀錄還是 3 筆
+    for (const x of log) expect(x.ratings).toEqual(log[0].ratings)
+    expect(recordOf(c, id)!.mvp!.grants).toHaveLength(3)
+    expect(recordOf(c, id)!.player.ratings).toEqual(ratingsBefore)
+    expect(recordOf(c, id)!.mvp!.count).toBeGreaterThanOrEqual(40)
+    expect(c.players.reduce((a, p) => a + (p.mvp?.count ?? 0), 0)).toBe(30 * c.players.length + 9 + 96)
   })
 })
 

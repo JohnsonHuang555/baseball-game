@@ -4,13 +4,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import fixtureV12 from '../domain/__fixtures__/club-v12-phase9.json'
 import { createClubSafely } from '../application/clubLifecycle'
-import type { ClubSave } from '../domain/club'
+import type { ClubSave, PlayerRecord } from '../domain/club'
 import { mvpToNext, unpackMvp, withMvpBonus } from '../domain/mvp'
 import { leveled } from '../domain/progression'
 import { recordOf } from '../domain/roster'
 import { batOf } from '../domain/stats'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, HOUR, ManualClock, T0, tab } from '../testkit'
+import { FakeLockManager, HOUR, ManualClock, T0, atMatch, tab } from '../testkit'
 import { RATING_FULL } from '../../ui/strings'
 import { openV2, type V2App } from './app'
 import { V2T } from './strings'
@@ -129,23 +129,34 @@ describe('戰報：本場 MVP', () => {
 })
 
 describe('球員詳情：MVP 紀錄與能力表', () => {
-  it('生涯次數、下一次成長的進度、各項加成與總加成；能力表把原始／等級／MVP 分開，「目前」= 比賽用的有效能力', async () => {
+  /** 已經打到第 50 場的球團；把指定球員的 MVP 紀錄換掉（成長場次都在結算游標之前） */
+  async function withRecord(pick: (c: ClubSave) => string, mvp: (role: 'batter' | 'pitcher') => unknown, level = 1) {
+    const mvpOf = mvp as (role: 'batter' | 'pitcher') => PlayerRecord['mvp']
     let id = ''
     const env = await create(0, (c) => {
-      id = c.roster.lineup[0].playerId
-      return { ...c, players: c.players.map((r) => (r.player.id === id ? { ...r, level: 6, mvp: { count: 27, grants: [{ rating: 'contact', atMatch: 3 }, { rating: 'contact', atMatch: 9 }] } } : r)) }
+      id = pick(c)
+      const base = { ...c, ...atMatch(c, 50) }
+      return { ...base, players: base.players.map((r) => (r.player.id === id ? { ...r, level, mvp: mvpOf(r.player.role) } : r)) }
     })
     await open(env)
     const { openPlayerDetail } = await import('./playerView')
     openPlayerDetail(app!.controller, id)
     await flush()
+    return { env, id }
+  }
+  const lead = (c: ClubSave) => c.roster.lineup[0].playerId
+
+  it('生涯次數、下一次成長的進度、成長單位、各項加成；能力表把原始／等級／MVP 分開，「目前」= 比賽用的有效能力', async () => {
+    const { env, id } = await withRecord(lead, () => ({ count: 27, grants: [{ rating: 'contact', atMatch: 3 }, { rating: 'contact', atMatch: 9 }] }), 6)
     const rec = recordOf(saved(env), id)!
     expect(text('.v2-mvp-fact[data-key="count"] dd')).toBe(V2T.mvpCareerCount(27))
     expect(mvpToNext(rec)).toBe(3)
     expect(text('.v2-mvp-fact[data-key="next"] .v2-num')).toBe(V2T.mvpNextValue(7, 10))
     expect($('.v2-mvp-bar')!.getAttribute('aria-valuenow')).toBe('7')
     expect(text('.v2-mvp-bonus-chip[data-rating="contact"]')).toBe(`${RATING_FULL.contact} +0.2`)
-    expect(text('.v2-mvp-bonus-total')).toBe(V2T.mvpBonusTotal(2, 5))
+    expect(text('.v2-mvp-units .v2-num')).toBe(V2T.mvpUnitsTotal(2, 3))
+    expect($$('.v2-mvp-pip.on')).toHaveLength(2)
+    expect($$('.v2-mvp-pip')).toHaveLength(3)
     // 能力表
     const heads = $$('.v2-rating-table thead th').map((th) => th.textContent)
     expect(heads.slice(1, 5)).toEqual([V2T.baseRating, V2T.levelGrowthCol, V2T.mvpCol, V2T.currentRatingLong])
@@ -156,20 +167,62 @@ describe('球員詳情：MVP 紀錄與能力表', () => {
     expect($('.v2-rating-table tr[data-rating="power"] td.mvp')!.textContent).toBe('—')
   })
 
-  it('成長已達上限：顯示「已達上限」、+0.5／+0.5，說明之後只累計次數', async () => {
-    let id = ''
+  for (const units of [0, 1, 2]) {
+    it(`成長單位 ${units}／3：顯示 ${units} 個點亮、還在成長（進度條）`, async () => {
+      await withRecord(lead, () => ({ count: units * 10 + 4, grants: Array.from({ length: units }, (_, i) => ({ rating: 'contact', atMatch: i * 10 + 9 })) }))
+      expect(text('.v2-mvp-units .v2-num')).toBe(V2T.mvpUnitsTotal(units, 3))
+      expect($$('.v2-mvp-pip.on')).toHaveLength(units)
+      expect($('.v2-mvp-maxed-chip')).toBeNull()
+      expect($('.v2-mvp-section')!.dataset.state).toBe('growing')
+      expect($('.v2-mvp-bar')!.getAttribute('aria-valuenow')).toBe('4')
+      expect(text('.v2-mvp-section')).toContain(V2T.mvpRule(3))
+      expect(text('.v2-mvp-section')).not.toMatch(/\+0\.5/)
+    })
+  }
+
+  it('成長單位 3／3：已達上限（仍會獲選 MVP、照樣累計次數），沒有進度條', async () => {
+    await withRecord((c) => c.roster.starter, () => ({ count: 47, grants: (['control', 'stuff', 'control'] as const).map((rating, i) => ({ rating, atMatch: i * 10 + 9 })) }))
+    expect(text('.v2-mvp-units .v2-num')).toBe(V2T.mvpUnitsTotal(3, 3))
+    expect(text('.v2-mvp-maxed-chip')).toBe(V2T.mvpUnitsMaxed)
+    expect($$('.v2-mvp-pip.on')).toHaveLength(3)
+    expect(text('.v2-mvp-fact[data-key="next"] dd')).toBe(V2T.mvpMaxed)
+    expect($('.v2-mvp-bar')).toBeNull()
+    expect(text('.v2-mvp-section')).toContain(V2T.mvpCappedRule(3))
+    expect(text('.v2-mvp-section')).toContain('仍會獲選 MVP')
+  })
+
+  it('還沒到上限，但所有合法能力都已經是 10：說明原因，不顯示「還差幾次」', async () => {
     const env = await create(0, (c) => {
-      id = c.roster.starter
-      const grants = (['control', 'stuff', 'control', 'stuff', 'control'] as const).map((rating, i) => ({ rating, atMatch: i }))
-      return { ...c, players: c.players.map((r) => (r.player.id === id ? { ...r, mvp: { count: 61, grants } } : r)) }
+      const id = c.roster.starter
+      const base = { ...c, ...atMatch(c, 50) }
+      return { ...base, players: base.players.map((r) => (r.player.id === id ? { ...r, player: { ...r.player, ratings: { stuff: 10, control: 10, stamina: 10 } } as never, mvp: { count: 14, grants: [] } } : r)) }
     })
     await open(env)
     const { openPlayerDetail } = await import('./playerView')
-    openPlayerDetail(app!.controller, id)
+    openPlayerDetail(app!.controller, saved(env).roster.starter)
     await flush()
-    expect(text('.v2-mvp-fact[data-key="next"] dd')).toBe(V2T.mvpMaxed)
-    expect(text('.v2-mvp-bonus-total')).toBe(V2T.mvpBonusTotal(5, 5))
-    expect(text('.v2-mvp-section')).toContain(V2T.mvpCappedRule)
+    expect($('.v2-mvp-section')!.dataset.state).toBe('no-room')
+    expect(text('.v2-mvp-fact[data-key="next"] dd')).toBe(V2T.mvpNoRoom)
+    expect($('.v2-mvp-bar')).toBeNull()
+    expect(text('.v2-mvp-section')).toContain(V2T.mvpNoRoomRule)
+  })
+})
+
+describe('已達上限的球員仍然會得獎', () => {
+  it('全隊都到 +0.3：照樣每場選出 MVP，戰報寫「已達上限（仍可獲選 MVP）」，不再成長', async () => {
+    const env = await create(1, (c) => {
+      const base = { ...c, ...atMatch(c, 50) }
+      return { ...base, players: base.players.map((r) => ({ ...r, mvp: { count: 33, grants: [9, 19, 29].map((atMatch) => ({ rating: r.player.role === 'batter' ? 'contact' : 'stuff', atMatch })) } })) }
+    })
+    const c = saved(env)
+    expect(c.recentMatches.length).toBeGreaterThan(0)
+    for (const m of c.recentMatches) expect(unpackMvp(m.mvp!).growth).toBeNull()
+    await open(env)
+    await openLatestReport()
+    const mvp = unpackMvp(c.recentMatches.at(-1)!.mvp!)
+    expect(text('.v2-report-mvp-name strong')).toBe(recordOf(c, mvp.playerId)!.player.name)
+    expect(text('.v2-report-mvp-progress')).toBe(V2T.mvpCapped(mvp.count, 3))
+    expect(text('.v2-report-mvp-progress')).toContain('仍可獲選 MVP')
   })
 })
 

@@ -18,7 +18,7 @@ import type { ClubSaveV12 } from '../domain/legacyV12'
 import { MIGRATABLE_VERSIONS, migrateToLatest, sourceVersion } from '../domain/migration'
 import { unpackMvp } from '../domain/mvp'
 import { FakeLockManager, HOUR, ManualClock, tab, withoutMvpGrowth } from '../testkit'
-import { CLUB_BACKUP_KEY_V11, CLUB_BACKUP_KEY_V12, CLUB_STORAGE_KEY, MemoryStorage } from './clubRepository'
+import { CLUB_BACKUP_KEY_V11, CLUB_BACKUP_KEY_V12, CLUB_STORAGE_KEY, ClubRepository, MemoryStorage } from './clubRepository'
 
 const RAW_V12 = JSON.stringify(fixtureV12)
 const v12 = () => JSON.parse(RAW_V12) as ClubSaveV12
@@ -111,6 +111,71 @@ describe('V12 → V13（純函式）', () => {
     expect(() => withMatch([someone, 1, 1200, 1, 0, 0, 0])).toThrow(/投球紀錄/)
     expect(() => withMatch(['nobody', 0, 1200, 1, 0, 0, 0])).toThrow(/打擊紀錄/)
     expect(() => withMatch([someone, 0, 1200, 0, 0, 0, 0])).toThrow(/次數/)
+  })
+})
+
+describe('V13 讀檔：MVP 成長紀錄驗證（PR #23 review P2）', () => {
+  const club = () => migrateToLatest(v12())
+  /** 把第一位打者的 MVP 紀錄換掉，走正式的 validateClub（讀檔也是這個） */
+  const withMvp = (c: ClubSave, mvp: unknown, joinedAtMatch?: number) => {
+    const i = c.players.findIndex((r) => r.player.role === 'batter')
+    return { ...c, players: c.players.map((r, j) => (j === i ? { ...r, mvp, ...(joinedAtMatch !== undefined ? { joinedAtMatch } : {}) } : r)) }
+  }
+  const g = (rating: string, atMatch: number) => ({ rating, atMatch })
+  const expectRejected = (value: unknown, re: RegExp) => {
+    expect(() => validateClub(value)).toThrow(re)
+    // 讀檔也拒絕，主存檔原文不變
+    const storage = new MemoryStorage()
+    const raw = JSON.stringify(value)
+    storage.setItem(CLUB_STORAGE_KEY, raw)
+    expect(() => new ClubRepository(storage).loadClub()).toThrow()
+    expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(raw)
+  }
+
+  it('兩筆相同場次的成長：拒絕', () => {
+    expectRejected(withMvp(club(), { count: 20, grants: [g('power', 100), g('contact', 100)] }), /嚴格遞增/)
+  })
+
+  it('成長場次早於加入球團：拒絕', () => {
+    expectRejected(withMvp(club(), { count: 10, grants: [g('power', 99)] }, 100), /早於加入/)
+  })
+
+  it('成長場次等於、大於結算游標：拒絕', () => {
+    const c = club()
+    const next = c.idle.nextMatchIndex
+    expectRejected(withMvp(c, { count: 10, grants: [g('power', next)] }), /還沒結算/)
+    expectRejected(withMvp(c, { count: 10, grants: [g('power', next + 5)] }), /還沒結算/)
+  })
+
+  it('成長超過 MVP 門檻、超過上限 +0.3、能力不屬於角色：拒絕', () => {
+    expectRejected(withMvp(club(), { count: 19, grants: [g('power', 10), g('power', 11)] }), /超過 MVP 次數/)
+    expectRejected(withMvp(club(), { count: 90, grants: [1, 2, 3, 4].map((i) => g('power', i)) }), /上限 3/)
+    expectRejected(withMvp(club(), { count: 10, grants: [g('stuff', 5)] }), /能力不合法/)
+    const c = club()
+    const pi = c.players.findIndex((r) => r.player.role === 'pitcher')
+    expectRejected({ ...c, players: c.players.map((r, j) => (j === pi ? { ...r, mvp: { count: 10, grants: [g('power', 5)] } } : r)) }, /能力不合法/)
+  })
+
+  it('正常連續成長、已達上限後次數繼續增加、沒有紀錄的舊球員：通過', () => {
+    expect(validateClub(withMvp(club(), { count: 31, grants: [g('power', 10), g('power', 20), g('contact', 30)] })).players.find((r) => r.mvp)!.mvp!.count).toBe(31)
+    expect(validateClub(withMvp(club(), { count: 87, grants: [g('power', 10), g('power', 20), g('power', 30)] })).players.find((r) => r.mvp)!.mvp!.count).toBe(87)
+    expect(() => validateClub(club())).not.toThrow()
+  })
+
+  it('V12 遷移後繼續玩、拿到 MVP 與成長的球員：存檔照樣通過（不會因為驗證變嚴而讀不回來）', async () => {
+    const storage = new MemoryStorage()
+    storage.setItem(CLUB_STORAGE_KEY, RAW_V12)
+    const clock = new ManualClock(fixtureV12.idle.anchorMs)
+    const deps = tab(storage, clock, new FakeLockManager())
+    await openClubSafely(deps)
+    for (let i = 0; i < 3; i++) {
+      clock.advance(8 * HOUR)
+      await settleDue(deps)
+    }
+    const c = new ClubRepository(storage).loadClub()!
+    expect(c.players.some((p) => (p.mvp?.grants.length ?? 0) > 0)).toBe(true)
+    for (const p of c.players) for (const gr of p.mvp?.grants ?? []) expect(gr.atMatch).toBeGreaterThanOrEqual(fixtureV12.idle.nextMatchIndex)
+    expect(validateClub(JSON.parse(JSON.stringify(c)))).toEqual(c)
   })
 })
 

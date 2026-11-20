@@ -47,8 +47,8 @@ export const MVP_CONFIG = {
   perGrowth: 10,
   /** 每次成長的單位：1 單位 = 能力 +0.1 */
   unitValue: 0.1,
-  /** 一名球員 MVP 成長的總上限（單位）：5 = +0.5 */
-  maxUnits: 5,
+  /** 一名球員 MVP 成長的總上限（單位）：3 = +0.3（PR #23 review：+0.5 讓晉級快約 17%，+0.3 約 6%，見平衡報告） */
+  maxUnits: 3,
 } as const
 
 /**
@@ -173,7 +173,7 @@ export function selectMvp(lines: MatchLines | undefined, facts: MvpFacts | null)
 
 // ---- 永久成長 ----
 
-/** PlayerRecord.mvp：生涯 MVP 次數與每一次能力成長（最多 maxUnits 筆，每筆 +0.1） */
+/** PlayerRecord.mvp：生涯 MVP 次數與每一次能力成長（最多 MVP_CONFIG.maxUnits 筆，每筆 +0.1） */
 export interface MvpRecord {
   /** 生涯 MVP 次數（達到成長上限後仍繼續累計，當作榮譽紀錄） */
   count: number
@@ -188,6 +188,21 @@ export function mvpBonusUnits(r: Pick<PlayerRecord, 'mvp'>): Partial<Record<Rati
   const out: Partial<Record<RatingKey, number>> = {}
   for (const g of r.mvp?.grants ?? []) out[g.rating] = (out[g.rating] ?? 0) + 1
   return out
+}
+
+/**
+ * 成長狀態（介面用，跟 canGrowMore 同一個判斷）：
+ * - capped：已經成長 maxUnits 次，之後只累計次數
+ * - no-room：還沒到上限，但所有合法能力（以 Lv.20 計）都已經滿了，沒有能力可以加
+ * - growing：還差 toNext 次 MVP 成長一次
+ * 三種狀態都還是可以獲選單場 MVP
+ */
+export type MvpGrowthState = { kind: 'capped' } | { kind: 'no-room' } | { kind: 'growing'; toNext: number }
+
+export function mvpGrowthState(r: Pick<PlayerRecord, 'player' | 'mvp'>): MvpGrowthState {
+  if (mvpUnits(r) >= MVP_CONFIG.maxUnits) return { kind: 'capped' }
+  if (nextGrowthRating(r) === null) return { kind: 'no-room' }
+  return { kind: 'growing', toNext: MVP_CONFIG.perGrowth - ((r.mvp?.count ?? 0) % MVP_CONFIG.perGrowth) }
 }
 
 /** 距離下一次成長還差幾次 MVP；已達上限是 null */
@@ -283,8 +298,16 @@ export function matchesBeforePossibleMvpGrowth(players: readonly PlayerRecord[],
   return min
 }
 
-/** 存檔驗證：次數、成長筆數、能力、場次合理 */
-export function mvpIssues(record: Pick<PlayerRecord, 'player' | 'mvp'>): string[] {
+/**
+ * 球員自己的 MVP 紀錄驗證（不需要知道球團的結算游標）：
+ * - 次數是 0 以上的整數；成長紀錄是陣列
+ * - 成長筆數 ≤ floor(次數 ÷ 10)（不要求每滿 10 次都有一筆：能力全滿時那一次不成長，是合法的）
+ * - 成長筆數 ≤ MVP_CONFIG.maxUnits；到上限後次數照樣可以增加
+ * - 每一筆的能力屬於這個角色
+ * - 場次是整數、不早於加入球團的場次、嚴格遞增（每場只有一位 MVP，同一場不可能成長兩次）
+ * 「場次必須早於結算游標」要知道球團狀態，見 mvpCursorIssues
+ */
+export function mvpIssues(record: Pick<PlayerRecord, 'player' | 'mvp'> & Partial<Pick<PlayerRecord, 'joinedAtMatch'>>): string[] {
   const m = record.mvp
   if (m === undefined) return []
   const out: string[] = []
@@ -294,11 +317,27 @@ export function mvpIssues(record: Pick<PlayerRecord, 'player' | 'mvp'>): string[
   if (m.grants.length > MVP_CONFIG.maxUnits) out.push(`MVP 成長超過上限 ${MVP_CONFIG.maxUnits} 次`)
   if (Number.isSafeInteger(m.count) && m.grants.length > Math.floor(m.count / MVP_CONFIG.perGrowth)) out.push('MVP 成長次數超過 MVP 次數能換到的')
   const keys = ratingKeysOf(record.player.role)
+  const joined = record.joinedAtMatch ?? 0
   let last = -1
   for (const g of m.grants) {
-    if (!g || !keys.includes(g.rating)) out.push(`MVP 成長的能力不合法：${String(g?.rating)}`)
-    if (!Number.isSafeInteger(g?.atMatch) || g.atMatch < 0 || g.atMatch < last) out.push('MVP 成長的場次不合法')
-    else last = g.atMatch
+    if (!g || typeof g !== 'object') {
+      out.push('MVP 成長紀錄格式不對')
+      continue
+    }
+    if (!keys.includes(g.rating)) out.push(`MVP 成長的能力不合法：${String(g.rating)}`)
+    if (!Number.isSafeInteger(g.atMatch) || g.atMatch < 0) out.push('MVP 成長的場次不合法')
+    else if (g.atMatch < joined) out.push(`MVP 成長的場次（${g.atMatch}）早於加入球團的場次（${joined}）`)
+    else if (g.atMatch <= last) out.push(`MVP 成長的場次必須嚴格遞增（${g.atMatch} 不在 ${last} 之後）`)
+    if (Number.isSafeInteger(g.atMatch)) last = Math.max(last, g.atMatch)
+  }
+  return out
+}
+
+/** 球團層級：成長一定發生在已經結算的比賽（atMatch < 結算游標 idle.nextMatchIndex） */
+export function mvpCursorIssues(record: Pick<PlayerRecord, 'mvp'>, nextMatchIndex: number): string[] {
+  const out: string[] = []
+  for (const g of record.mvp?.grants ?? []) {
+    if (Number.isSafeInteger(g?.atMatch) && g.atMatch >= nextMatchIndex) out.push(`MVP 成長的場次（${g.atMatch}）還沒結算（結算游標 ${nextMatchIndex}）`)
   }
   return out
 }

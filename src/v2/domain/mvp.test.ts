@@ -16,6 +16,8 @@ import {
   matchMvpIssue,
   matchesBeforePossibleMvpGrowth,
   mvpBonusUnits,
+  mvpCursorIssues,
+  mvpGrowthState,
   mvpCandidates,
   mvpIssues,
   mvpToNext,
@@ -168,7 +170,9 @@ describe('選出 MVP 與同分規則', () => {
 })
 
 describe('永久能力成長', () => {
-  it('每 10 次 MVP 成長一次（+0.1）；最多 5 次（+0.5）；達到上限後次數照樣累計', () => {
+  it('每 10 次 MVP 成長一次（+0.1）；最多 3 次（+0.3）；第 40、50 次照樣累計但不再成長', () => {
+    expect(MVP_CONFIG.maxUnits).toBe(3)
+    expect(MVP_CONFIG.perGrowth).toBe(10)
     let r = rec(batter(1, { archetype: 'power' }))
     const growths: string[] = []
     for (let i = 1; i <= 63; i++) {
@@ -177,9 +181,10 @@ describe('永久能力成長', () => {
       expect(out.award.count).toBe(i)
       if (out.award.growth) growths.push(`${i}:${out.award.growth}`)
     }
-    expect(growths).toEqual(['10:power', '20:power', '30:power', '40:power', '50:power'])
+    expect(growths).toEqual(['10:power', '20:power', '30:power'])
     expect(r.mvp!.count).toBe(63)
-    expect(r.mvp!.grants.map((g) => g.atMatch)).toEqual([110, 120, 130, 140, 150])
+    expect(r.mvp!.grants.map((g) => g.atMatch)).toEqual([110, 120, 130])
+    expect(mvpBonusUnits(r)).toEqual({ power: 3 })
     expect(mvpToNext(r)).toBeNull()
     expect(canGrowMore(r)).toBe(false)
     expect(mvpIssues(r)).toEqual([])
@@ -196,13 +201,16 @@ describe('永久能力成長', () => {
 
   it('加成以整數單位存，套用時一次換算：+0.3 是 0.3，不是 0.30000000000000004；最終能力不超過 10', () => {
     const b = batter(3, { ratings: { contact: 5.1, power: 6.2, speed: 4, fielding: 9.85 } })
-    const grants = [{ rating: 'contact' as const, atMatch: 1 }, { rating: 'contact' as const, atMatch: 2 }, { rating: 'contact' as const, atMatch: 3 }, { rating: 'fielding' as const, atMatch: 4 }, { rating: 'fielding' as const, atMatch: 5 }]
-    const p = withMvpBonus(b, { mvp: { count: 50, grants } })
-    expect(p.ratings.contact).toBe(5.4)
-    expect(p.ratings.fielding).toBe(10)
+    const grants = [{ rating: 'contact' as const, atMatch: 1 }, { rating: 'contact' as const, atMatch: 2 }, { rating: 'fielding' as const, atMatch: 4 }]
+    const p = withMvpBonus(b, { mvp: { count: 30, grants } })
+    expect(p.ratings.contact).toBe(5.3)
+    expect(p.ratings.fielding).toBe(9.95)
     expect(p.ratings.power).toBe(6.2)
     expect(b.ratings.contact).toBe(5.1)
-    expect(mvpBonusUnits({ mvp: { count: 50, grants } })).toEqual({ contact: 3, fielding: 2 })
+    expect(mvpBonusUnits({ mvp: { count: 30, grants } })).toEqual({ contact: 2, fielding: 1 })
+    // +0.3 剛好是 0.3（整數單位一次換算），能力上限 10
+    expect(withMvpBonus(b, { mvp: { count: 30, grants: [0, 1, 2].map((i) => ({ rating: 'contact' as const, atMatch: i })) } }).ratings.contact).toBe(5.4)
+    expect(withMvpBonus({ ...b, ratings: { ...b.ratings, fielding: 9.9 } }, { mvp: { count: 30, grants: [0, 1, 2].map((i) => ({ rating: 'fielding' as const, atMatch: i })) } }).ratings.fielding).toBe(10)
   })
 
   it('有效能力的層次：原生 → 等級 → MVP 加成 → 特性；原生 Lv.1 資料不改', () => {
@@ -272,7 +280,7 @@ describe('分段結算的上限（證明，不是預測）', () => {
   it('每場只有一位 MVP：球員最快要 (10 − 進度) 場才會成長；取可能出場、還能成長的人裡最小的', () => {
     const a = rec(batter(10), { count: 3, grants: [] })
     const b = rec(batter(11), { count: 18, grants: [{ rating: 'contact', atMatch: 1 }] })
-    const capped = rec(batter(12), { count: 59, grants: Array.from({ length: 5 }, (_, i) => ({ rating: 'power' as const, atMatch: i })) })
+    const capped = rec(batter(12), { count: 59, grants: Array.from({ length: MVP_CONFIG.maxUnits }, (_, i) => ({ rating: 'power' as const, atMatch: i })) })
     const benchless = rec(batter(13), { count: 9, grants: [] })
     const appear = (id: string) => id !== benchless.player.id
     expect(matchesBeforePossibleMvpGrowth([a, b, capped, benchless], appear)).toBe(2)
@@ -285,14 +293,12 @@ describe('分段結算的上限（證明，不是預測）', () => {
 })
 
 describe('驗證與存檔格式', () => {
-  it('次數、成長筆數、能力、場次', () => {
+  it('次數不合法、格式不對：拒絕', () => {
     const b = batter(20)
-    expect(mvpIssues(rec(b, { count: 25, grants: [{ rating: 'power', atMatch: 3 }, { rating: 'speed', atMatch: 9 }] }))).toEqual([])
     expect(mvpIssues(rec(b, { count: -1, grants: [] })).join()).toMatch(/次數/)
-    expect(mvpIssues(rec(b, { count: 9, grants: [{ rating: 'power', atMatch: 3 }] })).join()).toMatch(/超過/)
-    expect(mvpIssues(rec(b, { count: 99, grants: Array.from({ length: 6 }, (_, i) => ({ rating: 'power' as const, atMatch: i })) })).join()).toMatch(/上限/)
-    expect(mvpIssues(rec(b, { count: 10, grants: [{ rating: 'stuff' as never, atMatch: 3 }] })).join()).toMatch(/能力/)
-    expect(mvpIssues(rec(b, { count: 20, grants: [{ rating: 'power', atMatch: 9 }, { rating: 'power', atMatch: 3 }] })).join()).toMatch(/場次/)
+    expect(mvpIssues(rec(b, { count: 1.5, grants: [] })).join()).toMatch(/次數/)
+    expect(mvpIssues(rec(b, { count: 10, grants: 'x' as never })).join()).toMatch(/陣列/)
+    expect(mvpIssues(rec(b, { count: 10, grants: [null as never] })).join()).toMatch(/格式/)
   })
 
   it('單場 MVP 精簡格式：可以來回轉換；格式錯誤會被抓到', () => {
@@ -305,5 +311,87 @@ describe('驗證與存檔格式', () => {
     expect(matchMvpIssue(['p1', 0, 1, 0, 0, 0, 0])).toMatch(/次數/)
     expect(matchMvpIssue(['p1', 0, 1, 1, 0, 0, 0, 'stuff'])).toMatch(/能力/)
     expect(matchMvpIssue({})).toMatch(/格式/)
+  })
+})
+
+describe('MVP 成長紀錄驗證（PR #23 review P2）', () => {
+  const b = batter(40)
+  const p = pitcher(40)
+  const g = (rating: string, atMatch: number) => ({ rating: rating as never, atMatch })
+  const joinedAt = (r: PlayerRecord, n: number): PlayerRecord => ({ ...r, joinedAtMatch: n })
+
+  it('兩筆相同場次：拒絕（每場只有一位 MVP，同一場不可能成長兩次）', () => {
+    expect(mvpIssues(rec(b, { count: 20, grants: [g('power', 100), g('contact', 100)] })).join()).toMatch(/嚴格遞增/)
+  })
+
+  it('場次倒退：拒絕', () => {
+    expect(mvpIssues(rec(b, { count: 20, grants: [g('power', 120), g('power', 100)] })).join()).toMatch(/嚴格遞增/)
+  })
+
+  it('早於加入球團的場次：拒絕；剛好等於加入的場次：通過', () => {
+    expect(mvpIssues(joinedAt(rec(b, { count: 10, grants: [g('power', 49)] }), 50)).join()).toMatch(/早於加入/)
+    expect(mvpIssues(joinedAt(rec(b, { count: 10, grants: [g('power', 50)] }), 50))).toEqual([])
+  })
+
+  it('等於或大於結算游標（還沒結算的比賽）：拒絕；小於游標：通過', () => {
+    const r = rec(b, { count: 20, grants: [g('power', 10), g('power', 30)] })
+    expect(mvpCursorIssues(r, 31)).toEqual([])
+    expect(mvpCursorIssues(r, 30).join()).toMatch(/還沒結算/)
+    expect(mvpCursorIssues(r, 12).join()).toMatch(/還沒結算/)
+  })
+
+  it('成長次數超過 MVP 門檻能換到的：拒絕', () => {
+    expect(mvpIssues(rec(b, { count: 9, grants: [g('power', 3)] })).join()).toMatch(/超過 MVP 次數/)
+    expect(mvpIssues(rec(b, { count: 19, grants: [g('power', 3), g('power', 9)] })).join()).toMatch(/超過 MVP 次數/)
+  })
+
+  it('成長超過總上限（+0.3）：拒絕', () => {
+    expect(mvpIssues(rec(b, { count: 99, grants: [1, 2, 3, 4].map((i) => g('power', i)) })).join()).toMatch(/上限 3/)
+  })
+
+  it('投手拿到打者專用能力、打者拿到投手專用能力：拒絕', () => {
+    expect(mvpIssues(rec(p, { count: 10, grants: [g('power', 3)] })).join()).toMatch(/能力不合法/)
+    expect(mvpIssues(rec(p, { count: 10, grants: [g('contact', 3)] })).join()).toMatch(/能力不合法/)
+    expect(mvpIssues(rec(b, { count: 10, grants: [g('stuff', 3)] })).join()).toMatch(/能力不合法/)
+    expect(mvpIssues(rec(b, { count: 10, grants: [g('stamina', 3)] })).join()).toMatch(/能力不合法/)
+  })
+
+  it('正常連續成長：通過（不同能力也可以）', () => {
+    expect(mvpIssues(rec(b, { count: 31, grants: [g('power', 10), g('power', 20), g('contact', 33)] }))).toEqual([])
+    expect(mvpIssues(rec(p, { count: 20, grants: [g('control', 5), g('stuff', 6)] }))).toEqual([])
+  })
+
+  it('已達上限但 MVP 次數繼續增加：通過', () => {
+    expect(mvpIssues(rec(b, { count: 87, grants: [g('power', 10), g('power', 20), g('power', 30)] }))).toEqual([])
+  })
+
+  it('沒有 MVP 紀錄的舊球員：通過；有次數但缺少成長（能力全滿那幾次沒成長）：通過', () => {
+    expect(mvpIssues(rec(b))).toEqual([])
+    expect(mvpCursorIssues(rec(b), 0)).toEqual([])
+    expect(mvpIssues(rec(b, { count: 25, grants: [] }))).toEqual([])
+    expect(mvpIssues(rec(b, { count: 25, grants: [g('power', 7)] }))).toEqual([])
+  })
+
+  it('awardMvp 產生的紀錄一定通過驗證（含能力全滿不成長的情況）', () => {
+    for (let i = 0; i < 40; i++) {
+      for (const pl of [batter(200 + i), pitcher(200 + i), pitcher(300 + i, { ratings: { stuff: 10, control: 10, stamina: 9.95 } })]) {
+        let r: PlayerRecord = { ...rec(pl), joinedAtMatch: 30 }
+        for (let n = 0; n < 45; n++) r = awardMvp(r, 30 + n * 2).record
+        expect(mvpIssues(r)).toEqual([])
+        expect(mvpCursorIssues(r, 30 + 45 * 2)).toEqual([])
+      }
+    }
+  })
+})
+
+describe('成長狀態（介面用）', () => {
+  it('還在成長：還差幾次；到上限：capped；還沒到上限但能力都滿了：no-room（都仍可得獎）', () => {
+    expect(mvpGrowthState(rec(batter(50), { count: 13, grants: [{ rating: 'power', atMatch: 1 }] }))).toEqual({ kind: 'growing', toNext: 7 })
+    expect(mvpGrowthState(rec(batter(50)))).toEqual({ kind: 'growing', toNext: 10 })
+    const three = [1, 2, 3].map((i) => ({ rating: 'power' as const, atMatch: i }))
+    expect(mvpGrowthState(rec(batter(50), { count: 41, grants: three }))).toEqual({ kind: 'capped' })
+    expect(mvpToNext(rec(batter(50), { count: 41, grants: three }))).toBeNull()
+    const full = pitcher(51, { ratings: { stuff: 10, control: 10, stamina: 10 } })
+    expect(mvpGrowthState(rec(full, { count: 12, grants: [] }))).toEqual({ kind: 'no-room' })
   })
 })

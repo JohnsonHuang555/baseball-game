@@ -5,7 +5,7 @@ import { avatar } from '../../ui/avatar'
 import { el } from '../../ui/playerCard'
 import { RATING_FULL } from '../../ui/strings'
 import type { ClubSave, PlayerRecord, SettledMatch } from '../domain/club'
-import { MVP_CONFIG, mvpBonusUnits, mvpToNext, mvpUnits, unpackMvp, type MatchMvp, type RatingKey } from '../domain/mvp'
+import { MVP_CONFIG, mvpBonusUnits, mvpGrowthState, mvpUnits, unpackMvp, type MatchMvp, type RatingKey } from '../domain/mvp'
 import { recordOf } from '../domain/roster'
 import { batOf, pitOf } from '../domain/stats'
 import { icon } from './icons'
@@ -42,12 +42,14 @@ export function mvpStatLine(m: SettledMatch, mvp: MatchMvp): string {
   return parts.join('・')
 }
 
-/** 本次的成長進度：觸發成長、已達上限、或還差幾次 */
+/** 本次的成長進度：觸發成長、已達上限（仍可獲選）、能力已滿這次沒有成長、或還差幾次 */
 export function mvpProgressText(mvp: MatchMvp, m: SettledMatch, record: PlayerRecord | undefined): string {
   if (mvp.growth) return V2T.mvpGrowth(mvp.count, ratingName(mvp.growth))
-  // 這一場之前就已經到上限：第 5 次成長發生在這場之前
-  const fifth = record?.mvp?.grants[MVP_CONFIG.maxUnits - 1]
-  if (fifth && fifth.atMatch < m.matchIndex) return V2T.mvpCapped(mvp.count)
+  // 這一場之前就已經到上限：最後一次（第 maxUnits 次）成長發生在這場之前
+  const last = record?.mvp?.grants[MVP_CONFIG.maxUnits - 1]
+  if (last && last.atMatch < m.matchIndex) return V2T.mvpCapped(mvp.count, MVP_CONFIG.maxUnits)
+  // 剛好滿 10 的倍數卻沒有成長：能力都已經滿了（不浪費）
+  if (mvp.count % MVP_CONFIG.perGrowth === 0) return V2T.mvpNoRoomMatch(mvp.count)
   return V2T.mvpProgress(mvp.count, MVP_CONFIG.perGrowth - (mvp.count % MVP_CONFIG.perGrowth))
 }
 
@@ -101,7 +103,6 @@ export function mvpPlayerSection(record: PlayerRecord): HTMLElement {
   box.append(head)
   const count = record.mvp?.count ?? 0
   const units = mvpUnits(record)
-  const toNext = mvpToNext(record)
   const dl = el('dl', 'v2-mvp-facts')
   const row = (key: string, label: string, value: HTMLElement | string) => {
     const r = el('div', 'v2-mvp-fact')
@@ -112,14 +113,25 @@ export function mvpPlayerSection(record: PlayerRecord): HTMLElement {
     dl.append(r)
   }
   row('count', V2T.mvpCareer, V2T.mvpCareerCount(count))
-  if (toNext === null) row('next', V2T.mvpNextLabel, V2T.mvpMaxed)
+  // 成長單位：0／3、1／3、2／3、3／3（已達上限）
+  const unitsBox = el('span', `v2-mvp-units${units >= MVP_CONFIG.maxUnits ? ' maxed' : ''}`)
+  const pips = el('span', 'v2-mvp-pips')
+  pips.setAttribute('aria-hidden', 'true')
+  for (let i = 0; i < MVP_CONFIG.maxUnits; i++) pips.append(el('span', `v2-mvp-pip${i < units ? ' on' : ''}`))
+  unitsBox.append(pips, el('span', 'v2-num', V2T.mvpUnitsTotal(units, MVP_CONFIG.maxUnits)))
+  if (units >= MVP_CONFIG.maxUnits) unitsBox.append(el('span', 'v2-mvp-maxed-chip', V2T.mvpUnitsMaxed))
+  row('units', V2T.mvpUnitsLabel, unitsBox)
+  const state = mvpGrowthState(record)
+  if (state.kind === 'capped') row('next', V2T.mvpNextLabel, V2T.mvpMaxed)
+  else if (state.kind === 'no-room') row('next', V2T.mvpNextLabel, V2T.mvpNoRoom)
   else {
-    const have = MVP_CONFIG.perGrowth - toNext
+    const have = MVP_CONFIG.perGrowth - state.toNext
     const bar = el('span', 'v2-mvp-bar')
     bar.setAttribute('role', 'progressbar')
     bar.setAttribute('aria-valuemin', '0')
     bar.setAttribute('aria-valuemax', String(MVP_CONFIG.perGrowth))
     bar.setAttribute('aria-valuenow', String(have))
+    bar.setAttribute('aria-label', V2T.mvpNextLabel)
     const fill = el('span', 'v2-mvp-bar-fill')
     fill.style.width = `${(have / MVP_CONFIG.perGrowth) * 100}%`
     bar.append(fill)
@@ -136,9 +148,9 @@ export function mvpPlayerSection(record: PlayerRecord): HTMLElement {
     chip.dataset.rating = k
     list.append(chip)
   }
-  list.append(el('span', `v2-mvp-bonus-total${units >= MVP_CONFIG.maxUnits ? ' maxed' : ''}`, V2T.mvpBonusTotal(units, MVP_CONFIG.maxUnits)))
   row('bonus', V2T.mvpBonusLabel, list)
-  box.append(dl, el('p', 'v2-hint', units >= MVP_CONFIG.maxUnits ? V2T.mvpCappedRule : V2T.mvpRule))
+  box.dataset.state = state.kind
+  box.append(dl, el('p', 'v2-hint', state.kind === 'capped' ? V2T.mvpCappedRule(MVP_CONFIG.maxUnits) : state.kind === 'no-room' ? V2T.mvpNoRoomRule : V2T.mvpRule(MVP_CONFIG.maxUnits)))
   return box
 }
 

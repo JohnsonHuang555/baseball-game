@@ -1,13 +1,13 @@
 // Phase 9 PR 4：MVP 能力成長對離線結算效能的影響。npm run bench:v2:mvp [-- --reps=5]
 // 每個情境都是「離線 8 小時、一次結算 96 場」，用正式的 settleDue（含分段、存檔）。重複 reps 次取中位數。
 // 要讓成長剛好發生在第 k 場：先讓全隊的 MVP 成長都到上限（不會再成長），只留一位球員 P 差一次；
-// 用「關掉成長」先打一次找出 P 在這批裡第 k 場得獎、而且到第 k 場為止得獎 w 次，再把 P 的次數設成 50 − w。
-// 這樣 P 一定在第 k 場拿到第 50 次 → 第 5 次成長，而且之前的場次跟關掉成長時一模一樣
+// 用「關掉成長」先打一次找出 P 在這批裡第 k 場得獎、而且到第 k 場為止得獎 w 次，再把 P 的次數設成 10 × 上限 − w。
+// 這樣 P 一定在第 k 場拿到第 10 × 上限 次 → 最後一次成長，而且之前的場次跟關掉成長時一模一樣
 import { createClubSafely } from '../src/v2/application/clubLifecycle'
 import { settleDue } from '../src/v2/application/settlementService'
 import type { ClubSave, PlayerRecord } from '../src/v2/domain/club'
 import { leagueAtTier } from '../src/v2/domain/league'
-import { MVP_RULES, awardMvp, unpackMvp } from '../src/v2/domain/mvp'
+import { MVP_CONFIG, MVP_RULES, awardMvp, unpackMvp } from '../src/v2/domain/mvp'
 import { recordOf } from '../src/v2/domain/roster'
 import { trainingOptions } from '../src/v2/domain/traitTraining'
 import { CLUB_STORAGE_KEY, MemoryStorage } from '../src/v2/infrastructure/clubRepository'
@@ -17,8 +17,9 @@ const REPS = Number(process.argv.find((a) => a.startsWith('--reps='))?.split('='
 type Deps = ReturnType<typeof tab>
 const load = (d: Deps) => d.store.loadClub()!
 
-/** 50 次 MVP、5 次成長（到上限）的紀錄；成長的能力照正式規則選 */
-function capped(r: PlayerRecord, n = 50): PlayerRecord['mvp'] {
+/** 10 × 上限次 MVP、成長到上限的紀錄；成長的能力照正式規則選 */
+const FULL = MVP_CONFIG.perGrowth * MVP_CONFIG.maxUnits
+function capped(r: PlayerRecord, n = FULL): PlayerRecord['mvp'] {
   let x: PlayerRecord = { ...r, mvp: undefined }
   for (let i = 0; i < n; i++) x = awardMvp(x, i).record
   return x.mvp
@@ -75,12 +76,12 @@ async function triggerAt(k: number, edit: (c: ClubSave, id: string) => ClubSave 
 async function triggerExactly(k: number, edit: (c: ClubSave, id: string) => ClubSave): Promise<ClubSave> {
   const allCapped = withMvp(BASE, (r) => capped(r))
   for (const r of BASE.players) {
-    const four = capped(r, 49)!
+    const four = capped(r, FULL - 1)!
     const club = edit(withMvp(allCapped, (x) => (x.player.id === r.player.id ? four : x.mvp)), r.player.id)
     const seq = await dryMvps(club)
     const w = seq.slice(0, k).filter((x) => x === r.player.id).length
     if (seq[k - 1] !== r.player.id || w > 10) continue
-    return withMvp(club, (x) => (x.player.id === r.player.id ? { count: 50 - w, grants: four.grants } : x.mvp))
+    return withMvp(club, (x) => (x.player.id === r.player.id ? { count: FULL - w, grants: four.grants } : x.mvp))
   }
   throw new Error(`找不到第 ${k} 場成長的球員`)
 }

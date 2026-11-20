@@ -7735,3 +7735,32 @@ body:has(.v2-modal-overlay.v2-modal-overlay) .toast {
   gap: 6px;
   color: #1e7a3c;
 }
+.v2-mvp-units {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.v2-mvp-pips {
+  display: inline-flex;
+  gap: 4px;
+}
+.v2-mvp-pip {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: #fff;
+}
+.v2-mvp-pip.on {
+  background: var(--yellow);
+}
+.v2-mvp-maxed-chip {
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1.5px solid #e2b400;
+  background: #fff3c4;
+  font-size: 11px;
+  font-weight: 900;
+  color: #a86b00;
+}

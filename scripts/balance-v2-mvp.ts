@@ -3,7 +3,7 @@
 // A. 分數尺度校正：同一組比賽（固定種子、八種隊伍、四種戰術），只改投手分數的尺度，看打者／投手得獎比例與先發壟斷程度
 // B. 得獎分布（定案參數）：隊伍類型 × 比賽類型（一般、低比分、高比分、延長賽、大敗、完封、替補關鍵）× 棒次／先發／後援
 // C. 長期（正式服務：結算 → 領取 → 升級 → 晉級挑戰）30／60／90 天，每天上線 2 次：有／沒有 MVP 成長，
-//    平均加成、最快到 +0.5、全隊成長、到傳奇的天數、勝率、集中度（同一位球員是否越拿越多）、跟等級與特性訓練疊加
+//    平均加成、到上限的時間、全隊成長、到傳奇的天數、勝率、集中度（同一位球員是否越拿越多）、跟等級與特性訓練疊加
 // 所有比賽用固定種子，結果可重現；MVP 只看結算後的數據，不影響比賽本身
 import { generateTeam } from '../src/sim/generate'
 import { RULES_VERSION, type Side } from '../src/sim/game'
@@ -308,6 +308,13 @@ interface LongLog {
   learned: number
   /** 目前的聯盟階級（0 新秀～4 傳奇）：比「到傳奇的天數」穩定，所有種子都有值 */
   tier: number
+  /** 到快照為止的降級次數 */
+  relegations: number
+  /** 上場球員裡已達成長上限的人數、他們到上限的平均天數 */
+  cappedCount: number
+  capDayAvg: number | null
+  /** 到快照為止，所有正式比賽的 MVP 裡投手的比例 */
+  pitcherShare: number
 }
 
 async function upgradeEvenly(d: ReturnType<typeof tab>): Promise<void> {
@@ -322,8 +329,11 @@ async function upgradeEvenly(d: ReturnType<typeof tab>): Promise<void> {
   }
 }
 
-async function longRun(seed: number, growth: boolean, train: boolean, style: CoachStyle, marks: number[]): Promise<LongLog[]> {
+async function longRun(seed: number, growth: boolean, train: boolean, style: CoachStyle, marks: number[], cap: number = MVP_CONFIG.maxUnits): Promise<LongLog[]> {
   MVP_RULES.growth = growth
+  const savedCap = MVP_CONFIG.maxUnits
+  mutable.maxUnits = cap
+  const roles = { batter: 0, pitcher: 0 }
   const clock = new ManualClock(T0)
   const d = tab(new MemoryStorage(), clock, new FakeLockManager())
   await createClubSafely(d, { clubName: 'mvp', clubSeed: seed, clubId: `mvp-${seed}` })
@@ -341,6 +351,7 @@ async function longRun(seed: number, growth: boolean, train: boolean, style: Coa
     const day = (s + 1) / perDay
     const r = await settleDue(d)
     daily.push({ day, w: r.settled.filter((m) => m.result.won).length, g: r.settled.length })
+    for (const m of r.settled) roles[unpackMvp(m.mvp!).role]++
     await claim(d, d.store.loadClub()!.economy.nextClaimSeq)
     if (train && !d.store.loadClub()!.training.active) {
       const c = d.store.loadClub()!
@@ -377,16 +388,26 @@ async function longRun(seed: number, growth: boolean, train: boolean, style: Coa
         levelAvg: active.reduce((a, r) => a + r.level, 0) / active.length,
         learned: active.reduce((a, r) => a + (r.dev?.learned.length ?? 0), 0),
         tier: c2.league.tier,
+        relegations: c2.league.relegations,
+        cappedCount: active.filter((r) => mvpUnits(r) >= MVP_CONFIG.maxUnits).length,
+        capDayAvg: (() => {
+          const days = active.map((r) => firstFive.get(r.player.id)).filter((x): x is number => x !== undefined)
+          return days.length ? days.reduce((a, b) => a + b, 0) / days.length : null
+        })(),
+        pitcherShare: roles.pitcher / Math.max(1, roles.batter + roles.pitcher),
       })
     }
   }
   MVP_RULES.growth = true
+  mutable.maxUnits = savedCap
   return logs
 }
 
 /** 正回饋：前半段 MVP 次數最多的 3 人，在後半段的得獎占比，跟關掉成長時相比 */
-async function feedback(seed: number, growth: boolean, days: number): Promise<{ firstTop3: number; laterTop3: number }> {
+async function feedback(seed: number, growth: boolean, days: number, cap: number = MVP_CONFIG.maxUnits): Promise<{ firstTop3: number; laterTop3: number }> {
   MVP_RULES.growth = growth
+  const savedCap = MVP_CONFIG.maxUnits
+  mutable.maxUnits = cap
   const clock = new ManualClock(T0)
   const d = tab(new MemoryStorage(), clock, new FakeLockManager())
   await createClubSafely(d, { clubName: 'mvp', clubSeed: seed, clubId: `fb-${seed}` })
@@ -404,6 +425,7 @@ async function feedback(seed: number, growth: boolean, days: number): Promise<{ 
     await upgradeEvenly(d)
   }
   MVP_RULES.growth = true
+  mutable.maxUnits = savedCap
   const top = [...wins.entries()].sort((a, b) => b[1][0] - a[1][0]).slice(0, 3)
   const first = [...wins.values()].reduce((a, x) => a + x[0], 0)
   const later = [...wins.values()].reduce((a, x) => a + x[1], 0)
@@ -411,37 +433,43 @@ async function feedback(seed: number, growth: boolean, days: number): Promise<{ 
 }
 
 async function partC(): Promise<void> {
-  console.log(`\n# C. 長期（每天上線 2 次、${SEEDS} 個球團種子 401/502/603…；${DAYS.join('／')} 天；每 ${MVP_CONFIG.perGrowth} 次 MVP 成長一次、上限 +${MVP_CONFIG.maxUnits / 10}）\n`)
-  console.log('每次上線：結算 → 領取 →（特性訓練）→ 平均升級上場球員 → 有資格就挑戰。勝率是快照前 7 天。\n')
-  console.log('| 戰術 | 特性訓練 | MVP 成長 | 天 | 到傳奇（天） | 平均聯盟階級 | 最後 7 天勝率 | 上場平均 MVP 加成 | 最多的一人 | 最快到 +0.5（天） | 得獎最多 1 人／前 3 人占比 | 上場平均能力 | 平均等級 |')
-  console.log('|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+  // 比較的方案：關掉成長、以及 --caps 指定的上限（預設 3,5；遊戲用 MVP_CONFIG.maxUnits）。同一組種子、同樣的起始球隊
+  const caps = list('caps', [3, 5])
+  const variants: { label: string; growth: boolean; cap: number }[] = [{ label: '關', growth: false, cap: MVP_CONFIG.maxUnits }, ...caps.map((c) => ({ label: `+${(c / 10).toFixed(1)}`, growth: true, cap: c }))]
+  console.log(`\n# C. 長期（每天上線 2 次、${SEEDS} 個球團種子 401/502/603…；${DAYS.join('／')} 天；每 ${MVP_CONFIG.perGrowth} 次 MVP 成長一次；比較 ${variants.map((v) => v.label).join('／')}）\n`)
+  console.log('每次上線：結算 → 領取 →（特性訓練）→ 平均升級上場球員 → 有資格就挑戰。勝率是快照前 7 天；投手 MVP 比例、降級次數是到快照為止的累計。\n')
+  console.log('| 戰術 | 特性訓練 | MVP 上限 | 天 | 到傳奇（天） | 平均聯盟階級 | 降級次數 | 最後 7 天勝率 | 上場平均 MVP 加成 | 已達上限（上場 14 人） | 到上限平均天數 | 得獎最多 1 人／前 3 人 | 投手 MVP 比例 | 上場平均能力 | 平均等級 |')
+  console.log('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
   const styles = (process.argv.find((a) => a.startsWith('--styles='))?.split('=')[1]?.split(',') ?? COACH_STYLES) as CoachStyle[]
   for (const style of styles) {
     for (const train of process.argv.includes('--onlyTrain') ? [true] : style === 'balanced' && !process.argv.includes('--noTrain') ? [false, true] : [false]) {
-      for (const growth of [false, true]) {
+      for (const v of variants) {
         const runs: LongLog[][] = []
-        for (let s = 0; s < SEEDS; s++) runs.push(await longRun(401 + s * 101, growth, train, style, DAYS))
+        for (let s = 0; s < SEEDS; s++) runs.push(await longRun(401 + s * 101, v.growth, train, style, DAYS, v.cap))
         for (let i = 0; i < DAYS.length; i++) {
           const L = runs.map((r) => r[i])
           const avg = (f: (l: LongLog) => number) => L.reduce((a, l) => a + f(l), 0) / L.length
           const leg = L.map((l) => l.legendDay).filter((x): x is number => x !== null)
-          const f5 = L.map((l) => l.fastest5).filter((x): x is number => x !== null)
+          const capDays = L.map((l) => l.capDayAvg).filter((x): x is number => x !== null)
           console.log(
-            `| ${style} | ${train ? '有' : '—'} | ${growth ? '有' : '關'} | ${DAYS[i]} | ${leg.length ? `${(leg.reduce((a, b) => a + b, 0) / leg.length).toFixed(1)}（${leg.length}/${SEEDS}）` : '—'} | ${avg((l) => l.tier).toFixed(2)} | ${pct(avg((l) => l.winLast7))} | +${(avg((l) => l.avgUnits) / 10).toFixed(3)} | +${(Math.max(...L.map((l) => l.maxUnits)) / 10).toFixed(1)} | ${f5.length ? Math.min(...f5) : '—'} | ${pct(avg((l) => l.topShare))}／${pct(avg((l) => l.top3Share))} | ${avg((l) => l.avgRating).toFixed(3)} | ${avg((l) => l.levelAvg).toFixed(1)} |`,
+            `| ${style} | ${train ? '有' : '—'} | ${v.label} | ${DAYS[i]} | ${leg.length ? `${(leg.reduce((a, b) => a + b, 0) / leg.length).toFixed(1)}（${leg.length}/${SEEDS}）` : '—'} | ${avg((l) => l.tier).toFixed(2)} | ${L.reduce((a, l) => a + l.relegations, 0)} | ${pct(avg((l) => l.winLast7))} | +${(avg((l) => l.avgUnits) / 10).toFixed(3)} | ${v.growth ? avg((l) => l.cappedCount).toFixed(1) : '—'} | ${capDays.length ? (capDays.reduce((a, b) => a + b, 0) / capDays.length).toFixed(1) : '—'} | ${pct(avg((l) => l.topShare))}／${pct(avg((l) => l.top3Share))} | ${pct(avg((l) => l.pitcherShare))} | ${avg((l) => l.avgRating).toFixed(3)} | ${avg((l) => l.levelAvg).toFixed(1)} |`,
           )
         }
       }
     }
   }
   if (process.argv.includes('--noFeedback')) return
-  console.log('\n## 正回饋：前半段得獎最多的 3 人，在後半段的得獎占比（同種子，有／沒有成長）\n')
-  console.log('| 種子 | 天數 | 沒有成長：前半 → 後半 | 有成長：前半 → 後半 |')
-  console.log('|---|---|---|---|')
+  console.log('\n## 正回饋：前半段得獎最多的 3 人，在後半段的得獎占比（同種子）\n')
+  console.log(`| 種子 | 天數 | ${variants.map((v) => `${v.label}：前半 → 後半`).join(' | ')} |`)
+  console.log(`|---|---|${variants.map(() => '---|').join('')}`)
   const fbDays = Math.max(...DAYS) / 2
   for (let s = 0; s < SEEDS; s++) {
-    const off = await feedback(401 + s * 101, false, fbDays)
-    const on = await feedback(401 + s * 101, true, fbDays)
-    console.log(`| ${401 + s * 101} | ${fbDays}＋${fbDays} | ${pct(off.firstTop3)} → ${pct(off.laterTop3)} | ${pct(on.firstTop3)} → ${pct(on.laterTop3)} |`)
+    const cells: string[] = []
+    for (const v of variants) {
+      const r = await feedback(401 + s * 101, v.growth, fbDays, v.cap)
+      cells.push(`${pct(r.firstTop3)} → ${pct(r.laterTop3)}`)
+    }
+    console.log(`| ${401 + s * 101} | ${fbDays}＋${fbDays} | ${cells.join(' | ')} |`)
   }
 }
 
