@@ -1,4 +1,4 @@
-// 存檔遷移：schemaVersion 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11（目前格式）。
+// 存檔遷移：schemaVersion 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12（目前格式）。
 // - 3 → 4：陣容裡內嵌的球員搬進永久名單（players），陣容只存 ID，加上等級、支出帳務
 // - 4 → 5：加上聯盟進度（league）；其他欄位一個字都不動
 // - 5 → 6：加上最近一次晉級挑戰的 Replay（challengeReplay），舊存檔沒有挑戰 Replay，一律是 null；其他欄位一個字都不動
@@ -16,6 +16,8 @@
 // - 10 → 11：戰術風格（Phase 9 PR 2）。格式上只多了「可以是四種風格」與新比賽的戰術摘要（tactics），都是新增：
 //   舊存檔一律維持均衡型、原本的進階參數原封不動；舊比賽不補戰術摘要（戰報顯示「未記錄」，不用目前的戰術回填）。
 //   不重新模擬、不發資源；其他欄位（含進行中固定的比賽計畫、Replay、生涯數據）一個字都不動
+// - 11 → 12：特性培養（Phase 9 PR 3）。加上空的訓練槽（training），球員沒有養成資料（沒有 dev 欄位＝沒有習得、沒有改善）。
+//   不補發歷史訓練進度；其他欄位（球員、等級、原生能力與特性、生涯、戰術、帳務、招募次數、聯盟、積分、固定的比賽、Replay、比賽紀錄）一個字都不動
 // 遷移是純函式、確定性（不讀時間、不抽亂數）：同一份舊存檔不管遷移幾次、在哪個分頁遷移，結果都一模一樣。
 // 舊版本串接各段升到目前版本，中間版本不單獨驗證，只驗證最後的結果
 import type { ClubSave } from './club'
@@ -31,6 +33,8 @@ import type { ClubSaveV7 } from './legacyV7'
 import type { ClubSaveV8, LeagueStateV8 } from './legacyV8'
 import type { ClubSaveV9 } from './legacyV9'
 import type { ClubSaveV10 } from './legacyV10'
+import type { ClubSaveV11 } from './legacyV11'
+import { newTrainingState } from './traitTraining'
 import { newClubStats } from './stats'
 import { replay as replayGame } from '../../sim/game'
 import { boxScoreOf } from './boxScore'
@@ -42,7 +46,7 @@ export class MigrationError extends Error {
 }
 
 /** 可以遷移的舊版本 */
-export const MIGRATABLE_VERSIONS = [3, 4, 5, 6, 7, 8, 9, 10] as const
+export const MIGRATABLE_VERSIONS = [3, 4, 5, 6, 7, 8, 9, 10, 11] as const
 export type MigratableVersion = (typeof MIGRATABLE_VERSIONS)[number]
 
 /** 讀進來的存檔需要遷移嗎：只看 schemaVersion */
@@ -50,7 +54,7 @@ export function needsMigration(value: unknown): boolean {
   return sourceVersion(value) !== null
 }
 
-/** 舊存檔的版本（3～10）；不是可遷移的舊版本就是 null */
+/** 舊存檔的版本（3～11）；不是可遷移的舊版本就是 null */
 export function sourceVersion(value: unknown): MigratableVersion | null {
   if (!isObj(value)) return null
   return (MIGRATABLE_VERSIONS as readonly unknown[]).includes(value.schemaVersion) ? (value.schemaVersion as MigratableVersion) : null
@@ -64,8 +68,9 @@ export function migrateToLatest(value: unknown): ClubSave {
   const origin = { schemaVersion: version, revision: original.revision }
   try {
     // 中間版本沒有單獨驗證：缺欄位時這裡可能丟 TypeError，一樣當成遷移失敗
-    if (version === 10) return validateClub(toV11(value as ClubSaveV10, origin))
-    if (version === 9) return validateClub(toV11(toV10(value as ClubSaveV9), origin))
+    if (version === 11) return validateClub(toV12(value as ClubSaveV11, origin))
+    if (version === 10) return validateClub(toV12(toV11(value as ClubSaveV10), origin))
+    if (version === 9) return validateClub(toV12(toV11(toV10(value as ClubSaveV9)), origin))
     const v8 =
       version === 8
         ? (value as ClubSaveV8)
@@ -78,7 +83,7 @@ export function migrateToLatest(value: unknown): ClubSave {
                     : toV6(version === 5 ? (value as ClubSaveV5) : toV5(version === 3 ? migrateV3ToV4(value) : (value as ClubSaveV4))),
                 ),
           )
-    return validateClub(toV11(toV10(toV9(v8)), origin))
+    return validateClub(toV12(toV11(toV10(toV9(v8))), origin))
   } catch (e) {
     if (e instanceof MigrationError) throw e
     throw new MigrationError(`遷移後的存檔驗證失敗：${(e as Error).message}`, { cause: e })
@@ -207,14 +212,23 @@ export function toV10(v9: ClubSaveV9): ClubSaveV10 {
 }
 
 /**
- * V10 → V11：只改版本號。revision 接著原始存檔加 1（從儲存的角度只是一次寫入），migratedFrom 記原始版本。
+ * V10 → V11（不驗證，給 migrateToLatest 串接用）：只改版本號。
  * 戰術維持均衡型與原本的進階參數；舊比賽沒有戰術摘要（不回填）；進行中固定的比賽計畫原封不動（均衡型的判斷在教練版本 2 逐指令相同）
  */
-export function toV11(v10: ClubSaveV10, origin: { schemaVersion: MigratableVersion; revision: number }): ClubSave {
+export function toV11(v10: ClubSaveV10): ClubSaveV11 {
   // V10 只有均衡型：其他風格代表存檔被改過或來自未知的版本，不猜
   if (v10.strategy.coach.style !== 'balanced') throw new MigrationError(`V10 存檔的戰術風格只能是均衡型：${String(v10.strategy.coach.style)}`)
   const { migratedFrom: _old, ...rest } = structuredClone(v10)
-  return { ...rest, schemaVersion: CLUB_SCHEMA_VERSION, migratedFrom: origin, revision: origin.revision + 1 }
+  return { ...rest, schemaVersion: 11 }
+}
+
+/**
+ * V11 → V12：加上空的訓練槽。revision 接著原始存檔加 1（從儲存的角度只是一次寫入），migratedFrom 記原始版本。
+ * 球員沒有養成資料（不寫 dev）、不補發歷史進度；其他欄位一個字都不動
+ */
+export function toV12(v11: ClubSaveV11, origin: { schemaVersion: MigratableVersion; revision: number }): ClubSave {
+  const { migratedFrom: _old, ...rest } = structuredClone(v11)
+  return { ...rest, training: newTrainingState(), schemaVersion: CLUB_SCHEMA_VERSION, migratedFrom: origin, revision: origin.revision + 1 }
 }
 
 function seededLeague(v4: ClubSaveV4): LeagueStateV8 {

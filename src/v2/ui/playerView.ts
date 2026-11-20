@@ -27,6 +27,8 @@ import { v2Modal } from './dialog'
 import { V2T } from './strings'
 import { ST } from './statsStrings'
 import { statsPanel } from './statsView'
+import { trainingPanel, type TrainingPanelState } from './trainingPanel'
+import { effectiveTraits } from '../domain/traitTraining'
 import { openMatchReport } from './reportView'
 import type { StatPeriod } from '../application/statsQuery'
 
@@ -75,6 +77,8 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
   const footer = el('div', 'v2-detail-foot')
   /** 已經按過「釋出球員」、正在等第二次確認 */
   let confirming = false
+  /** 特性養成：正在確認哪一項、是否正在確認取消 */
+  const trainingUi: TrainingPanelState = { picking: null, cancelling: false }
   /** 剛完成的升級（顯示成功回饋）：升到幾級、哪些能力提升、從第幾場生效 */
   let done: { level: number; gains: ReturnType<typeof upgradeGains>; fromMatch: number } | null = null
   let close: () => void = () => {}
@@ -158,7 +162,9 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
     titleLine.append(el('strong', '', base.name), el('span', 'v2-level big', V2T.level(record.level)))
     const chips = el('span', 'v2-detail-chips')
     chips.append(base.role === 'batter' ? archetypeChip(base) : pitchChip(base))
-    if (base.traits.length) chips.append(traitTag(base.traits[0]))
+    // 特性：比賽實際用的（原生去掉已改善的、加上訓練習得的）
+    const effTraits = effectiveTraits(record)
+    if (effTraits.length) chips.append(traitTag(effTraits[0]))
     // 隊長（存檔裡的陣容）：頭像上的 C，加上看得懂的中文說明
     const isCaptain = base.role === 'batter' && captainIn(resolveRoster(club).lineup, club.roster.captain) === base.id
     if (isCaptain) {
@@ -296,28 +302,60 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
       tip.append(icon('alert', 18), V2T.betterUpgrade(better.name, better.level, better.ratio))
       body.append(tip)
     }
-    if (base.traits.length) {
+    if (effTraits.length) {
       const traits = el('section', 'v2-detail-traits')
-      traits.append(el('h3', 'v2-detail-sub', V2T.traitsTitle), traitList(base))
+      traits.append(el('h3', 'v2-detail-sub', V2T.traitsTitle), traitList({ ...base, traits: effTraits }))
       body.append(traits)
     }
+    // 特性養成（Phase 9 PR 3）
+    const locked = state.spending || !state.canWrite
+    body.append(
+      trainingPanel(club, record, trainingUi, {
+        locked,
+        pick: (o) => {
+          trainingUi.picking = o ? { trait: o.trait, kind: o.kind } : null
+          draw(controller.state)
+          body.querySelector<HTMLButtonElement>(o ? '[data-action="training-start"]' : `.v2-training-option[data-trait] [data-action="training-pick"]`)?.focus({ preventScroll: true })
+        },
+        start: async (o) => {
+          const res = await controller.startTraining(playerId, o.trait, o.kind)
+          if (res.message) toast(res.message, res.ok ? 'success' : 'error')
+          trainingUi.picking = null
+          draw(controller.state)
+        },
+        askCancel: (on) => {
+          trainingUi.cancelling = on
+          draw(controller.state)
+          body.querySelector<HTMLButtonElement>(on ? '.v2-training-cancel-confirm .btn-white' : '[data-action="training-cancel"]')?.focus({ preventScroll: true })
+        },
+        cancel: async () => {
+          const a = controller.state.club?.training.active
+          if (!a) return
+          const res = await controller.cancelTraining(playerId, a.trait)
+          if (res.message) toast(res.message, res.ok ? 'success' : 'error')
+          trainingUi.cancelling = false
+          draw(controller.state)
+        },
+      }),
+    )
 
     // 釋出：只有預備名單的球員；用存檔裡最新的陣容判斷，按下後還會在鎖內再檢查一次
     const isReserve = !assignedIds(club.roster).has(playerId)
+    const training = club.training.active?.playerId === playerId
     const releaseBox = el('section', 'v2-release')
     const b = el('button', 'btn-danger v2-release-btn')
     b.type = 'button'
     b.dataset.action = 'release'
     b.append(icon('release', 18), V2T.releaseButton)
-    b.disabled = !isReserve || state.spending || !state.canWrite
+    b.disabled = !isReserve || training || state.spending || !state.canWrite
     b.onclick = () => {
       confirming = true
       draw(controller.state)
     }
-    releaseBox.append(b, el('p', 'v2-hint', isReserve ? V2T.releaseWarnShort : V2T.releaseOnlyReserve))
-    if (!isReserve) confirming = false
+    releaseBox.append(b, el('p', 'v2-hint', !isReserve ? V2T.releaseOnlyReserve : training ? V2T.releaseTraining : V2T.releaseWarnShort))
+    if (!isReserve || training) confirming = false
     body.append(releaseBox)
-    if (isReserve && confirming) {
+    if (isReserve && !training && confirming) {
       // 第二次確認：蓋在面板上的小對話框（不可復原、不退款）
       const scrim = el('div', 'v2-release-scrim')
       const confirmBox = el('div', 'v2-release-confirm')
@@ -357,6 +395,12 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
     owner: controller,
     // 第二次確認開著時，Escape 只取消確認，不關閉整個面板
     onEscape: () => {
+      if (trainingUi.picking || trainingUi.cancelling) {
+        trainingUi.picking = null
+        trainingUi.cancelling = false
+        draw(controller.state)
+        return true
+      }
       if (!confirming) return false
       cancelConfirm()
       return true

@@ -1,8 +1,9 @@
-// V2 球團存檔（schemaVersion 11）：球團、永久球員名單、陣容配置、戰術（四種風格）、經濟、聯盟進度、放置進度、
-// 進行中比賽的固定計畫、近期比賽（含 Box Score、球員原始數據與戰術摘要）、球員生涯數據、最近一次晉級挑戰的 Replay 與新手任務的旗標。
+// V2 球團存檔（schemaVersion 12）：球團、永久球員名單、陣容配置、戰術（四種風格）、經濟、聯盟進度、放置進度、
+// 進行中比賽的固定計畫、近期比賽（含 Box Score、球員原始數據與戰術摘要）、特性培養（球員的習得／改善特性與訓練槽）、球員生涯數據、最近一次晉級挑戰的 Replay 與新手任務的旗標。
 // 不沿用 V1 的 Tournament：錦標賽是一輪一輪的 roguelike，V2 的球團要一直存在、一直累積。
-// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → … → 10 → 11）見 migration.ts
+// 這裡只有資料型別與純函式，不碰儲存、時間或亂數狀態。舊的 schemaVersion 3 見 legacyV3.ts、遷移（3 → 4 → … → 11 → 12）見 migration.ts
 import type { Side } from '../../sim/game'
+import { TRAITS, type TraitId } from '../../sim/traits'
 import type { Player, Position, Roster } from '../../sim/types'
 import { COACH_STYLES, type CoachParams, type CoachStyle } from '../application/autoCoach'
 import type { MatchPlan } from '../application/batchRunner'
@@ -16,11 +17,12 @@ import { MAX_LEVEL, RECRUIT_CONFIG, SPEND_LOG_LIMIT } from './progressionConfig'
 import { resolveRoster } from './roster'
 import { BAT_STORE, PIT_STORE, newClubStats, type ClubStats, type MatchLines } from './stats'
 import { coachParamIssues } from './tactics'
+import { POTENTIAL_VERSION, TRAINING_CONFIG, TRAINING_RECENT_LIMIT, developmentIssues, newTrainingState, staticTrainingBlock, trainingClass, type TrainingKind, type TrainingState } from './traitTraining'
 import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, validateMatches, type Obj } from './validation'
 
 export { ClubValidationError, type ClubValidationCode } from './validation'
 
-export const CLUB_SCHEMA_VERSION = 11
+export const CLUB_SCHEMA_VERSION = 12
 
 /**
  * 換算好的陣容：先發、板凳、投手都是完整的球員物件（養成後的能力），也就是模擬引擎吃的 Roster。
@@ -46,6 +48,8 @@ export interface PlayerRecord {
   origin: PlayerOrigin
   /** 加入時是第幾場比賽（結算游標） */
   joinedAtMatch: number
+  /** 特性培養的結果（schemaVersion 12 起；沒有養成就不寫）：習得的正面特性、已改善的原生負面特性，見 traitTraining.ts */
+  dev?: { learned: TraitId[]; removed: TraitId[] }
 }
 
 /** 球團的戰術設定；effectiveFromMatch 是這份設定從第幾場開始生效 */
@@ -62,7 +66,8 @@ export interface Resources {
 /** 一筆名單操作（升級、招募、釋出）：原因、對象、金額（釋出是 0）、時間，以及用來辨識重送的請求內容 */
 export interface SpendRecord {
   seq: number
-  kind: 'upgrade' | 'recruit' | 'release'
+  /** trainStart：開始特性訓練（扣款）；trainCancel：取消訓練（0 元，不退款）；schemaVersion 12 起 */
+  kind: 'upgrade' | 'recruit' | 'release' | 'trainStart' | 'trainCancel'
   playerId: string
   cost: Resources
   at: number
@@ -73,6 +78,8 @@ export interface SpendRecord {
   recruitIndex?: number
   /** 招募：簽下的是候選名單的第幾位（0～2）。舊版的隨機招募沒有這個欄位 */
   candidateIndex?: number
+  /** 特性訓練：訓練的特性 */
+  trait?: TraitId
 }
 
 /**
@@ -196,7 +203,7 @@ export interface ChallengeReplay {
   replay: MatchReplay
 }
 
-export interface ClubSaveV11 {
+export interface ClubSaveV12 {
   schemaVersion: typeof CLUB_SCHEMA_VERSION
   clubId: string
   clubName: string
@@ -226,14 +233,16 @@ export interface ClubSaveV11 {
   onboarding: OnboardingState
   /** 球員比賽數據（schemaVersion 10 起）：生涯累計與記錄起點，見 stats.ts */
   stats: ClubStats
+  /** 特性培養（schemaVersion 12 起）：訓練槽與最近完成的訓練，見 traitTraining.ts */
+  training: TrainingState
   /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄；從 3 升上來時是 3） */
-  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10; revision: number }
+  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11; revision: number }
   /** 每存一次加 1：用來發現別的分頁已經改過存檔 */
   revision: number
 }
 
 /** 目前格式的球團存檔 */
-export type ClubSave = ClubSaveV11
+export type ClubSave = ClubSaveV12
 
 export interface NewClubInput {
   clubId: string
@@ -283,6 +292,7 @@ export function newClub(input: NewClubInput): ClubSave {
     liveMatch: null,
     onboarding: newOnboarding(),
     stats: newClubStats(0),
+    training: newTrainingState(),
     revision: 0,
   }
 }
@@ -294,7 +304,7 @@ export function matchIdFor(club: Pick<ClubSave, 'clubId'>, matchIndex: number): 
 
 /** 用途區分：同一場的比賽種子和對手種子不能相同 */
 /** 不同用途的種子用不同的 salt：晉級挑戰賽用自己的序號與 salt，跟一般比賽的種子永遠不會重疊 */
-export const SEED_SALT = { match: 0, opponent: 1, recruit: 2, challenge: 3, challengeOpponent: 4, recruitCandidate: 5 } as const
+export const SEED_SALT = { match: 0, opponent: 1, recruit: 2, challenge: 3, challengeOpponent: 4, recruitCandidate: 5, potential: 6 } as const
 
 /** 由球團種子與場次序號穩定推導出 32 位元種子（不靠任何亂數狀態，第幾場永遠是同一個種子） */
 export function deriveSeed(clubSeed: number, matchIndex: number, salt = 0): number {
@@ -390,6 +400,7 @@ export function validateClub(value: unknown): ClubSave {
   for (const key of ['wins', 'losses', 'runsFor', 'runsAgainst']) int(record, key, 'record')
   validateMatches(value)
   validateStats(value)
+  validateTraining(value)
   return value as unknown as ClubSave
 }
 
@@ -439,6 +450,41 @@ function validateStats(value: Obj): void {
   })
 }
 
+/** 訓練槽：訓練中的球員一定在名單裡、項目一定是這位球員能訓練的、進度不超過開始以來結算的場數 */
+function validateTraining(value: Obj): void {
+  const t = obj(value, 'training')
+  if (t.potentialVersion !== POTENTIAL_VERSION) throw invalid('training.potentialVersion', `必須是 ${POTENTIAL_VERSION}`)
+  const recent = arr(t, 'recent', 'training')
+  if (recent.length > TRAINING_RECENT_LIMIT) throw invalid('training.recent', `最多 ${TRAINING_RECENT_LIMIT} 筆`)
+  recent.forEach((c, i) => {
+    const path = `training.recent[${i}]`
+    if (!isObj(c) || typeof c.playerId !== 'string' || typeof c.playerName !== 'string' || !(String(c.trait) in TRAITS) || (c.kind !== 'learn' && c.kind !== 'improve')) throw invalid(path, '格式不對')
+    int(c, 'completedAtMatch', path)
+    if (c.effectiveFromMatch !== (c.completedAtMatch as number) + 1) throw invalid(`${path}.effectiveFromMatch`, '必須是完成的下一場')
+  })
+  if (t.active === null) return
+  const a = obj(t, 'active', 'training')
+  if (typeof a.playerId !== 'string' || !(String(a.trait) in TRAITS) || (a.kind !== 'learn' && a.kind !== 'improve')) throw invalid('training.active', '格式不對')
+  for (const key of ['progress', 'need', 'startedAtMatch']) int(a, key, 'training.active')
+  const next = (obj(value, 'idle').nextMatchIndex as number) ?? 0
+  if ((a.progress as number) >= (a.need as number) || (a.need as number) < 1) throw invalid('training.active.progress', '進度必須小於所需場數')
+  if ((a.startedAtMatch as number) > next + 1) throw invalid('training.active.startedAtMatch', '不能晚於下一場')
+  if ((a.progress as number) > Math.max(0, next - (a.startedAtMatch as number))) throw invalid('training.active.progress', '進度超過開始以來結算的場數')
+  if (a.lastCountedMatch !== null && !(Number.isInteger(a.lastCountedMatch) && (a.lastCountedMatch as number) < next && (a.lastCountedMatch as number) >= (a.startedAtMatch as number))) {
+    throw invalid('training.active.lastCountedMatch', '必須是開始之後、已經結算的場次')
+  }
+  if ((a.progress as number) > 0 && a.lastCountedMatch === null) throw invalid('training.active.lastCountedMatch', '有進度就一定有最後計入的場次')
+  const record = (arr(value, 'players') as Obj[]).find((r) => isObj(r.player) && r.player.id === a.playerId)
+  if (!record) throw invalid('training.active.playerId', '訓練中的球員不在名單裡')
+  const kind = a.kind as TrainingKind
+  const trait = a.trait as TraitId
+  if (TRAINING_CONFIG[trainingClass(trait)].appearances !== a.need) throw invalid('training.active.need', '所需場數跟設定不符')
+  // 跟開始訓練同一套「靜態資格」（不看訓練槽與資源：合法的進行中訓練不會因為現在錢不夠而變成不合法）
+  const rec = record as unknown as PlayerRecord
+  const st = staticTrainingBlock(value.clubSeed as number, rec, trait, kind)
+  if (st) throw invalid('training.active.trait', `這位球員不能訓練這一項（${st.block}）`)
+}
+
 function validatePlayers(value: Obj): void {
   const list = arr(value, 'players')
   if (list.length > RECRUIT_CONFIG.maxPlayers) throw invalid('players', `最多 ${RECRUIT_CONFIG.maxPlayers} 人`)
@@ -451,6 +497,11 @@ function validatePlayers(value: Obj): void {
     if (!Number.isInteger(r.level) || (r.level as number) < 1 || (r.level as number) > MAX_LEVEL) throw invalid(`${path}.level`, `必須是 1～${MAX_LEVEL} 的整數`)
     if (r.origin !== 'founding' && r.origin !== 'recruit' && r.origin !== 'migrated') throw invalid(`${path}.origin`, '不認識的來源')
     int(r, 'joinedAtMatch', path)
+    if (r.dev !== undefined) {
+      if (!isObj(r.dev) || !Array.isArray(r.dev.learned) || !Array.isArray(r.dev.removed)) throw invalid(`${path}.dev`, '格式不對')
+      const issues = developmentIssues(r as unknown as PlayerRecord)
+      if (issues.length) throw invalid(`${path}.dev`, issues.join('；'))
+    }
     const id = r.player.id as string
     if (ids.has(id)) throw invalid(`${path}.player.id`, `球員編號重複：${id}`)
     ids.add(id)
@@ -571,7 +622,7 @@ function validateEconomy(economy: Obj): void {
   int(economy, 'nextOpSeq', 'economy')
   arr(economy, 'recentOps', 'economy').forEach((op, i) => {
     const path = `economy.recentOps[${i}]`
-    if (!isObj(op) || (op.kind !== 'upgrade' && op.kind !== 'recruit' && op.kind !== 'release')) throw invalid(path, '格式不對')
+    if (!isObj(op) || !['upgrade', 'recruit', 'release', 'trainStart', 'trainCancel'].includes(op.kind as string)) throw invalid(path, '格式不對')
     int(op, 'seq', path)
     str(op, 'playerId', path)
     str(op, 'requestKey', path)

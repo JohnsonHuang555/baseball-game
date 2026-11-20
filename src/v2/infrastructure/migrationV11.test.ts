@@ -42,11 +42,11 @@ describe('V10 → V11（純函式）', () => {
   it('只改版本號：球員、能力、生涯、招募次數、帳務、聯盟、積分、降級紀錄、比賽、Replay、固定的比賽、均衡參數一個字都不動', () => {
     const old = v10()
     const club = migrateToLatest(old)
-    const { schemaVersion, revision, migratedFrom, ...rest } = club
+    const { schemaVersion, revision, migratedFrom, training, ...rest } = club
     const { schemaVersion: _s, revision: oldRevision, migratedFrom: _m, ...oldRest } = old
     expect(rest).toEqual(oldRest)
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
-    expect(CLUB_SCHEMA_VERSION).toBe(11)
+    expect(training).toEqual({ potentialVersion: 1, active: null, recent: [] })
     expect(revision).toBe(oldRevision + 1)
     expect(migratedFrom).toEqual({ schemaVersion: 10, revision: oldRevision })
     // 逐項確認規格要求保留的資料
@@ -72,13 +72,13 @@ describe('V10 → V11（純函式）', () => {
     expect(sourceVersion(migrateToLatest(old))).toBeNull()
   })
 
-  it('V3～V10 的遷移鏈仍然正常：V9、V3 一路升到 V11，戰術一律是均衡型', () => {
+  it('V3～V10 的遷移鏈仍然正常：V9、V3 一路升到目前版本，戰術一律是均衡型', () => {
     const a = migrateToLatest(structuredClone(fixtureV9))
-    expect(a.schemaVersion).toBe(11)
+    expect(a.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(a.migratedFrom).toEqual({ schemaVersion: 9, revision: fixtureV9.revision })
     expect(a.strategy.coach.style).toBe('balanced')
     const b = migrateToLatest(structuredClone(fixtureV3))
-    expect(b.schemaVersion).toBe(11)
+    expect(b.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     expect(b.migratedFrom?.schemaVersion).toBe(3)
     expect(b.strategy.coach.style).toBe('balanced')
   })
@@ -109,7 +109,7 @@ describe('V10 → V11（打開存檔）', () => {
     expect(value.migrated).toBe(true)
     expect(storage.getItem(CLUB_BACKUP_KEY_V10)).toBe(RAW_V10)
     expect(storage.getItem(CLUB_BACKUP_KEY_V9)).toBe('舊的 V9 備份')
-    expect(value.club!.schemaVersion).toBe(11)
+    expect(value.club!.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
   })
 
   it('寫入失敗（備份或主存檔）時原本的 V10 存檔不變，之後可以再遷移', async () => {
