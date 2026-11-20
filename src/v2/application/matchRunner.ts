@@ -5,6 +5,7 @@
 import { Game, RULES_VERSION, type Command, type GameEvent, type GameSetup, type Half, type PlayerLine, type Side } from '../../sim/game'
 import type { ScoreLine } from '../../sim/scoring'
 import { emptyTactics, type MatchTactics } from '../domain/matchTactics'
+import type { MvpFacts } from '../domain/mvp'
 import { AUTO_COACH_VERSION, AutoCoach, COACH_PRESETS, createPolicy, type CoachParams, type CoachStyle } from './autoCoach'
 
 /** 一方的 AI：自動教練（可選風格），或引擎內建的對手 AI */
@@ -77,6 +78,8 @@ export interface MatchResult {
   replay: MatchReplay
   /** 我方的戰術摘要（Phase 9 PR 2 起；測試注入的假結果可以沒有） */
   tactics?: MatchTactics
+  /** 我方 MVP 評分用、lines 沒有的事實：盜壘、勝利打點（Phase 9 PR 4 起；從事件流收集，不影響模擬） */
+  mvpFacts?: MvpFacts
 }
 
 export class MatchConfigError extends Error {
@@ -140,11 +143,14 @@ export function runMatchWithGame(setup: GameSetup, ai: MatchAi = defaultAi(setup
   const ourIds = game.rosterIds(ours)
   const style = sideAi.style ?? 'balanced'
   const tactics = emptyTactics(style, isCustomParams(style, sideAi.params))
+  const facts: MvpFacts = { steals: {}, winningRbi: null }
   const tally = (events: readonly GameEvent[]) => {
     for (const e of events) {
       if (e.type === 'steal' && ourIds.has(e.runnerId)) {
         tactics.steals[0]++
         if (e.success) tactics.steals[1]++
+        const s = (facts.steals[e.runnerId] ??= [0, 0])
+        s[e.success ? 0 : 1]++
       } else if (e.type === 'play' && e.kind === 'sacrificeBunt' && ourIds.has(e.batterId)) tactics.bunts[1]++
       else if (e.type === 'substitution' && e.side === ours) {
         if (e.kind === 'pitcher') {
@@ -157,8 +163,10 @@ export function runMatchWithGame(setup: GameSetup, ai: MatchAi = defaultAi(setup
     }
   }
   const highlights = new HighlightCollector({ inning: game.inning, half: game.half, score: game.score })
+  const lead = new WinningRbiTracker(ours, game.half)
   const collect = (events: readonly GameEvent[]) => {
     highlights.collect(events)
+    lead.collect(events)
     // 事件累加出來的比分一定要跟引擎一致；不一致代表事件流少了得分，與其給錯的精彩事件不如直接報錯
     if (highlights.score.home !== game.score.home || highlights.score.away !== game.score.away) {
       throw new Error(`精彩事件的比分 ${highlights.score.away}:${highlights.score.home} 跟比賽 ${game.score.away}:${game.score.home} 對不起來`)
@@ -200,6 +208,7 @@ export function runMatchWithGame(setup: GameSetup, ai: MatchAi = defaultAi(setup
       coachVersion: AUTO_COACH_VERSION,
     },
     tactics,
+    mvpFacts: { ...facts, winningRbi: game.winner === ours ? lead.batterId : null },
   }
   return { result, game }
 }
@@ -282,4 +291,36 @@ export function isCustomParams(style: CoachStyle, params: Partial<CoachParams> |
   if (!params) return false
   const preset = COACH_PRESETS[style] as unknown as Record<string, unknown>
   return Object.entries(params).some(([k, v]) => v !== undefined && preset[k] !== v)
+}
+
+/**
+ * 勝利打點：我方從「沒領先」變成「領先」的那個打席的打者；對手之後追平或超前就清掉。
+ * 失誤、雙殺打帶來的得分不算打點，取得領先也不記（null）。比賽結束我方贏，留下來的就是勝利打點
+ */
+export class WinningRbiTracker {
+  batterId: string | null = null
+  private half: Half
+  private diff = 0
+
+  constructor(
+    private readonly ours: Side,
+    half: Half,
+  ) {
+    this.half = half
+  }
+
+  collect(events: readonly GameEvent[]): void {
+    for (const e of events) {
+      if (e.type === 'halfInningEnd') {
+        this.half = e.half === 'top' ? 'bottom' : 'top'
+        continue
+      }
+      if (e.type !== 'play' || e.runs === 0) continue
+      const batting: Side = this.half === 'top' ? 'away' : 'home'
+      const before = this.diff
+      this.diff += batting === this.ours ? e.runs : -e.runs
+      if (batting === this.ours && before <= 0 && this.diff > 0) this.batterId = e.kind === 'error' || e.kind === 'doublePlay' ? null : e.batterId
+      else if (batting !== this.ours && before > 0 && this.diff <= 0) this.batterId = null
+    }
+  }
 }

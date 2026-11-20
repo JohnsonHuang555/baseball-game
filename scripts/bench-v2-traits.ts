@@ -105,14 +105,12 @@ for (const s of scenarios) {
   for (let r = 0; r < REPS; r++) {
     const w = await s.prepare()
     w.clock.advance(8 * HOUR)
-    // 分段數：每一段的第一場打完時 onProgress(1, …) 會被呼叫一次
-    let calls = 0
     const before = load(w.d).idle.nextMatchIndex
     const t0 = performance.now()
-    const report = await settleDue({ ...w.d, batch: { yieldControl: null, onProgress: (done: number) => (done === 1 ? calls++ : 0) } })
+    const report = await settleDue({ ...w.d, batch: { yieldControl: null } })
     times.push(performance.now() - t0)
     if (report.settled.length !== 96 || load(w.d).idle.nextMatchIndex !== before + 96) throw new Error(`${s.name}：應該結算 96 場，實際 ${report.settled.length}`)
-    segments = calls
+    segments = report.segments
     const t1 = performance.now()
     const again = await settleDue(w.d)
     resend = performance.now() - t1

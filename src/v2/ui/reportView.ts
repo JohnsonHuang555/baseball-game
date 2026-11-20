@@ -14,6 +14,7 @@ import { STYLE_ICON } from './tacticsView'
 import { announceModal, v2Modal, type CloseReason } from './dialog'
 import { icon } from './icons'
 import { boxStatTables } from './statsView'
+import { mvpReport, welcomeMvpBox } from './mvpView'
 
 const fmt = (x: number) => x.toLocaleString('zh-Hant')
 
@@ -113,6 +114,8 @@ export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown
     old.append(icon('report', 28), el('strong', '', V2T.noBoxTitle), el('span', '', V2T.noBoxScore))
     body.append(old)
   }
+  // 本場 MVP（Phase 9 PR 4）：舊比賽顯示「未記錄」
+  body.append(mvpReport(m, club, openPlayer))
   const hl = el('section', 'v2-report-card')
   hl.append(el('h3', '', V2T.highlights))
   if (r.highlights.length) {
@@ -204,7 +207,7 @@ function linescore(box: BoxScore, ours: string, theirs: string, userSide: 'home'
 }
 
 /** 離線回歸摘要：完成場次、勝敗、獲得資源（已加到未領取收益）、精彩時刻 */
-export function welcomeModal(w: WelcomeSummary, onClose: (reason: CloseReason) => void, owner?: unknown): () => void {
+export function welcomeModal(w: WelcomeSummary, onClose: (reason: CloseReason) => void, owner?: unknown, openPlayer?: (id: string) => void): () => void {
   const body = el('div', 'v2-welcome')
   const stats = el('div', 'v2-welcome-stats')
   const item = (label: string, value: string, kind: string) => {
@@ -222,6 +225,8 @@ export function welcomeModal(w: WelcomeSummary, onClose: (reason: CloseReason) =
     box.append(ul)
     body.append(box)
   }
+  // 離開期間的 MVP：打者／投手次數、得獎最多的人、能力提升（點名字看球員）；不把每一場都列出來
+  if (w.mvp) body.append(welcomeMvpBox(w.mvp, openPlayer))
   // 離開期間完成的特性訓練：一筆一行，跟摘要在同一個對話框（不另外彈）
   if (w.trainings?.length) {
     const box = el('div', 'v2-welcome-training')

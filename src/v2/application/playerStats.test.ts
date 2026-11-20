@@ -7,7 +7,7 @@ import type { ClubSave, SettledMatch } from '../domain/club'
 import { leagueAtTier } from '../domain/league'
 import { battingRates, careerTotals, pitchingRates, totalsByPlayer, type Totals } from '../domain/stats'
 import { MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, HOUR, ManualClock, T0, tab } from '../testkit'
+import { FakeLockManager, HOUR, ManualClock, T0, tab, withoutMvpGrowth } from '../testkit'
 import { runMatch } from './matchRunner'
 import { planMatches } from './batchRunner'
 import { releasePlayer, upgrade } from './economyService'
@@ -39,8 +39,10 @@ function expectCareerMatches(club: ClubSave, settled: readonly SettledMatch[]): 
 }
 
 describe('Golden：加入球員數據後，勝負、收益、競技積分與降級完全不變', () => {
+  // Phase 9 PR 4：MVP 只在結算後選，不消耗比賽亂數；關掉能力成長時結果跟原本的 Golden 一模一樣（Golden 沒有重新產生）。
+  // 有成長時，第一次成長生效之前的每一場也一模一樣（見 mvp.test.ts 的 Golden 前綴測試）
   it.each(GOLDEN_CLUBS.map((c) => [`c${c[0]}-t${c[1]}`, c] as const))('%s', async (id, [seed, tier, n]) => {
-    expect(await clubGolden(seed, tier, n)).toEqual((golden as Record<string, unknown>)[id])
+    expect(await withoutMvpGrowth(() => clubGolden(seed, tier, n))).toEqual((golden as Record<string, unknown>)[id])
   })
 })
 
@@ -245,7 +247,8 @@ describe('排行', () => {
 })
 
 describe('已釋出球員的生涯紀錄永久保留（PR #18 review P2）', () => {
-  it('長期招募、釋出 65 位（都上過場），之後又打 60 場：每一位的紀錄都在、數字等於他出場的每一場加總', async () => {
+  // 這個測試一次結算整批固定的計畫（不經過分段），所以關掉 MVP 能力成長（成長之後的計畫需要重新規劃，見 mvp 的分段測試）
+  it('長期招募、釋出 65 位（都上過場），之後又打 60 場：每一位的紀錄都在、數字等於他出場的每一場加總', () => withoutMvpGrowth(async () => {
     let club = richClub(newClub({ clubId: 'keep', clubName: '保留', clubSeed: 77, roster: generateRoster(new Rng(77)), now: T0 }))
     const all: SettledMatch[] = []
     const released: string[] = []
@@ -295,6 +298,6 @@ describe('已釋出球員的生涯紀錄永久保留（PR #18 review P2）', () 
       expect(listed).not.toContain(id)
       expect(club.players.some((p) => p.player.id === id)).toBe(false)
     }
-  })
+  }))
 })
 

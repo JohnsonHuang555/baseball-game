@@ -1,4 +1,5 @@
 // V2 測試共用的替身：可控制的時鐘、共用的假 Web Locks、會寫入失敗的儲存。只給測試和效能量測用
+import { MVP_RULES } from './domain/mvp'
 import type { Clock } from './application/idleEngine'
 import { MemoryStorage, type KeyValueStorage, type LockManagerLike } from './infrastructure/clubRepository'
 import { createV2Deps, type V2Deps } from './infrastructure/composition'
@@ -74,4 +75,18 @@ export function v8League<T extends object>(league: T): Omit<T, 'points' | 'prote
  */
 export function atMatch<T extends { idle: { nextMatchIndex: number }; stats: { sinceMatch: number; throughMatch: number } }>(c: T, n: number): Pick<T, 'idle' | 'stats'> {
   return { idle: { ...c.idle, nextMatchIndex: n }, stats: { ...c.stats, sinceMatch: Math.min(c.stats.sinceMatch, n), throughMatch: n } } as Pick<T, 'idle' | 'stats'>
+}
+
+/**
+ * 暫時關掉 MVP 能力成長（照樣選 MVP、累計次數）跑 fn，結束後恢復。
+ * 給「加入 MVP 前後結果必須一模一樣」的 Golden 測試用：沒有成長時，MVP 不消耗亂數、不改比賽
+ */
+export async function withoutMvpGrowth<T>(fn: () => Promise<T> | T): Promise<T> {
+  const prev = MVP_RULES.growth
+  MVP_RULES.growth = false
+  try {
+    return await fn()
+  } finally {
+    MVP_RULES.growth = prev
+  }
 }

@@ -29,6 +29,8 @@ import { ST } from './statsStrings'
 import { statsPanel } from './statsView'
 import { trainingPanel, type TrainingPanelState } from './trainingPanel'
 import { effectiveTraits } from '../domain/traitTraining'
+import { mvpBonusUnits, withMvpBonus } from '../domain/mvp'
+import { mvpPlayerSection } from './mvpView'
 import { openMatchReport } from './reportView'
 import type { StatPeriod } from '../application/statsQuery'
 
@@ -145,9 +147,12 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
       return
     }
     const base = record.player
-    const current = leveled(base, record.level)
+    // 比賽實際用的能力：等級成長 ＋ MVP 永久加成（上限 10），跟 effectivePlayer 同一個公式
+    const withLevel = leveled(base, record.level)
+    const current = withMvpBonus(withLevel, record)
     const cost = upgradeCost(record.level)
-    const next = cost ? leveled(base, record.level + 1) : null
+    const next = cost ? withMvpBonus(leveled(base, record.level + 1), record) : null
+    const mvpUnitsOf = mvpBonusUnits(record) as Record<string, number | undefined>
 
     // 標題列：頭像（流派標在右上）、名字與等級、現在在哪裡、流派與特性
     const face = el('span', 'v2-detail-face')
@@ -181,10 +186,10 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
       return
     }
 
-    // 能力表：原始（Lv.1）、目前（比賽實際用的）、下一級
+    // 能力表：原始（Lv.1）、等級成長、MVP 加成、目前（比賽實際用的）、下一級
     const table = el('table', 'v2-rating-table')
     const hr = el('tr')
-    hr.append(el('th', '', V2T.ratingCol), el('th', '', V2T.baseRating), el('th', 'current', V2T.currentRatingLong), el('th', '', next ? V2T.nextRating : ''))
+    hr.append(el('th', '', V2T.ratingCol), el('th', '', V2T.baseRating), el('th', 'lv', V2T.levelGrowthCol), el('th', 'mvp', V2T.mvpCol), el('th', 'current', V2T.currentRatingLong), el('th', '', next ? V2T.nextRating : ''))
     const thead = el('thead')
     thead.append(hr)
     const tbody = el('tbody')
@@ -203,7 +208,16 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
         // 沒有提升（已達上限）就照實顯示，不放假的增加
         nx.append(el('span', diff > 0 ? 'v2-num up' : 'v2-num', diff > 0 ? fmt2(n) : c >= 10 ? V2T.ratingCapped : fmt2(n)))
       }
-      tr.append(el('th', '', RATING_FULL[key as keyof typeof RATING_FULL]), el('td', 'base', fmt2(b)), cur, nx)
+      const lvGain = Math.round((ratingsOf(withLevel)[key] - b) * 100) / 100
+      const mvpGain = mvpUnitsOf[key] ?? 0
+      tr.append(
+        el('th', '', RATING_FULL[key as keyof typeof RATING_FULL]),
+        el('td', 'base', fmt2(b)),
+        el('td', 'lv', lvGain > 0 ? `+${fmt2(lvGain)}` : '—'),
+        el('td', `mvp${mvpGain ? ' has' : ''}`, mvpGain ? `+${(mvpGain / 10).toFixed(1)}` : '—'),
+        cur,
+        nx,
+      )
       tbody.append(tr)
     }
 
@@ -274,7 +288,7 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
         const saved = res.ok && res.outcome ? recordOf(res.outcome.club, playerId) : undefined
         if (saved && res.outcome) {
           // 進行中那一場已經固定（用升級前的能力）：新能力從下一場開始，也就是第 nextMatchIndex + 2 場（從 1 數）
-          done = { level: saved.level, gains: upgradeGains(before, leveled(base, saved.level)), fromMatch: res.outcome.club.idle.nextMatchIndex + 2 }
+          done = { level: saved.level, gains: upgradeGains(before, withMvpBonus(leveled(base, saved.level), saved)), fromMatch: res.outcome.club.idle.nextMatchIndex + 2 }
           toast(V2T.upgradeToast(base.name, saved.level), 'success')
           draw(controller.state)
         } else if (res.message) toast(res.message, 'error')
@@ -296,6 +310,8 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
     tableBox.setAttribute('aria-label', V2T.ratingTable)
     tableBox.append(table, el('p', 'v2-hint', V2T.progressionNote), el('p', 'v2-hint v2-ability-note', ST.abilityNote))
     body.append(tableBox)
+    // 單場 MVP（Phase 9 PR 4）：生涯次數、下一次成長、永久加成
+    body.append(mvpPlayerSection(record))
     if (better) {
       const tip = el('p', 'v2-tip v2-better-upgrade')
       tip.dataset.better = better.playerId

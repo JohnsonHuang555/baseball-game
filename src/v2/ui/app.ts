@@ -421,7 +421,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     }
     if (state.welcome && state.welcome.key !== shownWelcome) {
       shownWelcome = state.welcome.key
-      welcomeModal(state.welcome, (reason) => reason === 'user' && controller.dismissWelcome(), controller)
+      welcomeModal(state.welcome, (reason) => reason === 'user' && controller.dismissWelcome(), controller, (id) => void openPlayerDetail(controller, id))
     }
     if (state.status.kind === 'ready' && state.club) {
       notifyDanger(state.club)

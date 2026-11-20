@@ -355,7 +355,8 @@ describe('經濟帳務', () => {
 
 describe('支出失敗時，到期的比賽照樣保存', () => {
   /** 資產固定為 assets；回傳之後「只有比賽相關欄位會變」的檢查 */
-  const spendState = (c: ClubSave) => ({ players: c.players, roster: c.roster, assets: c.economy.assets, spent: c.economy.spent, nextOpSeq: c.economy.nextOpSeq, recruitment: c.recruitment })
+  // 球員的 MVP 紀錄是結算的結果（Phase 9 PR 4），不是支出：比的是支出會動到的部分
+  const spendState = (c: ClubSave) => ({ players: c.players.map(({ mvp: _mvp, ...r }) => r), roster: c.roster, assets: c.economy.assets, spent: c.economy.spent, nextOpSeq: c.economy.nextOpSeq, recruitment: c.recruitment })
 
   it('1. 離線 8 小時後資金不足而招募失敗：96 場保存、不扣款、名單不變', async () => {
     const { deps, clock } = await setup({ funds: 100, experience: 0 })

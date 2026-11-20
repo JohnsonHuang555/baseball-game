@@ -4,7 +4,7 @@ import { claim, settleDue, settleIdle } from '../application/settlementService'
 import { planMatches, runBatch } from '../application/batchRunner'
 import { CLUB_SCHEMA_VERSION } from '../domain/club'
 import { RETENTION_CONFIG } from '../domain/config'
-import { FakeLockManager, FlakyStorage, HOUR, ManualClock, T0, tab } from '../testkit'
+import { FakeLockManager, FlakyStorage, HOUR, ManualClock, T0, tab, withoutMvpGrowth } from '../testkit'
 import { CLUB_STORAGE_KEY, ClubRepository, ClubSaveError, InProcessLock, MemoryStorage, WebLocksClubLock, createClubLock } from './clubRepository'
 
 const create = (repo: Pick<ClubRepository, 'createClub'>) => repo.createClub({ clubName: '測試球團', clubSeed: 11, clubId: 'club-x', now: T0 })
@@ -219,7 +219,8 @@ describe('存檔大小', () => {
     expect(Math.max(...sizes)).toBeLessThan(150_000)
   }, 60_000)
 
-  it('一次塞進超過上限的場次，也只留最近的', async () => {
+  // 一次結算 70 場固定的計畫（不經過分段）：關掉 MVP 能力成長，否則成長之後的結果會留給重新規劃（只記到成長那一場）
+  it('一次塞進超過上限的場次，也只留最近的', () => withoutMvpGrowth(async () => {
     const repo = new ClubRepository(new MemoryStorage())
     const club = create(repo)
     const { outcomes } = await runBatch(planMatches(club, 0, RETENTION_CONFIG.recentMatches + 20))
@@ -227,5 +228,5 @@ describe('存檔大小', () => {
     expect(next.recentMatches).toHaveLength(RETENTION_CONFIG.recentMatches)
     expect(next.recentMatches[0].matchIndex).toBe(20)
     expect(repo.saveClub(next, club.revision).revision).toBe(1)
-  })
+  }))
 })

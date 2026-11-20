@@ -113,6 +113,11 @@ export interface BatchOptions {
   /** 單場的模擬函式（測試用來注入失敗） */
   simulate?: (plan: MatchPlan) => MatchResult
   onProgress?: (done: number, total: number) => void
+  /**
+   * 跨批次共用的「距離上次讓出打了幾場」：分段結算把一批拆成好幾段時傳同一個物件，
+   * 很短的段落（例如 MVP 成長的上限只有 1～2 場）也會照總場數每 chunkSize 場讓出一次，不會整批都不讓出
+   */
+  yieldCounter?: { sinceYield: number }
 }
 
 const defaultSimulate = (plan: MatchPlan) => runMatch(plan.setup, plan.ai)
@@ -125,7 +130,7 @@ export async function runBatch(plans: readonly MatchPlan[], options: BatchOption
   const yieldControl = options.yieldControl === undefined ? yieldToMain : options.yieldControl
   const done = new Map((options.completed ?? []).map((o) => [o.plan.matchId, o]))
   const outcomes: MatchOutcome[] = []
-  let sinceYield = 0
+  const counter = options.yieldCounter ?? { sinceYield: 0 }
   for (const plan of plans) {
     const previous = done.get(plan.matchId)
     if (previous) {
@@ -142,8 +147,8 @@ export async function runBatch(plans: readonly MatchPlan[], options: BatchOption
       return { ...finish('failed', plans, outcomes), failedMatchId: plan.matchId, error }
     }
     options.onProgress?.(outcomes.length, plans.length)
-    if (++sinceYield >= chunkSize && yieldControl) {
-      sinceYield = 0
+    if (++counter.sinceYield >= chunkSize && yieldControl) {
+      counter.sinceYield = 0
       await yieldControl()
     }
   }
