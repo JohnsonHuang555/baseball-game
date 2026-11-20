@@ -19,7 +19,7 @@ import {
 import { RETENTION_CONFIG } from '../domain/config'
 import { settingsVersions, type SettingsVersions } from '../domain/fingerprint'
 import { LineupError, lineupIssues } from '../domain/lineup'
-import { assignmentIssues, resolveRoster } from '../domain/roster'
+import { assignedIds, assignmentIssues, resolveRoster } from '../domain/roster'
 import { applyRankedResult, leagueOf, matchesBeforePossibleRelegation, recordLeagueResult } from '../domain/league'
 import { rewardFor } from '../domain/rewards'
 import { matchRecordOf } from '../domain/boxScore'
@@ -28,7 +28,8 @@ import { stableJson } from '../domain/fingerprint'
 import { coachParamIssues } from '../domain/tactics'
 import { COACH_STYLES } from './autoCoach'
 import { packTactics } from '../domain/matchTactics'
-import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome } from './batchRunner'
+import { advanceTraining, matchesBeforePossibleTrainingCompletion, type CompletedTraining } from '../domain/traitTraining'
+import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome, type MatchPlan } from './batchRunner'
 import { MATCH_INTERVAL_MS, MAX_OFFLINE_MS, advanceAnchor, dueMatches, type Clock, type DueMatches } from './idleEngine'
 import { freezeLiveMatch } from './liveMatch'
 
@@ -110,6 +111,11 @@ export interface SettleOutcome {
    * 這時 settled 只到降級那一場為止
    */
   relegated: boolean
+  /**
+   * 這次結算中途有訓練完成（Phase 9 PR 3）：完成那一場之後收到的結果（用訓練完成前的陣容規劃的）都沒有記，
+   * 留給呼叫端用新的有效陣容重新規劃。這時 settled 只到完成那一場為止
+   */
+  trainingCompleted: CompletedTraining[]
 }
 
 /**
@@ -123,9 +129,11 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
   const sorted = [...outcomes].sort((a, b) => a.plan.matchIndex - b.plan.matchIndex)
   const replays = [...next.replays]
   let relegated = false
+  const trainingCompleted: CompletedTraining[] = []
   for (const outcome of sorted) {
-    // 已經降級：剩下的結果是用舊聯盟規劃的（對手、收益倍率、積分規則都不對），一場都不記
-    if (relegated) break
+    // 已經降級：剩下的結果是用舊聯盟規劃的（對手、收益倍率、積分規則都不對），一場都不記。
+    // 訓練完成也一樣：剩下的結果是用完成前的特性打的，要用新的有效陣容重新規劃
+    if (relegated || trainingCompleted.length > 0) break
     const { plan, result } = outcome
     if (plan.matchIndex < next.idle.nextMatchIndex) {
       duplicates++
@@ -178,6 +186,9 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
     // 球員數據跟結算游標在同一次轉換裡前進：同一場只會記一次（stats.throughMatch 一定等於 nextMatchIndex）
     const info = new Map(result.players.filter((p) => p.side === plan.userSide).map((p) => [p.playerId, { name: p.name, role: p.role }]))
     next.stats = addMatchToCareer(next.stats, plan.matchIndex, record.lines, (id) => info.get(id))
+    // 特性訓練：訓練中的球員這場有出場才 +1；完成就寫進球員資料，從下一場起生效
+    const done = advanceTraining(next, plan.matchIndex, record.lines)
+    if (done) trainingCompleted.push(done)
     settled.push(match)
     const r = next.record
     if (summary.won) r.wins++
@@ -195,7 +206,7 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
     next.recentMatches = [...next.recentMatches, ...settled].slice(-RETENTION_CONFIG.recentMatches)
     next.replays = replays.slice(-RETENTION_CONFIG.replays)
   }
-  return { club: next, settled, duplicates, relegated }
+  return { club: next, settled, duplicates, relegated, trainingCompleted }
 }
 
 /** 放置結算：記進比賽之後，時間錨點依實際新結算的場數推進（規則見 idleEngine.ts） */
@@ -327,13 +338,14 @@ export async function settleDueUnsaved(club: ClubSave, now: number, deps: Settle
   const used: MatchOutcome[] = []
   let duplicates = 0
   let relegated = false
+  const trainingCompleted: CompletedTraining[] = []
   let status: BatchRun['status'] = 'completed'
   let failedMatchId: string | undefined
   let error: unknown
   for (let segment = 0; ; segment++) {
     const remaining = due.matches - settled.length
     if (remaining <= 0) break
-    const count = Math.min(remaining, matchesBeforePossibleRelegation(current.league))
+    const count = Math.min(remaining, matchesBeforePossibleChange(current))
     const plans = planMatches(current, current.idle.nextMatchIndex, count)
     // 已經固定的那一場用固定的計畫（開賽時的陣容、戰術、等級、聯盟）
     if (plans.length && current.liveMatch?.matchIndex === plans[0].matchIndex) plans[0] = structuredClone(current.liveMatch.plan)
@@ -345,6 +357,7 @@ export async function settleDueUnsaved(club: ClubSave, now: number, deps: Settle
     used.push(...run.outcomes.slice(0, applied.settled.length + applied.duplicates))
     duplicates += applied.duplicates
     relegated ||= applied.relegated
+    trainingCompleted.push(...applied.trainingCompleted)
     if (run.status !== 'completed') {
       status = run.status
       failedMatchId = run.failedMatchId
@@ -356,10 +369,29 @@ export async function settleDueUnsaved(club: ClubSave, now: number, deps: Settle
     if (segment > due.matches) throw new SettlementError('mismatch', '分段結算沒有收斂')
   }
   return {
-    next: { club: current, settled, duplicates, relegated },
+    next: { club: current, settled, duplicates, relegated, trainingCompleted },
     due,
     batch: { status, outcomes: used, summary: summarizeBatch(used, due.matches), ...(failedMatchId ? { failedMatchId } : {}), ...(error !== undefined ? { error } : {}) },
   }
+}
+
+/**
+ * 從現在起，最多再結算幾場「球隊的能力一定不會改變」：分段結算用它切段，改變之後的比賽才能用新的狀態重新規劃。
+ * 目前有兩種事件：降級（對手強度、收益、積分規則改變）、特性訓練完成（有效陣容改變）。之後的 MVP 能力成長也接在這裡。
+ * 每一種都只回傳「最快可能發生」的場數，所以切段只會比實際早、不會晚；實際發生在更後面時，下一段再重新算
+ */
+export function matchesBeforePossibleChange(club: ClubSave): number {
+  const live = club.liveMatch
+  const liveIds = live && live.matchIndex === club.idle.nextMatchIndex ? new Set(rosterIdsOf(live.plan)) : null
+  const assigned = assignedIds(club.roster)
+  const canAppear = (id: string) => assigned.has(id) || !!liveIds?.has(id)
+  return Math.min(matchesBeforePossibleRelegation(club.league), matchesBeforePossibleTrainingCompletion(club, canAppear))
+}
+
+/** 固定的比賽計畫裡我方的所有球員 */
+function rosterIdsOf(plan: MatchPlan): string[] {
+  const r = plan.setup[plan.userSide].roster
+  return [...r.lineup.map((s) => s.player.id), ...r.bench.map((p) => p.id), r.starter.id, ...r.relievers.map((p) => p.id)]
 }
 
 function summarizeBatch(outcomes: readonly MatchOutcome[], planned: number): BatchSummary {

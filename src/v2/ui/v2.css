@@ -7148,3 +7148,317 @@ body:has(.v2-modal-overlay.v2-modal-overlay) .toast {
 .v2-report-tactics-row[data-key='pitchingChanges'] {
   grid-column: 1 / -1;
 }
+
+/* ---- 特性養成（Phase 9 PR 3）：球員詳情「球員能力」分頁裡 ---- */
+.v2-training {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1.5px solid var(--ink);
+  border-radius: 16px;
+  background: #fff;
+}
+.v2-training-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.v2-training-count {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-training-groups {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-training-group {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.v2-training-group dt {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-training-group dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.v2-training-none {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-faint);
+}
+.v2-training-improved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.v2-training-improved .trait {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.v2-training-improved-label {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--v2-win);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+}
+.v2-training-sub {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 900;
+}
+.v2-training-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+@media (min-width: 720px) {
+  .v2-training-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.v2-training-option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+}
+.v2-training-option.blocked {
+  border-style: dashed;
+  border-color: #9aa0c6;
+  background: var(--v2-soft);
+}
+.v2-training-option.picking {
+  border-width: 3px;
+  background: #fff8db;
+}
+.v2-training-option-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.v2-training-class {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+}
+.v2-training-class.rare {
+  background: var(--yellow);
+}
+.v2-training-class.improve {
+  background: #ffe2e2;
+}
+.v2-training-desc {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #33385f;
+}
+.v2-training-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 900;
+}
+.v2-training-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.v2-training-cost .v2-ico + .v2-ico,
+.v2-training-cost .v2-ico:not(:first-child) {
+  margin-left: 6px;
+}
+.v2-training-need {
+  color: var(--v2-muted);
+}
+.v2-training-block {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-loss);
+}
+.v2-training-pick {
+  align-self: flex-end;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+.v2-training-other,
+.v2-training-note {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--v2-soft);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.v2-training-note.reserve {
+  background: #ffe9e9;
+}
+.v2-training-confirm,
+.v2-training-active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: #fff8db;
+  box-shadow: 0 4px 0 var(--ink);
+}
+.v2-training-active {
+  background: #fff;
+}
+.v2-training-confirm-title {
+  font-size: 15px;
+  font-weight: 900;
+}
+.v2-training-confirm-facts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-bullets li.warn {
+  color: var(--v2-loss);
+}
+.v2-training-confirm-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.v2-training-confirm-row button {
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+.v2-training-active-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.v2-training-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+.v2-training-target-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-training-bar {
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: var(--v2-soft);
+  overflow: hidden;
+}
+.v2-training-fill {
+  display: block;
+  height: 100%;
+  background: var(--v2-win);
+}
+.v2-training-nums {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.v2-training-remain {
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-training-cancel {
+  align-self: flex-end;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+.v2-training-cancel-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #ffe9e9;
+  font-size: 13px;
+  font-weight: 700;
+}
+.v2-training-cancel-confirm p {
+  margin: 0;
+  line-height: 1.5;
+}
+.v2-training-done {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #e5f7ec;
+  border: 1.5px solid var(--v2-win);
+  font-size: 13px;
+}
+.v2-training-done > span:not(.v2-ico) {
+  grid-column: 2;
+  font-weight: 700;
+}
+.v2-training-from {
+  color: var(--v2-win);
+  font-weight: 900 !important;
+}
+.v2-welcome-training-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-welcome-training-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}

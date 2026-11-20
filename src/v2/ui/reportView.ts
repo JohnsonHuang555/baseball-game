@@ -9,6 +9,7 @@ import type { ControllerState, WelcomeSummary } from './clubController'
 import { V2T } from './strings'
 import { rankedDeltaChip, rankedReport } from './leagueInfo'
 import { unpackTactics } from '../domain/matchTactics'
+import { traitTag } from '../../ui/playerCard'
 import { STYLE_ICON } from './tacticsView'
 import { announceModal, v2Modal, type CloseReason } from './dialog'
 import { icon } from './icons'
@@ -218,6 +219,20 @@ export function welcomeModal(w: WelcomeSummary, onClose: (reason: CloseReason) =
     box.append(el('h3', 'v2-welcome-h', V2T.welcomeHighlights))
     const ul = el('ul', 'v2-highlights')
     for (const h of w.highlights) ul.append(el('li', 'ours', highlightText(h)))
+    box.append(ul)
+    body.append(box)
+  }
+  // 離開期間完成的特性訓練：一筆一行，跟摘要在同一個對話框（不另外彈）
+  if (w.trainings?.length) {
+    const box = el('div', 'v2-welcome-training')
+    box.append(el('h3', 'v2-welcome-h', V2T.welcomeTrainings))
+    const ul = el('ul', 'v2-welcome-training-list')
+    for (const t of w.trainings) {
+      const li = el('li')
+      li.dataset.player = t.playerId
+      li.append(traitTag(t.trait), el('span', '', `${t.playerName}：${V2T.trainingDoneTitle(t.trait, t.kind)}・${V2T.trainingEffectiveFrom(t.effectiveFromMatch + 1)}`))
+      ul.append(li)
+    }
     box.append(ul)
     body.append(box)
   }

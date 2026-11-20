@@ -1,6 +1,9 @@
 // 遊戲畫面的文字（播報、球種、守位等共用文字在 src/ui/strings.ts）
 import type { Baserunning } from '../domain/tactics'
 import type { CoachStyle } from '../application/autoCoach'
+import type { TraitId } from '../../sim/traits'
+import { TRAIT_NAMES } from '../../ui/strings'
+import type { TrainingBlock, TrainingClass, TrainingKind } from '../domain/traitTraining'
 
 const n = (x: number) => x.toLocaleString('zh-Hant')
 
@@ -62,6 +65,7 @@ export const V2T = {
   welcomeTitle: '歡迎回來！',
   welcomeBody: (k: number) => `球隊在你離開期間完成了 ${n(k)} 場比賽`,
   welcomeHighlights: '精彩時刻',
+  welcomeTrainings: '特性訓練完成',
   welcomeClose: '回到球團',
   matchesFinished: (k: number) => `完成了 ${n(k)} 場比賽`,
   settleInterrupted: '結算被中斷，已完成的比賽已保存，剩下的會在下次結算',
@@ -390,6 +394,56 @@ export const V2T = {
   releaseYes: '確定釋出',
   releaseCancel: '取消',
   releaseOnlyReserve: '只有預備名單的球員可以釋出；先發、板凳與投手要先在陣容中換下來',
+  releaseTraining: '這位球員正在進行特性訓練，要先取消訓練才能釋出',
+
+  // ---- 特性養成（Phase 9 PR 3） ----
+  trainingTitle: '特性養成',
+  trainingNative: '原生特性',
+  trainingLearned: '訓練習得',
+  trainingNegative: '負面特性',
+  trainingImproved: '已改善',
+  trainingNone: '沒有',
+  trainingPositiveCount: (n: number, max: number) => `正面特性 ${n}／${max}（原生的也算）`,
+  trainingPool: '可培養的特性',
+  trainingPoolNote: '每位球員的潛能不同，由球員的原始能力與原生特性決定；升級、換陣容都不會改變。',
+  trainingClassNames: { common: '一般', rare: '稀有', improve: '改善' } as Record<TrainingClass, string>,
+  trainingNeed: (n: number) => `正式出賽 ${n} 場`,
+  trainingLearnVerb: '學會',
+  trainingImproveVerb: '改善',
+  trainingChoose: '選擇',
+  trainingConfirmTitle: (name: string, trait: TraitId, kind: TrainingKind) => `${name}：${kind === 'learn' ? '學習' : '改善'}「${TRAIT_NAMES[trait]}」`,
+  trainingConfirm: '確認開始訓練',
+  trainingStarting: '開始訓練中…',
+  trainingBack: '再想想',
+  trainingRules: ['只有實際上場的正式比賽才算（代打、代跑、守備替補、後援都算）；晉級挑戰賽、觀看回放不算。', '完成後從下一場比賽開始生效，進行中的比賽不受影響。', '整個球團一次只能訓練一項。開始時就扣款，沒有失敗機率。'],
+  trainingBlockText: {
+    'not-eligible': '不在這位球員的潛能裡',
+    owned: '已經擁有',
+    improved: '已經改善',
+    conflict: '跟現有特性互斥',
+    cap: '正面特性已達上限',
+    'slot-busy': '訓練槽使用中',
+    insufficient: '資金或經驗不足',
+  } as Record<TrainingBlock, string>,
+  trainingConflictWith: (t: TraitId) => `跟「${TRAIT_NAMES[t]}」互斥${t === 'errorProne' || t === 'clutchBad' || t === 'lowStamina' || t === 'homerProne' ? '，先改善它才能學' : ''}`,
+  trainingActive: '訓練中',
+  trainingTarget: '訓練目標',
+  trainingProgress: (p: number, n: number) => `${p}／${n} 場`,
+  trainingRemain: (r: number) => `還差 ${r} 場`,
+  trainingProgressLabel: '訓練進度',
+  trainingNotPlaying: '這位球員現在不在陣容（預備名單），不會出場，進度不會增加。',
+  trainingBenchNote: '板凳或後援只有實際上場的比賽才會增加進度。',
+  trainingOther: (name: string, trait: TraitId) => `訓練槽正在使用：${name}・${TRAIT_NAMES[trait]}。一次只能訓練一項。`,
+  trainingCancel: '取消訓練',
+  trainingCancelConfirm: '取消後，已經花的資金與經驗不會退回，目前的進度也不會保留。確定要取消嗎？',
+  trainingCancelYes: '確定取消',
+  trainingCancelNo: '繼續訓練',
+  trainingStarted: (name: string, trait: TraitId, kind: TrainingKind) => `${name} 開始${kind === 'learn' ? '學習' : '改善'}「${TRAIT_NAMES[trait]}」`,
+  trainingCancelled: (name: string) => `已取消 ${name} 的特性訓練`,
+  trainingDoneShort: (name: string, trait: TraitId, kind: TrainingKind) => `${name} 完成訓練：${kind === 'learn' ? '學會' : '改善'}「${TRAIT_NAMES[trait]}」。`,
+  trainingDoneTitle: (trait: TraitId, kind: TrainingKind) => `${kind === 'learn' ? '學會' : '改善了'}「${TRAIT_NAMES[trait]}」`,
+  trainingEffectiveFrom: (matchNo: number) => `從第 ${matchNo} 場比賽起生效`,
+  trainingImprovedEffect: '比賽中不再套用這個負面特性',
   releasing: '釋出中…',
   released: (name: string) => `已釋出 ${name}`,
 

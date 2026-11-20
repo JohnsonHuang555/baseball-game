@@ -7,7 +7,9 @@
 // - revision 衝突：重新讀取最新存檔並提示，不會靜默覆蓋
 // - 不支援 Web Locks 時，只有可寫分頁能寫入（WriterGuard），唯讀分頁的寫入一律拒絕
 import { createClubSafely, openClubSafely, resetClubSafely } from '../application/clubLifecycle'
-import { EconomyError, recruit, release, upgrade, type SpendOutcome } from '../application/economyService'
+import { EconomyError, cancelTraining, recruit, release, startTraining, upgrade, type SpendOutcome } from '../application/economyService'
+import type { CompletedTraining, TrainingKind } from '../domain/traitTraining'
+import type { TraitId } from '../../sim/traits'
 import { LeagueError, challengeNextLeague, type ChallengeOutcome } from '../application/leagueService'
 import { dueMatches, type DueMatches } from '../application/idleEngine'
 import { SettlementError, claim, settleDue, updateSettings, type SettlementReport } from '../application/settlementService'
@@ -40,6 +42,8 @@ export interface WelcomeSummary {
   funds: number
   experience: number
   highlights: SummaryHighlight[]
+  /** 離開期間完成的特性訓練（Phase 9 PR 3） */
+  trainings: CompletedTraining[]
 }
 
 export type RetryAction = 'settle' | 'claim'
@@ -222,6 +226,10 @@ export class ClubController {
       return
     }
     const key = `${settled[0].matchId}..${settled[settled.length - 1].matchId}`
+    // 這次結算中完成的訓練（完成的那一場在這批裡）
+    const firstIndex = settled[0].matchIndex
+    const lastIndex = settled[settled.length - 1].matchIndex
+    const trainings = report.club.training.recent.filter((t) => t.completedAtMatch >= firstIndex && t.completedAtMatch <= lastIndex)
     // 剛進入或回到這個分頁：顯示離開期間的摘要；同一份摘要只顯示一次
     if ((trigger === 'enter' || trigger === 'resume') && key !== this.lastWelcomeKey) {
       this.lastWelcomeKey = key
@@ -239,10 +247,13 @@ export class ClubController {
             .flatMap((m) => m.result.highlights.filter((h) => h.ours))
             .sort((a, b) => Number(b.kind === 'walkOff') - Number(a.kind === 'walkOff') || b.runs - a.runs)
             .slice(0, 3),
+          trainings,
         },
       })
     } else {
-      this.set({ ...base, notice: V2T.matchesFinished(settled.length) })
+      // 在畫面上時完成的訓練：跟比賽結束的提示合併成一則，不另外彈對話框
+      const done = trainings.map((t) => V2T.trainingDoneShort(t.playerName, t.trait, t.kind)).join('、')
+      this.set({ ...base, notice: done ? `${V2T.matchesFinished(settled.length)} ${done}` : V2T.matchesFinished(settled.length) })
     }
     if (report.status === 'aborted') this.set({ notice: V2T.settleInterrupted })
   }
@@ -361,6 +372,18 @@ export class ClubController {
     })
   }
 
+  /** 開始特性訓練（扣款）；操作序號取自最新存檔，連點只會送一次 */
+  startTraining(playerId: string, trait: TraitId, kind: TrainingKind): Promise<SpendResult> {
+    const name = (this.current.club && recordOf(this.current.club, playerId)?.player.name) ?? ''
+    return this.spend((opSeq) => startTraining(this.deps, { opSeq, playerId, trait, kind }), () => V2T.trainingStarted(name, trait, kind))
+  }
+
+  /** 取消特性訓練（不退款、進度不保留）；畫面必須先讓玩家確認才呼叫 */
+  cancelTraining(playerId: string, trait: TraitId): Promise<SpendResult> {
+    const name = (this.current.club && recordOf(this.current.club, playerId)?.player.name) ?? ''
+    return this.spend((opSeq) => cancelTraining(this.deps, { opSeq, playerId, trait }), () => V2T.trainingCancelled(name))
+  }
+
   /**
    * 簽下候選名單裡的一位球員：加入預備名單，不會自動上場。
    * expectedCount 是畫面顯示候選名單時的招募次數（不從最新存檔重新取）：別的分頁剛招募過，服務會拒絕並要求重新選擇。
@@ -473,7 +496,7 @@ export class ClubController {
           // 支出被拒絕，但到期的比賽已經結算存檔：畫面換成存好的球團
           if (e.settled) this.set({ club: e.settled.club })
           // 畫面資料過期：讀進最新的，讓玩家看清楚再操作
-          if (e.code === 'stale-request' || e.code === 'stale-candidates' || e.code === 'level-mismatch' || e.code === 'not-reserve') this.reload()
+          if (e.code === 'stale-request' || e.code === 'stale-candidates' || e.code === 'level-mismatch' || e.code === 'not-reserve' || e.code === 'no-training' || e.block === 'slot-busy') this.reload()
           return { ok: false, message: e.message }
         }
         return { ok: false, message: this.handleError(e) }

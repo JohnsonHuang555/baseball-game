@@ -19,6 +19,8 @@ import { SPEND_LOG_LIMIT } from '../domain/progressionConfig'
 import { isCandidateIndex, recruitCandidateAt, recruitCost, rosterFull, type RecruitRole } from '../domain/recruitment'
 import { assignedIds, recordOf } from '../domain/roster'
 import { markReleased } from '../domain/stats'
+import { TRAITS, type TraitId } from '../../sim/traits'
+import { MAX_POSITIVE_TRAITS, TRAINING_CONFIG, trainingBlock, trainingClass, type TrainingBlock, type TrainingKind } from '../domain/traitTraining'
 import { SettlementError, settleDueUnsaved, type SettlementDeps } from './settlementService'
 import { freezeLiveMatch } from './liveMatch'
 
@@ -34,6 +36,12 @@ export type EconomyErrorCode =
   | 'stale-candidates'
   /** 要釋出的球員目前在先發、板凳或投手名單上（例如別的分頁剛把他排進陣容） */
   | 'not-reserve'
+  /** 特性訓練不能開始（原因見 EconomyError.block） */
+  | 'training-blocked'
+  /** 要取消的訓練已經不存在或不是這一項（完成了、被別的分頁取消或換掉） */
+  | 'no-training'
+  /** 要釋出的球員正在訓練：要先取消訓練 */
+  | 'training-player'
 
 export class EconomyError extends Error {
   override name = 'EconomyError'
@@ -42,6 +50,8 @@ export class EconomyError extends Error {
    * 沒有到期的比賽時是 undefined
    */
   settled?: { club: ClubSave; matches: number }
+  /** training-blocked 的原因 */
+  block?: TrainingBlock
   constructor(
     readonly code: EconomyErrorCode,
     message: string,
@@ -74,6 +84,20 @@ export interface RecruitRequest {
 export interface ReleaseRequest {
   opSeq: number
   playerId: string
+}
+
+export interface StartTrainingRequest {
+  opSeq: number
+  playerId: string
+  trait: TraitId
+  kind: TrainingKind
+}
+
+export interface CancelTrainingRequest {
+  opSeq: number
+  /** 畫面上看到的那一項：跟存檔不同（完成了、別的分頁換掉了）就拒絕 */
+  playerId: string
+  trait: TraitId
 }
 
 export interface SpendOutcome {
@@ -169,10 +193,64 @@ export function releasePlayer(club: ClubSave, req: ReleaseRequest, now: number):
   if (assignedIds(club.roster).has(req.playerId)) {
     throw new EconomyError('not-reserve', `${record.player.name} 目前在陣容裡，請先在陣容中換下來，才能釋出`)
   }
+  // 訓練中的球員不能直接釋出：先取消訓練，避免訓練槽指向不存在的球員
+  if (club.training.active?.playerId === req.playerId) {
+    throw new EconomyError('training-player', `${record.player.name} 正在進行特性訓練，請先取消訓練，才能釋出`)
+  }
   const out = spend(club, { kind: 'release', playerId: req.playerId, cost: { funds: 0, experience: 0 }, at: now, requestKey })
   out.club.players = out.club.players.filter((r) => r.player.id !== req.playerId)
   // 生涯數據永久留著（唯讀）：歷史戰報與球員詳情還找得到他；之後不會再累加（他不會再出場）
   out.club.stats = markReleased(out.club.stats, req.playerId, out.club.idle.nextMatchIndex)
+  return { ...out, duplicate: false }
+}
+
+const BLOCK_TEXT: Record<TrainingBlock, string> = {
+  'not-eligible': '這位球員不能訓練這個特性（不在潛能池裡）',
+  owned: '已經擁有這個特性',
+  improved: '這個負面特性已經改善過了',
+  conflict: '跟現有的特性互斥',
+  cap: `正面特性已經有 ${MAX_POSITIVE_TRAITS} 個`,
+  'slot-busy': '訓練槽正在使用中（一次只能訓練一項）',
+  insufficient: '資金或經驗不足',
+}
+
+/**
+ * 開始特性訓練（Phase 9 PR 3）：檢查球員、潛能池、已擁有、互斥、正面特性上限、訓練槽、資源，
+ * 扣款與建立訓練狀態在同一份球團裡完成（一次存檔）。同一個序號重送不會再扣款。
+ * 進度從下一場還沒開始的比賽起算：進行中那一場已經固定（spendSafely 先固定），不算
+ */
+export function startTrainingFor(club: ClubSave, req: StartTrainingRequest, now: number): SpendOutcome {
+  if (typeof req.playerId !== 'string' || !req.playerId || !(String(req.trait) in TRAITS) || (req.kind !== 'learn' && req.kind !== 'improve')) {
+    throw new EconomyError('bad-request', '訓練的內容不合法')
+  }
+  const requestKey = `trainStart:${req.playerId}:${req.trait}:${req.kind}`
+  const dup = checkSeq(club, req.opSeq, requestKey)
+  if (dup) return { club, op: dup, duplicate: true }
+  const record = recordOf(club, req.playerId)
+  if (!record) throw new EconomyError('no-player', `球員不存在：${req.playerId}`)
+  const block = trainingBlock(club.clubSeed, record, req.trait, req.kind, { active: club.training.active, assets: club.economy.assets })
+  if (block) {
+    const e = new EconomyError(block === 'insufficient' ? 'insufficient' : 'training-blocked', `${record.player.name}：${BLOCK_TEXT[block]}`)
+    e.block = block
+    throw e
+  }
+  const { cost, appearances } = TRAINING_CONFIG[trainingClass(req.trait)]
+  const out = spend(club, { kind: 'trainStart', playerId: req.playerId, cost, at: now, requestKey, trait: req.trait })
+  const next = out.club
+  const startedAtMatch = next.idle.nextMatchIndex + (next.liveMatch?.matchIndex === next.idle.nextMatchIndex ? 1 : 0)
+  next.training = { ...next.training, active: { playerId: req.playerId, trait: req.trait, kind: req.kind, progress: 0, need: appearances, startedAtMatch, lastCountedMatch: null } }
+  return { ...out, duplicate: false }
+}
+
+/** 取消訓練：釋放訓練槽，不退款，進度不保留（記一筆 0 元的支出紀錄，讓重送與多分頁可以比對） */
+export function cancelTrainingFor(club: ClubSave, req: CancelTrainingRequest, now: number): SpendOutcome {
+  const requestKey = `trainCancel:${req.playerId}:${req.trait}`
+  const dup = checkSeq(club, req.opSeq, requestKey)
+  if (dup) return { club, op: dup, duplicate: true }
+  const a = club.training.active
+  if (!a || a.playerId !== req.playerId || a.trait !== req.trait) throw new EconomyError('no-training', '這項訓練已經結束或被取消了，請重新讀取')
+  const out = spend(club, { kind: 'trainCancel', playerId: req.playerId, cost: { funds: 0, experience: 0 }, at: now, requestKey, trait: req.trait })
+  out.club.training = { ...out.club.training, active: null }
   return { ...out, duplicate: false }
 }
 
@@ -215,6 +293,16 @@ export function upgrade(deps: SettlementDeps, req: UpgradeRequest): Promise<Spen
 /** 簽下候選球員（冪等）：先結算到期的比賽，再簽約，一次存檔 */
 export function recruit(deps: SettlementDeps, req: RecruitRequest): Promise<SpendOutcome> {
   return spendSafely(deps, (club, now) => recruitPlayer(club, req, now))
+}
+
+/** 開始特性訓練（冪等）：先結算到期的比賽，再扣款、建立訓練，一次存檔 */
+export function startTraining(deps: SettlementDeps, req: StartTrainingRequest): Promise<SpendOutcome> {
+  return spendSafely(deps, (club, now) => startTrainingFor(club, req, now))
+}
+
+/** 取消特性訓練（冪等）：先結算到期的比賽（訓練可能剛好完成），再取消，一次存檔 */
+export function cancelTraining(deps: SettlementDeps, req: CancelTrainingRequest): Promise<SpendOutcome> {
+  return spendSafely(deps, (club, now) => cancelTrainingFor(club, req, now))
 }
 
 /** 釋出預備球員（冪等）：先結算到期的比賽，再釋出，一次存檔 */
