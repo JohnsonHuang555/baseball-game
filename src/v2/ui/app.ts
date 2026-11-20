@@ -363,7 +363,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
       main.replaceChildren(
         renderDashboard(state, controller, {
           claim: () => void claimWithToast(),
-          openReport: (m) => openMatchReport(m, state.club!, controller, (id) => void openPlayerDetail(controller, id, { tab: 'stats' })),
+          openReport: (m) => openMatchReport(m, state.club!, controller, (id) => void openPlayerDetail(controller, id, { tab: 'stats' }), (id) => void openPlayerDetail(controller, id)),
           watchLive: () => void watchLive(),
           liveCard,
           allReports: () => show('reports'),
@@ -389,7 +389,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     } else if (tab === 'tactics') {
       tactics ??= createTacticsView(controller)
       main.replaceChildren(tactics.render(state))
-    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!, controller, (id) => void openPlayerDetail(controller, id, { tab: 'stats' })), deps.clock.now()))
+    } else main.replaceChildren(renderReports(state, (m) => openMatchReport(m, state.club!, controller, (id) => void openPlayerDetail(controller, id, { tab: 'stats' }), (id) => void openPlayerDetail(controller, id)), deps.clock.now()))
 
     if (state.notice) {
       toast(state.notice)

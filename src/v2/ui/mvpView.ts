@@ -142,6 +142,9 @@ export function mvpPlayerSection(record: PlayerRecord): HTMLElement {
   return box
 }
 
+/** 歡迎回來摘要最多列幾位能力提升的球員（其他的合併成一行） */
+export const WELCOME_GROWTH_ROWS = 5
+
 export interface WelcomeMvp {
   batters: number
   pitchers: number
@@ -189,15 +192,27 @@ export function welcomeMvpBox(w: WelcomeMvp, openPlayer?: (id: string) => void):
     box.append(t)
   }
   if (w.growths.length) {
+    // 同一位球員這批可能成長不只一次：合併成一行（各項能力的加總、最後的累積次數、最早生效的場次），最多列 5 位
+    const byPlayer = new Map<string, { name: string; units: Map<RatingKey, number>; count: number; from: number }>()
+    for (const g of w.growths) {
+      const x = byPlayer.get(g.playerId) ?? { name: g.name, units: new Map(), count: 0, from: g.effectiveFromMatch }
+      x.units.set(g.rating, (x.units.get(g.rating) ?? 0) + 1)
+      x.count = Math.max(x.count, g.count)
+      x.from = Math.min(x.from, g.effectiveFromMatch)
+      byPlayer.set(g.playerId, x)
+    }
     const ul = el('ul', 'v2-welcome-mvp-growth')
     ul.setAttribute('aria-label', V2T.welcomeMvpGrowth)
-    for (const g of w.growths) {
+    const shown = [...byPlayer.entries()].slice(0, WELCOME_GROWTH_ROWS)
+    for (const [id, x] of shown) {
       const li = el('li')
-      li.dataset.player = g.playerId
-      li.append(icon('upgrade', 16), link(g.playerId, `${g.name}：${V2T.mvpGrowth(g.count, ratingName(g.rating))}・${V2T.mvpGrowthFrom(g.effectiveFromMatch + 1)}`, 'v2-welcome-mvp-name'))
+      li.dataset.player = id
+      const gains = [...x.units.entries()].map(([k, u]) => `${ratingName(k)} +${(u / 10).toFixed(1)}`).join('、')
+      li.append(icon('upgrade', 16), link(id, V2T.welcomeMvpGrowthRow(x.name, gains, x.count, x.from + 1), 'v2-welcome-mvp-name'))
       ul.append(li)
     }
     box.append(ul)
+    if (byPlayer.size > shown.length) box.append(el('p', 'v2-hint', V2T.welcomeMvpMore(byPlayer.size - shown.length)))
   } else box.append(el('p', 'v2-hint', V2T.welcomeMvpNone))
   return box
 }

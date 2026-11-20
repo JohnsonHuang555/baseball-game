@@ -18,6 +18,7 @@ import { runMatch, type MatchAi, type MatchResult } from '../src/v2/application/
 import { claim, settleDue } from '../src/v2/application/settlementService'
 import { matchRecordOf } from '../src/v2/domain/boxScore'
 import { eligibility } from '../src/v2/domain/league'
+import { LEAGUES } from '../src/v2/domain/leagueConfig'
 import { MVP_CONFIG, MVP_RULES, mvpCandidates, compareCandidates, mvpUnits, unpackMvp, type MvpCandidate } from '../src/v2/domain/mvp'
 import { leveled, upgradeCost } from '../src/v2/domain/progression'
 import { MAX_LEVEL } from '../src/v2/domain/progressionConfig'
@@ -33,7 +34,8 @@ const GAMES = arg('games', 600)
 const SEEDS = arg('seeds', 3)
 const DAYS = list('days', [30, 60, 90])
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`
-const mutable = MVP_CONFIG as unknown as { pitcher: { runsPerOut: number; scale: number; strikeout: number }; perGrowth: number }
+const mutable = MVP_CONFIG as unknown as { pitcher: { runsPerOut: number; scale: number; strikeout: number }; perGrowth: number; maxUnits: number }
+if (process.argv.some((a) => a.startsWith('--maxUnits='))) mutable.maxUnits = arg('maxUnits', 5)
 if (process.argv.some((a) => a.startsWith('--perGrowth='))) mutable.perGrowth = arg('perGrowth', 10)
 
 // ---------------- 隊伍類型 ----------------
@@ -94,11 +96,11 @@ interface Game {
   won: boolean
 }
 
-function playGames(tt: TeamType, style: CoachStyle, n: number, seed0: number): Game[] {
+function playGames(tt: TeamType, style: CoachStyle, n: number, seed0: number, oppMean = 5.8): Game[] {
   const out: Game[] = []
   for (let i = 0; i < n; i++) {
     const ours = tt.edit(generateTeam(new Rng(seed0 + (i % 40)), tt.mean))
-    const opp = generateTeam(new Rng(900_000 + seed0 + i), 5.8)
+    const opp = generateTeam(new Rng(900_000 + seed0 + i), oppMean)
     const userSide: Side = i % 2 ? 'away' : 'home'
     const other: Side = userSide === 'home' ? 'away' : 'home'
     const setup = { home: userSide === 'home' ? ours : opp, away: userSide === 'away' ? ours : opp, seed: 70_000 + seed0 + i, userSide, rules: RULES_VERSION }
@@ -254,6 +256,14 @@ function partB(games: readonly Game[]): void {
     const sub = games.filter(f)
     if (sub.length) console.log(row(label, dist(sub)))
   }
+  // 不同聯盟：對手能力中心照聯盟設定，我方跟對手同水準（玩家通常在自己打得贏的聯盟）
+  console.log('\n## 不同聯盟（我方與對手同水準，每個聯盟四種戰術各 ' + Math.round(GAMES / 4) + ' 場）\n')
+  console.log(HEAD)
+  for (const lg of LEAGUES) {
+    const g: Game[] = []
+    for (const [si, style] of COACH_STYLES.entries()) g.push(...playGames({ name: lg.name, mean: lg.opponentMean, edit: plain }, style, Math.round(GAMES / 4), 500_000 + 10_000 * lg.tier + 1000 * si, lg.opponentMean))
+    console.log(row(lg.name, dist(g)))
+  }
   // 替補關鍵：替補得獎的場次裡，替補的數據
   const benchWins = games.filter((g) => {
     const m = pick(g)
@@ -347,7 +357,7 @@ async function longRun(seed: number, growth: boolean, train: boolean, style: Coa
     const c = d.store.loadClub()!
     if (eligibility(c.league, c.idle.nextMatchIndex).ok) await challengeNextLeague(d, { challengeSeq: c.league.nextChallengeSeq, fromTier: c.league.tier })
     if (legendDay === null && d.store.loadClub()!.league.tier === 4) legendDay = day
-    for (const p of d.store.loadClub()!.players) if (mvpUnits(p) >= 5 && !firstFive.has(p.player.id)) firstFive.set(p.player.id, day)
+    for (const p of d.store.loadClub()!.players) if (mvpUnits(p) >= MVP_CONFIG.maxUnits && !firstFive.has(p.player.id)) firstFive.set(p.player.id, day)
     if (Number.isInteger(day) && marks.includes(day)) {
       const c2 = d.store.loadClub()!
       const active = [...assignedIds(c2.roster)].map((id) => recordOf(c2, id)!)
@@ -401,7 +411,7 @@ async function feedback(seed: number, growth: boolean, days: number): Promise<{ 
 }
 
 async function partC(): Promise<void> {
-  console.log(`\n# C. 長期（每天上線 2 次、${SEEDS} 個球團種子 401/502/603…；${DAYS.join('／')} 天；每 ${MVP_CONFIG.perGrowth} 次 MVP 成長一次）\n`)
+  console.log(`\n# C. 長期（每天上線 2 次、${SEEDS} 個球團種子 401/502/603…；${DAYS.join('／')} 天；每 ${MVP_CONFIG.perGrowth} 次 MVP 成長一次、上限 +${MVP_CONFIG.maxUnits / 10}）\n`)
   console.log('每次上線：結算 → 領取 →（特性訓練）→ 平均升級上場球員 → 有資格就挑戰。勝率是快照前 7 天。\n')
   console.log('| 戰術 | 特性訓練 | MVP 成長 | 天 | 到傳奇（天） | 平均聯盟階級 | 最後 7 天勝率 | 上場平均 MVP 加成 | 最多的一人 | 最快到 +0.5（天） | 得獎最多 1 人／前 3 人占比 | 上場平均能力 | 平均等級 |')
   console.log('|---|---|---|---|---|---|---|---|---|---|---|---|---|')

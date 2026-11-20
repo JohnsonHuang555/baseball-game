@@ -96,7 +96,7 @@ export function highlightText(h: SummaryHighlight): string {
  * 單場戰報：勝敗、聯盟、局數、日期、比分、每局比分、精彩時刻、我方打擊與投手成績、這場收益。
  * openPlayer：點打擊／投手表上的名字打開球員詳情（Phase 8 起的比賽才有球員編號；已釋出的球員也可以）
  */
-export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown, openPlayer: (id: string) => void = () => undefined): () => void {
+export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown, openPlayer: (id: string) => void = () => undefined, openMvp: (id: string) => void = openPlayer): () => void {
   const r = m.result
   const body = el('div', 'v2-report')
   const score = el('section', `v2-report-card v2-report-score ${r.won ? 'won' : 'lost'}`)
@@ -115,7 +115,7 @@ export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown
     body.append(old)
   }
   // 本場 MVP（Phase 9 PR 4）：舊比賽顯示「未記錄」
-  body.append(mvpReport(m, club, openPlayer))
+  body.append(mvpReport(m, club, openMvp))
   const hl = el('section', 'v2-report-card')
   hl.append(el('h3', '', V2T.highlights))
   if (r.highlights.length) {

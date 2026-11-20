@@ -120,7 +120,7 @@ export function openPlayerDetail(controller: ClubController, playerId: string, o
         draw(controller.state)
         body.querySelector<HTMLButtonElement>(`.v2-period [data-value="${p}"]`)?.focus({ preventScroll: true })
       },
-      onOpenMatch: (m) => void openMatchReport(m, club, controller, (id) => void openPlayerDetail(controller, id, { tab: 'stats', period })),
+      onOpenMatch: (m) => void openMatchReport(m, club, controller, (id) => void openPlayerDetail(controller, id, { tab: 'stats', period }), (id) => void openPlayerDetail(controller, id)),
     })
   const draw = (state: ControllerState) => {
     const club = state.club

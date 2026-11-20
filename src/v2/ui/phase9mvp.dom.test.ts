@@ -14,6 +14,7 @@ import { FakeLockManager, HOUR, ManualClock, T0, tab } from '../testkit'
 import { RATING_FULL } from '../../ui/strings'
 import { openV2, type V2App } from './app'
 import { V2T } from './strings'
+import { WELCOME_GROWTH_ROWS } from './mvpView'
 
 let app: V2App | null = null
 afterEach(() => {
@@ -91,8 +92,11 @@ describe('戰報：本場 MVP', () => {
     } else expect(line).toMatch(/局/)
     expect(text('.v2-report-mvp-reason')).toMatch(/MVP 評分/)
     expect(text('.v2-report-mvp-progress')).toBe(V2T.mvpProgress(mvp.count, 10 - (mvp.count % 10)))
+    // 點 MVP：打開球員詳情的「球員能力」（MVP 紀錄在那裡）
     await click('[data-action="mvp-player"]')
     expect($('.v2-player-sheet')).not.toBeNull()
+    expect($('[data-tab="ability"]')!.getAttribute('aria-selected')).toBe('true')
+    expect($('.v2-mvp-section')).not.toBeNull()
   })
 
   it('這場觸發成長：顯示「MVP 累積 10 次，○○ +0.1」與生效場次', async () => {
@@ -183,10 +187,13 @@ describe('歡迎回來摘要：MVP', () => {
     // 摘要的次數用的是這批 96 場（近期比賽只留 50 場，所以用總數驗證）
     const counts = text('.v2-welcome-mvp-counts').match(/打者 (\d+) 次・投手 (\d+) 次/)!
     expect(Number(counts[1]) + Number(counts[2])).toBe(96)
-    // 能力提升：這批每一次成長一行（同一位球員可能成長兩次：第 10、20 次），等於存檔裡這批新增的成長筆數
-    const grants = c.players.reduce((a, p) => a + (p.mvp?.grants.length ?? 0), 0)
-    expect(box.querySelectorAll('.v2-welcome-mvp-growth li').length).toBe(grants)
-    expect(grants).toBeGreaterThan(0)
+    // 能力提升：一位球員一行（同一位可能成長兩次以上，合併），最多 5 位，其他的合併成一行說明
+    const grown = c.players.filter((p) => (p.mvp?.grants.length ?? 0) > 0)
+    expect(grown.length).toBeGreaterThan(WELCOME_GROWTH_ROWS)
+    expect(box.querySelectorAll('.v2-welcome-mvp-growth li').length).toBe(WELCOME_GROWTH_ROWS)
+    expect(box.textContent).toContain(V2T.welcomeMvpMore(grown.length - WELCOME_GROWTH_ROWS))
+    const twice = grown.find((p) => p.mvp!.grants.length >= 2 && [...box.querySelectorAll<HTMLElement>('.v2-welcome-mvp-growth li')].some((li) => li.dataset.player === p.player.id))
+    if (twice) expect(box.querySelector(`.v2-welcome-mvp-growth li[data-player="${twice.player.id}"]`)!.textContent).toContain(`MVP 累積 ${twice.mvp!.count - (twice.mvp!.count % 10)} 次`)
     expect(mvps.some((m) => m.growth)).toBe(true)
     const top = $('.v2-welcome-mvp-top .v2-link')!
     expect(top.textContent).toMatch(/得獎最多：.+（\d+ 次）/)

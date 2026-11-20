@@ -71,6 +71,8 @@ export const V2T = {
   welcomeMvpCounts: (batters: number, pitchers: number) => `打者 ${batters} 次・投手 ${pitchers} 次`,
   welcomeMvpGrowth: '能力提升',
   welcomeMvpNone: '沒有能力提升',
+  welcomeMvpGrowthRow: (name: string, gains: string, count: number, from: number) => `${name}：${gains}（MVP 累積 ${count} 次）・從第 ${from} 場起`,
+  welcomeMvpMore: (n: number) => `另外還有 ${n} 位球員能力提升，可以到球員詳情查看`,
   welcomeClose: '回到球團',
   matchesFinished: (k: number) => `完成了 ${n(k)} 場比賽`,
   settleInterrupted: '結算被中斷，已完成的比賽已保存，剩下的會在下次結算',
