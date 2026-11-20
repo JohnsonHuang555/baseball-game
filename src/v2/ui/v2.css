@@ -6819,3 +6819,332 @@ body:has(.v2-modal-overlay.v2-modal-overlay) .toast {
     width: min(820px, 100%);
   }
 }
+
+/* ---- 戰術風格（Phase 9 PR 2）：推薦、四張風格卡片、收合的進階設定、戰報的本場戰術 ---- */
+.v2-advice {
+  gap: 8px;
+  background: var(--v2-soft);
+  border-style: dashed;
+}
+.v2-advice-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v2-advice-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: #fff;
+}
+.v2-advice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.v2-advice-kicker {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-advice-style {
+  font-size: 18px;
+  font-weight: 900;
+}
+.v2-advice-reason,
+.v2-advice-same,
+.v2-advice-note {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+.v2-advice-same {
+  color: var(--v2-win);
+  font-weight: 900;
+}
+.v2-advice-note {
+  font-size: 12px;
+  color: var(--v2-muted);
+}
+.v2-advice-try {
+  align-self: flex-start;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+.v2-style-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+@media (min-width: 720px) {
+  .v2-style-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.v2-style-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 12px;
+  border-radius: 18px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.v2-style-card.selected {
+  border-width: 3px;
+  background: #fff8db;
+  box-shadow: 0 5px 0 var(--ink);
+}
+.v2-style-card:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: none;
+}
+.v2-style-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.v2-style-card:focus-visible,
+.v2-advanced-summary:focus-visible {
+  outline: 3px solid var(--v2-blue);
+  outline-offset: 2px;
+}
+.v2-style-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v2-style-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: var(--v2-soft);
+}
+.v2-style-card.selected .v2-style-ico {
+  background: var(--yellow);
+}
+.v2-style-name {
+  font-size: 18px;
+  font-weight: 900;
+}
+.v2-style-badges {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.v2-style-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.v2-style-badge.on {
+  background: var(--ink);
+  color: #fff;
+}
+.v2-style-badge.used {
+  background: #fff;
+  color: var(--v2-muted);
+}
+.v2-style-line {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.5;
+}
+.v2-style-facts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.v2-style-fact {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 6px;
+  align-items: baseline;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.v2-style-fact dt {
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-style-fact dd {
+  margin: 0;
+  font-weight: 700;
+}
+.v2-style-fact.pro dt {
+  color: var(--v2-win);
+}
+.v2-style-fact.con dt {
+  color: var(--v2-loss);
+}
+.v2-advanced {
+  padding: 0;
+  gap: 0;
+}
+.v2-advanced-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 20px;
+}
+.v2-advanced-summary::-webkit-details-marker {
+  display: none;
+}
+.v2-advanced-summary::after {
+  content: '';
+  width: 9px;
+  height: 9px;
+  margin-left: 4px;
+  border-right: 2.5px solid var(--ink);
+  border-bottom: 2.5px solid var(--ink);
+  transform: rotate(45deg) translateY(-3px);
+  transition: transform 0.15s;
+}
+.v2-advanced[open] > .v2-advanced-summary::after {
+  transform: rotate(-135deg) translateY(-1px);
+}
+.v2-advanced-title {
+  font-size: 16px;
+  font-weight: 900;
+}
+.v2-advanced-state {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-muted);
+}
+.v2-advanced-state.custom {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--ink);
+  background: var(--yellow);
+  color: var(--ink);
+}
+.v2-advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+.v2-advanced-body .v2-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.v2-advanced-body .v2-toggles {
+  padding: 0;
+}
+.v2-advanced-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.v2-advanced-note {
+  flex: 1 1 180px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-restore {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-advanced-summary::after {
+    transition: none;
+  }
+}
+.v2-report-tactics-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.v2-report-tactics-style {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px 3px 6px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: var(--yellow);
+  font-size: 13px;
+  font-weight: 900;
+}
+.v2-report-tactics-style.none {
+  padding: 3px 10px;
+  background: var(--v2-soft);
+  color: var(--v2-muted);
+  border-color: var(--line);
+}
+.v2-report-tactics-custom {
+  margin-left: 2px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 10px;
+}
+.v2-report-tactics-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 14px;
+}
+@media (min-width: 560px) {
+  .v2-report-tactics-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.v2-report-tactics-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.v2-report-tactics-row dt {
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+.v2-report-tactics-row dd {
+  margin: 0;
+  font-weight: 900;
+  text-align: right;
+  white-space: nowrap;
+}
+.v2-report-tactics-row[data-key='pitchingChanges'] {
+  grid-column: 1 / -1;
+}

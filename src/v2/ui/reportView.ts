@@ -8,6 +8,8 @@ import { IDLE_CONFIG } from '../domain/config'
 import type { ControllerState, WelcomeSummary } from './clubController'
 import { V2T } from './strings'
 import { rankedDeltaChip, rankedReport } from './leagueInfo'
+import { unpackTactics } from '../domain/matchTactics'
+import { STYLE_ICON } from './tacticsView'
 import { announceModal, v2Modal, type CloseReason } from './dialog'
 import { icon } from './icons'
 import { boxStatTables } from './statsView'
@@ -118,6 +120,7 @@ export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown
     hl.append(ul)
   } else hl.append(el('p', 'v2-hint', V2T.noHighlights))
   body.append(hl)
+  body.append(tacticsReport(m))
   const ranked = rankedReport(m)
   if (ranked) body.append(ranked)
   const tables = boxStatTables(m, club, openPlayer)
@@ -135,6 +138,47 @@ export function openMatchReport(m: SettledMatch, club: ClubSave, owner?: unknown
 }
 
 /** 每局比分（R／H／E） */
+/**
+ * 本場戰術（Phase 9 PR 2）：這場實際用的風格與執行結果，全部是比賽事件累加出來的。
+ * 舊比賽沒有紀錄就顯示「未記錄」，不用目前選的戰術回填（玩家可能已經換過）
+ */
+export function tacticsReport(m: SettledMatch): HTMLElement {
+  const box = el('section', 'v2-report-card v2-report-tactics')
+  const head = el('div', 'v2-report-tactics-head')
+  head.append(el('h3', '', V2T.matchTacticsTitle))
+  box.append(head)
+  if (!m.tactics) {
+    head.append(el('span', 'v2-report-tactics-style none', V2T.matchTacticsNone))
+    box.append(el('p', 'v2-hint', V2T.matchTacticsNoneNote))
+    return box
+  }
+  const t = unpackTactics(m.tactics)
+  const chip = el('span', 'v2-report-tactics-style')
+  chip.dataset.style = t.style
+  chip.append(icon(STYLE_ICON[t.style], 18), V2T.styleNames[t.style])
+  if (t.custom) chip.append(el('span', 'v2-report-tactics-custom', V2T.matchTacticsCustom))
+  head.append(chip)
+  const L = V2T.matchTacticsRows
+  const rows: [string, string, string][] = [
+    ['steals', L.steals, `${t.steals[1]} / ${t.steals[0]}`],
+    ['bunts', L.bunts, `${t.bunts[1]} / ${t.bunts[0]}`],
+    ['hitAndRuns', L.hitAndRuns, String(t.hitAndRuns)],
+    ['pitchingChanges', L.pitchingChanges, t.starterOutInning === null ? `0（${V2T.matchTacticsStarterFull}）` : `${t.pitchingChanges}（${V2T.matchTacticsStarter(t.starterOutInning)}）`],
+    ['defensiveSubs', L.defensiveSubs, String(t.defensiveSubs)],
+    ['pinchHits', L.pinchHits, String(t.pinchHits)],
+    ['pinchRuns', L.pinchRuns, String(t.pinchRuns)],
+  ]
+  const dl = el('dl', 'v2-report-tactics-list')
+  for (const [key, label, value] of rows) {
+    const row = el('div', 'v2-report-tactics-row')
+    row.dataset.key = key
+    row.append(el('dt', '', label), el('dd', '', value))
+    dl.append(row)
+  }
+  box.append(dl, el('p', 'v2-hint', V2T.matchTacticsNote))
+  return box
+}
+
 function linescore(box: BoxScore, ours: string, theirs: string, userSide: 'home' | 'away'): HTMLElement {
   const wrap = el('div', 'v2-linescore-wrap')
   const table = el('table', 'v2-linescore')

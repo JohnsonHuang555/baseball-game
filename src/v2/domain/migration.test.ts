@@ -122,8 +122,8 @@ describe('V4 → V7 遷移（經過 V5、V6）', () => {
   })
 
   it('已經是目前格式或未知版本：不是可遷移的舊版', () => {
-    expect(sourceVersion({ schemaVersion: 10 })).toBeNull()
-    expect(() => migrateToLatest({ schemaVersion: 10 })).toThrow(MigrationError)
+    expect(sourceVersion({ schemaVersion: CLUB_SCHEMA_VERSION })).toBeNull()
+    expect(() => migrateToLatest({ schemaVersion: CLUB_SCHEMA_VERSION })).toThrow(MigrationError)
   })
 })
 

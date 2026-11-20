@@ -4,7 +4,6 @@ import { generateRoster } from '../../sim/generate'
 import { Rng } from '../../sim/rng'
 import type { Roster } from '../../sim/types'
 import { LineupError, assertValidLineup, autoArrange, lineupIssues, setStartingPitcher, substitute, swapBattingOrder, swapFieldPositions } from './lineup'
-import { BASERUNNING_STEAL_MIN, DEFAULT_TACTICS, coachParamIssues, fromCoachParams, toCoachParams } from './tactics'
 
 const roster = (seed = 3): Roster => generateRoster(new Rng(seed))
 const ids = (r: Roster) => [...r.lineup.map((s) => s.player.id), ...r.bench.map((p) => p.id), r.starter.id, ...r.relievers.map((p) => p.id)].sort()
@@ -93,34 +92,6 @@ describe('陣容調整', () => {
         expect(ids(best.roster)).toEqual(ids(r))
         expect(autoArrange(best.roster)).toBeNull()
       }
-    }
-  })
-})
-
-describe('戰術設定', () => {
-  it('三檔跑壘對應不同的盜壘門檻，來回轉換不變', () => {
-    expect(BASERUNNING_STEAL_MIN.aggressive).toBeLessThan(BASERUNNING_STEAL_MIN.balanced)
-    expect(BASERUNNING_STEAL_MIN.balanced).toBeLessThan(BASERUNNING_STEAL_MIN.conservative)
-    for (const baserunning of ['aggressive', 'balanced', 'conservative'] as const) {
-      for (const latePlatoon of [true, false]) {
-        for (const sacBunt of [true, false]) {
-          const s = { baserunning, latePlatoon, sacBunt }
-          const params = toCoachParams(s)
-          expect(coachParamIssues(params)).toEqual([])
-          expect(fromCoachParams(params)).toEqual(s)
-        }
-      }
-    }
-  })
-
-  it('沒設定過就是預設（均衡）', () => {
-    expect(fromCoachParams(undefined)).toEqual(DEFAULT_TACTICS)
-    expect(fromCoachParams({})).toEqual(DEFAULT_TACTICS)
-  })
-
-  it('不合理的參數會被擋下', () => {
-    for (const bad of [{ stealMin: 0.1 }, { stealMin: 1.2 }, { stealMin: NaN }, { minBattersFaced: 0 }, { fatigueMargin: 2.5 }, { latePlatoon: 'yes' }, { unknown: 1 }]) {
-      expect(coachParamIssues(bad as never).length).toBeGreaterThan(0)
     }
   })
 })

@@ -317,12 +317,20 @@ describe('陣容與戰術', () => {
 
   it('戰術設定儲存成合法的參數；不合法的設定被擋下', async () => {
     const { c } = await readyClub()
-    const res = await c.saveTactics({ baserunning: 'aggressive', latePlatoon: false, sacBunt: false }, c.settingsVersions()!.coach)
+    const res = await c.saveTactics({ style: 'balanced', stealMin: 0.7, latePlatoon: false, sacBunt: false }, c.settingsVersions()!.coach)
     expect(res.ok).toBe(true)
-    expect(c.state.club!.strategy.coach.params).toEqual({ stealMin: 0.65, latePlatoon: false, sacBunt: false })
-    const bad = await c.saveTactics({ baserunning: 'reckless' as never, latePlatoon: true, sacBunt: true }, c.settingsVersions()!.coach)
+    expect(c.state.club!.strategy.coach).toEqual({ style: 'balanced', params: { stealMin: 0.7, latePlatoon: false, sacBunt: false } })
+    const bad = await c.saveTactics({ style: 'reckless' as never, stealMin: 0.75, latePlatoon: true, sacBunt: true }, c.settingsVersions()!.coach)
     expect(bad.ok).toBe(false)
-    expect(c.state.club!.strategy.coach.params!.stealMin).toBe(0.65)
+    const tooLow = await c.saveTactics({ style: 'speed', stealMin: 0.3, latePlatoon: true, sacBunt: true }, c.settingsVersions()!.coach)
+    expect(tooLow.ok).toBe(false)
+    expect(c.state.club!.strategy.coach.params!.stealMin).toBe(0.7)
+    // 四種風格都可以存
+    for (const style of ['power', 'speed', 'defense', 'balanced'] as const) {
+      const ok = await c.saveTactics({ style, stealMin: 0.85, latePlatoon: true, sacBunt: false }, c.settingsVersions()!.coach)
+      expect(ok.ok).toBe(true)
+      expect(c.state.club!.strategy.coach.style).toBe(style)
+    }
   })
 })
 
@@ -348,7 +356,7 @@ describe('多分頁與存檔錯誤', () => {
     await a.c.settle('manual')
     expect(b.deps.store.loadClub()!.idle.nextMatchIndex).toBe(0)
     expect((await a.c.claim()).message).toBe(V2T.readOnly)
-    expect((await a.c.saveTactics({ baserunning: 'conservative', latePlatoon: true, sacBunt: true }, a.c.settingsVersions()!.coach)).message).toBe(V2T.readOnly)
+    expect((await a.c.saveTactics({ style: 'balanced', stealMin: 0.85, latePlatoon: true, sacBunt: true }, a.c.settingsVersions()!.coach)).message).toBe(V2T.readOnly)
     // 可寫分頁結算，唯讀分頁從 storage 事件重新讀取
     await b.c.settle('manual')
     expect(a.c.state.club!.idle.nextMatchIndex).toBe(12)
@@ -410,7 +418,7 @@ describe('多分頁與存檔錯誤', () => {
     const club = deps.store.loadClub()!
     deps.store.saveClub({ ...club, clubName: '被改名' }, club.revision)
     expect(a.c.state.club!.clubName).toBe('測試貓熊隊')
-    const res = await a.c.saveTactics({ baserunning: 'aggressive', latePlatoon: true, sacBunt: true }, a.c.settingsVersions()!.coach)
+    const res = await a.c.saveTactics({ style: 'balanced', stealMin: 0.7, latePlatoon: true, sacBunt: true }, a.c.settingsVersions()!.coach)
     expect(res.ok).toBe(true)
     // updateSettings 在鎖內重新讀取，所以拿到的是最新版（名稱沒被蓋回去）
     expect(a.c.state.club!.clubName).toBe('被改名')
@@ -450,8 +458,8 @@ describe('舊草稿不能覆蓋其他分頁的設定', () => {
   it('戰術：同樣的情境 → 拒絕，B 的戰術保留', async () => {
     const { a, b } = await twoTabs()
     const baseA = a.c.settingsVersions()!.coach
-    expect((await b.c.saveTactics({ baserunning: 'conservative', latePlatoon: false, sacBunt: true }, b.c.settingsVersions()!.coach)).ok).toBe(true)
-    const res = await a.c.saveTactics({ baserunning: 'aggressive', latePlatoon: true, sacBunt: false }, baseA)
+    expect((await b.c.saveTactics({ style: 'balanced', stealMin: 0.85, latePlatoon: false, sacBunt: true }, b.c.settingsVersions()!.coach)).ok).toBe(true)
+    const res = await a.c.saveTactics({ style: 'balanced', stealMin: 0.7, latePlatoon: true, sacBunt: false }, baseA)
     expect(res.conflict).toBe(true)
     expect(b.deps.store.loadClub()!.strategy.coach.params).toEqual({ stealMin: 0.85, latePlatoon: false, sacBunt: true })
   })
@@ -459,12 +467,12 @@ describe('舊草稿不能覆蓋其他分頁的設定', () => {
   it('陣容與戰術分開比對：B 改了戰術，不影響 A 儲存陣容', async () => {
     const { a, b } = await twoTabs()
     const baseA = a.c.settingsVersions()!.roster
-    expect((await b.c.saveTactics({ baserunning: 'aggressive', latePlatoon: true, sacBunt: true }, b.c.settingsVersions()!.coach)).ok).toBe(true)
+    expect((await b.c.saveTactics({ style: 'balanced', stealMin: 0.7, latePlatoon: true, sacBunt: true }, b.c.settingsVersions()!.coach)).ok).toBe(true)
     const draftA = substitute(rosterOf(a.c.state.club!), 0, 0)
     expect((await a.c.saveRoster(draftA, baseA)).ok).toBe(true)
     const saved = a.deps.store.loadClub()!
     expect(saved.roster).toEqual(toAssignment(draftA))
-    expect(saved.strategy.coach.params!.stealMin).toBe(0.65)
+    expect(saved.strategy.coach.params!.stealMin).toBe(0.7)
   })
 
   it('兩個分頁同時儲存同一個版本的草稿：只有一個成功，另一個收到衝突', async () => {
@@ -520,7 +528,7 @@ describe('單一可寫分頁接手', () => {
     expect(res).toEqual({ ok: false, message: V2T.readOnly })
     clock.advance(HOUR)
     // 就算 controller 的狀態還以為自己可寫，存檔前的檢查也會擋下
-    await a.c.saveTactics({ baserunning: 'aggressive', latePlatoon: true, sacBunt: true }, a.c.settingsVersions()!.coach)
+    await a.c.saveTactics({ style: 'balanced', stealMin: 0.7, latePlatoon: true, sacBunt: true }, a.c.settingsVersions()!.coach)
     expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(before)
   })
 })

@@ -15,7 +15,8 @@
     "balance:v2:matrix": "vite-node scripts/balance/matrix.ts",
     "balance:v2:analyze": "vite-node scripts/balance/analyze.ts",
     "balance:v2:report": "vite-node scripts/balance/report.ts",
-    "balance:v2:ranked": "vite-node scripts/balance-v2-ranked.ts"
+    "balance:v2:ranked": "vite-node scripts/balance-v2-ranked.ts",
+    "balance:v2:tactics": "vite-node scripts/balance-v2-tactics.ts"
   },
   "devDependencies": {
     "happy-dom": "^21.0.4",

@@ -55,7 +55,7 @@ describe('存檔讀寫', () => {
   })
 
   it('不支援的 schemaVersion：舊版、未來版本、沒有版本都明確報錯', () => {
-    for (const schemaVersion of [1, 2, 11, undefined, '10']) {
+    for (const schemaVersion of [1, 2, CLUB_SCHEMA_VERSION + 1, undefined, String(CLUB_SCHEMA_VERSION)]) {
       const storage = new MemoryStorage()
       const club = create(new ClubRepository(new MemoryStorage()))
       storage.setItem(CLUB_STORAGE_KEY, JSON.stringify({ ...club, schemaVersion }))

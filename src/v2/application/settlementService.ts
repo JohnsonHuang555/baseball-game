@@ -26,6 +26,8 @@ import { matchRecordOf } from '../domain/boxScore'
 import { addMatchToCareer } from '../domain/stats'
 import { stableJson } from '../domain/fingerprint'
 import { coachParamIssues } from '../domain/tactics'
+import { COACH_STYLES } from './autoCoach'
+import { packTactics } from '../domain/matchTactics'
 import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome } from './batchRunner'
 import { MATCH_INTERVAL_MS, MAX_OFFLINE_MS, advanceAnchor, dueMatches, type Clock, type DueMatches } from './idleEngine'
 import { freezeLiveMatch } from './liveMatch'
@@ -170,6 +172,8 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
       box: record.box,
       ...(ranked ? { ranked } : {}),
       lines: record.lines,
+      // 這場實際用的戰術與執行結果（從事件累加；假結果沒有就不記）
+      ...(result.tactics ? { tactics: packTactics(result.tactics) } : {}),
     }
     // 球員數據跟結算游標在同一次轉換裡前進：同一場只會記一次（stats.throughMatch 一定等於 nextMatchIndex）
     const info = new Map(result.players.filter((p) => p.side === plan.userSide).map((p) => [p.playerId, { name: p.name, role: p.role }]))
@@ -259,7 +263,7 @@ export function applySettingsChange(club: ClubSave, change: SettingsChange): Clu
     if (lineup.length) throw new LineupError(lineup)
   }
   if (change.coach) {
-    if (change.coach.style !== 'balanced') throw new RangeError(`不支援的戰術風格：${change.coach.style}`)
+    if (!COACH_STYLES.includes(change.coach.style)) throw new RangeError(`不支援的戰術風格：${String(change.coach.style)}`)
     const issues = coachParamIssues(change.coach.params ?? {})
     if (issues.length) throw new RangeError(`戰術設定不合法：${issues.join('；')}`)
   }

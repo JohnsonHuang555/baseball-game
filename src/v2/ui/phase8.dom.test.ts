@@ -8,7 +8,7 @@ import { FakeLockManager, HOUR, ManualClock, T0, tab } from '../testkit'
 import { createClubSafely } from '../application/clubLifecycle'
 import { releasePlayer } from '../application/economyService'
 import { leaderboard, periodTotals } from '../application/statsQuery'
-import type { ClubSave } from '../domain/club'
+import { CLUB_SCHEMA_VERSION, type ClubSave } from '../domain/club'
 import { battingRates, batOf, fmtEra, fmtRate, pitchingRates, type CareerRecord } from '../domain/stats'
 
 const batOfCareer = (r: CareerRecord) => batOf(r.bat ?? [])
@@ -286,7 +286,7 @@ describe('戰報的打擊／投手表', () => {
     const env = { storage: new MemoryStorage(), clock: new ManualClock(fixtureV9.idle.anchorMs), locks: new FakeLockManager() }
     env.storage.setItem(CLUB_STORAGE_KEY, JSON.stringify(fixtureV9))
     await open(env)
-    expect(saved(env).schemaVersion).toBe(10)
+    expect(saved(env).schemaVersion).toBe(CLUB_SCHEMA_VERSION)
     await click('.v2-nav-btn[data-tab="reports"]')
     await click('.v2-report-row')
     expect($('.v2-box-card.legacy')).not.toBeNull()

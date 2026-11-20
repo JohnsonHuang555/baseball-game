@@ -275,7 +275,8 @@ describe('招募', () => {
       await settleDue(deps)
       sizes.push(storage.getItem('dice-baseball.club.v3')!.length)
     }
-    expect(Math.max(...sizes)).toBeLessThan(100_000)
+    // Phase 9 PR 2：每場多一份戰術摘要（精簡陣列約 45 bytes × 近期 50 場 ≈ 2.3 KB），上限從 100,000 放寬到 105,000
+    expect(Math.max(...sizes)).toBeLessThan(105_000)
     expect(sizes[3]).toBeLessThan(sizes[1] * 1.1)
     expect(load(deps).economy.recentOps.length).toBe(30)
   })

@@ -4,7 +4,8 @@
 // 回傳的 replay 就是模擬引擎的 { setup, commands }，用 replay() 可以逐步重現。
 import { Game, RULES_VERSION, type Command, type GameEvent, type GameSetup, type Half, type PlayerLine, type Side } from '../../sim/game'
 import type { ScoreLine } from '../../sim/scoring'
-import { AUTO_COACH_VERSION, AutoCoach, createPolicy, type CoachParams, type CoachStyle } from './autoCoach'
+import { emptyTactics, type MatchTactics } from '../domain/matchTactics'
+import { AUTO_COACH_VERSION, AutoCoach, COACH_PRESETS, createPolicy, type CoachParams, type CoachStyle } from './autoCoach'
 
 /** 一方的 AI：自動教練（可選風格），或引擎內建的對手 AI */
 export type SideAi = { kind: 'autoCoach'; style?: CoachStyle; params?: Partial<CoachParams> } | { kind: 'builtin' }
@@ -74,6 +75,8 @@ export interface MatchResult {
   /** step() 的次數 */
   steps: number
   replay: MatchReplay
+  /** 我方的戰術摘要（Phase 9 PR 2 起；測試注入的假結果可以沒有） */
+  tactics?: MatchTactics
 }
 
 export class MatchConfigError extends Error {
@@ -133,6 +136,26 @@ export function runMatchWithGame(setup: GameSetup, ai: MatchAi = defaultAi(setup
   const game = new Game(resolved)
   const sideAi = ai[resolved.userSide] as Extract<SideAi, { kind: 'autoCoach' }>
   const coach = new AutoCoach(createPolicy(sideAi.style, sideAi.params))
+  const ours = resolved.userSide
+  const ourIds = game.rosterIds(ours)
+  const style = sideAi.style ?? 'balanced'
+  const tactics = emptyTactics(style, isCustomParams(style, sideAi.params))
+  const tally = (events: readonly GameEvent[]) => {
+    for (const e of events) {
+      if (e.type === 'steal' && ourIds.has(e.runnerId)) {
+        tactics.steals[0]++
+        if (e.success) tactics.steals[1]++
+      } else if (e.type === 'play' && e.kind === 'sacrificeBunt' && ourIds.has(e.batterId)) tactics.bunts[1]++
+      else if (e.type === 'substitution' && e.side === ours) {
+        if (e.kind === 'pitcher') {
+          tactics.pitchingChanges++
+          tactics.starterOutInning ??= game.inning
+        } else if (e.kind === 'defense') tactics.defensiveSubs++
+        else if (e.kind === 'pinchHit') tactics.pinchHits++
+        else tactics.pinchRuns++
+      }
+    }
+  }
   const highlights = new HighlightCollector({ inning: game.inning, half: game.half, score: game.score })
   const collect = (events: readonly GameEvent[]) => {
     highlights.collect(events)
@@ -146,8 +169,17 @@ export function runMatchWithGame(setup: GameSetup, ai: MatchAi = defaultAi(setup
     if (game.stepIndex >= maxSteps) {
       throw new MatchStepLimitError(maxSteps, { inning: game.inning, half: game.half, score: { ...game.score } })
     }
-    collect(coach.act(game))
-    collect(game.step())
+    const before = game.commands.length
+    const issued = coach.act(game)
+    for (const c of game.commands.slice(before)) {
+      if (c.tactic.type === 'bunt') tactics.bunts[0]++
+      else if (c.tactic.type === 'hitAndRun') tactics.hitAndRuns++
+    }
+    tally(issued)
+    collect(issued)
+    const stepped = game.step()
+    tally(stepped)
+    collect(stepped)
   }
 
   const result: MatchResult = {
@@ -167,6 +199,7 @@ export function runMatchWithGame(setup: GameSetup, ai: MatchAi = defaultAi(setup
       rulesVersion: resolved.rules,
       coachVersion: AUTO_COACH_VERSION,
     },
+    tactics,
   }
   return { result, game }
 }
@@ -243,3 +276,10 @@ export class HighlightCollector {
 }
 
 const HITS: ReadonlySet<string> = new Set(['single', 'double', 'triple'])
+
+/** 進階設定跟風格的預設不同嗎（只看有給的欄位） */
+export function isCustomParams(style: CoachStyle, params: Partial<CoachParams> | undefined): boolean {
+  if (!params) return false
+  const preset = COACH_PRESETS[style] as unknown as Record<string, unknown>
+  return Object.entries(params).some(([k, v]) => v !== undefined && preset[k] !== v)
+}

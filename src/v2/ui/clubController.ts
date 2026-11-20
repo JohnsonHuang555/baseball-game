@@ -17,7 +17,7 @@ import { settingsVersions } from '../domain/fingerprint'
 import { LineupError, lineupIssues } from '../domain/lineup'
 import type { RecruitRole } from '../domain/recruitment'
 import { recordOf, toAssignment } from '../domain/roster'
-import { toCoachParams, type TacticSettings } from '../domain/tactics'
+import { toCoachSettings, type TacticSettings } from '../domain/tactics'
 import { ClubSaveError } from '../infrastructure/clubRepository'
 import type { V2Deps } from '../infrastructure/composition'
 import { V2T } from './strings'
@@ -487,13 +487,13 @@ export class ClubController {
 
   /** 儲存戰術；baseVersion 是草稿建立時的戰術版本 */
   saveTactics(settings: TacticSettings, baseVersion: string): Promise<ActionResult> {
-    let params
+    let coach
     try {
-      params = toCoachParams(settings)
+      coach = toCoachSettings(settings)
     } catch (e) {
       return Promise.resolve({ ok: false, message: (e as Error).message })
     }
-    return this.saveSettings({ coach: { style: 'balanced', params } }, { coach: baseVersion })
+    return this.saveSettings({ coach }, { coach: baseVersion })
   }
 
   private async saveSettings(change: Parameters<typeof updateSettings>[1], expected: Parameters<typeof updateSettings>[2]): Promise<ActionResult> {

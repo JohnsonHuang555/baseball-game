@@ -118,7 +118,7 @@ describe('V2 畫面', () => {
     expect(text('.v2-lineup')).toContain(V2T.lineupEffective)
     $<HTMLButtonElement>('[data-tab="tactics"]')!.click()
     expect($$('.v2-seg-btn')).toHaveLength(3)
-    expect(text('.v2-tactics')).toContain(V2T.tacticsBeta)
+    expect($$('.v2-style-card')).toHaveLength(4)
     $<HTMLButtonElement>('[data-tab="reports"]')!.click()
     expect($$('.v2-match')).toHaveLength(4)
     $$('.v2-match')[0].click()
@@ -164,7 +164,7 @@ describe('V2 畫面', () => {
     expect($$('.v2-switch')[1].getAttribute('aria-checked')).toBe('false')
     $<HTMLButtonElement>('[data-action="save-draft"]')!.click()
     await flush()
-    expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).strategy.coach.params).toEqual({ stealMin: 0.65, latePlatoon: true, sacBunt: false })
+    expect(JSON.parse(storage.getItem(CLUB_STORAGE_KEY)!).strategy.coach).toEqual({ style: 'balanced', params: { stealMin: 0.7, latePlatoon: true, sacBunt: false } })
   })
 
   it('存檔損壞：顯示錯誤與備份、刪除按鈕，不會自動清除；沒有「回到首頁」（V2 就是整個網站，離開會是空白畫面）', async () => {
