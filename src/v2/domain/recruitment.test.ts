@@ -94,7 +94,7 @@ describe('候選名單', () => {
     expect(() => recruitCandidates(c, 'coach' as never)).toThrow(RangeError)
   })
 
-  it('價格：2,000、2,400、2,800，之後每次 +400', () => {
-    expect([0, 1, 2, 3, 10].map((i) => recruitCost(i).funds)).toEqual([2000, 2400, 2800, 3200, 6000])
+  it('價格：2,000、2,200、2,400，之後每次 +200', () => {
+    expect([0, 1, 2, 3, 10].map((i) => recruitCost(i).funds)).toEqual([2000, 2200, 2400, 2600, 4000])
   })
 })

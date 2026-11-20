@@ -53,11 +53,41 @@ export function pitchPoint(pitch: PitchType, hand: Hand, start: Pt, end: Pt, t: 
   }
 }
 
+/**
+ * V2 直播揭曉段的時間曲線（Phase 9 PR #20 review）：u（揭曉動畫的進度 0～1）→ 軌跡上的 t（0～1）。
+ * 輕微加速（起點速度 0.5、終點 1.5）：捕手視角下球越近、畫面上移動越快；
+ * 起點是出手點、終點是進壘點，沿著同一條 pitchPoint 曲線走，所以球心的路徑就是這個球種真正的形狀
+ */
+export function revealProgress(u: number): number {
+  const x = Math.max(0, Math.min(1, u))
+  return (x * (1 + x)) / 2
+}
+
+/**
+ * 進壘點：壞球落在好球帶外（左、右、低），其他落在好球帶內（只是畫面，用 Math.random；不是比賽亂數）。
+ * 只在結果正式提交之後（finish）才呼叫
+ */
+export function pitchTarget(result: PitchResult, zone: { x: number; y: number; w: number; h: number }, rnd: () => number = Math.random): Pt {
+  if (result === 'ball') {
+    const r = rnd()
+    if (r < 0.35) return { x: zone.x - zone.w * 0.35, y: zone.y + zone.h * rnd() }
+    if (r < 0.7) return { x: zone.x + zone.w * 1.35, y: zone.y + zone.h * rnd() }
+    return { x: zone.x + zone.w * rnd(), y: zone.y + zone.h * 1.3 }
+  }
+  return { x: zone.x + zone.w * (0.15 + rnd() * 0.7), y: zone.y + zone.h * (0.15 + rnd() * 0.7) }
+}
+
 /** 停在本壘的時間，讓人看清楚進壘點 */
 const HOLD_MS = 350
 
-/** V2 直播的中性投球播到軌跡的哪裡（0～1），剩下的在結果提交後才播 */
+/** V2 直播：結果提交前播的時間比例（0～1）。球在這段時間停在出手點，剩下的完整飛行在結果提交後才播 */
 export const APPROACH = 0.8
+
+/**
+ * 揭曉前球的大小只長到全程的這個比例（draw 的 t）：球還遠，畫面上幾乎不動、只稍微變大；
+ * 揭曉段再隨著飛行長到最大（跟位置一起，從捕手看越近越大）
+ */
+const APPROACH_SIZE = 0.35
 
 export class PitchCam {
   readonly root: HTMLElement
@@ -68,7 +98,7 @@ export class PitchCam {
   /** 每次 cancel() 加 1：進行中的投球動畫看到代號變了就立刻結束 */
   private generation = 0
   /** V2 直播：approach() 播到一半、等結果的那一球 */
-  private flight: { pitch: PitchType; hand: Hand; start: Pt; zone: { x: number; y: number; w: number; h: number }; neutral: Pt; trail: Pt[]; w: number; ms: number; gen: number } | null = null
+  private flight: { pitch: PitchType; hand: Hand; start: Pt; zone: { x: number; y: number; w: number; h: number }; w: number; gen: number } | null = null
 
   constructor() {
     this.root = el('div', 'pitch-cam')
@@ -104,7 +134,7 @@ export class PitchCam {
     const zone = { x: w * 0.36, y: h * 0.46, w: w * 0.28, h: h * 0.36 }
     // 出手點在投手的慣用手那一側（捕手看過去，右投手在左邊）
     const start = { x: w * (pitcher.throws === 'R' ? 0.36 : 0.64), y: h * 0.3 }
-    const end = this.target(result, zone)
+    const end = pitchTarget(result, zone)
     const trail: Pt[] = []
     return new Promise((resolve) => {
       const begin = performance.now()
@@ -125,8 +155,11 @@ export class PitchCam {
   }
 
   /**
-   * V2 直播的「中性」投球（Phase 6B）：只播到球飛到 APPROACH 的位置（還在半空中），而且是朝好球帶中心飛，
-   * 跟這一球的結果（好球、壞球、揮空、界外、擊出）完全無關。結果正式提交之後才用 finish() 把球帶到真正的進壘點。
+   * V2 直播的「中性」投球（Phase 6B 防雷；Phase 9 PR #20 review 重新設計）：
+   * 結果提交前，畫面上的球停在出手點、隨著時間變大（從捕手看，球正朝鏡頭飛來），不往任何方向橫移。
+   * 進壘點要等結果提交才知道（壞球在好球帶外），而直球從出手點到進壘點必須是一條直線：
+   * 提交前只要往任何方向移動，揭曉時就一定得轉彎（PR #20 之前的兩個版本都是這樣，見 docs/phase9-gameplay-rfc.md §2）。
+   * 所以完整的飛行（出手 → 進壘、含這個球種的變化）全部放在 finish() 播。
    * 觀戰（直播與挑戰賽）都用這兩個方法；play() 是原本逐球比賽畫面用的，V1 移除後已經沒有呼叫端
    */
   approach(pitch: PitchType, pitcher: Pitcher, ms: number): Promise<void> {
@@ -144,18 +177,16 @@ export class PitchCam {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     const zone = { x: w * 0.36, y: h * 0.46, w: w * 0.28, h: h * 0.36 }
     const start = { x: w * (pitcher.throws === 'R' ? 0.36 : 0.64), y: h * 0.3 }
-    const neutral = { x: zone.x + zone.w / 2, y: zone.y + zone.h / 2 }
-    const flight = { pitch, hand: pitcher.throws, start, zone, neutral, trail: [] as Pt[], w, ms, gen }
+    const flight = { pitch, hand: pitcher.throws, start, zone, w, gen }
     this.flight = flight
     return new Promise((resolve) => {
       const begin = performance.now()
       const tick = (now: number) => {
-        if (gen !== this.generation) return resolve()
-        const t = APPROACH * (ms <= 0 ? 1 : Math.max(0, Math.min(1, (now - begin) / ms)))
-        const p = pitchPoint(pitch, pitcher.throws, start, neutral, t, w)
-        flight.trail.push(p)
-        this.draw(zone, flight.trail, p, t)
-        if (t < APPROACH) requestAnimationFrame(tick)
+        if (gen !== this.generation || this.flight !== flight) return resolve()
+        const k = ms <= 0 ? 1 : Math.max(0, Math.min(1, (now - begin) / ms))
+        // 球停在出手點、稍微變大；沒有拖尾（還沒有往任何方向飛）
+        this.draw(zone, [], start, APPROACH_SIZE * k)
+        if (k < 1) requestAnimationFrame(tick)
         else resolve()
       }
       requestAnimationFrame(tick)
@@ -163,26 +194,26 @@ export class PitchCam {
   }
 
   /**
-   * V2 直播：結果正式提交之後，把 approach() 的球帶到這一球真正的進壘點（壞球在好球帶外）。
-   * 從中性軌跡平順地轉到真正的軌跡；沒有進行中的投球（例如中途加入）就什麼都不畫
+   * V2 直播：結果正式提交之後，播這一球完整的飛行：從出手點沿著這個球種的軌跡（pitchPoint）飛到真正的進壘點。
+   * 球心的路徑與拖尾都是同一條曲線（直球是直線、曲球先飄後墜、滑球橫移，左投相反），揭曉前後位置連續（都從出手點開始）。
+   * 沒有進行中的投球（例如中途加入）就什麼都不畫
    */
   finish(result: PitchResult, ms: number): Promise<void> {
     const f = this.flight
     this.flight = null
     if (!f || f.gen !== this.generation) return Promise.resolve()
-    const end = this.target(result, f.zone)
+    const end = pitchTarget(result, f.zone)
+    const trail: Pt[] = []
     return new Promise((resolve) => {
       const begin = performance.now()
       const tick = (now: number) => {
         if (f.gen !== this.generation) return resolve()
         const u = ms <= 0 ? 1 : Math.max(0, Math.min(1, (now - begin) / ms))
-        const t = APPROACH + (1 - APPROACH) * u
-        const a = pitchPoint(f.pitch, f.hand, f.start, f.neutral, t, f.w)
-        const b = pitchPoint(f.pitch, f.hand, f.start, end, t, f.w)
-        const s = u * u * (3 - 2 * u)
-        const p = { x: a.x + (b.x - a.x) * s, y: a.y + (b.y - a.y) * s }
-        f.trail.push(p)
-        this.draw(f.zone, f.trail, p, t)
+        const p = revealProgress(u)
+        const ball = pitchPoint(f.pitch, f.hand, f.start, end, p, f.w)
+        trail.push(ball)
+        // 球的大小接著提交前的進度，跟著飛行長到最大
+        this.draw(f.zone, trail, ball, APPROACH_SIZE + (1 - APPROACH_SIZE) * p)
         if (u < 1) requestAnimationFrame(tick)
         else {
           this.hideTimer = window.setTimeout(() => this.root.classList.remove('show'), HOLD_MS)
@@ -191,17 +222,6 @@ export class PitchCam {
       }
       requestAnimationFrame(tick)
     })
-  }
-
-  /** 進壘點：壞球落在好球帶外，其他落在好球帶內（只是畫面，隨機就好） */
-  private target(result: PitchResult, zone: { x: number; y: number; w: number; h: number }): Pt {
-    if (result === 'ball') {
-      const r = Math.random()
-      if (r < 0.35) return { x: zone.x - zone.w * 0.35, y: zone.y + zone.h * Math.random() }
-      if (r < 0.7) return { x: zone.x + zone.w * 1.35, y: zone.y + zone.h * Math.random() }
-      return { x: zone.x + zone.w * Math.random(), y: zone.y + zone.h * 1.3 }
-    }
-    return { x: zone.x + zone.w * (0.15 + Math.random() * 0.7), y: zone.y + zone.h * (0.15 + Math.random() * 0.7) }
   }
 
   private draw(zone: { x: number; y: number; w: number; h: number }, trail: Pt[], ball: Pt, t: number): void {

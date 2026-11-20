@@ -89,6 +89,8 @@ recruit(deps, { opSeq, role, candidateIndex, expectedCount })
 
 `RECRUIT_CONFIG.baseFunds = 2000`、`stepFunds = 400`，公式不變：`base + count × step`。第一次 2,000，第二次 2,400，第三次 2,800，之後每次 +400。不花經驗；UI 不另寫公式。
 
+> **Phase 9 更新**：`stepFunds` 改成 200（2,000、2,200、2,400…，第 30 位 7,800）。已付的簽約金不退、`recruitment.count` 不重設，下一次直接用新公式。理由與平衡差異見 `docs/phase9-gameplay-rfc.md` §1。
+
 ## 既有存檔相容（不需要遷移）
 
 | 項目 | 處理 |

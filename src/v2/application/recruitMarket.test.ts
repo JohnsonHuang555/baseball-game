@@ -43,7 +43,7 @@ describe('簽約', () => {
     expect(economyViolations(c.economy)).toEqual([])
   })
 
-  it('選不同的候選人得到對應的球員；下一次的價格是 2,400、2,800', async () => {
+  it('選不同的候選人得到對應的球員；下一次的價格是 2,200、2,400', async () => {
     const { deps } = await setup()
     const got: string[] = []
     for (const index of [0, 1, 2]) {
@@ -51,11 +51,11 @@ describe('簽約', () => {
       const expected = recruitCandidates(c, 'batter')[index]
       const out = await recruit(deps, req(c, 'batter', index))
       expect(out.op.playerId).toBe(expected.id)
-      expect(out.op.cost.funds).toBe([2000, 2400, 2800][index])
+      expect(out.op.cost.funds).toBe([2000, 2200, 2400][index])
       got.push(out.op.playerId)
     }
     expect(new Set(got).size).toBe(3)
-    expect(load(deps).economy.spent.funds).toBe(2000 + 2400 + 2800)
+    expect(load(deps).economy.spent.funds).toBe(2000 + 2200 + 2400)
   })
 
   it('不相信畫面傳來的球員資料：請求裡沒有球員，候選位置超出範圍就拒絕', async () => {
@@ -235,12 +235,12 @@ describe('既有存檔相容', () => {
     const c = load(deps)
     expect(out.op.recruitIndex).toBe(3)
     expect(out.op.cost.funds).toBe(recruitCost(3).funds)
-    expect(out.op.cost.funds).toBe(3200)
+    expect(out.op.cost.funds).toBe(2000 + 3 * 200)
     expect(c.recruitment.count).toBe(4)
     expect(c.players.slice(0, oldPlayers.length)).toEqual(oldPlayers)
     expect(c.economy.recentOps.slice(0, oldOps.length)).toEqual(oldOps)
     // 沒有退款、沒有補扣：支出 = 舊的三次 + 這一次
-    expect(c.economy.spent.funds).toBe(4000 + 4800 + 5600 + 3200)
+    expect(c.economy.spent.funds).toBe(4000 + 4800 + 5600 + 2600)
     expect(economyViolations(c.economy)).toEqual([])
   })
 
@@ -259,5 +259,36 @@ describe('既有存檔相容', () => {
     expect(() => validateClub(raw)).not.toThrow()
     raw.economy.recentOps.at(-1).candidateIndex = 5
     expect(() => validateClub(raw)).toThrow()
+  })
+})
+
+describe('Phase 9：簽約金改成每次 +200', () => {
+  it('已經招募過幾次的球團：次數不重設、已付的簽約金不退，下一次用新公式；畫面的價格跟實際扣款一致', async () => {
+    const { deps } = await setup(100_000)
+    let c = load(deps)
+    // 用舊價格（+400）付過 2 次：2,000、2,400
+    c = structuredClone(c)
+    for (let i = 0; i < 2; i++) {
+      const p = recruitCandidates({ ...c, recruitment: { count: i } }, 'batter')[0]
+      const cost = 2000 + 400 * i
+      c.players.push({ player: p, level: 1, origin: 'recruit', joinedAtMatch: 0 })
+      c.economy.assets.funds -= cost
+      c.economy.spent.funds += cost
+      c.economy.recentOps.push({ seq: c.economy.nextOpSeq, kind: 'recruit', playerId: p.id, cost: { funds: cost, experience: 0 }, at: T0, requestKey: `recruit:batter:${i}:0`, recruitIndex: i, candidateIndex: 0 })
+      c.economy.nextOpSeq++
+      c.recruitment.count++
+    }
+    c = deps.store.saveClub(c, load(deps).revision)
+    const spentBefore = c.economy.spent.funds
+    const opsBefore = structuredClone(c.economy.recentOps)
+    expect(recruitCost(c.recruitment.count).funds).toBe(2000 + 2 * 200)
+    const out = await recruit(deps, { opSeq: c.economy.nextOpSeq, role: 'pitcher', candidateIndex: 1, expectedCount: 2 })
+    const after = load(deps)
+    expect(out.op.cost.funds).toBe(2400)
+    expect(after.recruitment.count).toBe(3)
+    expect(after.economy.spent.funds).toBe(spentBefore + 2400)
+    // 舊紀錄原樣（不退款、不改寫）
+    expect(after.economy.recentOps.slice(0, opsBefore.length)).toEqual(opsBefore)
+    expect(economyViolations(after.economy)).toEqual([])
   })
 })
