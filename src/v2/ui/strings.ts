@@ -680,7 +680,7 @@ export const V2T = {
   champNeedRate: (rate: number, games: number, need: number, window: number) => (games < window ? `最近 ${window} 場勝率 ≥ ${Math.round(need * 100)}%（目前只打了 ${games} 場）` : `最近 ${window} 場勝率 ${Math.round(rate * 100)}%（需要 ≥ ${Math.round(need * 100)}%）`),
   champNeedPoints: (have: number, need: number) => `競技積分 ${have}（需要 ≥ ${need}）`,
   champMissing: (n: number) => `還差 ${n} 個條件`,
-  champCooldown: (n: number, hours: string) => `上一個系列賽剛結束：再打 ${n} 場一般比賽（約 ${hours}）才能再挑戰`,
+  champCooldown: (n: number) => `上一個系列賽剛結束：再打 ${n} 場一般比賽才能再挑戰（每 5 分鐘一場，離線最多累積 8 小時）`,
   champReady: '已經達到資格，可以挑戰總冠軍賽！',
   champOpponent: (name: string, style: string) => `對手：${name}（${style}打線）・比傳奇聯盟的一般對手更強`,
   champStart: '開始系列賽',

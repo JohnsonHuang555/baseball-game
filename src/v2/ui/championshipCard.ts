@@ -6,7 +6,6 @@ import type { PlayGameOutcome } from '../application/championshipService'
 import { CHAMPIONSHIP_CONFIG, championshipView, type ChampionshipView, type SeriesGame } from '../domain/championship'
 import type { ClubSave } from '../domain/club'
 import { leagueOf } from '../domain/league'
-import { IDLE_CONFIG } from '../domain/config'
 import { announceModal, type CloseReason } from './dialog'
 import { icon } from './icons'
 import { V2T } from './strings'
@@ -27,10 +26,6 @@ export function showsChampionship(club: ClubSave): boolean {
 const dateText = (ms: number) => {
   const d = new Date(ms)
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
-}
-const hoursText = (matches: number) => {
-  const h = (matches * IDLE_CONFIG.MATCH_INTERVAL_MS) / 3_600_000
-  return h >= 1 ? `${Math.ceil(h)} 小時` : `${Math.ceil(h * 60)} 分鐘`
 }
 
 /** 七場的小格子：打過的顯示勝敗與比分，還沒打的是空格 */
@@ -123,7 +118,7 @@ export function championshipCard(club: ClubSave, state: { busy: boolean; canWrit
     start.dataset.seq = String(v.nextSeriesSeq)
     card.append(start)
   } else if (v.status === 'cooldown') {
-    card.append(el('p', 'v2-champ-cooldown', V2T.champCooldown(v.eligibility.cooldown.remaining, hoursText(v.eligibility.cooldown.remaining))))
+    card.append(el('p', 'v2-champ-cooldown', V2T.champCooldown(v.eligibility.cooldown.remaining)))
   } else if (v.status === 'not-eligible') {
     const missing = [v.eligibility.matches, v.eligibility.winRate, v.eligibility.points].filter((x) => !x.ok).length
     const h = el('p', 'v2-champ-need-head')
