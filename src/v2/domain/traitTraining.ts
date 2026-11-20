@@ -11,11 +11,21 @@ import { TRAITS, conflicts, type TraitId, type TraitTier } from '../../sim/trait
 import type { Player } from '../../sim/types'
 import { deriveSeed, SEED_SALT, type PlayerRecord, type Resources } from './club'
 
-/** 潛能池演算法的版本：之後改演算法時，舊存檔要照這個版本重現（或在遷移時把潛能池固定下來） */
+/**
+ * 潛能池演算法的版本（相容規則）：
+ * - 潛能池不存檔，每次用 potentialPool() 重算；存檔的 training.potentialVersion 一定要等於這個版本（validateClub 檢查）。
+ * - 之後要改演算法（權重、候選、大小）時：版本 +1，並在遷移時把「訓練中」那一項照舊版本視為合法（或請玩家取消），
+ *   已經學到的特性存在 dev.learned，不受演算法影響。不能在不升版的情況下改演算法，否則存檔驗證會拒絕原本合法的訓練
+ */
 export const POTENTIAL_VERSION = 1
 
-/** 一名球員的正面特性（金、藍）上限，原生的也算 */
-export const MAX_POSITIVE_TRAITS = 2
+/** 一名球員的正面特性（金、藍）上限，原生的也算（平衡見 docs/balance/v2-phase9-traits.md 的 A／B／C 比較） */
+export const MAX_POSITIVE_TRAITS = 3
+
+/**
+ * 可調的訓練規則（平衡腳本用來比較方案；遊戲裡就是預設值）。所有判斷都讀這裡，不直接讀常數
+ */
+export const TRAINING_RULES = { maxPositive: MAX_POSITIVE_TRAITS }
 
 /** 潛能池的大小（候選的正面特性數） */
 export const POTENTIAL_SIZE = 3
@@ -179,16 +189,22 @@ export function potentialPool(clubSeed: number, player: Player): TraitId[] {
 
 // ---- 訓練資格 ----
 
+/**
+ * 不能訓練的原因。前半是「靜態資格」（跟這位球員、這個特性本身有關，存檔驗證與完成時都要成立），
+ * 後兩個是「動態條件」（只在開始的那一刻檢查：訓練槽、資源；操作序號另外由服務層的 checkSeq 檢查）
+ */
 export type TrainingBlock =
-  /** 不在潛能池、角色不符 */
+  /** 特性不存在、角色不符、不在潛能池（learn）或不是原生的負面特性（improve） */
   | 'not-eligible'
+  /** 種類不對：負面特性用 learn、正面特性用 improve */
+  | 'wrong-kind'
   /** 已經有這個特性 */
   | 'owned'
   /** 已經改善過（負面特性） */
   | 'improved'
   /** 跟現有的特性互斥 */
   | 'conflict'
-  /** 正面特性已經 3 個 */
+  /** 正面特性已達上限 */
   | 'cap'
   /** 訓練槽被占用（別的球員或同一位的另一項） */
   | 'slot-busy'
@@ -211,37 +227,76 @@ export function positiveCount(record: Pick<PlayerRecord, 'player' | 'dev'>): num
 }
 
 /**
+ * 靜態資格（開始訓練、存檔驗證、訓練完成三個地方共用同一套規則）：
+ * 特性存在、角色相符；learn：正面特性、在個人潛能池、還沒擁有、不跟有效特性互斥、正面特性未達上限；
+ * improve：原生的負面特性、還沒改善。合法回傳 null
+ */
+export function staticTrainingBlock(clubSeed: number, record: Pick<PlayerRecord, 'player' | 'dev'>, trait: TraitId, kind: TrainingKind): { block: TrainingBlock; conflictWith?: TraitId } | null {
+  const def = (TRAITS as Record<string, (typeof TRAITS)[TraitId] | undefined>)[trait]
+  if (!def || def.role !== record.player.role) return { block: 'not-eligible' }
+  if (kind === 'learn') {
+    if (!isPositive(trait)) return { block: 'wrong-kind' }
+    const eff = effectiveTraits(record)
+    if (eff.includes(trait) || (record.dev?.learned ?? []).includes(trait)) return { block: 'owned' }
+    if (!potentialPool(clubSeed, record.player).includes(trait)) return { block: 'not-eligible' }
+    const conflictWith = eff.find((t) => conflicts(t, trait))
+    if (conflictWith) return { block: 'conflict', conflictWith }
+    if (positiveCount(record) >= TRAINING_RULES.maxPositive) return { block: 'cap' }
+    return null
+  }
+  if (kind !== 'improve') return { block: 'wrong-kind' }
+  if (!isNegative(trait)) return { block: 'wrong-kind' }
+  if (!record.player.traits.includes(trait)) return { block: 'not-eligible' }
+  if ((record.dev?.removed ?? []).includes(trait)) return { block: 'improved' }
+  return null
+}
+
+/** 動態條件（只在開始訓練的那一刻）：訓練槽、資源 */
+function dynamicTrainingBlock(trait: TraitId, ctx: { active: ActiveTraining | null; assets: Resources }): TrainingBlock | null {
+  if (ctx.active) return 'slot-busy'
+  const { cost } = TRAINING_CONFIG[trainingClass(trait)]
+  if (ctx.assets.funds < cost.funds || ctx.assets.experience < cost.experience) return 'insufficient'
+  return null
+}
+
+/**
  * 這位球員可以訓練的項目：潛能池裡的正面特性（習得）＋原生的負面特性（改善）。
- * 每一項附上成本、所需出場數與不能開始的原因（依序：已擁有 → 已改善 → 互斥 → 上限 → 訓練槽 → 資源）
+ * 每一項附上成本、所需出場數與不能開始的原因（先看靜態資格，再看訓練槽與資源）
  */
 export function trainingOptions(clubSeed: number, record: PlayerRecord, ctx: { active: ActiveTraining | null; assets: Resources }): TrainingOption[] {
-  const eff = effectiveTraits(record)
-  const learned = new Set(record.dev?.learned ?? [])
-  const removed = new Set(record.dev?.removed ?? [])
   const opt = (trait: TraitId, kind: TrainingKind): TrainingOption => {
     const cls = trainingClass(trait)
     const { cost, appearances } = TRAINING_CONFIG[cls]
-    let block: TrainingBlock | null = null
-    let conflictWith: TraitId | undefined
-    if (kind === 'learn') {
-      if (eff.includes(trait) || learned.has(trait)) block = 'owned'
-      else {
-        conflictWith = eff.find((t) => conflicts(t, trait))
-        if (conflictWith) block = 'conflict'
-        else if (positiveCount(record) >= MAX_POSITIVE_TRAITS) block = 'cap'
-      }
-    } else if (removed.has(trait)) block = 'improved'
-    if (!block && ctx.active) block = 'slot-busy'
-    if (!block && (ctx.assets.funds < cost.funds || ctx.assets.experience < cost.experience)) block = 'insufficient'
-    return { trait, kind, cls, cost, need: appearances, block, ...(conflictWith ? { conflictWith } : {}) }
+    const st = staticTrainingBlock(clubSeed, record, trait, kind)
+    const block = st ? st.block : dynamicTrainingBlock(trait, ctx)
+    return { trait, kind, cls, cost, need: appearances, block, ...(st?.conflictWith ? { conflictWith: st.conflictWith } : {}) }
   }
   return [...potentialPool(clubSeed, record.player).map((t) => opt(t, 'learn')), ...record.player.traits.filter(isNegative).map((t) => opt(t, 'improve'))]
 }
 
-/** 開始訓練前的檢查（服務層用）：回傳不能開始的原因，可以就是 null */
+/** 開始訓練前的檢查（服務層用）：靜態資格＋訓練槽＋資源；可以就是 null */
 export function trainingBlock(clubSeed: number, record: PlayerRecord, trait: TraitId, kind: TrainingKind, ctx: { active: ActiveTraining | null; assets: Resources }): TrainingBlock | null {
-  const option = trainingOptions(clubSeed, record, ctx).find((o) => o.trait === trait && o.kind === kind)
-  return option ? option.block : 'not-eligible'
+  const st = staticTrainingBlock(clubSeed, record, trait, kind)
+  return st ? st.block : dynamicTrainingBlock(trait, ctx)
+}
+
+/**
+ * 這位球員靠訓練最多能到幾個正面特性（不超過上限）：假設原生的負面特性都先改善，
+ * 依潛能池順序把還能學的都學起來。潛能池固定 3 個候選，已經擁有或彼此互斥的不能再學，
+ * 所以有些球員到不了上限；介面用這個數字說明，不修改潛能池
+ */
+export function positiveCeiling(clubSeed: number, record: Pick<PlayerRecord, 'player' | 'dev'>): number {
+  const negatives = record.player.traits.filter(isNegative)
+  let rec: Pick<PlayerRecord, 'player' | 'dev'> = { ...record, dev: { learned: [...(record.dev?.learned ?? [])], removed: [...negatives] } }
+  for (const t of potentialPool(clubSeed, record.player)) {
+    if (staticTrainingBlock(clubSeed, rec, t, 'learn') === null) rec = { ...rec, dev: { learned: [...rec.dev!.learned, t], removed: rec.dev!.removed } }
+  }
+  return Math.min(TRAINING_RULES.maxPositive, Math.max(positiveCount(record), positiveCount(rec)))
+}
+
+/** 訓練資料不一致（存檔被改過、程式錯誤）：結算時遇到就整批不記，原本的存檔不變 */
+export class TrainingInvariantError extends Error {
+  override name = 'TrainingInvariantError'
 }
 
 /** 套用完成的訓練（不改輸入） */
@@ -280,7 +335,7 @@ export function developmentIssues(record: PlayerRecord): string[] {
   const eff = effectiveTraits(record)
   for (const a of eff) for (const b of eff) if (a < b && conflicts(a, b)) out.push(`${a} 與 ${b} 互斥`)
   const nativePositive = p.traits.filter(isPositive).length
-  if (dev.learned.length > 0 && positiveCount(record) > Math.max(MAX_POSITIVE_TRAITS, nativePositive)) out.push(`正面特性超過 ${MAX_POSITIVE_TRAITS} 個`)
+  if (dev.learned.length > 0 && positiveCount(record) > Math.max(TRAINING_RULES.maxPositive, nativePositive)) out.push(`正面特性超過 ${TRAINING_RULES.maxPositive} 個`)
   return out
 }
 
@@ -298,7 +353,7 @@ export interface Appearances {
  * 達到所需場數就把結果寫進球員的 dev、清空訓練槽、記一筆完成紀錄，回傳那筆紀錄（從下一場起生效）
  */
 export function advanceTraining(
-  club: { training: TrainingState; players: PlayerRecord[] },
+  club: { clubSeed: number; training: TrainingState; players: PlayerRecord[] },
   matchIndex: number,
   lines: Appearances,
 ): CompletedTraining | null {
@@ -312,11 +367,18 @@ export function advanceTraining(
   a.lastCountedMatch = matchIndex
   if (a.progress < a.need) return null
   const i = club.players.findIndex((r) => r.player.id === a.playerId)
-  // 訓練中的球員不能釋出（服務層擋下），所以一定找得到；找不到就只清掉訓練槽
-  if (i >= 0) club.players[i] = applyTraining(club.players[i], a.trait, a.kind)
+  // 完成前再確認一次：球員還在、這一項仍然合法（跟開始訓練、存檔驗證同一套規則）。
+  // 不合法代表資料不一致：丟錯，呼叫端整批不記、不存檔，原本的存檔保持原樣（不會默默學到非法特性或重複解鎖）
+  if (i < 0) throw new TrainingInvariantError(`訓練中的球員 ${a.playerId} 不在名單裡`)
+  const st = staticTrainingBlock(club.clubSeed, club.players[i], a.trait, a.kind)
+  if (st) throw new TrainingInvariantError(`${club.players[i].player.name} 的訓練（${a.trait}）已經不合法：${st.block}`)
+  const updated = applyTraining(club.players[i], a.trait, a.kind)
+  const issues = developmentIssues(updated)
+  if (issues.length) throw new TrainingInvariantError(`${club.players[i].player.name} 完成訓練後的特性不合法：${issues.join('；')}`)
+  club.players[i] = updated
   const done: CompletedTraining = {
     playerId: a.playerId,
-    playerName: i >= 0 ? club.players[i].player.name : '',
+    playerName: club.players[i].player.name,
     trait: a.trait,
     kind: a.kind,
     completedAtMatch: matchIndex,

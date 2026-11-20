@@ -11,6 +11,9 @@ import {
   MAX_POSITIVE_TRAITS,
   POTENTIAL_SIZE,
   TRAINING_CONFIG,
+  TRAINING_RULES,
+  positiveCeiling,
+  TrainingInvariantError,
   advanceTraining,
   applyTraining,
   developmentIssues,
@@ -18,6 +21,8 @@ import {
   matchesBeforePossibleTrainingCompletion,
   newTrainingState,
   potentialPool,
+  positiveCount,
+  staticTrainingBlock,
   trainingBlock,
   trainingOptions,
   type ActiveTraining,
@@ -130,9 +135,10 @@ describe('訓練資格', () => {
     for (const o of opts.filter((x) => x.kind === 'learn')) expect(o.cls).toBe(TRAITS[o.trait].tier === 'gold' ? 'rare' : 'common')
   })
 
-  it('正面特性上限（原生的也算，平衡後定為 2 個）；負面特性不占名額', () => {
-    expect(MAX_POSITIVE_TRAITS).toBe(2)
-    const p = { ...batter(9), traits: ['clutch', 'freeSwinger'] as TraitId[] }
+  it('正面特性上限（原生的也算，3 個）；負面特性不占名額', () => {
+    expect(MAX_POSITIVE_TRAITS).toBe(3)
+    expect(TRAINING_RULES.maxPositive).toBe(3)
+    const p = { ...batter(9), traits: ['clutch', 'eye', 'freeSwinger'] as TraitId[] }
     const pool = potentialPool(SEED, p)
     const first = pool.find((t) => trainingBlock(SEED, rec(p), t, 'learn', rich) === null)!
     const r = rec(p, { learned: [first], removed: [] })
@@ -140,8 +146,8 @@ describe('訓練資格', () => {
     for (const t of pool.filter((x) => x !== first)) expect(['cap', 'conflict']).toContain(trainingBlock(SEED, r, t, 'learn', rich))
     // 負面特性的改善不受上限影響
     expect(trainingBlock(SEED, r, 'freeSwinger', 'improve', rich)).toBeNull()
-    // 原生就已經 2 個正面：一個都不能學，但不算存檔錯誤
-    const full = rec({ ...batter(9), traits: ['clutch', 'eye'] as TraitId[] })
+    // 原生就已經 3 個正面：一個都不能學，但不算存檔錯誤
+    const full = rec({ ...batter(9), traits: ['clutch', 'eye', 'stealer'] as TraitId[] })
     expect(trainingOptions(SEED, full, rich).filter((o) => o.kind === 'learn').every((o) => o.block === 'cap' || o.block === 'conflict')).toBe(true)
     expect(developmentIssues(full)).toEqual([])
   })
@@ -180,7 +186,8 @@ describe('驗證', () => {
     const p = { ...batter(15), traits: ['clutch', 'errorProne'] as TraitId[] }
     const bad = (dev: PlayerRecord['dev']) => developmentIssues(rec(p, dev))
     expect(bad({ learned: ['eye'], removed: ['errorProne'] })).toEqual([])
-    expect(bad({ learned: ['eye', 'stealer'], removed: [] }).join()).toMatch(/超過/)
+    expect(bad({ learned: ['eye', 'stealer'], removed: [] })).toEqual([])
+    expect(bad({ learned: ['eye', 'stealer', 'bunter'], removed: [] }).join()).toMatch(/超過/)
     expect(bad({ learned: ['ironArm'], removed: [] }).length).toBeGreaterThan(0)
     expect(bad({ learned: ['freeSwinger'], removed: [] }).length).toBeGreaterThan(0)
     expect(bad({ learned: ['clutch'], removed: [] }).length).toBeGreaterThan(0)
@@ -194,8 +201,9 @@ describe('結算時的進度', () => {
   const club = () => {
     const p = batter(17)
     const state = newTrainingState()
-    state.active = { playerId: p.id, trait: potentialPool(SEED, p)[0], kind: 'learn', progress: 38, need: 40, startedAtMatch: 10, lastCountedMatch: 30 }
-    return { training: state, players: [rec(p)], id: p.id }
+    const trait = potentialPool(SEED, p).find((t) => staticTrainingBlock(SEED, rec(p), t, 'learn') === null)!
+    state.active = { playerId: p.id, trait, kind: 'learn', progress: 38, need: 40, startedAtMatch: 10, lastCountedMatch: 30 }
+    return { clubSeed: SEED, training: state, players: [rec(p)], id: p.id }
   }
   const lines = (ids: string[], pit: string[] = []) => ({ bat: ids.map((id) => [id, 1] as [string, number]), pit: pit.map((id) => [id, 1] as [string, number]) })
 
@@ -228,5 +236,125 @@ describe('結算時的進度', () => {
     expect(matchesBeforePossibleTrainingCompletion(c, () => true)).toBe(2)
     expect(matchesBeforePossibleTrainingCompletion(c, () => false)).toBe(Infinity)
     expect(matchesBeforePossibleTrainingCompletion({ training: newTrainingState() }, () => true)).toBe(Infinity)
+  })
+})
+
+describe('訓練資格：開始、存檔讀取、完成用同一套規則（PR #22 review P2）', () => {
+  /** 一位原生「得點圈強打＋扇風機」的打者：池子裡第一個可以學的特性 */
+  const base = () => {
+    const p = { ...batter(31), traits: ['clutch', 'freeSwinger'] as TraitId[] }
+    const pool = potentialPool(SEED, p)
+    return { p, pool, ok: pool.find((t) => staticTrainingBlock(SEED, rec(p), t, 'learn') === null)! }
+  }
+
+  it('合法：池子裡可以學的、原生的負面特性可以改善', () => {
+    const { p, ok } = base()
+    expect(staticTrainingBlock(SEED, rec(p), ok, 'learn')).toBeNull()
+    expect(staticTrainingBlock(SEED, rec(p), 'freeSwinger', 'improve')).toBeNull()
+  })
+
+  it('不在潛能池、別的角色、不存在的特性：not-eligible', () => {
+    const { p, pool } = base()
+    const outside = (Object.keys(TRAITS) as TraitId[]).find((t) => TRAITS[t].role === 'batter' && isPositive(t) && !pool.includes(t) && !p.traits.includes(t))!
+    expect(staticTrainingBlock(SEED, rec(p), outside, 'learn')).toEqual({ block: 'not-eligible' })
+    expect(staticTrainingBlock(SEED, rec(p), 'ironArm', 'learn')).toEqual({ block: 'not-eligible' })
+    expect(staticTrainingBlock(SEED, rec(p), 'nope' as TraitId, 'learn')).toEqual({ block: 'not-eligible' })
+  })
+
+  it('已經擁有（原生或習得）不能再學', () => {
+    const { p, ok } = base()
+    expect(staticTrainingBlock(SEED, rec(p), 'clutch', 'learn')).toEqual({ block: 'owned' })
+    expect(staticTrainingBlock(SEED, rec(p, { learned: [ok], removed: [] }), ok, 'learn')).toEqual({ block: 'owned' })
+  })
+
+  it('跟有效特性互斥：拒絕，並指出跟誰互斥；改善之後就可以', () => {
+    let found: { p: Batter; t: TraitId } | null = null
+    for (let i = 0; i < 3000 && !found; i++) {
+      const b = { ...batter(i), traits: ['errorProne'] as TraitId[] }
+      if (potentialPool(SEED, b).includes('goodGlove')) found = { p: b, t: 'goodGlove' }
+    }
+    expect(staticTrainingBlock(SEED, rec(found!.p), 'goodGlove', 'learn')).toEqual({ block: 'conflict', conflictWith: 'errorProne' })
+    expect(staticTrainingBlock(SEED, rec(found!.p, { learned: [], removed: ['errorProne'] }), 'goodGlove', 'learn')).toBeNull()
+  })
+
+  it('正面特性已達上限：拒絕新的學習（改善不受影響）', () => {
+    const p = { ...batter(33), traits: ['clutch', 'eye', 'freeSwinger'] as TraitId[] }
+    const pool = potentialPool(SEED, p)
+    const first = pool.find((t) => staticTrainingBlock(SEED, rec(p), t, 'learn') === null)!
+    const full = rec(p, { learned: [first], removed: [] })
+    expect(positiveCount(full)).toBe(3)
+    for (const t of pool.filter((x) => x !== first)) expect(['cap', 'conflict']).toContain(staticTrainingBlock(SEED, full, t, 'learn')!.block)
+    expect(staticTrainingBlock(SEED, full, 'freeSwinger', 'improve')).toBeNull()
+  })
+
+  it('種類不對：負面特性不能 learn、正面特性不能 improve', () => {
+    const { p } = base()
+    expect(staticTrainingBlock(SEED, rec(p), 'freeSwinger', 'learn')).toEqual({ block: 'wrong-kind' })
+    expect(staticTrainingBlock(SEED, rec(p), 'clutch', 'improve')).toEqual({ block: 'wrong-kind' })
+    expect(staticTrainingBlock(SEED, rec(p), 'clutch', 'other' as never)).toEqual({ block: 'wrong-kind' })
+  })
+
+  it('非原生的負面特性不能改善；已經改善過的不能再改善', () => {
+    const { p } = base()
+    expect(staticTrainingBlock(SEED, rec(p), 'errorProne', 'improve')).toEqual({ block: 'not-eligible' })
+    expect(staticTrainingBlock(SEED, rec(p, { learned: [], removed: ['freeSwinger'] }), 'freeSwinger', 'improve')).toEqual({ block: 'improved' })
+  })
+
+  it('開始訓練（trainingBlock）先看靜態資格；合法的才看訓練槽與資源', () => {
+    const { p, ok } = base()
+    const busy: ActiveTraining = { playerId: 'x', trait: 'eye', kind: 'learn', progress: 0, need: 200, startedAtMatch: 0, lastCountedMatch: null }
+    expect(trainingBlock(SEED, rec(p), 'freeSwinger', 'learn', { active: busy, assets: { funds: 0, experience: 0 } })).toBe('wrong-kind')
+    expect(trainingBlock(SEED, rec(p), ok, 'learn', { active: busy, assets: rich.assets })).toBe('slot-busy')
+    expect(trainingBlock(SEED, rec(p), ok, 'learn', { active: null, assets: { funds: 0, experience: 0 } })).toBe('insufficient')
+  })
+
+  it('完成時再檢查一次：資料不一致（例如期間別處已經學到同一個特性）就丟錯，不會重複解鎖', () => {
+    const { p, ok } = base()
+    const fresh = (): ActiveTraining => ({ playerId: p.id, trait: ok, kind: 'learn', progress: 0, need: 1, startedAtMatch: 0, lastCountedMatch: null })
+    const state = { ...newTrainingState(), active: fresh() }
+    const c = { clubSeed: SEED, training: state, players: [rec(p, { learned: [ok], removed: [] })] }
+    expect(() => advanceTraining(c, 5, { bat: [[p.id, 1]], pit: [] })).toThrow(TrainingInvariantError)
+    // 名單裡找不到人也一樣丟錯
+    const gone = { clubSeed: SEED, training: { ...newTrainingState(), active: { ...fresh(), playerId: 'nobody' } }, players: [rec(p)] }
+    expect(() => advanceTraining(gone, 5, { bat: [['nobody', 1]], pit: [] })).toThrow(TrainingInvariantError)
+    // 合法的：完成一次，再送同一場不會再解鎖
+    const fine = { clubSeed: SEED, training: { ...newTrainingState(), active: fresh() }, players: [rec(p)] }
+    expect(advanceTraining(fine, 5, { bat: [[p.id, 1]], pit: [] })).not.toBeNull()
+    expect(advanceTraining(fine, 5, { bat: [[p.id, 1]], pit: [] })).toBeNull()
+    expect(fine.players[0].dev!.learned).toEqual([ok])
+  })
+})
+
+describe('潛能池不會整個卡死；第三個名額的實際可達程度', () => {
+  it('原生負面特性都改善後，還沒到上限的球員至少有一項可以學；潛能池跟等級無關（用 Lv.1 原始資料）', () => {
+    let stuck = 0
+    const ceilings: Record<number, number> = {}
+    for (let i = 0; i < 400; i++) {
+      for (const p of [batter(i), pitcher(i)]) {
+        const healed = rec(p, { learned: [], removed: p.traits.filter((t) => !isPositive(t)) })
+        const learnable = potentialPool(SEED, p).filter((t) => staticTrainingBlock(SEED, healed, t, 'learn') === null)
+        if (positiveCount(healed) < TRAINING_RULES.maxPositive && learnable.length === 0) stuck++
+        const c = positiveCeiling(SEED, rec(p))
+        ceilings[c] = (ceilings[c] ?? 0) + 1
+        // 升級不改潛能池（潛能池只看 player，等級在 record）
+        expect(potentialPool(SEED, rec(p, undefined, 20).player)).toEqual(potentialPool(SEED, p))
+      }
+    }
+    expect(stuck).toBe(0)
+    // 大部分球員可以練到 3 個（記錄分布，平衡文件引用）
+    expect((ceilings[3] ?? 0) / 800).toBeGreaterThan(0.9)
+  })
+
+  it('原生 2 個正面特性的球員：第 3 個名額大多可用', () => {
+    let n = 0
+    let ok = 0
+    for (let i = 0; i < 3000 && n < 200; i++) {
+      const p = batter(i)
+      if (p.traits.filter(isPositive).length !== 2) continue
+      n++
+      if (positiveCeiling(SEED, rec(p)) === 3) ok++
+    }
+    expect(n).toBeGreaterThan(20)
+    expect(ok / n).toBeGreaterThan(0.8)
   })
 })

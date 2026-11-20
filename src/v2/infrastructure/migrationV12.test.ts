@@ -15,7 +15,10 @@ import { settleDue } from '../application/settlementService'
 import { CLUB_SCHEMA_VERSION, validateClub } from '../domain/club'
 import type { ClubSaveV11 } from '../domain/legacyV11'
 import { MIGRATABLE_VERSIONS, migrateToLatest, sourceVersion } from '../domain/migration'
-import { TRAINING_CONFIG } from '../domain/traitTraining'
+import { TRAINING_CONFIG, TRAINING_RULES, potentialPool, trainingBlock, staticTrainingBlock, trainingClass, type TrainingKind } from '../domain/traitTraining'
+import { TRAITS, conflicts, type TraitId } from '../../sim/traits'
+import type { ClubSave, PlayerRecord } from '../domain/club'
+import { ClubRepository } from './clubRepository'
 import { FakeLockManager, HOUR, ManualClock, tab } from '../testkit'
 import { CLUB_BACKUP_KEY_V10, CLUB_BACKUP_KEY_V11, CLUB_STORAGE_KEY, MemoryStorage } from './clubRepository'
 
@@ -78,12 +81,12 @@ describe('V11 → V12（純函式）', () => {
   it('V12 驗證：訓練中的球員一定在名單、項目一定能訓練、進度不超過結算場數；養成資料合法', () => {
     const club = migrateToLatest(v11())
     const p = club.players.find((r) => r.player.role === 'batter')!
-    const good = { playerId: p.player.id, trait: 'eye', kind: 'learn', progress: 0, need: TRAINING_CONFIG.common.appearances, startedAtMatch: club.idle.nextMatchIndex + 1, lastCountedMatch: null }
+    const trait = potentialPool(club.clubSeed, p.player).find((t) => trainingClass(t) === 'common' && staticTrainingBlock(club.clubSeed, p, t, 'learn') === null)!
+    const good = { playerId: p.player.id, trait, kind: 'learn', progress: 0, need: TRAINING_CONFIG.common.appearances, startedAtMatch: club.idle.nextMatchIndex + 1, lastCountedMatch: null }
     const withActive = (a: object) => validateClub({ ...club, training: { ...club.training, active: { ...good, ...a } } })
-    if (p.player.traits.includes('eye')) good.trait = 'stealer'
     expect(withActive({}).training.active).toMatchObject({ playerId: p.player.id })
     expect(() => withActive({ playerId: 'nobody' })).toThrow(/名單/)
-    expect(() => withActive({ trait: 'stealer' === good.trait ? 'eye' : 'stealer', playerId: club.players.find((r) => r.player.role === 'pitcher')!.player.id })).toThrow(/不能訓練/)
+    expect(() => withActive({ playerId: club.players.find((r) => r.player.role === 'pitcher')!.player.id })).toThrow(/不能訓練/)
     expect(() => withActive({ need: 10 })).toThrow(/設定/)
     expect(() => withActive({ progress: 5 })).toThrow(/進度/)
     expect(() => validateClub({ ...club, training: { ...club.training, potentialVersion: 2 } })).toThrow(/potentialVersion/)
@@ -145,5 +148,99 @@ describe('V11 → V12（打開存檔）', () => {
       const side = rep.replay.setup.userSide
       expect([again.score[side], again.score[side === 'home' ? 'away' : 'home']]).toEqual([m.result.runsFor, m.result.runsAgainst])
     }
+  })
+})
+
+describe('V12 讀檔：進行中的訓練跟開始訓練用同一套靜態資格（PR #22 review P2）', () => {
+  const base = () => migrateToLatest(v11())
+  const isPos = (t: TraitId) => TRAITS[t].tier !== 'red'
+  /** 把一名打者改成指定的特性與養成資料，掛上一項訓練（所需場數照設定，進度 0） */
+  const withTraining = (club: ClubSave, traits: TraitId[], dev: PlayerRecord['dev'] | undefined, trait: TraitId, kind: TrainingKind) => {
+    const i = club.players.findIndex((r) => r.player.role === 'batter')
+    const players = club.players.map((r, j) => (j === i ? { ...r, player: { ...r.player, traits }, ...(dev ? { dev } : {}) } : r))
+    const active = { playerId: club.players[i].player.id, trait, kind, progress: 0, need: TRAINING_CONFIG[trainingClass(trait)].appearances, startedAtMatch: club.idle.nextMatchIndex + 1, lastCountedMatch: null }
+    return { ...club, players, training: { ...club.training, active } }
+  }
+  /** 一名打者 + 他的潛能池（原生特性固定成 traits） */
+  const poolOf = (club: ClubSave, traits: TraitId[]) => {
+    const r = club.players.find((x) => x.player.role === 'batter')!
+    return potentialPool(club.clubSeed, { ...r.player, traits } as PlayerRecord['player'])
+  }
+  const expectInvalid = (value: unknown, re: RegExp) => {
+    expect(() => validateClub(value)).toThrow(re)
+    // 讀檔也一樣拒絕（invalid-schema），而且主存檔的原文不會被改寫
+    const storage = new MemoryStorage()
+    const raw = JSON.stringify(value)
+    storage.setItem(CLUB_STORAGE_KEY, raw)
+    expect(() => new ClubRepository(storage).loadClub()).toThrow()
+    expect(storage.getItem(CLUB_STORAGE_KEY)).toBe(raw)
+  }
+
+  it('合法的進行中訓練可以讀取：不看訓練槽與資金（動態條件只在開始時檢查）', () => {
+    const club = base()
+    const pool = poolOf(club, ['freeSwinger'])
+    const t = pool.find((x) => isPos(x))!
+    const v = withTraining(club, ['freeSwinger'], undefined, t, 'learn')
+    const poor = v
+    // 同一項如果「現在才要開始」會因為訓練槽被自己占用、資金不足而不行；讀檔不該因此拒絕
+    const r = poor.players.find((x) => x.player.id === poor.training.active!.playerId)!
+    expect(trainingBlock(poor.clubSeed, r, t, 'learn', { active: poor.training.active, assets: poor.economy.assets })).toBe('slot-busy')
+    expect(trainingBlock(poor.clubSeed, r, t, 'learn', { active: null, assets: { funds: 0, experience: 0 } })).toBe('insufficient')
+    expect(validateClub(poor).training.active!.trait).toBe(t)
+    const storage = new MemoryStorage()
+    storage.setItem(CLUB_STORAGE_KEY, JSON.stringify(poor))
+    expect(new ClubRepository(storage).loadClub()!.training.active?.trait).toBe(t)
+    // 改善原生的負面特性也可以
+    expect(validateClub(withTraining(club, ['freeSwinger'], undefined, 'freeSwinger', 'improve')).training.active?.kind).toBe('improve')
+  })
+
+  it('不在潛能池的特性：拒絕讀取', () => {
+    const club = base()
+    const pool = poolOf(club, [])
+    const outside = (Object.keys(TRAITS) as TraitId[]).find((t) => TRAITS[t].role === 'batter' && isPos(t) && !pool.includes(t))!
+    expectInvalid(withTraining(club, [], undefined, outside, 'learn'), /not-eligible/)
+  })
+
+  it('已擁有的特性不能再學（原生或已習得）', () => {
+    const club = base()
+    const t = poolOf(club, [])[0]
+    expectInvalid(withTraining(club, [], { learned: [t], removed: [] }, t, 'learn'), /owned/)
+  })
+
+  /** 找一個球團種子，讓這名打者（原生特性 traits）的潛能池裡有符合條件的特性 */
+  const seedWhere = (club: ClubSave, traits: TraitId[], want: (t: TraitId) => boolean) => {
+    const r = club.players.find((x) => x.player.role === 'batter')!
+    for (let s = 1; s < 20000; s++) {
+      const t = potentialPool(s, { ...r.player, traits } as PlayerRecord['player']).find(want)
+      if (t) return { seed: s, trait: t }
+    }
+    throw new Error('找不到種子')
+  }
+
+  it('跟有效特性互斥（原生的負面特性還沒改善）：拒絕讀取；改善之後就合法', () => {
+    const club = base()
+    const neg: TraitId = 'errorProne'
+    const { seed, trait } = seedWhere(club, [neg], (t) => isPos(t) && conflicts(t, neg))
+    const v = { ...withTraining(club, [neg], undefined, trait, 'learn'), clubSeed: seed }
+    expectInvalid(v, /conflict/)
+    expect(validateClub({ ...withTraining(club, [neg], { learned: [], removed: [neg] }, trait, 'learn'), clubSeed: seed }).training.active?.trait).toBe(trait)
+  })
+
+  it('正面特性已達上限：拒絕讀取', () => {
+    const club = base()
+    const natives = (Object.keys(TRAITS) as TraitId[]).filter((t) => TRAITS[t].role === 'batter' && isPos(t))
+    const three: TraitId[] = []
+    for (const t of natives) if (three.length < TRAINING_RULES.maxPositive && three.every((x) => !conflicts(x, t))) three.push(t)
+    expect(three).toHaveLength(3)
+    const { seed, trait } = seedWhere(club, three, (t) => isPos(t) && three.every((x) => !conflicts(x, t)))
+    expectInvalid({ ...withTraining(club, three, undefined, trait, 'learn'), clubSeed: seed }, /cap/)
+  })
+
+  it('負面特性不能 learn、正面特性不能 improve、非原生的負面特性不能改善', () => {
+    const club = base()
+    expectInvalid(withTraining(club, ['freeSwinger'], undefined, 'freeSwinger', 'learn'), /wrong-kind/)
+    expectInvalid(withTraining(club, ['clutch'], undefined, 'clutch', 'improve'), /wrong-kind/)
+    expectInvalid(withTraining(club, [], undefined, 'freeSwinger', 'improve'), /not-eligible/)
+    expectInvalid(withTraining(club, ['freeSwinger'], { learned: [], removed: ['freeSwinger'] }, 'freeSwinger', 'improve'), /improved/)
   })
 })

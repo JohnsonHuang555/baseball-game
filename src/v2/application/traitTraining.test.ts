@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { economyViolations, type ClubSave } from '../domain/club'
 import { leagueAtTier } from '../domain/league'
 import { recordOf, reserves } from '../domain/roster'
-import { effectiveTraits, potentialPool, trainingOptions, TRAINING_CONFIG } from '../domain/traitTraining'
+import { developmentIssues, effectiveTraits, positiveCount, potentialPool, staticTrainingBlock, trainingOptions, TRAINING_CONFIG, TRAINING_RULES, TrainingInvariantError, trainingClass } from '../domain/traitTraining'
 import { MemoryStorage } from '../infrastructure/clubRepository'
 import { FakeLockManager, HOUR, MINUTE, ManualClock, tab } from '../testkit'
 import type { MatchPlan } from './batchRunner'
@@ -319,3 +319,72 @@ describe('訓練完成：下一場才生效、離線 96 場分段', () => {
     expect(log).toHaveLength(96)
   })
 })
+
+describe('第三個正面特性與完成時的再檢查（PR #22 review）', () => {
+  it('已有 2 個正面特性的球員可以練第 3 個：完成後 3 個、不變量成立、第 4 個被上限擋下；重送不重複發放', async () => {
+    const { deps, clock } = await setup()
+    const c0 = load(deps)
+    const id = c0.roster.lineup[0].playerId
+    const r0 = recordOf(c0, id)!
+    // 先讓他（用已習得的）湊到 2 個正面，且池子裡還有一個可以學
+    const learned: string[] = []
+    const pool = potentialPool(c0.clubSeed, r0.player)
+    let rec = r0
+    for (const t of pool) {
+      if (positiveCount(rec) >= 2) break
+      if (staticTrainingBlock(c0.clubSeed, rec, t, 'learn') === null) {
+        learned.push(t)
+        rec = { ...r0, dev: { learned: [...learned] as never, removed: [] } }
+      }
+    }
+    const third = pool.find((t) => staticTrainingBlock(c0.clubSeed, rec, t, 'learn') === null)
+    expect(positiveCount(rec)).toBe(2)
+    expect(third).toBeDefined()
+    deps.store.saveClub({ ...c0, players: c0.players.map((x) => (x.player.id === id ? rec : x)) }, c0.revision)
+    await startTraining(deps, { opSeq: 0, playerId: id, trait: third!, kind: 'learn' })
+    const need3 = TRAINING_CONFIG[trainingClass(third!)].appearances
+    await playUntil(deps, clock, need3 - 1)
+    setProgress(deps, need3 - 1)
+    clock.advance(5 * MINUTE)
+    await settleDue(deps)
+    const c = load(deps)
+    const done = recordOf(c, id)!
+    expect(c.training.active).toBeNull()
+    expect(positiveCount(done)).toBe(3)
+    expect(positiveCount(done)).toBeLessThanOrEqual(TRAINING_RULES.maxPositive)
+    expect(developmentIssues(done)).toEqual([])
+    expect(new Set(effectiveTraits(done)).size).toBe(effectiveTraits(done).length)
+    for (const t of pool.filter((x) => !effectiveTraits(done).includes(x))) expect(['cap', 'conflict']).toContain(staticTrainingBlock(c.clubSeed, done, t, 'learn')!.block)
+    const before = JSON.stringify(load(deps).players)
+    expect((await settleDue(deps)).settled).toEqual([])
+    expect(JSON.stringify(load(deps).players)).toBe(before)
+  })
+
+  it('結算中發現訓練資料不一致（記憶體裡的資料被改過）：丟錯、整批不記，主存檔一個字都不變', async () => {
+    const { deps, clock, storage } = await setup()
+    const { id, trait, need } = leadoffOption(load(deps))
+    await startTraining(deps, { opSeq: 0, playerId: id, trait, kind: 'learn' })
+    await playUntil(deps, clock, need - 1)
+    setProgress(deps, need - 1)
+    const raw = storage.getItem('dice-baseball.club.v3')
+    // 讀出來的資料裡，這位球員已經（不合法地）擁有同一個特性 → 完成時會重複解鎖
+    const real = deps.store
+    const tampered = new Proxy(real, {
+      get(target, prop, recv) {
+        if (prop === 'loadClub') return () => {
+          const c = target.loadClub()!
+          return { ...c, players: c.players.map((x) => (x.player.id === id ? { ...x, dev: { learned: [trait], removed: [] } } : x)) }
+        }
+        const v = Reflect.get(target, prop, recv)
+        return typeof v === 'function' ? v.bind(target) : v
+      },
+    })
+    clock.advance(8 * HOUR)
+    await expect(settleDue({ ...deps, store: tampered })).rejects.toThrow(TrainingInvariantError)
+    expect(storage.getItem('dice-baseball.club.v3')).toBe(raw)
+    // 原本的存檔沒壞：用正常的資料再結算就完成，只學到一次
+    await settleDue(deps)
+    expect(recordOf(load(deps), id)!.dev).toEqual({ learned: [trait], removed: [] })
+  })
+})
+

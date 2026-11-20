@@ -7,7 +7,7 @@ import { TRAIT_DESC, TRAIT_NAMES } from '../../ui/strings'
 import { TRAITS, type TraitId } from '../../sim/traits'
 import type { ClubSave, PlayerRecord } from '../domain/club'
 import { assignedIds, recordOf } from '../domain/roster'
-import { MAX_POSITIVE_TRAITS, positiveCount, trainingOptions, type TrainingOption } from '../domain/traitTraining'
+import { TRAINING_RULES, positiveCeiling, positiveCount, trainingOptions, type TrainingOption } from '../domain/traitTraining'
 import { icon } from './icons'
 import { V2T } from './strings'
 
@@ -33,7 +33,7 @@ export function trainingPanel(club: ClubSave, record: PlayerRecord, ui: Training
   const box = el('section', 'v2-training')
   box.setAttribute('aria-label', V2T.trainingTitle)
   const head = el('div', 'v2-training-head')
-  head.append(el('h3', 'v2-detail-sub', V2T.trainingTitle), el('span', 'v2-training-count', V2T.trainingPositiveCount(positiveCount(record), MAX_POSITIVE_TRAITS)))
+  head.append(el('h3', 'v2-detail-sub', V2T.trainingTitle), el('span', 'v2-training-count', V2T.trainingPositiveCount(positiveCount(record), TRAINING_RULES.maxPositive)))
   box.append(head)
 
   // 三種特性分開列：原生（正面）、訓練習得、負面（已改善的劃掉）
@@ -116,7 +116,14 @@ export function trainingPanel(club: ClubSave, record: PlayerRecord, ui: Training
     }
     list.append(li)
   }
-  box.append(el('h4', 'v2-training-sub', V2T.trainingPool), el('p', 'v2-hint', V2T.trainingPoolNote), list)
+  box.append(el('h4', 'v2-training-sub', V2T.trainingPool), el('p', 'v2-hint', V2T.trainingPoolNote))
+  // 上限說明：已經滿了，或這位球員的潛能池到不了上限（不修改潛能池，只把原因講清楚）
+  const max = TRAINING_RULES.maxPositive
+  const now = positiveCount(record)
+  const ceiling = positiveCeiling(club.clubSeed, record)
+  if (now >= max) box.append(el('p', 'v2-hint v2-training-cap', V2T.trainingCapReached(max)))
+  else if (ceiling < max) box.append(el('p', 'v2-hint v2-training-cap', V2T.trainingCeiling(ceiling, max)))
+  box.append(list)
 
   // 確認：再看一次費用、所需場數與規則
   const pick = ui.picking && options.find((o) => o.trait === ui.picking!.trait && o.kind === ui.picking!.kind && !o.block)
@@ -132,6 +139,7 @@ export function trainingPanel(club: ClubSave, record: PlayerRecord, ui: Training
       el('li', '', `經驗 ${fmt(pick.cost.experience)}（持有 ${fmt(owned.experience)}）`),
       el('li', '', V2T.trainingNeed(pick.need)),
     )
+    if (pick.kind === 'learn' && positiveCount(record) + 1 >= TRAINING_RULES.maxPositive) facts.append(el('li', 'v2-training-fills', V2T.trainingFillsCap(TRAINING_RULES.maxPositive)))
     const rules = el('ul', 'v2-bullets')
     for (const r of V2T.trainingRules) rules.append(el('li', '', r))
     if (!assignedIds(club.roster).has(p.id)) rules.append(el('li', 'warn', V2T.trainingNotPlaying))

@@ -20,7 +20,7 @@ import { isCandidateIndex, recruitCandidateAt, recruitCost, rosterFull, type Rec
 import { assignedIds, recordOf } from '../domain/roster'
 import { markReleased } from '../domain/stats'
 import { TRAITS, type TraitId } from '../../sim/traits'
-import { MAX_POSITIVE_TRAITS, TRAINING_CONFIG, trainingBlock, trainingClass, type TrainingBlock, type TrainingKind } from '../domain/traitTraining'
+import { TRAINING_CONFIG, trainingBlock, trainingClass, type TrainingBlock, type TrainingKind } from '../domain/traitTraining'
 import { SettlementError, settleDueUnsaved, type SettlementDeps } from './settlementService'
 import { freezeLiveMatch } from './liveMatch'
 
@@ -209,7 +209,8 @@ const BLOCK_TEXT: Record<TrainingBlock, string> = {
   owned: '已經擁有這個特性',
   improved: '這個負面特性已經改善過了',
   conflict: '跟現有的特性互斥',
-  cap: `正面特性已經有 ${MAX_POSITIVE_TRAITS} 個`,
+  cap: '正面特性已達上限',
+  'wrong-kind': '這個特性不能用這種方式訓練（負面特性只能改善、正面特性只能學習）',
   'slot-busy': '訓練槽正在使用中（一次只能訓練一項）',
   insufficient: '資金或經驗不足',
 }

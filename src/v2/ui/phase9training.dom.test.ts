@@ -8,7 +8,7 @@ import { createClubSafely } from '../application/clubLifecycle'
 import { startTraining } from '../application/economyService'
 import type { ClubSave } from '../domain/club'
 import { recordOf } from '../domain/roster'
-import { TRAINING_CONFIG, effectiveTraits, potentialPool, trainingClass, trainingOptions } from '../domain/traitTraining'
+import { TRAINING_CONFIG, TRAINING_RULES, effectiveTraits, positiveCount, potentialPool, staticTrainingBlock, trainingClass, trainingOptions } from '../domain/traitTraining'
 import { TRAIT_NAMES } from '../../ui/strings'
 import type { TraitId } from '../../sim/traits'
 import { openV2, type V2App } from './app'
@@ -256,5 +256,58 @@ describe('訓練完成通知', () => {
     expect(text('.v2-welcome-training')).toContain(V2T.welcomeTrainings)
     expect(text('.v2-welcome-training li')).toContain(V2T.trainingDoneTitle(t, 'learn'))
     expect(text('.v2-welcome-training li')).toContain(V2T.trainingEffectiveFrom(done.effectiveFromMatch + 1))
+  })
+})
+
+describe('正面特性上限 3 個的顯示（PR #22 review）', () => {
+  /** 第一棒：用已習得的特性湊到 n 個正面，回傳還能學的一項 */
+  function fill(c: ClubSave, n: number): { club: ClubSave; id: string; next: TraitId | undefined } {
+    const club = structuredClone(c)
+    const id = club.roster.lineup[0].playerId
+    const r = recordOf(club, id)!
+    r.player.traits = r.player.traits.filter((t) => ['clutchBad', 'freeSwinger', 'errorProne'].includes(t))
+    r.dev = { learned: [], removed: [] }
+    for (const t of potentialPool(club.clubSeed, r.player)) {
+      if (positiveCount(r) >= n) break
+      if (staticTrainingBlock(club.clubSeed, r, t, 'learn') === null) r.dev.learned.push(t)
+    }
+    const next = potentialPool(club.clubSeed, r.player).find((t) => staticTrainingBlock(club.clubSeed, r, t, 'learn') === null)
+    return { club: rich(club), id, next }
+  }
+
+  it('已有 2 個：顯示 2／3，第 3 個可以選，確認畫面提示學會後就滿了；畫面沒有「最多兩個」的舊說法', async () => {
+    let id = ''
+    let next: TraitId | undefined
+    await setup((c) => {
+      const f = fill(c, 2)
+      id = f.id
+      next = f.next
+      return f.club
+    })
+    expect(TRAINING_RULES.maxPositive).toBe(3)
+    await detail(id)
+    expect(text('.v2-training-count')).toBe(V2T.trainingPositiveCount(2, 3))
+    expect(next).toBeDefined()
+    const row = $(`.v2-training-option[data-trait="${next}"]`)!
+    expect(row.classList.contains('blocked')).toBe(false)
+    row.querySelector<HTMLButtonElement>('.v2-training-pick')!.click()
+    await flush()
+    expect(text('.v2-training-confirm')).toContain(V2T.trainingFillsCap(3))
+    expect(text('.v2-training')).not.toMatch(/兩個|2 個正面|／2（/)
+    expect($('.v2-training-cap')).toBeNull()
+  })
+
+  it('已有 3 個：顯示 3／3、其他學習項目標「已達上限」或互斥，並說明之後只能改善負面特性', async () => {
+    let id = ''
+    await setup((c) => {
+      const f = fill(c, 3)
+      id = f.id
+      return f.club
+    })
+    await detail(id)
+    expect(text('.v2-training-count')).toBe(V2T.trainingPositiveCount(3, 3))
+    expect(text('.v2-training-cap')).toBe(V2T.trainingCapReached(3))
+    for (const r of $$('.v2-training-option[data-kind="learn"].blocked')) expect(['cap', 'owned', 'conflict']).toContain(r.querySelector<HTMLElement>('.v2-training-block')!.dataset.block)
+    expect($$('.v2-training-option[data-kind="learn"]:not(.blocked)')).toHaveLength(0)
   })
 })

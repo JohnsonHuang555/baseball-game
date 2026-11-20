@@ -17,7 +17,7 @@ import { MAX_LEVEL, RECRUIT_CONFIG, SPEND_LOG_LIMIT } from './progressionConfig'
 import { resolveRoster } from './roster'
 import { BAT_STORE, PIT_STORE, newClubStats, type ClubStats, type MatchLines } from './stats'
 import { coachParamIssues } from './tactics'
-import { POTENTIAL_VERSION, TRAINING_CONFIG, TRAINING_RECENT_LIMIT, developmentIssues, effectiveTraits, newTrainingState, trainingClass, type TrainingKind, type TrainingState } from './traitTraining'
+import { POTENTIAL_VERSION, TRAINING_CONFIG, TRAINING_RECENT_LIMIT, developmentIssues, newTrainingState, staticTrainingBlock, trainingClass, type TrainingKind, type TrainingState } from './traitTraining'
 import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, validateMatches, type Obj } from './validation'
 
 export { ClubValidationError, type ClubValidationCode } from './validation'
@@ -479,10 +479,10 @@ function validateTraining(value: Obj): void {
   const kind = a.kind as TrainingKind
   const trait = a.trait as TraitId
   if (TRAINING_CONFIG[trainingClass(trait)].appearances !== a.need) throw invalid('training.active.need', '所需場數跟設定不符')
+  // 跟開始訓練同一套「靜態資格」（不看訓練槽與資源：合法的進行中訓練不會因為現在錢不夠而變成不合法）
   const rec = record as unknown as PlayerRecord
-  if (kind === 'improve' ? !rec.player.traits.includes(trait) || (rec.dev?.removed ?? []).includes(trait) : effectiveTraits(rec).includes(trait) || TRAITS[trait].role !== rec.player.role) {
-    throw invalid('training.active.trait', '這位球員不能訓練這一項')
-  }
+  const st = staticTrainingBlock(value.clubSeed as number, rec, trait, kind)
+  if (st) throw invalid('training.active.trait', `這位球員不能訓練這一項（${st.block}）`)
 }
 
 function validatePlayers(value: Obj): void {
