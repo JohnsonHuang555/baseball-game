@@ -4502,7 +4502,7 @@ body:has(.v2-modal-overlay.v2-modal-overlay) .toast {
 }
 .v2-guide-tab.on {
   border-color: var(--ink);
-  background: #ffd23f;
+  background: var(--yellow);
   color: var(--ink);
 }
 .v2-guide-tab:focus-visible {
@@ -7763,4 +7763,185 @@ body:has(.v2-modal-overlay.v2-modal-overlay) .toast {
   font-size: 11px;
   font-weight: 900;
   color: #a86b00;
+}
+
+/* ==== Phase 10 PR 1：傳奇總冠軍賽卡片與結果 ==== */
+.v2-champ {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 3px solid #c99a1c;
+  background: linear-gradient(180deg, #fff8e1 0%, #fff 64px);
+}
+.v2-champ.eligible {
+  border-color: var(--v2-win);
+  background: linear-gradient(180deg, #e9f8ef 0%, #fff 64px);
+}
+.v2-champ-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.v2-champ-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  background: var(--yellow);
+  color: var(--ink);
+}
+.v2-champ-names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.v2-champ-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.v2-champ-name {
+  font-size: 17px;
+  font-weight: 900;
+}
+.v2-champ-title-chip {
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 2px solid var(--ink);
+  background: var(--yellow);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 18px;
+}
+.v2-champ-intro {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--v2-muted);
+}
+.v2-champ-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: var(--yellow);
+}
+.v2-champ-banner-title {
+  font-size: 15px;
+  font-weight: 900;
+}
+.v2-champ-banner-line {
+  font-size: 12px;
+  font-weight: 700;
+}
+.v2-champ-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.v2-champ-record-main {
+  font-size: 18px;
+  font-weight: 900;
+}
+.v2-champ-record-sub,
+.v2-champ-opp,
+.v2-champ-cooldown,
+.v2-champ-last-line {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-muted);
+}
+.v2-champ-games {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+.v2-champ-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 0;
+  border-radius: 8px;
+  border: 2px solid var(--line);
+  background: #fff;
+  font-weight: 900;
+}
+.v2-champ-game-n {
+  font-size: 10px;
+  color: var(--v2-faint);
+}
+.v2-champ-game-r {
+  font-family: var(--font-display);
+  font-size: 12px;
+}
+.v2-champ-game.won {
+  border-color: var(--v2-win);
+  background: #e9f8ef;
+  color: #136b3a;
+}
+.v2-champ-game.lost {
+  border-color: var(--v2-loss);
+  background: #fdecec;
+  color: #a51f22;
+}
+.v2-champ-games.done .v2-champ-game.todo {
+  display: none;
+}
+.v2-champ-warn {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff1e0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #7a4300;
+}
+.v2-champ-need-head {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.v2-champ-missing {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-loss);
+}
+.v2-champ-last {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-champ-btn:disabled {
+  opacity: 0.6;
+}
+.v2-champ-result .v2-champ-games {
+  margin-top: 8px;
+}
+.v2-champ-first {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+@media (max-width: 380px) {
+  .v2-champ-game-r {
+    font-size: 10px;
+  }
 }

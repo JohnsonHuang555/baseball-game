@@ -140,6 +140,8 @@ export interface LiveViewerOptions extends ViewerCommon {
 
 export interface ChallengeViewerOptions extends ViewerCommon {
   mode: 'challenge'
+  /** 對話框的無障礙名稱（預設「晉級挑戰賽」；冠軍賽用「傳奇總冠軍賽」） */
+  label?: string
   /** 挑戰賽的 Replay（已經確定、已經存檔的那一場的複製） */
   replay: MatchReplay
   expected: ReplayExpectation
@@ -163,7 +165,7 @@ export function openMatchViewer(opts: MatchViewerOptions): MatchViewerHandle {
   const overlay = el('div', 'v2-replay-overlay')
   overlay.setAttribute('role', 'dialog')
   overlay.setAttribute('aria-modal', 'true')
-  overlay.setAttribute('aria-label', opts.mode === 'live' ? V2T.liveTitle : V2T.challengeTitle)
+  overlay.setAttribute('aria-label', opts.mode === 'live' ? V2T.liveTitle : (opts.label ?? V2T.challengeTitle))
   const screen = el('div', `v2-replay ${opts.mode}`)
   overlay.append(screen)
   document.body.append(overlay)
