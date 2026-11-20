@@ -17,12 +17,13 @@ import { MAX_LEVEL, RECRUIT_CONFIG, SPEND_LOG_LIMIT } from './progressionConfig'
 import { resolveRoster } from './roster'
 import { BAT_STORE, PIT_STORE, newClubStats, type ClubStats, type MatchLines } from './stats'
 import { coachParamIssues } from './tactics'
+import { matchMvpIssue, mvpCursorIssues, mvpIssues, unpackMvp, type MatchMvpRecord, type MvpRecord } from './mvp'
 import { POTENTIAL_VERSION, TRAINING_CONFIG, TRAINING_RECENT_LIMIT, developmentIssues, newTrainingState, staticTrainingBlock, trainingClass, type TrainingKind, type TrainingState } from './traitTraining'
 import { ClubValidationError, arr, int, invalid, isObj, num, obj, player, str, validateMatches, type Obj } from './validation'
 
 export { ClubValidationError, type ClubValidationCode } from './validation'
 
-export const CLUB_SCHEMA_VERSION = 12
+export const CLUB_SCHEMA_VERSION = 13
 
 /**
  * 換算好的陣容：先發、板凳、投手都是完整的球員物件（養成後的能力），也就是模擬引擎吃的 Roster。
@@ -50,6 +51,8 @@ export interface PlayerRecord {
   joinedAtMatch: number
   /** 特性培養的結果（schemaVersion 12 起；沒有養成就不寫）：習得的正面特性、已改善的原生負面特性，見 traitTraining.ts */
   dev?: { learned: TraitId[]; removed: TraitId[] }
+  /** 單場 MVP 的生涯次數與永久能力成長（schemaVersion 13 起；從沒得過 MVP 就不寫），見 mvp.ts */
+  mvp?: MvpRecord
 }
 
 /** 球團的戰術設定；effectiveFromMatch 是這份設定從第幾場開始生效 */
@@ -184,6 +187,8 @@ export interface SettledMatch {
   lines?: MatchLines
   /** 我方這場實際執行的戰術（schemaVersion 11 起的比賽才有，精簡格式見 matchTactics.ts）；舊比賽沒有，戰報顯示「未記錄」，不用目前的戰術回填 */
   tactics?: TacticsRecord
+  /** 我方這場的 MVP（schemaVersion 13 起的正式一般比賽才有）；舊比賽沒有，戰報顯示「未記錄」，不用目前的能力與舊數據回填 */
+  mvp?: MatchMvpRecord
 }
 
 /**
@@ -203,7 +208,7 @@ export interface ChallengeReplay {
   replay: MatchReplay
 }
 
-export interface ClubSaveV12 {
+export interface ClubSaveV13 {
   schemaVersion: typeof CLUB_SCHEMA_VERSION
   clubId: string
   clubName: string
@@ -236,13 +241,13 @@ export interface ClubSaveV12 {
   /** 特性培養（schemaVersion 12 起）：訓練槽與最近完成的訓練，見 traitTraining.ts */
   training: TrainingState
   /** 從舊格式遷移來的：原本的版本與 revision（只做紀錄；從 3 升上來時是 3） */
-  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11; revision: number }
+  migratedFrom?: { schemaVersion: 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12; revision: number }
   /** 每存一次加 1：用來發現別的分頁已經改過存檔 */
   revision: number
 }
 
 /** 目前格式的球團存檔 */
-export type ClubSave = ClubSaveV12
+export type ClubSave = ClubSaveV13
 
 export interface NewClubInput {
   clubId: string
@@ -391,6 +396,7 @@ export function validateClub(value: unknown): ClubSave {
     if (match.ranked !== undefined) validateRankedRecord(match.ranked, `${path}.ranked`)
     if (match.lines !== undefined) validateLines(match.lines, `${path}.lines`)
     if (match.tactics !== undefined) validateTactics(match.tactics, `${path}.tactics`)
+    if (match.mvp !== undefined) validateMatchMvp(match, `${path}.mvp`)
   })
   const idle = obj(value, 'idle')
   num(idle, 'anchorMs', 'idle')
@@ -485,6 +491,17 @@ function validateTraining(value: Obj): void {
   if (st) throw invalid('training.active.trait', `這位球員不能訓練這一項（${st.block}）`)
 }
 
+/** 單場 MVP：格式正確、一定有 lines，而且 MVP 是那場有出場的我方球員（打者有打擊列、投手有投球列） */
+function validateMatchMvp(match: Obj, path: string): void {
+  const issue = matchMvpIssue(match.mvp)
+  if (issue) throw invalid(path, issue)
+  const m = unpackMvp(match.mvp as MatchMvpRecord)
+  const lines = match.lines as { bat: [string][]; pit: [string][] } | undefined
+  if (!lines) throw invalid(path, '有 MVP 的比賽一定要有球員數據')
+  const rows = m.role === 'batter' ? lines.bat : lines.pit
+  if (!rows.some((r) => r[0] === m.playerId)) throw invalid(path, `MVP ${m.playerId} 這場沒有${m.role === 'batter' ? '打擊' : '投球'}紀錄`)
+}
+
 function validatePlayers(value: Obj): void {
   const list = arr(value, 'players')
   if (list.length > RECRUIT_CONFIG.maxPlayers) throw invalid('players', `最多 ${RECRUIT_CONFIG.maxPlayers} 人`)
@@ -501,6 +518,12 @@ function validatePlayers(value: Obj): void {
       if (!isObj(r.dev) || !Array.isArray(r.dev.learned) || !Array.isArray(r.dev.removed)) throw invalid(`${path}.dev`, '格式不對')
       const issues = developmentIssues(r as unknown as PlayerRecord)
       if (issues.length) throw invalid(`${path}.dev`, issues.join('；'))
+    }
+    if (r.mvp !== undefined) {
+      // 球員自己的紀錄（次數、筆數、能力、場次嚴格遞增、不早於加入）＋球團游標（成長一定在已結算的比賽）
+      const cursor = isObj(value.idle) && Number.isSafeInteger(value.idle.nextMatchIndex) ? (value.idle.nextMatchIndex as number) : null
+      const issues = [...mvpIssues(r as unknown as PlayerRecord), ...(cursor === null ? [] : mvpCursorIssues(r as unknown as PlayerRecord, cursor))]
+      if (issues.length) throw invalid(`${path}.mvp`, issues.join('；'))
     }
     const id = r.player.id as string
     if (ids.has(id)) throw invalid(`${path}.player.id`, `球員編號重複：${id}`)

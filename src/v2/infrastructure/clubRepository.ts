@@ -26,7 +26,8 @@ export const CLUB_BACKUP_KEY_V8 = 'dice-baseball.club.v3.backup-schema8'
 export const CLUB_BACKUP_KEY_V9 = 'dice-baseball.club.v3.backup-schema9'
 export const CLUB_BACKUP_KEY_V10 = 'dice-baseball.club.v3.backup-schema10'
 export const CLUB_BACKUP_KEY_V11 = 'dice-baseball.club.v3.backup-schema11'
-const BACKUP_KEYS: Record<MigratableVersion, string> = { 3: CLUB_BACKUP_KEY_V3, 4: CLUB_BACKUP_KEY_V4, 5: CLUB_BACKUP_KEY_V5, 6: CLUB_BACKUP_KEY_V6, 7: CLUB_BACKUP_KEY_V7, 8: CLUB_BACKUP_KEY_V8, 9: CLUB_BACKUP_KEY_V9, 10: CLUB_BACKUP_KEY_V10, 11: CLUB_BACKUP_KEY_V11 }
+export const CLUB_BACKUP_KEY_V12 = 'dice-baseball.club.v3.backup-schema12'
+const BACKUP_KEYS: Record<MigratableVersion, string> = { 3: CLUB_BACKUP_KEY_V3, 4: CLUB_BACKUP_KEY_V4, 5: CLUB_BACKUP_KEY_V5, 6: CLUB_BACKUP_KEY_V6, 7: CLUB_BACKUP_KEY_V7, 8: CLUB_BACKUP_KEY_V8, 9: CLUB_BACKUP_KEY_V9, 10: CLUB_BACKUP_KEY_V10, 11: CLUB_BACKUP_KEY_V11, 12: CLUB_BACKUP_KEY_V12 }
 export const CLUB_LOCK_NAME = 'dice-baseball.club.v3.settlement'
 
 /** Storage 的最小子集，localStorage 與記憶體版都符合 */

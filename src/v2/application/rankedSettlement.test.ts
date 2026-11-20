@@ -6,7 +6,7 @@ import { leagueAtTier, leagueViolations } from '../domain/league'
 import { LEAGUES, PROMOTION_CONFIG, RANKED_CONFIG } from '../domain/leagueConfig'
 import { rewardFor } from '../domain/rewards'
 import { MemoryStorage } from '../infrastructure/clubRepository'
-import { atMatch, FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab } from '../testkit'
+import { atMatch, FakeLockManager, HOUR, MINUTE, ManualClock, T0, tab, withoutMvpGrowth } from '../testkit'
 import { planMatches, runBatch, type MatchPlan } from './batchRunner'
 import { upgrade } from './economyService'
 import { challengeNextLeague } from './leagueService'
@@ -80,7 +80,8 @@ describe('離線結算中途降級', () => {
     expect(a.recentMatches).toEqual(b.recentMatches)
   })
 
-  it('新秀、業餘：跟加入競技系統前的「一次規劃整批」結果一模一樣（比賽、獎勵、戰績）', async () => {
+  // 「一次規劃整批」不經過分段，MVP 能力成長之後的比賽會用舊陣容：比較時關掉成長（MVP 照樣選、照樣記）
+  it('新秀、業餘：跟加入競技系統前的「一次規劃整批」結果一模一樣（比賽、獎勵、戰績）', () => withoutMvpGrowth(async () => {
     for (const tier of [0, 1]) {
       const { deps, clock, club } = await setup((c) => ({ ...c, league: leagueAtTier(c.league, tier) }))
       clock.advance(8 * HOUR)
@@ -90,7 +91,7 @@ describe('離線結算中途降級', () => {
       expect({ ...report.club, revision: 0 }).toEqual({ ...old.club, revision: 0 })
       expect(report.settled.every((m) => m.ranked === undefined)).toBe(true)
     }
-  })
+  }))
 
   it('挑戰者 0 分不降級：一路輸到 0 分，之後的比賽仍在挑戰者', async () => {
     const { deps, clock } = await setup((c) => withRatings({ ...c, league: leagueAtTier(c.league, 2, { points: 6 }) }, 1))

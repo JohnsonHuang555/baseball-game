@@ -1,6 +1,7 @@
 // 永久球員名單 ↔ 陣容配置 ↔ 模擬用的 Roster。
 // 存檔只存球員 ID 的配置；要比賽或顯示時，由這裡把 ID 換成「養成後能力」的球員物件。
 // 所以比賽用的能力、畫面顯示的能力、存檔裡的等級永遠是同一套
+import { withMvpBonus } from './mvp'
 import { withDevelopment } from './traitTraining'
 import type { Batter, Pitcher, Player, Roster } from '../../sim/types'
 import type { ClubSave, PlayerRecord, RosterAssignment } from './club'
@@ -15,8 +16,9 @@ export function recordOf(club: Pick<ClubSave, 'players'>, playerId: string): Pla
 
 /** 某位球員目前的養成後樣子（比賽實際用的能力） */
 export function effectivePlayer(record: PlayerRecord): Player {
-  // 能力：原始能力依等級成長；特性：原生（去掉已改善的）＋訓練習得（Phase 9 PR 3）。原始資料 record.player 不改
-  return withDevelopment(leveled(record.player, record.level), record)
+  // 層次：原生（Lv.1）→ 等級成長 → MVP 永久加成（Phase 9 PR 4，上限 10）→ 特性（原生去掉已改善的＋訓練習得，Phase 9 PR 3）。
+  // 每一層只讀原始資料，不重複套用；原始資料 record.player 不改
+  return withDevelopment(withMvpBonus(leveled(record.player, record.level), record), record)
 }
 
 /** 把配置換算成模擬用的 Roster：每個人都是養成後的能力。ID 不存在或身分不對就丟錯 */

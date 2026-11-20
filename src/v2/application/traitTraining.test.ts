@@ -7,7 +7,7 @@ import { leagueAtTier } from '../domain/league'
 import { recordOf, reserves } from '../domain/roster'
 import { developmentIssues, effectiveTraits, positiveCount, potentialPool, staticTrainingBlock, trainingOptions, TRAINING_CONFIG, TRAINING_RULES, TrainingInvariantError, trainingClass } from '../domain/traitTraining'
 import { MemoryStorage } from '../infrastructure/clubRepository'
-import { FakeLockManager, HOUR, MINUTE, ManualClock, tab } from '../testkit'
+import { FakeLockManager, HOUR, MINUTE, ManualClock, tab, withoutMvpGrowth } from '../testkit'
 import type { MatchPlan } from './batchRunner'
 import { createClubSafely } from './clubLifecycle'
 import { EconomyError, cancelTraining, recruit, release, startTraining } from './economyService'
@@ -257,7 +257,8 @@ describe('訓練完成：下一場才生效、離線 96 場分段', () => {
     expect(log.slice(1).every((x) => x.traits.includes(trait))).toBe(true)
   })
 
-  it('中途降級也正確：降級與訓練完成在同一批離線比賽裡，每一場只記一次、聯盟與特性各自從下一場生效', async () => {
+  // 這兩個測試量的是「訓練＋降級」的分段上限，關掉 MVP 能力成長（三種事件一起的情況見 mvpSettlement.test.ts）
+  it('中途降級也正確：降級與訓練完成在同一批離線比賽裡，每一場只記一次、聯盟與特性各自從下一場生效', () => withoutMvpGrowth(async () => {
     const { deps, clock } = await setup()
     const { id, trait, need } = leadoffOption(load(deps))
     await startTraining(deps, { opSeq: 0, playerId: id, trait, kind: 'learn' })
@@ -280,7 +281,7 @@ describe('訓練完成：下一場才生效、離線 96 場分段', () => {
     const done = c.training.recent.at(-1)!
     for (const x of log) expect(x.traits.includes(trait)).toBe(x.index > done.completedAtMatch)
     expect(c.stats.throughMatch).toBe(c.idle.nextMatchIndex)
-  })
+  }))
 
   it('批次中斷後重試：已經結算的保留、沒打完的不套用新特性，接著打的結果跟一次打完相同', async () => {
     const runs: ClubSave[] = []
@@ -310,14 +311,14 @@ describe('訓練完成：下一場才生效、離線 96 場分段', () => {
     expect(runs[1]).toEqual(runs[0])
   })
 
-  it('沒有訓練的球團：分段跟以前一樣（新秀聯盟一段打完 96 場）', async () => {
+  it('沒有訓練的球團：分段跟以前一樣（新秀聯盟一段打完 96 場）', () => withoutMvpGrowth(async () => {
     const { deps, clock } = await setup()
     expect(matchesBeforePossibleChange(load(deps))).toBe(Infinity)
     clock.advance(8 * HOUR)
     const { report, log } = await settleLogged(deps, 'x')
     expect(report.settled).toHaveLength(96)
     expect(log).toHaveLength(96)
-  })
+  }))
 })
 
 describe('第三個正面特性與完成時的再檢查（PR #22 review）', () => {

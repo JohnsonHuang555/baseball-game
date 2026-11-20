@@ -19,7 +19,7 @@ import { TRAINING_CONFIG, TRAINING_RULES, potentialPool, trainingBlock, staticTr
 import { TRAITS, conflicts, type TraitId } from '../../sim/traits'
 import type { ClubSave, PlayerRecord } from '../domain/club'
 import { ClubRepository } from './clubRepository'
-import { FakeLockManager, HOUR, ManualClock, tab } from '../testkit'
+import { FakeLockManager, HOUR, ManualClock, tab, withoutMvpGrowth } from '../testkit'
 import { CLUB_BACKUP_KEY_V10, CLUB_BACKUP_KEY_V11, CLUB_STORAGE_KEY, MemoryStorage } from './clubRepository'
 
 const RAW_V11 = JSON.stringify(fixtureV11)
@@ -52,10 +52,9 @@ describe('V11 → V12（純函式）', () => {
     expect(rest).toEqual(oldRest)
     expect(training).toEqual({ potentialVersion: 1, active: null, recent: [] })
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)
-    expect(CLUB_SCHEMA_VERSION).toBe(12)
     expect(revision).toBe(oldRevision + 1)
     expect(migratedFrom).toEqual({ schemaVersion: 11, revision: oldRevision })
-    expect(club.players.every((p) => p.dev === undefined)).toBe(true)
+    expect(club.players.every((p) => p.dev === undefined && p.mvp === undefined)).toBe(true)
   })
 
   it('確定性、不改輸入；遷移完的存檔不會再遷移一次', () => {
@@ -71,7 +70,7 @@ describe('V11 → V12（純函式）', () => {
       [fixtureV9, 9],
     ] as const) {
       const c = migrateToLatest(structuredClone(fx))
-      expect(c.schemaVersion).toBe(12)
+      expect(c.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
       expect(c.migratedFrom?.schemaVersion).toBe(from)
       expect(c.training).toEqual({ potentialVersion: 1, active: null, recent: [] })
       expect(c.players.every((p) => p.dev === undefined)).toBe(true)
@@ -104,7 +103,7 @@ describe('V11 → V12（打開存檔）', () => {
     expect(value.migrated).toBe(true)
     expect(storage.getItem(CLUB_BACKUP_KEY_V11)).toBe(RAW_V11)
     expect(storage.getItem(CLUB_BACKUP_KEY_V10)).toBe('舊的 V10 備份')
-    expect(value.club!.schemaVersion).toBe(12)
+    expect(value.club!.schemaVersion).toBe(CLUB_SCHEMA_VERSION)
   })
 
   it('寫入失敗（備份或主存檔）時原本的 V11 存檔不變，之後可以再遷移', async () => {
@@ -120,7 +119,8 @@ describe('V11 → V12（打開存檔）', () => {
     }
   })
 
-  it('Golden：遷移後離線 8 小時結算的 96 場（比分、收益、積分、戰術摘要）與最後的帳務、聯盟、生涯，跟 main 的程式一模一樣', async () => {
+  // Phase 9 PR 4 起遷移到 V13、會選 MVP：關掉 MVP 能力成長時跟 main（PR 3 之前）的結果一模一樣（golden 沒有重新產生）
+  it('Golden：遷移後離線 8 小時結算的 96 場（比分、收益、積分、戰術摘要）與最後的帳務、聯盟、生涯，跟 main 的程式一模一樣', () => withoutMvpGrowth(async () => {
     const storage = new MemoryStorage()
     storage.setItem(CLUB_STORAGE_KEY, RAW_V11)
     const clock = new ManualClock(fixtureV11.idle.anchorMs)
@@ -132,7 +132,7 @@ describe('V11 → V12（打開存檔）', () => {
     const rows = r.settled.map((m) => [m.matchIndex, m.result.runsFor, m.result.runsAgainst, m.result.innings, m.earnedFunds, m.earnedExperience, m.ranked ? `${m.ranked.before}>${m.ranked.after}` : '-', JSON.stringify(m.tactics)].join(' '))
     expect(rows).toEqual(golden.rows)
     expect(JSON.stringify({ record: c.record, economy: c.economy, league: c.league, stats: c.stats, next: c.idle.nextMatchIndex })).toBe(golden.final)
-  })
+  }))
 
   it('Replay 相容：固定的進行中比賽與保留的 Replay，用遷移前的資料重新模擬，比分跟戰報一致', () => {
     const club = migrateToLatest(v11())

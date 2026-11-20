@@ -23,6 +23,8 @@ import { toCoachSettings, type TacticSettings } from '../domain/tactics'
 import { ClubSaveError } from '../infrastructure/clubRepository'
 import type { V2Deps } from '../infrastructure/composition'
 import { V2T } from './strings'
+import { RATING_FULL } from '../../ui/strings'
+import { welcomeMvpOf, type WelcomeMvp } from './mvpView'
 import { CLUB_STORAGE_KEY } from '../infrastructure/clubRepository'
 import { guardStore, type StorageEventSource, type WriterGuard } from './writerGuard'
 
@@ -44,6 +46,8 @@ export interface WelcomeSummary {
   highlights: SummaryHighlight[]
   /** 離開期間完成的特性訓練（Phase 9 PR 3） */
   trainings: CompletedTraining[]
+  /** 離開期間的 MVP 統計與能力提升（Phase 9 PR 4）；這批都是舊比賽就是 null */
+  mvp: WelcomeMvp | null
 }
 
 export type RetryAction = 'settle' | 'claim'
@@ -248,11 +252,13 @@ export class ClubController {
             .sort((a, b) => Number(b.kind === 'walkOff') - Number(a.kind === 'walkOff') || b.runs - a.runs)
             .slice(0, 3),
           trainings,
+          mvp: welcomeMvpOf(settled, report.club),
         },
       })
     } else {
-      // 在畫面上時完成的訓練：跟比賽結束的提示合併成一則，不另外彈對話框
-      const done = trainings.map((t) => V2T.trainingDoneShort(t.playerName, t.trait, t.kind)).join('、')
+      // 在畫面上時完成的訓練、MVP 能力成長：跟比賽結束的提示合併成一則，不另外彈對話框
+      const grew = (welcomeMvpOf(settled, report.club)?.growths ?? []).map((g) => `${g.name} ${V2T.mvpGrowth(g.count, RATING_FULL[g.rating as keyof typeof RATING_FULL])}。`)
+      const done = [...trainings.map((t) => V2T.trainingDoneShort(t.playerName, t.trait, t.kind)), ...grew].join(' ')
       this.set({ ...base, notice: done ? `${V2T.matchesFinished(settled.length)} ${done}` : V2T.matchesFinished(settled.length) })
     }
     if (report.status === 'aborted') this.set({ notice: V2T.settleInterrupted })

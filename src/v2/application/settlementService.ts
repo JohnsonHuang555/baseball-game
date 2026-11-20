@@ -29,6 +29,7 @@ import { coachParamIssues } from '../domain/tactics'
 import { COACH_STYLES } from './autoCoach'
 import { packTactics } from '../domain/matchTactics'
 import { advanceTraining, matchesBeforePossibleTrainingCompletion, type CompletedTraining } from '../domain/traitTraining'
+import { MvpError, awardMvp, packMvp, matchesBeforePossibleMvpGrowth, selectMvp, type RatingKey } from '../domain/mvp'
 import { planMatches, runBatch, type BatchOptions, type BatchRun, type BatchSummary, type MatchOutcome, type MatchPlan } from './batchRunner'
 import { MATCH_INTERVAL_MS, MAX_OFFLINE_MS, advanceAnchor, dueMatches, type Clock, type DueMatches } from './idleEngine'
 import { freezeLiveMatch } from './liveMatch'
@@ -47,7 +48,7 @@ export interface ClubLock {
   run<T>(fn: () => Promise<T>): Promise<T>
 }
 
-export type SettlementErrorCode = 'no-club' | 'out-of-order' | 'mismatch' | 'simulation-failed' | 'settings-conflict'
+export type SettlementErrorCode = 'no-club' | 'out-of-order' | 'mismatch' | 'simulation-failed' | 'settings-conflict' | 'invalid-result'
 
 export class SettlementError extends Error {
   override name = 'SettlementError'
@@ -116,24 +117,48 @@ export interface SettleOutcome {
    * 留給呼叫端用新的有效陣容重新規劃。這時 settled 只到完成那一場為止
    */
   trainingCompleted: CompletedTraining[]
+  /**
+   * 這次結算中途有 MVP 能力成長（Phase 9 PR 4）：跟訓練完成一樣，成長那一場之後收到的結果都沒有記，
+   * 留給呼叫端用新的有效能力重新規劃。這時 settled 只到成長那一場為止
+   */
+  mvpGrowth: MvpGrowth[]
+}
+
+/** 一次 MVP 能力成長：第 atMatch 場結算後，從 effectiveFromMatch 起生效 */
+export interface MvpGrowth {
+  playerId: string
+  name: string
+  rating: RatingKey
+  /** 達到成長時的生涯 MVP 次數 */
+  count: number
+  atMatch: number
+  effectiveFromMatch: number
 }
 
 /**
  * 把打完的比賽記進球團：戰績、未領取收益、近期比賽、replay，游標往前推。
  * 已結算的場次略過（重送 10 次也只算一次）；跳號或跟球團的種子對不起來就報錯，整批都不算
  */
-export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[], now: number, playedAt: (matchIndex: number) => number = () => now): SettleOutcome {
-  const next = structuredClone(club)
+export function settleOutcomes(
+  club: ClubSave,
+  outcomes: readonly MatchOutcome[],
+  now: number,
+  playedAt: (matchIndex: number) => number = () => now,
+  /** 呼叫端自己的工作副本（分段結算第二段以後）：直接在上面改，不再整份複製 */
+  owned = false,
+): SettleOutcome {
+  const next = owned ? club : structuredClone(club)
   const settled: SettledMatch[] = []
   let duplicates = 0
   const sorted = [...outcomes].sort((a, b) => a.plan.matchIndex - b.plan.matchIndex)
   const replays = [...next.replays]
   let relegated = false
   const trainingCompleted: CompletedTraining[] = []
+  const mvpGrowth: MvpGrowth[] = []
   for (const outcome of sorted) {
     // 已經降級：剩下的結果是用舊聯盟規劃的（對手、收益倍率、積分規則都不對），一場都不記。
-    // 訓練完成也一樣：剩下的結果是用完成前的特性打的，要用新的有效陣容重新規劃
-    if (relegated || trainingCompleted.length > 0) break
+    // 訓練完成、MVP 能力成長也一樣：剩下的結果是用改變前的陣容打的，要用新的有效陣容重新規劃
+    if (relegated || trainingCompleted.length > 0 || mvpGrowth.length > 0) break
     const { plan, result } = outcome
     if (plan.matchIndex < next.idle.nextMatchIndex) {
       duplicates++
@@ -189,6 +214,23 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
     // 特性訓練：訓練中的球員這場有出場才 +1；完成就寫進球員資料，從下一場起生效
     const done = advanceTraining(next, plan.matchIndex, record.lines)
     if (done) trainingCompleted.push(done)
+    // 單場 MVP：只看這場的正式數據與事件（不消耗比賽亂數）。資料異常就丟錯，整批不記（不默默指定第一位球員）
+    let pick
+    try {
+      pick = selectMvp(record.lines, result.mvpFacts ?? null)
+    } catch (e) {
+      if (e instanceof MvpError) throw new SettlementError('invalid-result', `比賽 ${plan.matchId} 無法選出 MVP：${e.message}`, undefined, { cause: e })
+      throw e
+    }
+    const pi = next.players.findIndex((r) => r.player.id === pick.id)
+    if (pi < 0) throw new SettlementError('invalid-result', `比賽 ${plan.matchId} 的 MVP ${pick.id} 不在球員名單裡`)
+    const awarded = awardMvp(next.players[pi], plan.matchIndex)
+    next.players[pi] = awarded.record
+    const steals = result.mvpFacts?.steals[pick.id] ?? [0, 0]
+    match.mvp = packMvp({ playerId: pick.id, role: pick.role, score: pick.score, sb: steals[0], cs: steals[1], key: pick.key, count: awarded.award.count, growth: awarded.award.growth })
+    if (awarded.award.growth) {
+      mvpGrowth.push({ playerId: pick.id, name: next.players[pi].player.name, rating: awarded.award.growth, count: awarded.award.count, atMatch: plan.matchIndex, effectiveFromMatch: plan.matchIndex + 1 })
+    }
     settled.push(match)
     const r = next.record
     if (summary.won) r.wins++
@@ -206,16 +248,17 @@ export function settleOutcomes(club: ClubSave, outcomes: readonly MatchOutcome[]
     next.recentMatches = [...next.recentMatches, ...settled].slice(-RETENTION_CONFIG.recentMatches)
     next.replays = replays.slice(-RETENTION_CONFIG.replays)
   }
-  return { club: next, settled, duplicates, relegated, trainingCompleted }
+  return { club: next, settled, duplicates, relegated, trainingCompleted, mvpGrowth }
 }
 
 /** 放置結算：記進比賽之後，時間錨點依實際新結算的場數推進（規則見 idleEngine.ts） */
-export function settleIdle(club: ClubSave, outcomes: readonly MatchOutcome[], now: number): SettleOutcome {
+export function settleIdle(club: ClubSave, outcomes: readonly MatchOutcome[], now: number, owned = false): SettleOutcome {
   // 第 i 場的預定結束時間：跟錨點的推進規則相同（超過 8 小時的部分捨棄）
   const floor = now < club.idle.anchorMs ? club.idle.anchorMs : Math.max(club.idle.anchorMs, now - MAX_OFFLINE_MS)
   const first = club.idle.nextMatchIndex
-  const applied = settleOutcomes(club, outcomes, now, (index) => floor + (index - first + 1) * MATCH_INTERVAL_MS)
-  applied.club.idle.anchorMs = advanceAnchor(club.idle.anchorMs, now, applied.settled.length)
+  const anchor = club.idle.anchorMs
+  const applied = settleOutcomes(club, outcomes, now, (index) => floor + (index - first + 1) * MATCH_INTERVAL_MS, owned)
+  applied.club.idle.anchorMs = advanceAnchor(anchor, now, applied.settled.length)
   return applied
 }
 
@@ -315,6 +358,8 @@ export interface SettlementReport {
   club: ClubSave
   /** 這次的互斥有沒有跨分頁保證 */
   crossTab: boolean
+  /** 這次結算分成幾段（降級、訓練完成、MVP 成長可能切段；效能量測用） */
+  segments: number
 }
 
 function loadOrThrow(store: ClubStore): ClubSave {
@@ -331,7 +376,7 @@ function loadOrThrow(store: ClubStore): ClubSave {
  * 不會降級的聯盟（新秀～挑戰者）一段就是全部，跟以前完全一樣。每場的種子、序號、預定時間、離線上限都不變；
  * 降級前已經結算的場次不會重打。中斷、失敗：已經記好的前綴照樣回傳（錨點只推進這幾場），跟以前的語意相同
  */
-export async function settleDueUnsaved(club: ClubSave, now: number, deps: SettlementDeps, signal?: AbortSignal): Promise<{ next: SettleOutcome; due: DueMatches; batch: BatchRun }> {
+export async function settleDueUnsaved(club: ClubSave, now: number, deps: SettlementDeps, signal?: AbortSignal): Promise<{ next: SettleOutcome; due: DueMatches; batch: BatchRun; segments: number }> {
   const due = dueMatches(club.idle, now)
   let current = club
   const settled: SettledMatch[] = []
@@ -339,9 +384,16 @@ export async function settleDueUnsaved(club: ClubSave, now: number, deps: Settle
   let duplicates = 0
   let relegated = false
   const trainingCompleted: CompletedTraining[] = []
+  const mvpGrowth: MvpGrowth[] = []
   let status: BatchRun['status'] = 'completed'
   let failedMatchId: string | undefined
   let error: unknown
+  // 一批可能被切成很多小段（MVP 成長的上限可能只有 1～2 場）：讓出主執行緒的計數、進度都照整批算；
+  // 第一段複製一份球團當工作副本，之後的段落直接在副本上改，不每段整份複製
+  const yieldCounter = { sinceYield: 0 }
+  const onProgress = deps.batch?.onProgress
+  let owned = false
+  let segments = 0
   for (let segment = 0; ; segment++) {
     const remaining = due.matches - settled.length
     if (remaining <= 0) break
@@ -349,15 +401,19 @@ export async function settleDueUnsaved(club: ClubSave, now: number, deps: Settle
     const plans = planMatches(current, current.idle.nextMatchIndex, count)
     // 已經固定的那一場用固定的計畫（開賽時的陣容、戰術、等級、聯盟）
     if (plans.length && current.liveMatch?.matchIndex === plans[0].matchIndex) plans[0] = structuredClone(current.liveMatch.plan)
-    const run = await runBatch(plans, { ...deps.batch, signal })
+    const before = settled.length
+    segments++
+    const run = await runBatch(plans, { ...deps.batch, signal, yieldCounter, ...(onProgress ? { onProgress: (done: number) => onProgress(before + done, due.matches) } : {}) })
     // 只記打完的前綴；錨點也只推進這幾場，剩下的下次接著打
-    const applied = settleIdle(current, run.outcomes, now)
+    const applied = settleIdle(current, run.outcomes, now, owned)
     current = applied.club
+    owned = true
     settled.push(...applied.settled)
     used.push(...run.outcomes.slice(0, applied.settled.length + applied.duplicates))
     duplicates += applied.duplicates
     relegated ||= applied.relegated
     trainingCompleted.push(...applied.trainingCompleted)
+    mvpGrowth.push(...applied.mvpGrowth)
     if (run.status !== 'completed') {
       status = run.status
       failedMatchId = run.failedMatchId
@@ -369,15 +425,16 @@ export async function settleDueUnsaved(club: ClubSave, now: number, deps: Settle
     if (segment > due.matches) throw new SettlementError('mismatch', '分段結算沒有收斂')
   }
   return {
-    next: { club: current, settled, duplicates, relegated, trainingCompleted },
+    next: { club: current, settled, duplicates, relegated, trainingCompleted, mvpGrowth },
     due,
     batch: { status, outcomes: used, summary: summarizeBatch(used, due.matches), ...(failedMatchId ? { failedMatchId } : {}), ...(error !== undefined ? { error } : {}) },
+    segments,
   }
 }
 
 /**
  * 從現在起，最多再結算幾場「球隊的能力一定不會改變」：分段結算用它切段，改變之後的比賽才能用新的狀態重新規劃。
- * 目前有兩種事件：降級（對手強度、收益、積分規則改變）、特性訓練完成（有效陣容改變）。之後的 MVP 能力成長也接在這裡。
+ * 目前有三種事件：降級（對手強度、收益、積分規則改變）、特性訓練完成、MVP 能力成長（後兩種都改變有效陣容）。
  * 每一種都只回傳「最快可能發生」的場數，所以切段只會比實際早、不會晚；實際發生在更後面時，下一段再重新算
  */
 export function matchesBeforePossibleChange(club: ClubSave): number {
@@ -385,7 +442,7 @@ export function matchesBeforePossibleChange(club: ClubSave): number {
   const liveIds = live && live.matchIndex === club.idle.nextMatchIndex ? new Set(rosterIdsOf(live.plan)) : null
   const assigned = assignedIds(club.roster)
   const canAppear = (id: string) => assigned.has(id) || !!liveIds?.has(id)
-  return Math.min(matchesBeforePossibleRelegation(club.league), matchesBeforePossibleTrainingCompletion(club, canAppear))
+  return Math.min(matchesBeforePossibleRelegation(club.league), matchesBeforePossibleTrainingCompletion(club, canAppear), matchesBeforePossibleMvpGrowth(club.players, canAppear))
 }
 
 /** 固定的比賽計畫裡我方的所有球員 */
@@ -414,11 +471,11 @@ export function settleDue(deps: SettlementDeps, options: { signal?: AbortSignal 
   return deps.lock.run(async () => {
     const club = loadOrThrow(deps.store)
     const now = deps.clock.now()
-    const { next, due, batch } = await settleDueUnsaved(club, now, deps, options.signal)
+    const { next, due, batch, segments } = await settleDueUnsaved(club, now, deps, options.signal)
     const saved = next.settled.length > 0 ? deps.store.saveClub(next.club, club.revision) : club
     const status: SettlementReport['status'] =
       batch.status === 'failed' ? 'failed' : batch.status === 'aborted' ? 'aborted' : next.settled.length > 0 ? 'settled' : 'nothing-due'
-    const report: SettlementReport = { status, due, settled: next.settled, summary: batch.summary, club: saved, crossTab: deps.lock.crossTab }
+    const report: SettlementReport = { status, due, settled: next.settled, summary: batch.summary, club: saved, crossTab: deps.lock.crossTab, segments }
     if (batch.status === 'failed') {
       throw new SettlementError('simulation-failed', `比賽 ${batch.failedMatchId} 模擬失敗`, report, { cause: batch.error })
     }
