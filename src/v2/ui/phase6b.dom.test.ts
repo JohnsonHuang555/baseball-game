@@ -464,3 +464,32 @@ describe('投球動畫：前段中性、結果在提交後（PR #11 review）', 
     expect(calls.length).toBe(n)
   })
 })
+
+// ---- Phase 9 PR 1：投球動畫用的是比賽引擎的實際球種（不是文字標籤、不是預設值） ----
+
+describe('投球動畫的球種來自比賽事件（Phase 9）', () => {
+  it('每一球交給投球動畫的球種，就是那一格 pitch 事件的 pitch；每一球都有投手', async () => {
+    const s = find((x) => {
+      const kinds = new Set(x.live.timeline.frames.flatMap((f) => f.events.flatMap((e) => (e.type === 'pitch' && e.pitch ? [e.pitch] : []))))
+      return kinds.has('fastball') && kinds.size >= 3
+    })
+    const seen: { t: number; pitch: string; thrower: string }[] = []
+    let now: () => number = () => 0
+    const stage = (n: () => number) => {
+      now = n
+      return (): ReplayStage => {
+        const base = recordingStage([])(n)()
+        return { ...base, pitch: (_ms, pitch, thrower) => (seen.push({ t: now(), pitch: String(pitch), thrower: thrower?.id ?? '' }), Promise.resolve()) }
+      }
+    }
+    watch(s, START, { stage })
+    await untilEnded()
+    const frames = s.live.timeline.frames
+    const expected = frames.map((_, j) => j).filter((j) => pitchOf(s, j)).map((j) => pitchOf(s, j)!.pitch)
+    expect(seen.map((x) => x.pitch)).toEqual(expected.map(String))
+    expect(new Set(seen.map((x) => x.pitch)).has('fastball')).toBe(true)
+    // 每一球都有投手（用他的慣用手決定曲線方向）
+    expect(seen.every((x) => x.thrower !== '')).toBe(true)
+  })
+})
+

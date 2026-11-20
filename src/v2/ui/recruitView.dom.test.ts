@@ -120,7 +120,7 @@ describe('招募市場畫面', () => {
     expect($$('.v2-cand').every((c) => c.getAttribute('aria-pressed') === 'false')).toBe(true)
   })
 
-  it('簽約完成：顯示球員、花費、剩餘資金；可以繼續招募，下一批是新的人、價格 2,400', async () => {
+  it('簽約完成：顯示球員、花費、剩餘資金；可以繼續招募，下一批是新的人、價格 2,200', async () => {
     const { env } = await start(10_000)
     openMarket()
     $<HTMLButtonElement>('[data-role="batter"]')!.click()
@@ -132,7 +132,7 @@ describe('招募市場畫面', () => {
     expect($('.v2-recruit-remain')!.getAttribute('aria-label')).toBe(V2T.recruitRemain(8000))
     expect(text('.v2-recruit-card .v2-player-name')).toContain(JSON.parse(env.storage.getItem(CLUB_STORAGE_KEY)!).players.at(-1).player.name)
     $<HTMLButtonElement>('.v2-recruit-again')!.click()
-    expect($('.v2-recruit-cost')!.getAttribute('aria-label')).toBe(V2T.recruitCost(2400))
+    expect($('.v2-recruit-cost')!.getAttribute('aria-label')).toBe(V2T.recruitCost(2200))
     $<HTMLButtonElement>('[data-role="batter"]')!.click()
     expect(cardIds()).not.toEqual(first)
   })
@@ -169,7 +169,7 @@ describe('招募市場畫面', () => {
     expect(cardIds()).toEqual(recruitCandidates(deps.store.loadClub()!, 'batter').map((p) => p.id))
     expect($$('.v2-cand').every((x) => x.getAttribute('aria-pressed') === 'false')).toBe(true)
     expect($<HTMLButtonElement>('[data-action="recruit-confirm"]')!.disabled).toBe(true)
-    expect($('.v2-recruit-cost')!.getAttribute('aria-label')).toBe(V2T.recruitCost(2400))
+    expect($('.v2-recruit-cost')!.getAttribute('aria-label')).toBe(V2T.recruitCost(2200))
   })
 
   it('名單已滿：清楚提示、不能簽約', async () => {

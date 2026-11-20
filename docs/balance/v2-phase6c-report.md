@@ -420,4 +420,4 @@ PR #12 review 補充的比較。兩個方案都用同樣的 30 個種子（1001�
 
 ## 後續：招募市場（三選一、價格 2,000＋400）
 
-招募改成三選一、確認簽約才扣款，價格從 4,000＋800 改成 2,000＋400。這一節的比較數據見 [`recruit-market-report.md`](recruit-market-report.md)，決定見 ADR-0017。本報告前面的數字都是招募市場之前的版本。
+招募改成三選一、確認簽約才扣款，價格從 4,000＋800 改成 2,000＋400。這一節的比較數據見 [`recruit-market-report.md`](recruit-market-report.md)，決定見 ADR-0017。本報告前面的數字都是招募市場之前的版本。Phase 9 再把每次的增量改成 +200（見 `docs/phase9-gameplay-rfc.md` §1）。

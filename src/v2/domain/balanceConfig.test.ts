@@ -44,11 +44,11 @@ describe('升級成本與成長', () => {
     }
   })
 
-  it('招募成本：2,000 起，每次 +400（2,000、2,400、2,800…）；只花資金', () => {
-    expect(RECRUIT_CONFIG).toMatchObject({ baseFunds: 2000, stepFunds: 400, maxPlayers: 30, mean: 5 })
+  it('招募成本：2,000 起，每次 +200（2,000、2,200、2,400…）；只花資金（Phase 9）', () => {
+    expect(RECRUIT_CONFIG).toMatchObject({ baseFunds: 2000, stepFunds: 200, maxPlayers: 30, mean: 5 })
     expect(recruitCost(0)).toEqual({ funds: 2000, experience: 0 })
-    expect([recruitCost(1).funds, recruitCost(2).funds]).toEqual([2400, 2800])
-    for (let i = 0; i < 40; i++) expect(recruitCost(i)).toEqual({ funds: 2000 + 400 * i, experience: 0 })
+    expect([recruitCost(1).funds, recruitCost(2).funds]).toEqual([2200, 2400])
+    for (let i = 0; i < 40; i++) expect(recruitCost(i)).toEqual({ funds: 2000 + 200 * i, experience: 0 })
   })
 })
 

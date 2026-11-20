@@ -53,6 +53,18 @@ export function pitchPoint(pitch: PitchType, hand: Hand, start: Pt, end: Pt, t: 
   }
 }
 
+/**
+ * V2 直播揭曉段的一格（Phase 9 修正直球動畫）：前段飛向中性點（好球帶中心），結果提交後要改飛到真正的進壘點。
+ * 舊做法是把兩條軌跡的「球的位置」混合，只在最後 20% 轉向，直球會出現比曲球還大的彎（見 docs/phase9-gameplay-rfc.md）。
+ * 這裡改成內插「終點」：每一格都用同一個球種、同一個出手點，朝 lerp(中性點, 進壘點, s) 重畫整條軌跡，
+ * 所以畫出來的永遠是這個球種本來的形狀（直球是直線、曲球有下墜、滑球有橫移），只是整條線繞著出手點轉到真正的終點。
+ * ts 是軌跡上每一點的時間（0～1）；s 是轉換進度（0 = 中性、1 = 真正的進壘點）
+ */
+export function blendedFlight(pitch: PitchType, hand: Hand, start: Pt, neutral: Pt, end: Pt, size: number, ts: readonly number[], t: number, s: number): { trail: Pt[]; ball: Pt } {
+  const target = { x: neutral.x + (end.x - neutral.x) * s, y: neutral.y + (end.y - neutral.y) * s }
+  return { trail: ts.map((x) => pitchPoint(pitch, hand, start, target, x, size)), ball: pitchPoint(pitch, hand, start, target, t, size) }
+}
+
 /** 停在本壘的時間，讓人看清楚進壘點 */
 const HOLD_MS = 350
 
@@ -68,7 +80,7 @@ export class PitchCam {
   /** 每次 cancel() 加 1：進行中的投球動畫看到代號變了就立刻結束 */
   private generation = 0
   /** V2 直播：approach() 播到一半、等結果的那一球 */
-  private flight: { pitch: PitchType; hand: Hand; start: Pt; zone: { x: number; y: number; w: number; h: number }; neutral: Pt; trail: Pt[]; w: number; ms: number; gen: number } | null = null
+  private flight: { pitch: PitchType; hand: Hand; start: Pt; zone: { x: number; y: number; w: number; h: number }; neutral: Pt; trail: Pt[]; ts: number[]; w: number; ms: number; gen: number } | null = null
 
   constructor() {
     this.root = el('div', 'pitch-cam')
@@ -145,7 +157,7 @@ export class PitchCam {
     const zone = { x: w * 0.36, y: h * 0.46, w: w * 0.28, h: h * 0.36 }
     const start = { x: w * (pitcher.throws === 'R' ? 0.36 : 0.64), y: h * 0.3 }
     const neutral = { x: zone.x + zone.w / 2, y: zone.y + zone.h / 2 }
-    const flight = { pitch, hand: pitcher.throws, start, zone, neutral, trail: [] as Pt[], w, ms, gen }
+    const flight = { pitch, hand: pitcher.throws, start, zone, neutral, trail: [] as Pt[], ts: [] as number[], w, ms, gen }
     this.flight = flight
     return new Promise((resolve) => {
       const begin = performance.now()
@@ -154,6 +166,7 @@ export class PitchCam {
         const t = APPROACH * (ms <= 0 ? 1 : Math.max(0, Math.min(1, (now - begin) / ms)))
         const p = pitchPoint(pitch, pitcher.throws, start, neutral, t, w)
         flight.trail.push(p)
+        flight.ts.push(t)
         this.draw(zone, flight.trail, p, t)
         if (t < APPROACH) requestAnimationFrame(tick)
         else resolve()
@@ -164,7 +177,7 @@ export class PitchCam {
 
   /**
    * V2 直播：結果正式提交之後，把 approach() 的球帶到這一球真正的進壘點（壞球在好球帶外）。
-   * 從中性軌跡平順地轉到真正的軌跡；沒有進行中的投球（例如中途加入）就什麼都不畫
+   * 整條軌跡繞著出手點平順地轉到真正的終點（見 blendedFlight）；沒有進行中的投球（例如中途加入）就什麼都不畫
    */
   finish(result: PitchResult, ms: number): Promise<void> {
     const f = this.flight
@@ -177,12 +190,12 @@ export class PitchCam {
         if (f.gen !== this.generation) return resolve()
         const u = ms <= 0 ? 1 : Math.max(0, Math.min(1, (now - begin) / ms))
         const t = APPROACH + (1 - APPROACH) * u
-        const a = pitchPoint(f.pitch, f.hand, f.start, f.neutral, t, f.w)
-        const b = pitchPoint(f.pitch, f.hand, f.start, end, t, f.w)
         const s = u * u * (3 - 2 * u)
-        const p = { x: a.x + (b.x - a.x) * s, y: a.y + (b.y - a.y) * s }
-        f.trail.push(p)
-        this.draw(f.zone, f.trail, p, t)
+        f.ts.push(t)
+        // 整條軌跡（含已經畫過的前段）一起轉到真正的終點：形狀一直是這個球種的形狀，不會在最後才轉彎
+        const frame = blendedFlight(f.pitch, f.hand, f.start, f.neutral, end, f.w, f.ts, t, s)
+        f.trail = frame.trail
+        this.draw(f.zone, f.trail, frame.ball, t)
         if (u < 1) requestAnimationFrame(tick)
         else {
           this.hideTimer = window.setTimeout(() => this.root.classList.remove('show'), HOLD_MS)
