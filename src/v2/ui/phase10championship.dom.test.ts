@@ -144,7 +144,7 @@ describe('首頁的冠軍賽卡片', () => {
           ...r.championship,
           nextSeriesSeq: 1,
           titles: 1,
-          readyAt: 0,
+          readyAt: c.idle.nextMatchIndex,
           firstTitle: { seriesSeq: 0, seriesId: `${c.clubId}#s0`, at: Date.UTC(2026, 10, 3), wins: 4, losses: 2, clubId: c.clubId, clubName: c.clubName, matchIndexAt: c.idle.nextMatchIndex },
           history: [{ seq: 0, id: `${c.clubId}#s0`, opponentName: '傳奇王朝', won: true, wins: 4, losses: 2, startedAt: 0, completedAt: 0, completedAtMatch: c.idle.nextMatchIndex, scores: [[3, 1], [1, 2], [4, 0], [0, 5], [2, 1], [5, 3]] }],
         },

@@ -390,7 +390,7 @@ export function validateClub(value: unknown): ClubSave {
   validateLeague(obj(value, 'league'))
   validateChallengeReplay(value.challengeReplay, obj(value, 'league'))
   {
-    const issues = championshipIssues(value.championship, { clubId: value.clubId as string, nextMatchIndex: obj(value, 'idle').nextMatchIndex as number })
+    const issues = championshipIssues(value.championship, { clubId: value.clubId as string, clubSeed: value.clubSeed as number, nextMatchIndex: obj(value, 'idle').nextMatchIndex as number })
     if (issues.length) throw invalid('championship', issues.join('；'))
   }
   validateLiveMatch(value.liveMatch, obj(value, 'idle'), value.clubId as string)

@@ -24,10 +24,12 @@
 import { generateTeam } from '../../sim/generate'
 import { Rng } from '../../sim/rng'
 import type { Side } from '../../sim/game'
-import { SEED_SALT, deriveSeed, type ClubSave } from '../domain/club'
+import type { ClubSave } from '../domain/club'
 import {
   CHAMPIONSHIP_CONFIG,
+  championOpponentSeed,
   championshipEligibility,
+  seriesGameSeed,
   gameMatchIdFor,
   gameSeedIndex,
   recordSeriesGame,
@@ -106,7 +108,7 @@ export interface PlayGameOutcome {
 
 /** 第 seq 個系列賽的冠軍隊：只由球團種子與序號決定 */
 export function championOpponent(club: Pick<ClubSave, 'clubSeed'>, seq: number): ChampionOpponent {
-  const seed = deriveSeed(club.clubSeed, seq, SEED_SALT.championshipOpponent)
+  const seed = championOpponentSeed(club.clubSeed, seq)
   const mean = CHAMPIONSHIP_CONFIG.opponentMean
   const team = generateTeam(new Rng(seed), mean)
   team.name = CHAMPIONSHIP_CONFIG.opponentName
@@ -119,7 +121,7 @@ export function planSeriesGame(club: ClubSave, series: ActiveSeries, game: numbe
   return buildPlan(club, {
     matchId: gameMatchIdFor(club, series.seq, game),
     matchIndex: gameSeedIndex(series.seq, game),
-    seed: deriveSeed(club.clubSeed, gameSeedIndex(series.seq, game), SEED_SALT.championship),
+    seed: seriesGameSeed(club.clubSeed, series.seq, game),
     userSide,
     leagueTier: CHAMPIONSHIP_CONFIG.tier,
     opponentSeed: series.opponent.seed,

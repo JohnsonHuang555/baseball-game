@@ -403,6 +403,41 @@ describe('遷移（21）與 Replay（23）', () => {
     expect(championshipView(c).status).toBe('eligible')
   })
 
+  it('V14 新球團（不是遷移來的）到傳奇後可以建立系列賽、打一場，存檔驗證通過、重新開啟一樣', async () => {
+    const storage = new MemoryStorage()
+    const clock = new ManualClock(Date.UTC(2026, 10, 1))
+    const d = tab(storage, clock, new FakeLockManager())
+    const { createClubSafely } = await import('./clubLifecycle')
+    await createClubSafely(d, { clubName: '新冠軍隊', clubSeed: 2468, clubId: 'club-new-v14' })
+    const fresh = load(d)
+    expect(fresh.schemaVersion).toBe(14)
+    expect(fresh.migratedFrom).toBeUndefined()
+    d.store.saveClub({ ...fresh, league: leagueAtTier(fresh.league, 4, { matches: 120, wins: 80, losses: 40, recent: 'W'.repeat(40) + 'L'.repeat(20), points: 90 }) }, fresh.revision)
+    await startSeries(d, { seriesSeq: 0 })
+    const out = await playSeriesGame(d, { seriesSeq: 0, game: 1 })
+    expect(out.game.seed).toBe(planSeriesGame(load(d), load(d).championship.active!, 1).seed)
+    const raw = storage.getItem(CLUB_STORAGE_KEY)!
+    expect(validateClub(JSON.parse(raw))).toEqual(load(d))
+    const { value } = await openClubSafely(tab(storage, clock, new FakeLockManager()))
+    expect(value.club!.championship).toEqual(load(d).championship)
+  })
+
+  it('既有的 V14 存檔（進行中與已完成的系列賽）重新讀取不變、不再遷移；改壞的存檔被拒絕、原文不變', async () => {
+    const w = world()
+    const { deps } = scripted(w.deps, 'WLWLWLW')
+    await playOut(deps)
+    const raw = w.storage.getItem(CLUB_STORAGE_KEY)!
+    const { value } = await openClubSafely(tab(w.storage, w.clock, new FakeLockManager()))
+    expect(value.migrated).toBe(false)
+    expect(JSON.stringify(value.club)).toBe(raw)
+    const bad = JSON.parse(raw) as ClubSave
+    bad.championship.history[0].scores[0] = [bad.championship.history[0].scores[0][1], bad.championship.history[0].scores[0][0]]
+    const badRaw = JSON.stringify(bad)
+    w.storage.setItem(CLUB_STORAGE_KEY, badRaw)
+    expect(await openClubSafely(tab(w.storage, w.clock, new FakeLockManager())).catch((e) => e)).toBeInstanceOf(Error)
+    expect(w.storage.getItem(CLUB_STORAGE_KEY)).toBe(badRaw)
+  })
+
   it('23. 冠軍賽的 Replay 可以重播出同樣的結果；一般比賽與晉級挑戰的 Replay 不受影響', async () => {
     const { deps } = world()
     await startSeries(deps, { seriesSeq: 0 })

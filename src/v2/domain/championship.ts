@@ -13,11 +13,16 @@
 //   對手：deriveSeed(clubSeed, seriesSeq, SEED_SALT.championshipOpponent) 產生，開始時把整支球隊存進系列賽（之後不再重新產生）
 //   第 n 場（1～7）：matchId = `<球團>#s<seq>g<n>`，種子 deriveSeed(clubSeed, seriesSeq × 8 + n, SEED_SALT.championship)
 //   主客場 2-3-2：冠軍隊（對手）第 1、2、6、7 場主場，我方第 3、4、5 場主場
+//
+// 相容性：上面的種子與主客場規則寫進存檔驗證（championshipIssues 會用 clubSeed 重新推導每一場的種子與冠軍隊種子）。
+// 規則（公式、SEED_SALT.championship／championshipOpponent、seq × 8 + n）不能直接改：改了，舊存檔裡打到一半的系列賽會被拒絕。
+// 真的要改時，要在系列賽上記規則版本（例如 seedRule），驗證依版本選公式，舊版本的系列賽照舊驗證通過。
 import type { Side } from '../../sim/game'
 import type { Team } from '../../sim/types'
 import type { MatchReplay } from '../application/matchRunner'
 import { ARCHETYPES, type Archetype } from '../../sim/types'
-import type { ClubSave } from './club'
+import { SEED_SALT, deriveSeed, type ClubSave } from './club'
+import { teamSnapshotIssues } from './teamSnapshot'
 import { recentWinRate } from './league'
 import { MAX_TIER, PROMOTION_CONFIG } from './leagueConfig'
 import { isObj, type Obj } from './validation'
@@ -144,6 +149,10 @@ export const gameMatchIdFor = (club: Pick<ClubSave, 'clubId'>, seq: number, game
 export const gameSeedIndex = (seq: number, game: number) => seq * 8 + game
 /** 2-3-2：冠軍隊第 1、2、6、7 場主場 */
 export const userSideForGame = (game: number): Side => (game >= 3 && game <= 5 ? 'home' : 'away')
+/** 第 seq 個系列賽第 game 場的種子（服務產生比賽、存檔驗證都用這一個） */
+export const seriesGameSeed = (clubSeed: number, seq: number, game: number) => deriveSeed(clubSeed, gameSeedIndex(seq, game), SEED_SALT.championship)
+/** 第 seq 個系列賽冠軍隊的種子 */
+export const championOpponentSeed = (clubSeed: number, seq: number) => deriveSeed(clubSeed, seq, SEED_SALT.championshipOpponent)
 
 /** 陣容的流派：先發九棒裡最多的那一種（同數取流派順序前面的） */
 export function teamStyle(team: Team): Archetype {
@@ -314,21 +323,27 @@ export function recordSeriesGame(club: ClubSave, game: SeriesGame, replay: Match
 
 const isInt = (x: unknown, min = 0): x is number => Number.isSafeInteger(x) && (x as number) >= min
 
-function gameIssues(g: unknown, i: number, seq: number, clubId: string): string[] {
-  if (!isObj(g)) return [`第 ${i + 1} 場格式不對`]
+type ClubKeys = { clubId: string; clubSeed: number; nextMatchIndex: number }
+
+/** 系列賽 seq 的第 i + 1 場（i 從 0 開始）：場次連續、編號、確定性種子、2-3-2、結果、不晚於一般比賽的結算游標 */
+function gameIssues(g: unknown, i: number, seq: number, club: ClubKeys): string[] {
+  const n = i + 1
+  if (!isObj(g)) return [`第 ${n} 場格式不對`]
   const out: string[] = []
-  if (g.game !== i + 1) out.push(`第 ${i + 1} 場的場次編號不對`)
-  if (g.matchId !== `${clubId}#s${seq}g${i + 1}`) out.push(`第 ${i + 1} 場的比賽編號不對`)
-  if (!isInt(g.seed)) out.push(`第 ${i + 1} 場的種子不對`)
-  if (g.userSide !== userSideForGame(i + 1)) out.push(`第 ${i + 1} 場的主客場不對`)
+  if (g.game !== n) out.push(`第 ${n} 場的場次編號是 ${String(g.game)}（場次必須從 1 開始連續、不能重複）`)
+  if (g.matchId !== `${club.clubId}#s${seq}g${n}`) out.push(`第 ${n} 場的比賽編號不對：${String(g.matchId)}（應該是 ${club.clubId}#s${seq}g${n}）`)
+  if (!isInt(g.seed)) out.push(`第 ${n} 場的種子必須是 0 以上的整數`)
+  else if (g.seed !== seriesGameSeed(club.clubSeed, seq, n)) out.push(`第 ${n} 場的種子跟球團種子推導出來的不符`)
+  if (g.userSide !== userSideForGame(n)) out.push(`第 ${n} 場的主客場不對（2-3-2：我方應該是${userSideForGame(n) === 'home' ? '主場' : '客場'}）`)
   if (typeof g.won !== 'boolean' || !isInt(g.runsFor) || !isInt(g.runsAgainst) || !isInt(g.innings, 9)) out.push(`第 ${i + 1} 場的結果格式不對`)
   else if (g.won !== (g.runsFor > g.runsAgainst)) out.push(`第 ${i + 1} 場的勝負跟比分不符`)
-  if (typeof g.at !== 'number' || !isInt(g.matchIndexAt) || typeof g.requestKey !== 'string') out.push(`第 ${i + 1} 場的紀錄不完整`)
+  if (typeof g.at !== 'number' || !Number.isFinite(g.at) || !isInt(g.matchIndexAt) || typeof g.requestKey !== 'string') out.push(`第 ${n} 場的紀錄不完整`)
+  else if (g.matchIndexAt > club.nextMatchIndex) out.push(`第 ${n} 場記錄的一般比賽場次超過目前的結算游標`)
   return out
 }
 
 /** 冠軍賽資料的不變量（空陣列代表正常） */
-export function championshipIssues(value: unknown, club: { clubId: string; nextMatchIndex: number }): string[] {
+export function championshipIssues(value: unknown, club: ClubKeys): string[] {
   if (!isObj(value)) return ['championship 必須是物件']
   const out: string[] = []
   const v = value as Record<string, unknown>
@@ -364,6 +379,12 @@ export function championshipIssues(value: unknown, club: { clubId: string; nextM
     if (preW >= CHAMPIONSHIP_CONFIG.winsNeeded || pre.length - preW >= CHAMPIONSHIP_CONFIG.winsNeeded) out.push(`history[${i}] 在系列賽結束後還有比賽`)
     if (!isInt(r.completedAtMatch) || r.completedAtMatch > club.nextMatchIndex) out.push(`history[${i}] 的結束場次不對`)
   }
+  // 冷卻：還沒打完過系列賽就沒有冷卻；打完過的話，冷卻一定從最近一個系列賽結束之後開始
+  const lastDone = history.at(-1) as SeriesRecord | undefined
+  if (isInt(v.readyAt)) {
+    if (!history.length && v.readyAt !== 0) out.push('還沒有結束的系列賽，冷卻場次應該是 0')
+    if (isObj(lastDone) && isInt(lastDone.completedAtMatch) && (v.readyAt as number) < lastDone.completedAtMatch) out.push('冷卻場次早於最近一個系列賽結束的場次')
+  }
   const wonInHistory = history.filter((h) => isObj(h) && (h as { won?: unknown }).won === true).length
   if (isInt(v.titles) && (v.titles as number) < wonInHistory) out.push('冠軍次數少於紀錄裡的冠軍')
   // 首次奪冠
@@ -376,7 +397,10 @@ export function championshipIssues(value: unknown, club: { clubId: string; nextM
     if ((v.titles as number) < 1) out.push('有首次奪冠紀錄但冠軍次數是 0')
     if (!isInt(f.seriesSeq) || f.seriesSeq >= next || f.seriesId !== `${club.clubId}#s${f.seriesSeq}`) out.push('首次奪冠的系列賽不對')
     if (f.wins !== CHAMPIONSHIP_CONFIG.winsNeeded || !isInt(f.losses) || f.losses >= CHAMPIONSHIP_CONFIG.winsNeeded) out.push('首次奪冠的比分不對')
-    if (typeof f.clubId !== 'string' || typeof f.clubName !== 'string' || typeof f.at !== 'number' || !isInt(f.matchIndexAt)) out.push('首次奪冠紀錄不完整')
+    if (f.clubId !== club.clubId || typeof f.clubName !== 'string' || typeof f.at !== 'number' || !isInt(f.matchIndexAt)) out.push('首次奪冠紀錄不完整或不屬於這個球團')
+    else if (f.matchIndexAt > club.nextMatchIndex) out.push('首次奪冠記錄的一般比賽場次超過目前的結算游標')
+    // 首次奪冠一定是保留的紀錄裡最早的冠軍（更早的紀錄可能因為保留上限被清掉，所以只檢查留下來的）
+    if (history.some((x) => isObj(x) && (x as unknown as SeriesRecord).won === true && isInt((x as unknown as SeriesRecord).seq) && (x as unknown as SeriesRecord).seq < f.seriesSeq)) out.push('紀錄裡有比首次奪冠更早的冠軍')
     const h = history.find((x) => isObj(x) && (x as { seq?: unknown }).seq === f.seriesSeq) as SeriesRecord | undefined
     if (h && (!h.won || h.wins !== f.wins || h.losses !== f.losses)) out.push('首次奪冠紀錄跟系列賽紀錄不符')
   }
@@ -390,14 +414,11 @@ export function championshipIssues(value: unknown, club: { clubId: string; nextM
       if (s.seq <= lastSeq) out.push('進行中系列賽的序號比已結束的還小')
       if (s.id !== `${club.clubId}#s${s.seq}`) out.push('進行中系列賽的編號不對')
       if (!isInt(s.startedAtMatch) || s.startedAtMatch > club.nextMatchIndex || typeof s.startedAt !== 'number' || typeof s.requestKey !== 'string') out.push('進行中系列賽的紀錄不完整')
-      const o = s.opponent as unknown as Partial<ChampionOpponent> | null
-      if (!isObj(o) || typeof o.name !== 'string' || !ARCHETYPES.includes(o.style as Archetype) || typeof o.mean !== 'number' || !isInt(o.seed) || !teamLooksValid(o.team)) {
-        out.push('冠軍隊資料不對')
-      }
+      out.push(...opponentIssues(s.opponent, s.seq, club))
       if (!Array.isArray(s.games)) out.push('進行中系列賽的比賽必須是陣列')
       else {
         if (s.games.length >= CHAMPIONSHIP_CONFIG.maxGames) out.push('進行中系列賽的比賽太多')
-        s.games.forEach((g, i) => out.push(...gameIssues(g, i, s.seq, club.clubId)))
+        s.games.forEach((g, i) => out.push(...gameIssues(g, i, s.seq, club)))
         if (s.games.every((g) => isObj(g) && typeof g.won === 'boolean') && seriesOver(s)) out.push('系列賽已經有一方 4 勝，不應該還在進行中')
       }
     }
@@ -411,20 +432,41 @@ export function championshipIssues(value: unknown, club: { clubId: string; nextM
     else {
       const seq = x.seriesSeq as number
       const g = x.game as { game?: unknown } | undefined
-      const issues = isObj(g) && isInt(g.game, 1) ? gameIssues(g, (g.game as number) - 1, seq, club.clubId) : ['最近一場冠軍賽的比賽格式不對']
+      const issues = isObj(g) && isInt(g.game, 1) && (g.game as number) <= CHAMPIONSHIP_CONFIG.maxGames ? gameIssues(g, (g.game as number) - 1, seq, club) : ['最近一場冠軍賽的比賽格式不對']
       out.push(...issues.map((s) => `最近一場：${s}`))
       const act = isObj(a) ? (a as unknown as ActiveSeries) : null
       const lastHist = history.at(-1) as SeriesRecord | undefined
       const matchesActive = act && act.seq === seq && Array.isArray(act.games) && act.games.length === (g?.game as number) && JSON.stringify(act.games.at(-1)) === JSON.stringify(g)
-      const matchesHistory = (!act || (Array.isArray(act.games) && act.games.length === 0)) && isObj(lastHist) && lastHist.seq === seq && Array.isArray(lastHist.scores) && lastHist.scores.length === (g?.game as number)
+      const gg = g as unknown as SeriesGame
+      const lastScore = isObj(lastHist) && Array.isArray(lastHist.scores) ? lastHist.scores.at(-1) : undefined
+      const matchesHistory =
+        (!act || (Array.isArray(act.games) && act.games.length === 0)) &&
+        isObj(lastHist) &&
+        lastHist.seq === seq &&
+        lastHist.scores.length === gg.game &&
+        Array.isArray(lastScore) &&
+        lastScore[0] === gg.runsFor &&
+        lastScore[1] === gg.runsAgainst
       if (!issues.length && !matchesActive && !matchesHistory) out.push('最近一場冠軍賽跟系列賽對不起來')
     }
   } else if (isObj(a) && Array.isArray((a as unknown as ActiveSeries).games) && (a as unknown as ActiveSeries).games.length > 0) out.push('進行中的系列賽打過比賽，卻沒有最近一場的紀錄')
   return out
 }
 
-function teamLooksValid(t: unknown): boolean {
-  if (!isObj(t) || typeof t.name !== 'string' || !isObj(t.roster)) return false
-  const r = t.roster as Record<string, unknown>
-  return Array.isArray(r.lineup) && r.lineup.length === 9 && Array.isArray(r.bench) && isObj(r.starter) && Array.isArray(r.relievers)
+/**
+ * 冠軍隊快照：隊名、風格、強度是有限的數字、種子符合推導公式、整支球隊合法（teamSnapshot.ts，重用既有的球員與陣容檢查）。
+ * 不跟重新產生的球隊比較、不檢查強度等於目前設定：之後調整產生器或平衡，進行中的系列賽照樣能讀
+ */
+function opponentIssues(value: unknown, seq: number, club: ClubKeys): string[] {
+  if (!isObj(value)) return ['冠軍隊資料必須是物件']
+  const o = value as Partial<ChampionOpponent>
+  const out: string[] = []
+  if (typeof o.name !== 'string' || o.name.trim() === '') out.push('冠軍隊的隊名必須是非空字串')
+  if (!ARCHETYPES.includes(o.style as Archetype)) out.push('冠軍隊的風格不合法')
+  if (typeof o.mean !== 'number' || !Number.isFinite(o.mean) || o.mean <= 0 || o.mean > 10) out.push('冠軍隊的強度不合法')
+  if (!isInt(o.seed)) out.push('冠軍隊的種子必須是 0 以上的整數')
+  else if (o.seed !== championOpponentSeed(club.clubSeed, seq)) out.push('冠軍隊的種子跟球團種子推導出來的不符')
+  out.push(...teamSnapshotIssues(o.team, '冠軍隊'))
+  if (isObj(o.team) && typeof o.name === 'string' && (o.team as Obj).name !== o.name) out.push('冠軍隊的隊名跟球隊快照不一致')
+  return out
 }
