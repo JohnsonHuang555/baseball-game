@@ -37,7 +37,7 @@ describe('V9 → V10（純函式）', () => {
   it('只加上球員數據：記錄起點＝目前游標、生涯從 0 開始；其他欄位一個字都不動', () => {
     const old = v9()
     const club = migrateToLatest(old)
-    const { schemaVersion, revision, migratedFrom, stats, training: _t, ...rest } = club
+    const { schemaVersion, revision, migratedFrom, stats, training: _t, championship: _ch, ...rest } = club
     const { schemaVersion: _s, revision: oldRevision, migratedFrom: _m, ...oldRest } = old
     expect(rest).toEqual(oldRest)
     expect(stats).toEqual({ sinceMatch: 312, throughMatch: 312, players: {} })

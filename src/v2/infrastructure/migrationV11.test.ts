@@ -42,7 +42,7 @@ describe('V10 → V11（純函式）', () => {
   it('只改版本號：球員、能力、生涯、招募次數、帳務、聯盟、積分、降級紀錄、比賽、Replay、固定的比賽、均衡參數一個字都不動', () => {
     const old = v10()
     const club = migrateToLatest(old)
-    const { schemaVersion, revision, migratedFrom, training, ...rest } = club
+    const { schemaVersion, revision, migratedFrom, training, championship: _ch, ...rest } = club
     const { schemaVersion: _s, revision: oldRevision, migratedFrom: _m, ...oldRest } = old
     expect(rest).toEqual(oldRest)
     expect(schemaVersion).toBe(CLUB_SCHEMA_VERSION)

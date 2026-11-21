@@ -4,6 +4,7 @@
 import { generateTeam } from '../../sim/generate'
 import { equippedTeam } from '../../sim/items'
 import { Rng } from '../../sim/rng'
+import type { Team } from '../../sim/types'
 import { RULES_VERSION, type GameSetup, type Side } from '../../sim/game'
 import { SEED_SALT, deriveSeed, matchIdFor, userSideFor, type ClubSave } from '../domain/club'
 import { BATCH_CONFIG } from '../domain/config'
@@ -54,10 +55,11 @@ export function planMatch(club: ClubSave, matchIndex: number): MatchPlan {
 /** 比賽計畫的共用部分（一般比賽與晉級挑戰賽）：對手由給定的種子與強度產生，我方快照目前的陣容與戰術 */
 export function buildPlan(
   club: ClubSave,
-  p: { matchId: string; matchIndex: number; seed: number; userSide: Side; leagueTier: number; opponentSeed: number; opponentMean: number },
+  p: { matchId: string; matchIndex: number; seed: number; userSide: Side; leagueTier: number; opponentSeed: number; opponentMean: number; opponent?: Team },
 ): MatchPlan {
   const { userSide, seed } = p
-  const opponent = generateTeam(new Rng(p.opponentSeed), p.opponentMean)
+  // 冠軍賽：對手在系列賽開始時就固定（整支存在存檔裡），不再由種子重新產生
+  const opponent = p.opponent ? structuredClone(p.opponent) : generateTeam(new Rng(p.opponentSeed), p.opponentMean)
   // 快照：把配置換算成「這一刻」養成後能力的完整陣容（深拷貝），之後升級、換人都不影響這一場
   const ours = equippedTeam({ name: club.clubName, roster: structuredClone(resolveRoster(club)) })
   const coach = structuredClone(club.strategy.coach)

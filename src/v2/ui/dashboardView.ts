@@ -22,6 +22,7 @@ import { assignedIds } from '../domain/roster'
 import { recentForm, teamPower } from '../domain/growthInfo'
 import type { ClubController, ControllerState } from './clubController'
 import { V2T } from './strings'
+import { championshipCard, showsChampionship, type ChampionshipActions } from './championshipCard'
 import { icon, type IconName } from './icons'
 import { MAX_TIER, PROMOTION_CONFIG, RANKED_CONFIG } from '../domain/leagueConfig'
 import { leagueBadge } from './leagueBadge'
@@ -49,6 +50,8 @@ export interface DashboardActions {
   desk?: boolean
   /** 打開聯盟之路（首頁「下一個目標」卡） */
   openRoad?: () => void
+  /** 傳奇總冠軍賽（到過傳奇才顯示） */
+  championship?: ChampionshipActions
 }
 
 export { teamPower }
@@ -76,6 +79,7 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
   const onboard = onboardingSection(club, state, actions, suggestion.kind)
   const team = teamSection(club, state, actions)
   const league = leagueCard(state, actions)
+  const champ = actions.championship && club && showsChampionship(club) ? championshipCard(club, { busy: state.championshipBusy, canWrite: state.canWrite }, actions.championship) : null
   const rewards = rewardsSection(club, state, actions)
   const recent = recentSection(club, actions)
 
@@ -85,11 +89,13 @@ export function renderDashboard(state: ControllerState, controller: ClubControll
       for (const x of xs) if (x) c.append(x)
       return c
     }
-    page.append(col(live, next, goal), col(team, rewards), col(league, onboard, recent))
+    page.append(col(live, next, goal), col(team, rewards), col(league, champ, onboard, recent))
   } else {
     page.append(live, next, goal)
     if (onboard) page.append(onboard)
-    page.append(team, league, rewards, recent)
+    page.append(team, league)
+    if (champ) page.append(champ)
+    page.append(rewards, recent)
   }
   updateCountdown(page, controller.due(), state, actions.liveCard?.() ?? null)
   return page

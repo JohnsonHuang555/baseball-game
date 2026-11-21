@@ -60,7 +60,7 @@ describe('V8 → V9（純函式）', () => {
   it('其他欄位一個字都不動：球員、資金、經驗、陣容、戰術、比賽、Replay、挑戰序號與紀錄、冷卻、進行中比賽、獎勵紀錄', () => {
     const old = v8()
     const club = migrateToLatest(old)
-    const { schemaVersion, stats: newStats, revision, migratedFrom, league, training: _t, ...rest } = club
+    const { schemaVersion, stats: newStats, revision, migratedFrom, league, training: _t, championship: _ch, ...rest } = club
     expect(newStats).toEqual({ sinceMatch: club.idle.nextMatchIndex, throughMatch: club.idle.nextMatchIndex, players: {} })
     const { schemaVersion: _s, revision: oldRevision, league: oldLeague, ...oldRest } = old
     expect(rest).toEqual(oldRest)

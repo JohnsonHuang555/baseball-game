@@ -11,6 +11,7 @@ import { EconomyError, cancelTraining, recruit, release, startTraining, upgrade,
 import type { CompletedTraining, TrainingKind } from '../domain/traitTraining'
 import type { TraitId } from '../../sim/traits'
 import { LeagueError, challengeNextLeague, type ChallengeOutcome } from '../application/leagueService'
+import { ChampionshipError, playSeriesGame, startSeries, type PlayGameOutcome, type StartSeriesOutcome } from '../application/championshipService'
 import { dueMatches, type DueMatches } from '../application/idleEngine'
 import { SettlementError, claim, settleDue, updateSettings, type SettlementReport } from '../application/settlementService'
 import { markWatchedLive, setOnboarding } from '../application/onboardingService'
@@ -67,6 +68,10 @@ export interface ControllerState {
   challenging: boolean
   /** 最近一次挑戰的結果（畫面顯示結果對話框後清掉） */
   challengeResult: ChallengeOutcome | null
+  /** 正在開始系列賽或打冠軍賽 */
+  championshipBusy: boolean
+  /** 最近一次冠軍賽操作的結果（畫面顯示後清掉）：開始系列賽、或打完一場 */
+  championshipResult: { kind: 'start'; out: StartSeriesOutcome } | { kind: 'game'; out: PlayGameOutcome } | null
   /** 可以重試的錯誤（結算、領取失敗） */
   error: { message: string; retry?: RetryAction } | null
   /** 一次性的提示（顯示後由畫面清掉） */
@@ -99,6 +104,7 @@ export class ClubController {
   private claimFlight: Promise<ActionResult> | null = null
   private spendFlight: Promise<SpendResult> | null = null
   private challengeFlight: Promise<ActionResult> | null = null
+  private championshipFlight: Promise<ActionResult> | null = null
   private createFlight: Promise<ActionResult> | null = null
   private abort: AbortController | null = null
   private disposed = false
@@ -129,6 +135,8 @@ export class ClubController {
       spending: false,
       challenging: false,
       challengeResult: null,
+      championshipBusy: false,
+      championshipResult: null,
       error: null,
       notice: null,
       welcome: null,
@@ -475,6 +483,63 @@ export class ClubController {
       if (this.disposed) return { ok: false }
       return { ok: false, message: this.handleError(e) }
     }
+  }
+
+  /**
+   * 傳奇總冠軍賽：開始系列賽或打下一場。expected 是按鈕「畫面顯示時」的序號（不從最新存檔重新取值），
+   * 別的分頁已經開始或打完這一場時，服務在鎖內拒絕（stale-request），畫面重新讀取。
+   * 每次呼叫產生一個 requestId；連點只會送一次（single flight）。結果放在 state.championshipResult
+   */
+  startChampionship(expected: { seriesSeq: number }): Promise<ActionResult> {
+    return this.championship(async (requestId) => {
+      const out = await startSeries(this.deps, { seriesSeq: expected.seriesSeq, requestId })
+      return { club: out.club, result: { kind: 'start', out } }
+    })
+  }
+
+  playChampionshipGame(expected: { seriesSeq: number; game: number }): Promise<ActionResult> {
+    return this.championship(async (requestId) => {
+      const out = await playSeriesGame(this.deps, { seriesSeq: expected.seriesSeq, game: expected.game, requestId })
+      return { club: out.club, result: { kind: 'game', out } }
+    })
+  }
+
+  dismissChampionshipResult(): void {
+    if (this.current.championshipResult) this.set({ championshipResult: null })
+  }
+
+  private championship(run: (requestId: string) => Promise<{ club: ClubSave; result: NonNullable<ControllerState['championshipResult']> }>): Promise<ActionResult> {
+    if (this.championshipFlight) return this.championshipFlight
+    if (!this.guard.canWrite()) return Promise.resolve({ ok: false, message: V2T.readOnly })
+    this.championshipFlight = (async (): Promise<ActionResult> => {
+      this.set({ championshipBusy: true, error: null })
+      try {
+        const out = await run(newRequestId())
+        if (this.disposed) return { ok: true }
+        this.set({ club: out.club, championshipResult: out.result })
+        return { ok: true }
+      } catch (e) {
+        if (this.disposed) return { ok: false }
+        if (e instanceof ChampionshipError) {
+          if (e.settled) this.set({ club: e.settled.club })
+          if (e.code === 'stale-request' || e.code === 'in-progress' || e.code === 'no-series') {
+            this.reload()
+            return { ok: false, message: e.code === 'in-progress' ? V2T.champInProgress : V2T.champStale }
+          }
+          const msg: Record<string, string> = { 'not-legend': V2T.champNotLegend, 'not-eligible': V2T.champNotReady, cooldown: V2T.champCooldownMsg }
+          return { ok: false, message: msg[e.code] ?? e.message }
+        }
+        if (e instanceof SettlementError && e.code === 'simulation-failed') {
+          this.reload()
+          return { ok: false, message: V2T.champSimFailed }
+        }
+        return { ok: false, message: this.handleError(e) }
+      } finally {
+        this.championshipFlight = null
+        if (!this.disposed) this.set({ championshipBusy: false })
+      }
+    })()
+    return this.championshipFlight
   }
 
   dismissChallengeResult(): void {

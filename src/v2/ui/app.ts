@@ -16,6 +16,7 @@ import { ClubController, type ControllerState } from './clubController'
 import { renderDashboard, updateCountdown } from './dashboardView'
 import { createLineupView, type LineupView } from './lineupView'
 import { challengeResultModal, challengeStartModal, relegationModal } from './leagueView'
+import { championshipConfirmModal, championshipGameDoneModal, championshipResultModal } from './championshipCard'
 import { parseSeen, pendingRelegation } from './relegationNotice'
 import { openMatchReport, renderReports, welcomeModal } from './reportView'
 import { openRecruit } from './recruitView'
@@ -80,6 +81,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
   let shownWelcome: string | null = null
   /** 正在顯示的挑戰結果（序號）：重繪時不重複開對話框，關閉後清掉 */
   let shownChallenge: number | null = null
+  let shownChampionship: string | null = null
   let lineup: LineupView | null = null
   let tactics: TacticsView | null = null
   /** 開著的觀戰畫面（同一時間只有一個） */
@@ -342,6 +344,58 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     }
   }
 
+  /**
+   * 觀看最近一場冠軍賽：結果已經在按下按鈕時確定並存檔，這裡從存檔複製一份 Replay 播出來（不先揭曉）。
+   * onFinished：播完、直接看結果、或中途離開時呼叫
+   */
+  async function watchChampionship(onFinished?: () => void): Promise<void> {
+    const last = controller.state.club?.championship.lastGame
+    if (!last) {
+      toast(V2T.champReplayGone)
+      onFinished?.()
+      return
+    }
+    if (viewer || viewerLoading || closed) return
+    const g = last.game
+    const expected = { userSide: g.userSide, runsFor: g.runsFor, runsAgainst: g.runsAgainst, won: g.won, innings: g.innings }
+    const snapshot = structuredClone(last.replay)
+    viewerLoading = true
+    let finished = false
+    const finish = () => {
+      if (finished) return
+      finished = true
+      onFinished?.()
+    }
+    try {
+      const mod = await import('./replayView')
+      if (closed) return
+      viewer = mod.openMatchViewer({
+        mode: 'challenge',
+        label: V2T.champTitle,
+        replay: snapshot,
+        expected,
+        title: `${V2T.champTitle}・${V2T.champGameDot(g.game)}`,
+        createStage: opts.replayStage,
+        timeScale: opts.replayTimeScale,
+        onFinished: finish,
+        onClose: () => {
+          viewer = null
+          finish()
+          refocusTopDialog()
+        },
+      })
+    } catch {
+      toast(V2T.replayLoadFailed)
+      finish()
+    } finally {
+      viewerLoading = false
+    }
+  }
+
+  const toastFail = (res: { ok: boolean; message?: string }) => {
+    if (!closed && !res.ok && res.message) toast(res.message)
+  }
+
   async function claimWithToast(): Promise<void> {
     const res = await controller.claim()
     if (!closed && res.message) toast(res.message)
@@ -381,6 +435,13 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
             void controller.challenge(expected).then((res) => {
               if (!closed && !res.ok && res.message) toast(res.message)
             }),
+          championship: {
+            start: (expected) => {
+              championshipConfirmModal(() => void controller.startChampionship(expected).then(toastFail), controller)
+            },
+            play: (expected) => void controller.playChampionshipGame(expected).then(toastFail),
+            watch: state.club?.championship.lastGame ? () => void watchChampionship() : null,
+          },
         }),
       )
     } else if (tab === 'lineup') {
@@ -419,6 +480,32 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
         challengeStartModal(result, () => void watchChallenge(reveal), reveal, controller)
       } else reveal()
     }
+    const champ = state.championshipResult
+    if (champ?.kind === 'start') queueMicrotask(() => controller.dismissChampionshipResult())
+    if (champ?.kind === 'game') {
+      const out = champ.out
+      const key = `${out.game.matchId}`
+      if (key !== shownChampionship) {
+        shownChampionship = key
+        const kept = () => controller.state.club?.championship.lastGame?.game.matchId === out.game.matchId
+        const reveal = () => {
+          if (closed) return
+          championshipResultModal(
+            out,
+            out.club,
+            (reason) => {
+              shownChampionship = null
+              if (reason === 'user') controller.dismissChampionshipResult()
+            },
+            kept() ? () => void watchChampionship() : undefined,
+            controller,
+          )
+        }
+        // 結果已經確定並存檔；先問要不要看比賽過程（不先揭曉），不想看就直接看結果
+        if (kept() && !out.duplicate) championshipGameDoneModal(out, () => void watchChampionship(reveal), reveal, controller)
+        else reveal()
+      }
+    }
     if (state.welcome && state.welcome.key !== shownWelcome) {
       shownWelcome = state.welcome.key
       welcomeModal(state.welcome, (reason) => reason === 'user' && controller.dismissWelcome(), controller, (id) => void openPlayerDetail(controller, id))
@@ -426,7 +513,7 @@ export function openV2(root: HTMLElement, opts: V2AppOptions = {}): V2App {
     if (state.status.kind === 'ready' && state.club) {
       notifyDanger(state.club)
       // 通知順序：挑戰結果 → 歡迎回來（離線摘要）→ 降級。前面兩個還開著時先不開降級，關掉後重畫時再開
-      if (!state.challengeResult && !state.welcome) notifyRelegation(state.club)
+      if (!state.challengeResult && !state.championshipResult && !state.welcome) notifyRelegation(state.club)
     }
   }
 
